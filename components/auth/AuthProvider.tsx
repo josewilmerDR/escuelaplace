@@ -40,12 +40,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(getFirebaseAuth(), async (fb) => {
-      setFbUser(fb);
-      setUser(fb ? await ensureUserDoc(fb) : null);
-      setLoading(false);
-    });
-    return unsub;
+    let unsub = () => {};
+    try {
+      unsub = onAuthStateChanged(getFirebaseAuth(), async (fb) => {
+        setFbUser(fb);
+        try {
+          setUser(fb ? await ensureUserDoc(fb) : null);
+        } catch (err) {
+          // A failed user-doc read (rules, connectivity) must not hang the app: surface
+          // it and fall back to "signed out" so RequireAuth can show the login prompt.
+          console.error("ensureUserDoc failed:", err);
+          setUser(null);
+        } finally {
+          setLoading(false);
+        }
+      });
+    } catch (err) {
+      // e.g. auth/invalid-api-key when .env.local is missing or the dev server was
+      // started before it existed. Don't leave the UI stuck on "loading" forever.
+      console.error("Firebase Auth init failed:", err);
+      // Defer so we don't setState synchronously inside the effect body.
+      queueMicrotask(() => setLoading(false));
+    }
+    return () => unsub();
   }, []);
 
   const value = useMemo<AuthState>(
