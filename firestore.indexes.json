@@ -1,0 +1,23 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "schoolId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "ranking.score", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "categories", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "ranking.score", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

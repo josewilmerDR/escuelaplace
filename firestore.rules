@@ -1,12 +1,18 @@
 rules_version = '2';
 
-// Reglas de seguridad de escuelaplace.com
+// Security rules for escuelaplace.com
 //
-// Principios:
-// - Catálogo público: comercios, escuelas y categorías se LEEN sin autenticación (SEO/SSR).
-// - La plataforma NUNCA procesa pagos: no hay colecciones de transacciones.
-// - Compradores ("persona") NO tienen cuenta: no se referencian aquí.
-// - Datos sensibles (SINPE) viven en subcolección privada, accesible SOLO por admin.
+// Principles:
+// - Public catalog: businesses, schools and categories are READ without authentication (SEO/SSR).
+// - The platform NEVER processes payments: there are no transaction collections.
+// - Buyers ("person") have NO account: they are not referenced here.
+// - "Pages" model (Facebook-style): a user account administers one or more pages
+//   (businesses and/or schools). Access control lives on the page doc via ownerId/editorIds.
+// - Schools are self-administered but verification is admin-gated: owners can never set
+//   themselves to 'verified'; only admin writes `verified`/`verificationStatus`.
+// - Sensitive data (SINPE) lives in a private subcollection: readable/writable by the
+//   school's owner/editors and admin. Public visibility of the SINPE is decided by the
+//   data layer based on verificationStatus, not here.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -17,46 +23,85 @@ service cloud.firestore {
     }
 
     function userDoc() {
-      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function isAdmin() {
-      return isSignedIn() && userDoc().rol == 'admin';
+      return isSignedIn() && userDoc().role == 'admin';
     }
 
-    // ── usuarios/{uid} ──────────────────────────────────────────────────────
-    // Cada usuario solo puede leer/escribir su propio documento. Admin puede todo.
-    match /usuarios/{uid} {
+    // True if the signed-in user owns or co-edits a page, given that page's data.
+    function isOwnerOrEditor(data) {
+      return isSignedIn() && (
+        data.ownerId == request.auth.uid ||
+        request.auth.uid in data.get('editorIds', [])
+      );
+    }
+
+    // Data of a school doc by id (used by its private subcollection).
+    function schoolData(id) {
+      return get(/databases/$(database)/documents/schools/$(id)).data;
+    }
+
+    // ── users/{uid} ─────────────────────────────────────────────────────────
+    // Each user can only read/write their own document. Admin can do everything.
+    match /users/{uid} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
       allow create: if isSignedIn() && request.auth.uid == uid;
       allow update, delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
     }
 
-    // ── comercios/{id} ──────────────────────────────────────────────────────
-    // Lectura pública. Escritura: dueño (ownerId) o admin.
-    match /comercios/{id} {
+    // ── businesses/{id} ─────────────────────────────────────────────────────
+    // Public read. Write: owner (ownerId), co-editors (editorIds) or admin.
+    match /businesses/{id} {
       allow read: if true;
       allow create: if isAdmin() ||
         (isSignedIn() && request.resource.data.ownerId == request.auth.uid);
-      allow update, delete: if isAdmin() ||
-        (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      allow update, delete: if isAdmin() || isOwnerOrEditor(resource.data);
     }
 
-    // ── escuelas/{id} ───────────────────────────────────────────────────────
-    // Lectura pública del doc. Escritura del doc público: solo admin (las gestiona admin).
-    match /escuelas/{id} {
+    // ── schools/{id} ────────────────────────────────────────────────────────
+    // Public read of the doc. Self-administered with admin-gated verification:
+    // - create: signed-in user as owner, forced unverified ('pending').
+    // - update: owner/editors, but they may NEVER elevate verification (only admin can).
+    match /schools/{id} {
       allow read: if true;
-      allow write: if isAdmin();
 
-      // Subcolección privada (SINPE y datos sensibles): SOLO admin lee y escribe.
-      match /privado/{docId} {
-        allow read, write: if isAdmin();
+      allow create: if isAdmin() || (
+        isSignedIn() &&
+        request.resource.data.ownerId == request.auth.uid &&
+        request.resource.data.verified == false &&
+        request.resource.data.verificationStatus == 'pending'
+      );
+
+      allow update: if isAdmin() || (
+        isOwnerOrEditor(resource.data) && !grantsVerification()
+      );
+
+      allow delete: if isAdmin() || isOwnerOrEditor(resource.data);
+
+      // Private subcollection (SINPE):
+      // - write: owner/editors of THIS school, or admin.
+      // - read: owner/editors or admin always; plus ANY signed-in user (e.g. a business
+      //   wanting to subscribe) but ONLY when the school is 'verified'. Never anonymous.
+      match /private/{docId} {
+        allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
+        allow read: if isAdmin() || isOwnerOrEditor(schoolData(id)) ||
+          (isSignedIn() && schoolData(id).verificationStatus == 'verified');
       }
     }
 
-    // ── categorias/{id} ─────────────────────────────────────────────────────
-    // Lectura pública. Escritura: solo admin.
-    match /categorias/{id} {
+    // True if this update would elevate the school's verification state. Owners must
+    // not be able to self-verify; only admin may grant 'verified'/verified:true.
+    function grantsVerification() {
+      return (request.resource.data.verified == true && resource.data.verified != true) ||
+        (request.resource.data.verificationStatus == 'verified' &&
+         resource.data.verificationStatus != 'verified');
+    }
+
+    // ── categories/{id} ─────────────────────────────────────────────────────
+    // Public read. Write: admin only.
+    match /categories/{id} {
       allow read: if true;
       allow write: if isAdmin();
     }

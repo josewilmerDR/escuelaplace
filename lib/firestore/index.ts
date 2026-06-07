@@ -1,9 +1,11 @@
 /**
- * Capa de acceso a datos de Firestore. Punto de entrada único:
- *   import { getComercioPorSlug, getEscuelaPorId } from "@/lib/firestore";
+ * Firestore data access layer. Single entry point:
+ *   import { getBusinessBySlug, getSchoolById } from "@/lib/firestore";
  */
-export * from "./comercios";
-export * from "./escuelas";
-export * from "./categorias";
+export * from "./businesses";
+export * from "./schools";
+export * from "./categories";
+export * from "./users";
 export * from "./geo";
 export * from "./converters";
+export * from "./mutations";
