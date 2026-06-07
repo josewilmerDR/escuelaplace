@@ -1,18 +1,35 @@
 /**
- * Inicialización del SDK de Firebase (cliente).
+ * Firebase SDK initialization (client).
  *
- * Se usa el patrón singleton (getApps()) para evitar re-inicializar la app durante
- * el hot-reload de Next.js o en re-renders. La config se toma de variables de entorno
- * NEXT_PUBLIC_* (ver .env.local.example).
+ * Uses the singleton pattern (getApps()) to avoid re-initializing the app during
+ * Next.js hot-reload or on re-renders. Config is read from NEXT_PUBLIC_* environment
+ * variables (see .env.local.example).
  *
- * NOTA SSR: estas instancias son del SDK de cliente. Las páginas públicas se renderizan
- * en servidor leyendo Firestore con este mismo SDK (lecturas públicas permitidas por las
- * reglas). Para operaciones privilegiadas a futuro (cron, admin) usar firebase-admin aparte.
+ * SSR NOTE: these are client SDK instances. Public pages are rendered on the server
+ * reading Firestore with this same SDK (public reads allowed by the rules). For future
+ * privileged operations (cron, admin) use firebase-admin separately.
  */
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getFirestore, type Firestore } from "firebase/firestore";
-import { getAuth, type Auth } from "firebase/auth";
-import { getStorage, type FirebaseStorage } from "firebase/storage";
+import {
+  getFirestore,
+  connectFirestoreEmulator,
+  type Firestore,
+} from "firebase/firestore";
+import { getAuth, connectAuthEmulator, type Auth } from "firebase/auth";
+import {
+  getStorage,
+  connectStorageEmulator,
+  type FirebaseStorage,
+} from "firebase/storage";
+
+/**
+ * When NEXT_PUBLIC_USE_EMULATORS is "true", all SDK instances point to the local
+ * Firebase emulators (firebase.json) instead of the cloud. Hosts default to
+ * 127.0.0.1 with the ports declared in firebase.json. This keeps development
+ * isolated from production data and lets us seed test data freely.
+ */
+const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === "true";
+const EMULATOR_HOST = "127.0.0.1";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -26,16 +43,28 @@ const firebaseConfig = {
 
 const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-// db y storage no validan el apiKey al inicializar: pueden crearse en servidor (SSR).
+// db and storage do not validate the apiKey on init: they can be created on the server (SSR).
 export const db: Firestore = getFirestore(app);
 export const storage: FirebaseStorage = getStorage(app);
 
-// Auth SÍ valida el apiKey al inicializar (lanza auth/invalid-api-key sin config).
-// Se inicializa de forma perezosa para no romper el build/SSR cuando no hay .env.local.
-// Usar getFirebaseAuth() desde componentes de cliente.
+if (useEmulators) {
+  connectFirestoreEmulator(db, EMULATOR_HOST, 8080);
+  connectStorageEmulator(storage, EMULATOR_HOST, 9199);
+}
+
+// Auth DOES validate the apiKey on init (throws auth/invalid-api-key without config).
+// It is initialized lazily so it does not break the build/SSR when there is no .env.local.
+// Use getFirebaseAuth() from client components.
 let _auth: Auth | undefined;
 export function getFirebaseAuth(): Auth {
-  if (!_auth) _auth = getAuth(app);
+  if (!_auth) {
+    _auth = getAuth(app);
+    if (useEmulators) {
+      connectAuthEmulator(_auth, `http://${EMULATOR_HOST}:9099`, {
+        disableWarnings: true,
+      });
+    }
+  }
   return _auth;
 }
 

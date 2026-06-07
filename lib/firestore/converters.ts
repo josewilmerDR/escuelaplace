@@ -1,5 +1,5 @@
 /**
- * Helpers para mapear QuerySnapshot/DocumentSnapshot a tipos `*Doc` (con id incluido).
+ * Helpers to map QuerySnapshot/DocumentSnapshot to `*Doc` types (with id included).
  */
 import type {
   DocumentSnapshot,

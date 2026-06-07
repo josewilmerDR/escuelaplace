@@ -1,172 +1,215 @@
 /**
- * Tipos de las colecciones de Firestore para escuelaplace.com
+ * Firestore collection types for escuelaplace.com
  *
- * Convenciones:
- * - Timestamps tipados como `Timestamp` (firebase/firestore). En componentes de servidor
- *   se serializan a string/number antes de pasar a componentes de cliente.
- * - Denormalización deliberada: campos como `escuelaNombre` o `categoriasNombres` se copian
- *   dentro del documento para evitar lecturas extra al renderizar.
- * - La geo guarda `geopoint` (GeoPoint) + `geohash` (string calculado con geofire-common)
- *   para poder hacer consultas de proximidad por rango de geohash.
- * - Datos sensibles (SINPE de la escuela) NO viven en el doc público: van en la
- *   subcolección privada `escuelas/{id}/privado/datos` (ver `EscuelaPrivado`).
+ * Conventions:
+ * - Timestamps typed as `Timestamp` (firebase/firestore). In server components they
+ *   are serialized to string/number before being passed to client components.
+ * - Deliberate denormalization: fields like `schoolName` or `categoryNames` are copied
+ *   into the document to avoid extra reads when rendering.
+ * - Geo stores `geopoint` (GeoPoint) + `geohash` (string computed with geofire-common)
+ *   so proximity queries by geohash range are possible.
+ * - Sensitive data (the school's SINPE) does NOT live in the public doc: it goes in the
+ *   private subcollection `schools/{id}/private/data` (see `SchoolPrivate`).
  */
 import type { GeoPoint, Timestamp } from "firebase/firestore";
 
-// ── Tipos compartidos ────────────────────────────────────────────────────────
+// ── Shared types ─────────────────────────────────────────────────────────────
 
-export interface Ubicacion {
+export interface Location {
   geopoint: GeoPoint;
   geohash: string;
-  direccion?: string;
-  provincia: string;
+  address?: string;
+  province: string;
   canton: string;
-  distrito: string;
+  district: string;
 }
 
-export interface ContactoComercio {
+export interface BusinessContact {
   whatsapp?: string;
-  telefono?: string;
+  phone?: string;
   email?: string;
   web?: string;
   instagram?: string;
   facebook?: string;
 }
 
-export interface Descuento {
-  activo: boolean;
-  texto: string;
-  porcentaje?: number;
+export interface Discount {
+  active: boolean;
+  text: string;
+  percentage?: number;
 }
 
-export interface Suscripcion {
-  activa: boolean;
+export interface Subscription {
+  active: boolean;
   plan: string;
-  /** Fecha hasta la que la suscripción está vigente. */
-  vigenteHasta: Timestamp | null;
+  /** Date until which the subscription is valid. */
+  validUntil: Timestamp | null;
 }
 
-export interface RankingComercio {
-  /** Score calculado para ordenar comercios dentro de una escuela. */
+export interface BusinessRanking {
+  /** Score computed to order businesses within a school. */
   score: number;
-  /** Monto total donado/aportado (informativo para el ranking). */
-  totalDonado: number;
+  /** Total amount donated/contributed (informational for the ranking). */
+  totalDonated: number;
 }
 
-export interface MetricasComercio {
-  vistas: number;
-  interacciones: number;
+export interface BusinessMetrics {
+  views: number;
+  interactions: number;
 }
 
-export type EstadoComercio = "borrador" | "pendiente" | "activo" | "suspendido";
-export type EstadoEscuela = "pendiente" | "activa" | "inactiva";
+export type BusinessStatus = "draft" | "pending" | "active" | "suspended";
+export type SchoolStatus = "pending" | "active" | "inactive";
 
-// ── comercios/{id} ───────────────────────────────────────────────────────────
+/**
+ * Verification lifecycle for schools. Schools are self-administered (anyone signed in
+ * can create one), so sensitive data must be admin-vetted:
+ * - `pending`: just created, never verified. SINPE hidden, "unverified" banner shown.
+ * - `verified`: admin approved. SINPE visible to businesses wanting to subscribe.
+ * - `needs_reverification`: owner edited a sensitive field (name or SINPE) after being
+ *   verified. SINPE is hidden again and the banner reappears until admin re-approves.
+ * Only admin may write this field (the owner cannot self-verify; see firestore.rules).
+ */
+export type SchoolVerificationStatus =
+  | "pending"
+  | "verified"
+  | "needs_reverification";
 
-export interface Comercio {
-  nombre: string;
+// ── businesses/{id} ──────────────────────────────────────────────────────────
+
+export interface Business {
+  name: string;
   slug: string;
-  descripcion: string;
-  categorias: string[]; // ids de categorias
-  categoriasNombres: string[]; // denormalizado para render sin lecturas extra
-  ubicacion: Ubicacion;
-  escuelaId: string;
-  escuelaNombre: string; // denormalizado
-  contacto: ContactoComercio;
-  descuento: Descuento;
+  description: string;
+  categories: string[]; // category ids
+  categoryNames: string[]; // denormalized for rendering without extra reads
+  location: Location;
+  schoolId: string;
+  schoolName: string; // denormalized
+  contact: BusinessContact;
+  discount: Discount;
   logoUrl?: string;
-  fotos: string[];
-  horario?: string;
-  estado: EstadoComercio;
-  verificado: boolean;
-  suscripcion: Suscripcion;
-  ranking: RankingComercio;
-  metricas: MetricasComercio;
-  ownerId: string; // uid del usuario dueño (rol 'comercio')
+  photos: string[];
+  hours?: string;
+  status: BusinessStatus;
+  verified: boolean;
+  subscription: Subscription;
+  ranking: BusinessRanking;
+  metrics: BusinessMetrics;
+  ownerId: string; // uid of the owner user who administers this business page
+  /** uids of co-administrators allowed to edit the page (optional). */
+  editorIds?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
 
-/** Comercio con su id de documento incluido (lo que devuelve la capa de datos). */
-export type ComercioDoc = Comercio & { id: string };
+/** Business with its document id included (what the data layer returns). */
+export type BusinessDoc = Business & { id: string };
 
-// ── escuelas/{id} ────────────────────────────────────────────────────────────
+// ── schools/{id} ─────────────────────────────────────────────────────────────
 
-export interface JuntaContacto {
-  nombre: string;
-  telefono?: string;
+export interface BoardContact {
+  name: string;
+  phone?: string;
   email?: string;
 }
 
-export interface MetricasEscuela {
-  comerciosApoyan: number;
+export interface SchoolMetrics {
+  supportingBusinesses: number;
 }
 
-export interface Escuela {
-  nombre: string;
-  codigoMEP: string;
-  descripcion: string;
-  mensajeAgradecimiento: string;
-  ubicacion: Omit<Ubicacion, "direccion">;
-  fotoUrl?: string;
-  juntaContacto: JuntaContacto;
-  estado: EstadoEscuela;
-  verificada: boolean;
-  metricas: MetricasEscuela;
+export interface School {
+  name: string;
+  mepCode: string;
+  description: string;
+  thankYouMessage: string;
+  location: Omit<Location, "address">;
+  photoUrl?: string;
+  boardContact: BoardContact;
+  status: SchoolStatus;
+  verified: boolean;
+  /**
+   * Verification lifecycle (see SchoolVerificationStatus). Drives whether the SINPE is
+   * exposed publicly and whether the "unverified data" banner is shown. Admin-only write.
+   */
+  verificationStatus: SchoolVerificationStatus;
+  metrics: SchoolMetrics;
+  /** uid of the user who administers this school page (the board). */
+  ownerId: string;
+  /** uids of co-administrators allowed to edit the page (optional). */
+  editorIds?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
 
-export type EscuelaDoc = Escuela & { id: string };
+export type SchoolDoc = School & { id: string };
 
 /**
- * Subcolección privada: escuelas/{id}/privado/datos
- * Datos sensibles. SOLO admin puede leer/escribir (ver firestore.rules).
- * JAMÁS se incluye en el documento público de la escuela.
+ * Private subcollection: schools/{id}/private/data
+ * Sensitive data. ONLY admin can read/write (see firestore.rules).
+ * NEVER included in the public school document.
  */
-export interface EscuelaPrivado {
+export interface SchoolPrivate {
   sinpe: {
-    numero: string;
-    nombreTitular: string;
+    number: string;
+    accountHolder: string;
   };
 }
 
-// ── usuarios/{uid} ───────────────────────────────────────────────────────────
+// ── users/{uid} ──────────────────────────────────────────────────────────────
 
-export type RolUsuario = "comercio" | "junta" | "admin";
+/**
+ * Global account role. Only distinguishes `admin` from regular users; the role a user
+ * holds *on a specific page* lives in `managedPages[].role`, not here.
+ */
+export type UserRole = "user" | "admin";
 
-export interface Usuario {
-  nombre: string;
+export type PageType = "business" | "school";
+export type PageRole = "owner" | "editor";
+
+/**
+ * A page (business or school) administered by a user, Facebook-style. A single account
+ * may manage several pages of either type. Used by the panel to list what the user can
+ * edit; access control itself is enforced on the page doc (ownerId/editorIds), not here.
+ */
+export interface ManagedPage {
+  type: PageType;
+  id: string;
+  role: PageRole;
+}
+
+export interface User {
+  name: string;
   email: string;
-  telefono?: string;
-  rol: RolUsuario;
-  comercioIds: string[];
-  escuelaId?: string;
+  phone?: string;
+  role: UserRole;
+  /** Pages (businesses and/or schools) this account administers. */
+  managedPages: ManagedPage[];
   createdAt: Timestamp;
 }
 
-export type UsuarioDoc = Usuario & { id: string };
+export type UserDoc = User & { id: string };
 
-// ── categorias/{id} ──────────────────────────────────────────────────────────
+// ── categories/{id} ──────────────────────────────────────────────────────────
 
-export interface Categoria {
-  nombre: string;
-  icono: string;
-  orden: number;
-  comerciosCount: number;
+export interface Category {
+  name: string;
+  icon: string;
+  order: number;
+  businessCount: number;
 }
 
-export type CategoriaDoc = Categoria & { id: string };
+export type CategoryDoc = Category & { id: string };
 
-// ── Estado del comprador (NO Firestore) ──────────────────────────────────────
+// ── Buyer state (NOT Firestore) ──────────────────────────────────────────────
 
 /**
- * La "Persona" (comprador) NO tiene cuenta ni documento en Firestore.
- * Su escuela elegida y ubicación viven SOLO en localStorage. Este tipo documenta
- * la forma de esos datos del lado cliente.
+ * The "buyer" (person) has NO account or Firestore document.
+ * Their chosen school and location live ONLY in localStorage. This type documents
+ * the shape of that client-side data.
  */
-export interface PreferenciasComprador {
-  escuelaId?: string;
-  escuelaNombre?: string;
-  ubicacion?: { lat: number; lng: number };
+export interface BuyerPreferences {
+  schoolId?: string;
+  schoolName?: string;
+  location?: { lat: number; lng: number };
 }

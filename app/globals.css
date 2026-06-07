@@ -24,3 +24,8 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Shared form control style used by the panel creation forms. */
+.input {
+  @apply rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black;
+}

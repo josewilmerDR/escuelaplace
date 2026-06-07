@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// Storage rules for escuelaplace.com
+//
+// Principles (mirror firestore.rules):
+// - Public read: logos and photos of businesses/schools are part of the public catalog.
+// - Writes are restricted to authenticated users; fine-grained ownership is enforced at
+//   the Firestore level (a business doc references its assets). Keep paths namespaced.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Business assets: businesses/{businessId}/...
+    match /businesses/{businessId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // School assets: schools/{schoolId}/...
+    match /schools/{schoolId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+  }
+}
