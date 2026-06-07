@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// Reglas de seguridad de escuelaplace.com
+//
+// Principios:
+// - Catálogo público: comercios, escuelas y categorías se LEEN sin autenticación (SEO/SSR).
+// - La plataforma NUNCA procesa pagos: no hay colecciones de transacciones.
+// - Compradores ("persona") NO tienen cuenta: no se referencian aquí.
+// - Datos sensibles (SINPE) viven en subcolección privada, accesible SOLO por admin.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userDoc().rol == 'admin';
+    }
+
+    // ── usuarios/{uid} ──────────────────────────────────────────────────────
+    // Cada usuario solo puede leer/escribir su propio documento. Admin puede todo.
+    match /usuarios/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update, delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+    }
+
+    // ── comercios/{id} ──────────────────────────────────────────────────────
+    // Lectura pública. Escritura: dueño (ownerId) o admin.
+    match /comercios/{id} {
+      allow read: if true;
+      allow create: if isAdmin() ||
+        (isSignedIn() && request.resource.data.ownerId == request.auth.uid);
+      allow update, delete: if isAdmin() ||
+        (isSignedIn() && resource.data.ownerId == request.auth.uid);
+    }
+
+    // ── escuelas/{id} ───────────────────────────────────────────────────────
+    // Lectura pública del doc. Escritura del doc público: solo admin (las gestiona admin).
+    match /escuelas/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      // Subcolección privada (SINPE y datos sensibles): SOLO admin lee y escribe.
+      match /privado/{docId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    // ── categorias/{id} ─────────────────────────────────────────────────────
+    // Lectura pública. Escritura: solo admin.
+    match /categorias/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
