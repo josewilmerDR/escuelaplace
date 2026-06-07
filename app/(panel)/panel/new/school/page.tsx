@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { createSchoolPage } from "@/lib/firestore";
+import { LocationPicker, type LatLng } from "@/components/maps/LocationPicker";
 
 export default function NewSchoolPage() {
   const { user } = useAuth();
@@ -23,8 +24,7 @@ export default function NewSchoolPage() {
   const [province, setProvince] = useState("");
   const [canton, setCanton] = useState("");
   const [district, setDistrict] = useState("");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
+  const [coords, setCoords] = useState<LatLng | null>(null);
   const [boardName, setBoardName] = useState("");
   const [boardPhone, setBoardPhone] = useState("");
   const [sinpeNumber, setSinpeNumber] = useState("");
@@ -33,6 +33,10 @@ export default function NewSchoolPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!coords) {
+      setError("Elegí la ubicación en el mapa.");
+      return;
+    }
     setError(null);
     setSaving(true);
     try {
@@ -42,8 +46,8 @@ export default function NewSchoolPage() {
         mepCode,
         description,
         location: {
-          lat: Number(lat),
-          lng: Number(lng),
+          lat: coords.lat,
+          lng: coords.lng,
           province,
           canton,
           district,
@@ -93,13 +97,9 @@ export default function NewSchoolPage() {
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Latitud">
-            <input required type="number" step="any" value={lat} onChange={(e) => setLat(e.target.value)} className="input" />
-          </Field>
-          <Field label="Longitud">
-            <input required type="number" step="any" value={lng} onChange={(e) => setLng(e.target.value)} className="input" />
-          </Field>
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Ubicación en el mapa</span>
+          <LocationPicker value={coords} onChange={setCoords} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
