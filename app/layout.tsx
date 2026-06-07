@@ -33,7 +33,10 @@ export default function RootLayout({
       lang="es-CR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      {/* suppressHydrationWarning: browser extensions (e.g. ColorZilla's
+          cz-shortcut-listen) add attributes to <body> before hydration, which would
+          otherwise log a hydration mismatch. Scoped to this node's attributes only. */}
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
