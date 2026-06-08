@@ -37,6 +37,22 @@ export interface RankingWeights {
   halfLifeDays: number;
 }
 
+/**
+ * Calibrated defaults — the "Balanceado" profile.
+ *
+ * Chosen so support clearly leads but a strongly-reviewed non-supporter can still edge out
+ * a *very weak* supporter (the mission rewards support without burying good local
+ * businesses that haven't subscribed yet). For a fresh canonical scenario (R = 1):
+ *   strong community (8u, Q.5) 1.95 > strong general (10u, Q.9) 1.67 >
+ *   excellent non-supporter (Q1) 1.30 > weak community (1u, Q.3) 1.19 > basic (Q0) 1.00
+ * locked in by ranking-calibration.test.ts.
+ *
+ * Knobs: `bc/bi` set community-vs-general separation; `saturationUnits` how fast support
+ * maxes out (10 units ≈ ₡50k/period for full signal); `halfLifeDays` how fast it decays.
+ * NOTE: quality Q is not implemented yet (no reviews) so `bq` is currently dormant — it
+ * only affects ordering once reviews land. Keep this IN SYNC with functions/src/ranking.ts
+ * (the drift guard in ranking-calibration.test.ts fails if they diverge).
+ */
 export const DEFAULT_RANKING_WEIGHTS: RankingWeights = {
   bc: 1.0,
   bi: 0.4,
