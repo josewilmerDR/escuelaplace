@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * Explore feed with progressive personalization.
+ * Mission-aware feed with progressive personalization, for both modes:
+ * - Explore (no `relevanceById`): R = 1 for all; order is community → general → none.
+ * - Search (`relevanceById` provided): relevance gates the set, then mission orders it.
  *
- * The server renders `initial` already ordered by the stored baseline `ranking.score`
- * (mission-general, good for SEO and first paint). After mount we read the buyer's
- * community from localStorage, resolve it (chosen school + nearby schools), and re-rank
- * client-side so businesses supporting THE BUYER'S community rise, with per-tier badges.
- * If no community is known, the order stays at the baseline (and we invite the buyer to
- * set their location).
+ * The server renders `initial` already in the baseline order (stored `ranking.score`,
+ * community-agnostic) for SEO/first paint. After mount we read the buyer's community from
+ * localStorage and re-rank client-side, surfacing local supporters and showing per-tier
+ * badges. With no community known, the order stays at the SSR baseline.
  */
 import { useEffect, useMemo, useState } from "react";
 import { BusinessCard } from "@/components/business/BusinessCard";
@@ -20,7 +20,14 @@ import {
 } from "@/lib/firestore";
 import type { BusinessCardData } from "@/types";
 
-export function ExploreFeed({ initial }: { initial: BusinessCardData[] }) {
+export function RankedFeed({
+  initial,
+  relevanceById,
+}: {
+  initial: BusinessCardData[];
+  /** Relevance R per business id (search mode). Omit for explore mode. */
+  relevanceById?: Record<string, number>;
+}) {
   const { prefs, ready } = useBuyerPreferences();
   const [ranked, setRanked] = useState<RankedBusiness<BusinessCardData>[] | null>(
     null,
@@ -38,7 +45,10 @@ export function ExploreFeed({ initial }: { initial: BusinessCardData[] }) {
           schoolId: prefs.schoolId,
           location: prefs.location,
         });
-        const result = await rankBusinessFeed(initial, { communitySchoolIds });
+        const result = await rankBusinessFeed(initial, {
+          communitySchoolIds,
+          relevanceById,
+        });
         if (!cancelled) setRanked(result);
       } catch {
         // Re-rank is best-effort; on failure we keep the baseline order.
@@ -48,7 +58,7 @@ export function ExploreFeed({ initial }: { initial: BusinessCardData[] }) {
     return () => {
       cancelled = true;
     };
-  }, [ready, hasCommunity, initial, prefs.schoolId, prefs.location]);
+  }, [ready, hasCommunity, initial, relevanceById, prefs.schoolId, prefs.location]);
 
   // Baseline (server order) until the personalized re-rank resolves.
   const cards = useMemo(
