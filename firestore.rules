@@ -43,6 +43,11 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/schools/$(id)).data;
     }
 
+    // Data of a business doc by id (used by subscriptions).
+    function businessData(id) {
+      return get(/databases/$(database)/documents/businesses/$(id)).data;
+    }
+
     // ── users/{uid} ─────────────────────────────────────────────────────────
     // Each user can only read/write their own document. Admin can do everything.
     match /users/{uid} {
@@ -104,6 +109,42 @@ service cloud.firestore {
     match /categories/{id} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // ── subscriptions/{id} ────────────────────────────────────────────────────
+    // First-class support relationship: a business subscribes to a school.
+    // - read: public. Confirmed support is public info (badge/ranking, rendered SSR).
+    //   `proofRef` is a plain reference string, never sensitive payment payload.
+    // - create: a business owner/editor (or admin) creates it forced to 'pending';
+    //   the business can never start a subscription already confirmed.
+    // - update: the business owner/editor may edit their own subscription but may NEVER
+    //   self-confirm (move confirmation forward); only the TARGET school's owner/editors
+    //   or admin may confirm/expire.
+    // - delete: the business owner/editor or admin.
+    match /subscriptions/{id} {
+      allow read: if true;
+
+      allow create: if isAdmin() || (
+        isSignedIn() &&
+        isOwnerOrEditor(businessData(request.resource.data.businessId)) &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.confirmedAt == null
+      );
+
+      allow update: if isAdmin() ||
+        isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
+        (isOwnerOrEditor(businessData(resource.data.businessId)) && !changesConfirmation());
+
+      allow delete: if isAdmin() ||
+        isOwnerOrEditor(businessData(resource.data.businessId));
+    }
+
+    // True if this update would alter the confirmation state. The business side must not
+    // be able to self-confirm; only the school/admin may touch these fields.
+    function changesConfirmation() {
+      return request.resource.data.status != resource.data.status ||
+        request.resource.data.confirmedAt != resource.data.confirmedAt ||
+        request.resource.data.expiresAt != resource.data.expiresAt;
     }
   }
 }

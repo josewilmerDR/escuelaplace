@@ -1,0 +1,82 @@
+"use client";
+
+/**
+ * Buyer ("person") preferences. The buyer has NO account and NO Firestore document: their
+ * chosen school and location live ONLY in localStorage (see CLAUDE.md). This module is the
+ * single read/write point for that client-side state, used to personalize the feed ranking.
+ *
+ * Reads go through `useSyncExternalStore` so SSR yields an empty snapshot (no hydration
+ * mismatch) and same-tab writes re-render subscribers (the native `storage` event only
+ * fires in OTHER tabs, so writes also dispatch a custom event).
+ */
+import { useCallback, useSyncExternalStore } from "react";
+import type { BuyerPreferences } from "@/types";
+
+const STORAGE_KEY = "escuelaplace.buyer";
+const CHANGE_EVENT = "escuelaplace.buyer.change";
+const EMPTY: BuyerPreferences = {};
+
+// Cache so getSnapshot returns a stable reference while the raw string is unchanged
+// (useSyncExternalStore loops forever if getSnapshot returns a new object every call).
+let cache: { raw: string | null; value: BuyerPreferences } = {
+  raw: null,
+  value: EMPTY,
+};
+
+/** Read preferences from localStorage. Returns {} on the server or if absent/corrupt. */
+export function readBuyerPreferences(): BuyerPreferences {
+  if (typeof window === "undefined") return EMPTY;
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (raw === cache.raw) return cache.value;
+  let value: BuyerPreferences = EMPTY;
+  try {
+    if (raw) value = JSON.parse(raw) as BuyerPreferences;
+  } catch {
+    value = EMPTY;
+  }
+  cache = { raw, value };
+  return value;
+}
+
+/** Persist preferences to localStorage and notify same-tab subscribers. */
+export function writeBuyerPreferences(prefs: BuyerPreferences): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+    window.dispatchEvent(new Event(CHANGE_EVENT));
+  } catch {
+    // storage full / disabled — preferences are best-effort, ignore.
+  }
+}
+
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener(CHANGE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(CHANGE_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+/**
+ * Hook over buyer preferences. `ready` is false during SSR/first paint and true once
+ * mounted on the client, so callers can defer "no community" UI until localStorage is read.
+ */
+export function useBuyerPreferences() {
+  const prefs = useSyncExternalStore(
+    subscribe,
+    readBuyerPreferences,
+    () => EMPTY,
+  );
+  const ready = useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false,
+  );
+
+  const update = useCallback((next: BuyerPreferences) => {
+    writeBuyerPreferences(next);
+  }, []);
+
+  return { prefs, ready, update };
+}

@@ -23,10 +23,11 @@ import {
   type Geopoint,
 } from "geofire-common";
 import { db } from "@/lib/firebase";
-import type { Business, BusinessDoc } from "@/types";
+import type { Business, BusinessDoc, School } from "@/types";
 import { snapToList } from "./converters";
 
 const BUSINESSES = "businesses";
+const SCHOOLS = "schools";
 
 export interface NearbyBusiness extends BusinessDoc {
   /** Distance to the search center, in kilometers. */
@@ -72,4 +73,42 @@ export async function getNearbyBusinesses(
   }
 
   return results.sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
+/**
+ * Ids of schools within `radiusKm` of a point. Used to resolve the buyer's "community"
+ * (the institutions near them) so the feed can boost businesses that support them. Same
+ * geohash-bounds + distance-filter pattern as `getNearbyBusinesses`.
+ */
+export async function getNearbySchoolIds(
+  center: Geopoint,
+  radiusKm = 5,
+): Promise<string[]> {
+  const radiusM = radiusKm * 1000;
+  const bounds = geohashQueryBounds(center, radiusM);
+
+  const snaps = await Promise.all(
+    bounds.map((b) =>
+      getDocs(
+        query(
+          collection(db, SCHOOLS),
+          orderBy("location.geohash"),
+          startAt(b[0]),
+          endAt(b[1]),
+        ),
+      ),
+    ),
+  );
+
+  const ids: string[] = [];
+  for (const snap of snaps) {
+    for (const s of snapToList<School>(snap)) {
+      const gp = s.location?.geopoint;
+      if (!gp) continue;
+      if (distanceBetween([gp.latitude, gp.longitude], center) * 1000 <= radiusM) {
+        ids.push(s.id);
+      }
+    }
+  }
+  return ids;
 }

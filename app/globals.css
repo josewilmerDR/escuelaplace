@@ -1,31 +1,47 @@
 @import "tailwindcss";
 
+/**
+ * Design tokens. Brand is "celeste vivo" (sky) + white, an education-friendly
+ * palette. Brand color lives in the top bar and the search button (encuentra24
+ * style). UI copy is Spanish; identifiers/comments are English.
+ */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a; /* slate-900 */
+
+  /* Brand scale (sky). --brand is the primary; -dark for hover/active. */
+  --brand: #0ea5e9; /* sky-500 */
+  --brand-dark: #0284c7; /* sky-600 */
+  --brand-darker: #0369a1; /* sky-700 */
+  --brand-tint: #e0f2fe; /* sky-100 — soft fills/badges */
+
+  /* Neutral surfaces */
+  --surface: #f8fafc; /* slate-50 */
+  --border: #e2e8f0; /* slate-200 */
+  --muted: #64748b; /* slate-500 */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-darker: var(--brand-darker);
+  --color-brand-tint: var(--brand-tint);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
 /* Shared form control style used by the panel creation forms. */
 .input {
-  @apply rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black;
+  @apply rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand;
 }

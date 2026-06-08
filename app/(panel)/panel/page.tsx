@@ -90,6 +90,22 @@ function PageCard({ page }: { page: ResolvedPage }) {
         <Link href={href} className="underline">
           Ver página pública
         </Link>
+        {page.type === "business" && (
+          <Link
+            href={`/panel/business/${page.doc.id}/subscribe`}
+            className="underline"
+          >
+            Apoyar una escuela
+          </Link>
+        )}
+        {page.type === "school" && (
+          <Link
+            href={`/panel/school/${page.doc.id}/subscriptions`}
+            className="underline"
+          >
+            Confirmar apoyos
+          </Link>
+        )}
       </div>
     </li>
   );
