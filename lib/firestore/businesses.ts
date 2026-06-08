@@ -68,3 +68,18 @@ export async function getBusinessesByCategory(
   );
   return snapToList<Business>(await getDocs(q));
 }
+
+/**
+ * Top active businesses ordered by the stored baseline `ranking.score` (desc). This is
+ * the SSR/SEO order for the explore feed; the client re-ranks it per the buyer's
+ * community on top of this baseline (see `rankBusinessFeed`).
+ */
+export async function getTopBusinesses(max = 24): Promise<BusinessDoc[]> {
+  const q = query(
+    collection(db, BUSINESSES),
+    where("status", "==", "active"),
+    orderBy("ranking.score", "desc"),
+    fbLimit(max),
+  );
+  return snapToList<Business>(await getDocs(q));
+}

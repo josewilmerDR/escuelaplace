@@ -17,6 +17,22 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "ranking.score", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "subscriptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "ranking.score", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

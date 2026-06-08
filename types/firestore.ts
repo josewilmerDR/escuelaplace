@@ -39,10 +39,15 @@ export interface Discount {
   percentage?: number;
 }
 
-export interface Subscription {
+/**
+ * Platform plan summary embedded in the business doc. This is NOT the support
+ * relationship with a school (see the first-class `Subscription` entity below); it is a
+ * lightweight per-business flag. Kept for backward compatibility with existing docs.
+ */
+export interface BusinessPlan {
   active: boolean;
   plan: string;
-  /** Date until which the subscription is valid. */
+  /** Date until which the plan is valid. */
   validUntil: Timestamp | null;
 }
 
@@ -93,7 +98,7 @@ export interface Business {
   hours?: string;
   status: BusinessStatus;
   verified: boolean;
-  subscription: Subscription;
+  subscription: BusinessPlan;
   ranking: BusinessRanking;
   metrics: BusinessMetrics;
   ownerId: string; // uid of the owner user who administers this business page
@@ -105,6 +110,26 @@ export interface Business {
 
 /** Business with its document id included (what the data layer returns). */
 export type BusinessDoc = Business & { id: string };
+
+/**
+ * Plain, JSON-serializable subset of a business for rendering cards. Server components map
+ * `BusinessDoc` to this (dropping non-serializable Timestamp/GeoPoint values) before
+ * handing it to client components for the progressive re-rank. `ranking.score` is kept so
+ * the client re-rank can tie-break by the stored baseline.
+ */
+export interface BusinessCardData {
+  id: string;
+  name: string;
+  slug: string;
+  schoolId: string;
+  schoolName: string;
+  categoryNames: string[];
+  logoUrl?: string;
+  /** First photo, if any. */
+  photo?: string;
+  discount?: Discount;
+  ranking: { score: number };
+}
 
 // ── schools/{id} ─────────────────────────────────────────────────────────────
 
@@ -200,6 +225,84 @@ export interface Category {
 }
 
 export type CategoryDoc = Category & { id: string };
+
+// ── subscriptions/{id} ───────────────────────────────────────────────────────
+
+/**
+ * Base monetary unit (in CRC) for a subscription. The amount a business commits is an
+ * integer multiple of this unit (`units`); that integer feeds the support magnitude in
+ * the ranking score. ~₡5.000 ≈ US$10. The platform NEVER processes this money — the
+ * business pays the school directly via SINPE; this entity only records the relationship.
+ */
+export const SUBSCRIPTION_UNIT_CRC = 5000;
+
+/**
+ * How many days a single confirmation stays valid before it must be renewed. A
+ * subscription is recurring but the platform never sees renewals, so confirmation is
+ * time-boxed: after this window the support stops counting unless re-confirmed.
+ */
+export const SUBSCRIPTION_CONFIRMATION_DAYS = 90;
+
+/**
+ * Window before `expiresAt` during which a confirmed subscription is considered
+ * `expiring` (a renewal nudge). It still counts toward the ranking.
+ */
+export const SUBSCRIPTION_EXPIRING_WINDOW_DAYS = 14;
+
+/**
+ * Subscription lifecycle. A subscription is recurring but the platform never sees the
+ * money, so confirmation is time-boxed and decays if not renewed (see `expiresAt`):
+ * - `pending`: business committed/uploaded a proof; the school has not confirmed yet.
+ *   Does NOT count toward the ranking.
+ * - `confirmed`: the school confirmed the SINPE proof matches. Counts toward the ranking
+ *   until `expiresAt`.
+ * - `expiring`: confirmed but close to `expiresAt` (renewal nudge); still counts.
+ * - `expired`: `expiresAt` passed without renewal. No longer counts.
+ * Only the target school's owner/editors or admin may move a subscription into
+ * `confirmed` (the business can never self-confirm; see firestore.rules).
+ */
+export type SubscriptionStatus =
+  | "pending"
+  | "confirmed"
+  | "expiring"
+  | "expired";
+
+/**
+ * First-class support relationship: a business subscribes to (supports) a school via a
+ * recurring SINPE payment. Summing a business's `confirmed` subscriptions reconstructs
+ * the ranking signals C (community institutions) and I (institutions in general); the
+ * `status`/`expiresAt` pair drives time decay. The day the platform decides to mediate
+ * payments, the money flow can be layered on top of this same schema.
+ */
+export interface Subscription {
+  businessId: string;
+  /** Denormalized so the school's confirmation UI renders without extra reads. */
+  businessName: string;
+  schoolId: string;
+  /** Denormalized so a business's support list renders without extra reads. */
+  schoolName: string;
+  /** Integer n in `n × SUBSCRIPTION_UNIT_CRC`. Feeds the support magnitude. */
+  units: number;
+  /** Denormalized convenience: `units * SUBSCRIPTION_UNIT_CRC` (CRC). */
+  amount: number;
+  status: SubscriptionStatus;
+  /** Set by the school/admin when the proof is confirmed; null while pending. */
+  confirmedAt: Timestamp | null;
+  /** When the confirmation lapses if not renewed; null while pending. */
+  expiresAt: Timestamp | null;
+  /** uid of the school owner/editor or admin who confirmed. */
+  confirmedBy?: string;
+  /**
+   * Optional reference to the SINPE proof (e.g. a transfer reference number or a Storage
+   * path). Public-readable like the rest of this doc — keep it a plain reference, not
+   * sensitive payment payload.
+   */
+  proofRef?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type SubscriptionDoc = Subscription & { id: string };
 
 // ── Buyer state (NOT Firestore) ──────────────────────────────────────────────
 

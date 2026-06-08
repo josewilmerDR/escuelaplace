@@ -9,6 +9,7 @@
  */
 import {
   GeoPoint,
+  Timestamp,
   addDoc,
   arrayUnion,
   collection,
@@ -19,6 +20,10 @@ import {
 } from "firebase/firestore";
 import { geohashForLocation } from "geofire-common";
 import { db } from "@/lib/firebase";
+import {
+  SUBSCRIPTION_CONFIRMATION_DAYS,
+  SUBSCRIPTION_UNIT_CRC,
+} from "@/types";
 import type {
   BusinessContact,
   School,
@@ -28,6 +33,8 @@ import type {
 const SCHOOLS = "schools";
 const BUSINESSES = "businesses";
 const USERS = "users";
+const SUBSCRIPTIONS = "subscriptions";
+const DAY_MS = 86_400_000;
 
 /** A URL-safe slug from a display name (used for business public URLs). */
 function slugify(name: string): string {
@@ -217,4 +224,77 @@ export async function createSchoolPage(
 
   await linkPageToUser(uid, "school", ref.id);
   return ref.id;
+}
+
+// ── Subscriptions (support relationship) ─────────────────────────────────────
+// A business subscribes to (commits to support) a school. The business creates it as
+// `pending`; ONLY the target school's board (owner/editors) or admin confirms it (the
+// business can never self-confirm — see firestore.rules). Confirmation is time-boxed
+// (`expiresAt`) and must be renewed, which keeps the ranking from going stale.
+
+export interface CreateSubscriptionInput {
+  businessId: string;
+  businessName: string; // denormalized
+  schoolId: string;
+  schoolName: string; // denormalized
+  /** Integer n in `n × SUBSCRIPTION_UNIT_CRC`. */
+  units: number;
+  /** Optional reference to the SINPE proof (plain reference string, not payment payload). */
+  proofRef?: string;
+}
+
+/**
+ * Create a `pending` subscription. Must be called by the business owner/editor (the rules
+ * enforce it). `amount` is denormalized from `units`. Returns the new id.
+ */
+export async function createSubscription(
+  input: CreateSubscriptionInput,
+): Promise<string> {
+  const ref = await addDoc(collection(db, SUBSCRIPTIONS), {
+    businessId: input.businessId,
+    businessName: input.businessName,
+    schoolId: input.schoolId,
+    schoolName: input.schoolName,
+    units: input.units,
+    amount: input.units * SUBSCRIPTION_UNIT_CRC,
+    status: "pending",
+    confirmedAt: null,
+    expiresAt: null,
+    ...(input.proofRef ? { proofRef: input.proofRef } : {}),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+/**
+ * Confirm (or renew) a subscription. Must be called by the school's board (owner/editors)
+ * or admin. Sets it to `confirmed`, stamps `confirmedAt`/`confirmedBy`, and sets
+ * `expiresAt` `durationDays` from now (computed client-side since serverTimestamp can't be
+ * offset). Renewing simply re-confirms and pushes `expiresAt` forward.
+ */
+export async function confirmSubscription(
+  id: string,
+  confirmedBy: string,
+  durationDays: number = SUBSCRIPTION_CONFIRMATION_DAYS,
+): Promise<void> {
+  await updateDoc(doc(db, SUBSCRIPTIONS, id), {
+    status: "confirmed",
+    confirmedAt: serverTimestamp(),
+    confirmedBy,
+    expiresAt: Timestamp.fromMillis(Date.now() + durationDays * DAY_MS),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Mark a subscription `expired` (no renewal). Intended for the school/admin or a future
+ * scheduled job; until then the ranking treats a lapsed `expiresAt` as non-counting
+ * regardless of stored status (see `isCountingSubscription`).
+ */
+export async function expireSubscription(id: string): Promise<void> {
+  await updateDoc(doc(db, SUBSCRIPTIONS, id), {
+    status: "expired",
+    updatedAt: serverTimestamp(),
+  });
 }
