@@ -11,9 +11,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function SearchBar({ autoFocus = false }: { autoFocus?: boolean }) {
+export function SearchBar({
+  autoFocus = false,
+  initialQuery = "",
+}: {
+  autoFocus?: boolean;
+  initialQuery?: string;
+}) {
   const router = useRouter();
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
-import { ExploreFeed } from "@/components/feed/ExploreFeed";
+import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SearchBar } from "@/components/search/SearchBar";
 import { getTopBusinesses, toBusinessCardData } from "@/lib/firestore";
@@ -110,7 +110,7 @@ export default async function HomePage() {
             Comercios que apoyan
           </h2>
           <CommunityPicker />
-          <ExploreFeed initial={cards} />
+          <RankedFeed initial={cards} />
         </section>
       )}
     </>
