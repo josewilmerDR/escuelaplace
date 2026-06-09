@@ -20,6 +20,7 @@ import {
   DEFAULT_RANKING_WEIGHTS,
   type RankingWeights,
   computeSupportSignals,
+  qualityScore,
   scoreBusiness,
 } from "./ranking";
 import { getSubscriptionsForBusinesses } from "./subscriptions";
@@ -66,6 +67,7 @@ export interface RankableBusiness {
   id: string;
   name?: string;
   ranking?: { score?: number } | null;
+  reviewStats?: { count: number; average: number };
 }
 
 export interface RankedBusiness<T extends RankableBusiness = BusinessDoc> {
@@ -133,7 +135,8 @@ export async function rankBusinessFeed<T extends RankableBusiness>(
       nowMs,
     );
     const relevance = relevanceOf(relevanceById, business.id);
-    const score = scoreBusiness({ relevance, signals }, weights);
+    const quality = qualityScore(business.reviewStats, weights);
+    const score = scoreBusiness({ relevance, signals, quality }, weights);
     const tier: SupportTier =
       signals.community > 0 ? "community" : signals.general > 0 ? "general" : "none";
     return { business, score, tier, relevance };

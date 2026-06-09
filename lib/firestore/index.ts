@@ -6,6 +6,7 @@ export * from "./businesses";
 export * from "./schools";
 export * from "./categories";
 export * from "./subscriptions";
+export * from "./reviews";
 export * from "./ranking";
 export * from "./feed";
 export * from "./users";

@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   EXPIRING_WINDOW_DAYS,
   RANKING_WEIGHTS as FUNCTIONS_WEIGHTS,
+  qualityScore as functionsQualityScore,
 } from "../../functions/src/ranking";
 import { SUBSCRIPTION_EXPIRING_WINDOW_DAYS } from "@/types";
 import type { SubscriptionDoc } from "@/types";
 import {
   DEFAULT_RANKING_WEIGHTS,
   computeSupportSignals,
+  qualityScore,
   scoreBusiness,
 } from "./ranking";
 
@@ -38,17 +40,23 @@ function sub(schoolId: string, units: number): SubscriptionDoc {
 
 describe("weight drift guard (app vs Cloud Function)", () => {
   it("the two weight copies are identical", () => {
-    expect({
-      bc: FUNCTIONS_WEIGHTS.bc,
-      bi: FUNCTIONS_WEIGHTS.bi,
-      bq: FUNCTIONS_WEIGHTS.bq,
-      saturationUnits: FUNCTIONS_WEIGHTS.saturationUnits,
-      halfLifeDays: FUNCTIONS_WEIGHTS.halfLifeDays,
-    }).toEqual(DEFAULT_RANKING_WEIGHTS);
+    expect(FUNCTIONS_WEIGHTS).toEqual(DEFAULT_RANKING_WEIGHTS);
   });
 
   it("the expiring-window constant matches the type-level source", () => {
     expect(EXPIRING_WINDOW_DAYS).toBe(SUBSCRIPTION_EXPIRING_WINDOW_DAYS);
+  });
+
+  it("qualityScore agrees between the app and the Cloud Function", () => {
+    for (const stats of [
+      { count: 0, average: 0 },
+      { count: 1, average: 5 },
+      { count: 5, average: 5 },
+      { count: 10, average: 3 },
+      { count: 3, average: 4.2 },
+    ]) {
+      expect(functionsQualityScore(stats)).toBeCloseTo(qualityScore(stats));
+    }
   });
 });
 

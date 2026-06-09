@@ -63,6 +63,17 @@ export interface BusinessMetrics {
   interactions: number;
 }
 
+/**
+ * Aggregate of a business's reviews, denormalized onto the business doc. Maintained by a
+ * Cloud Function (onReviewWritten) — clients must NOT write it (see firestore.rules). Feeds
+ * the quality signal Q in the ranking (see qualityScore).
+ */
+export interface ReviewStats {
+  count: number;
+  /** Mean rating in [1,5]; 0 when there are no reviews. */
+  average: number;
+}
+
 export type BusinessStatus = "draft" | "pending" | "active" | "suspended";
 export type SchoolStatus = "pending" | "active" | "inactive";
 
@@ -101,6 +112,8 @@ export interface Business {
   subscription: BusinessPlan;
   ranking: BusinessRanking;
   metrics: BusinessMetrics;
+  /** Review aggregate (function-maintained). Defaults to {count:0, average:0}. */
+  reviewStats: ReviewStats;
   ownerId: string; // uid of the owner user who administers this business page
   /** uids of co-administrators allowed to edit the page (optional). */
   editorIds?: string[];
@@ -129,6 +142,8 @@ export interface BusinessCardData {
   photo?: string;
   discount?: Discount;
   ranking: { score: number };
+  /** Review aggregate, so the client re-rank can compute the quality signal Q. */
+  reviewStats: ReviewStats;
 }
 
 // ── schools/{id} ─────────────────────────────────────────────────────────────
@@ -305,6 +320,29 @@ export interface Subscription {
 }
 
 export type SubscriptionDoc = Subscription & { id: string };
+
+// ── businesses/{id}/reviews/{userId} ─────────────────────────────────────────
+
+/**
+ * A review of a business. Stored in the subcollection `businesses/{id}/reviews/{userId}`
+ * with the doc id = author uid, which enforces one review per user per business at the
+ * storage level (no query needed). Reading is public; writing requires Google sign-in and
+ * the author cannot be the business owner/editor (see firestore.rules). Aggregated into the
+ * business's `reviewStats` by a Cloud Function.
+ */
+export interface Review {
+  /** Author uid (also the document id). */
+  authorId: string;
+  /** Denormalized display name for rendering without a users read. */
+  authorName: string;
+  /** Integer 1–5. */
+  rating: number;
+  text: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type ReviewDoc = Review & { id: string };
 
 // ── Buyer state (NOT Firestore) ──────────────────────────────────────────────
 

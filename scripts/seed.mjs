@@ -208,6 +208,7 @@ async function seed() {
       },
       ranking: { score: b.score, totalDonated: b.totalDonated },
       metrics: { views: 0, interactions: 0 },
+      reviewStats: { count: 0, average: 0 },
       ownerId: `owner-${b.id}`,
       createdAt: now,
       updatedAt: now,

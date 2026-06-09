@@ -35,6 +35,8 @@ export interface RankingWeights {
   saturationUnits: number;
   /** Half-life (days) of support recency: support this old weighs half. */
   halfLifeDays: number;
+  /** Number of reviews at which quality confidence reaches 1 (few reviews count less). */
+  reviewSaturationCount: number;
 }
 
 /**
@@ -48,10 +50,10 @@ export interface RankingWeights {
  * locked in by ranking-calibration.test.ts.
  *
  * Knobs: `bc/bi` set community-vs-general separation; `saturationUnits` how fast support
- * maxes out (10 units ≈ ₡50k/period for full signal); `halfLifeDays` how fast it decays.
- * NOTE: quality Q is not implemented yet (no reviews) so `bq` is currently dormant — it
- * only affects ordering once reviews land. Keep this IN SYNC with functions/src/ranking.ts
- * (the drift guard in ranking-calibration.test.ts fails if they diverge).
+ * maxes out (10 units ≈ ₡50k/period for full signal); `halfLifeDays` how fast it decays;
+ * `reviewSaturationCount` how many reviews are needed before quality counts fully. Keep
+ * this IN SYNC with functions/src/ranking.ts (the drift guard in
+ * ranking-calibration.test.ts fails if they diverge).
  */
 export const DEFAULT_RANKING_WEIGHTS: RankingWeights = {
   bc: 1.0,
@@ -59,6 +61,7 @@ export const DEFAULT_RANKING_WEIGHTS: RankingWeights = {
   bq: 0.3,
   saturationUnits: 10,
   halfLifeDays: 180,
+  reviewSaturationCount: 5,
 };
 
 /**
@@ -125,6 +128,21 @@ export function computeSupportSignals(
     general: saturate(generalUnits, weights),
     raw: { community: communityUnits, general: generalUnits },
   };
+}
+
+/**
+ * Quality signal Q ∈ [0,1] from a business's review aggregate. The mean rating is mapped
+ * 1★→0, 5★→1, then scaled by a confidence factor so a handful of reviews can't max it out
+ * (mirrors the support saturation philosophy). Returns 0 when there are no reviews.
+ */
+export function qualityScore(
+  reviewStats: { count: number; average: number } | undefined,
+  weights: RankingWeights = DEFAULT_RANKING_WEIGHTS,
+): number {
+  if (!reviewStats || reviewStats.count <= 0) return 0;
+  const avgNorm = Math.min(1, Math.max(0, (reviewStats.average - 1) / 4));
+  const confidence = Math.min(1, reviewStats.count / weights.reviewSaturationCount);
+  return avgNorm * confidence;
 }
 
 export interface ScoreInputs {

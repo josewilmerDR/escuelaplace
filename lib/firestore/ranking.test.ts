@@ -5,6 +5,7 @@ import {
   type RankingWeights,
   computeSupportSignals,
   isCountingSubscription,
+  qualityScore,
   scoreBusiness,
 } from "./ranking";
 
@@ -134,5 +135,24 @@ describe("scoreBusiness", () => {
     expect(scoreBusiness({ relevance: 1, signals: community }, weights)).toBeGreaterThan(
       scoreBusiness({ relevance: 1, signals: general }, weights),
     );
+  });
+});
+
+describe("qualityScore", () => {
+  it("is 0 with no reviews", () => {
+    expect(qualityScore({ count: 0, average: 0 })).toBe(0);
+    expect(qualityScore(undefined)).toBe(0);
+  });
+
+  it("maps the mean rating 1★→0, 5★→1 at full confidence", () => {
+    // 5 reviews = full confidence with the default reviewSaturationCount.
+    expect(qualityScore({ count: 5, average: 5 })).toBeCloseTo(1);
+    expect(qualityScore({ count: 5, average: 1 })).toBeCloseTo(0);
+    expect(qualityScore({ count: 5, average: 3 })).toBeCloseTo(0.5);
+  });
+
+  it("discounts few reviews via the confidence factor", () => {
+    // 1 of 5 reviews → confidence 0.2, so a lone 5★ gives Q = 0.2, not 1.
+    expect(qualityScore({ count: 1, average: 5 })).toBeCloseTo(0.2);
   });
 });
