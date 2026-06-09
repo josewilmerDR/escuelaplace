@@ -20,6 +20,7 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
   EXPIRING_WINDOW_DAYS,
+  type ReviewStatsLike,
   type ScorableSubscription,
   baselineScore,
   isCounting,
@@ -32,11 +33,16 @@ const DAY_MS = 86_400_000;
 const SUBSCRIPTIONS = "subscriptions";
 const BUSINESSES = "businesses";
 const SCHOOLS = "schools";
+const REVIEWS = "reviews";
 
-/** Recompute a business's stored baseline score and cumulative donations. */
-async function recomputeBusiness(businessId: string): Promise<void> {
+/**
+ * Recompute a business's stored baseline score and cumulative donations. Uses the review
+ * aggregate already stored on the doc (recomputeReviewStats keeps it current).
+ */
+async function recomputeBusinessRanking(businessId: string): Promise<void> {
   const ref = db.collection(BUSINESSES).doc(businessId);
-  if (!(await ref.get()).exists) return; // business deleted — nothing to update
+  const doc = await ref.get();
+  if (!doc.exists) return; // business deleted — nothing to update
 
   const snap = await db
     .collection(SUBSCRIPTIONS)
@@ -45,7 +51,8 @@ async function recomputeBusiness(businessId: string): Promise<void> {
 
   const nowMs = Date.now();
   const subs = snap.docs.map((d) => d.data() as ScorableSubscription);
-  const score = baselineScore(subs, nowMs);
+  const reviewStats = doc.get("reviewStats") as ReviewStatsLike | undefined;
+  const score = baselineScore(subs, reviewStats, nowMs);
 
   let totalDonated = 0;
   for (const d of snap.docs) {
@@ -58,6 +65,30 @@ async function recomputeBusiness(businessId: string): Promise<void> {
     "ranking.totalDonated": totalDonated,
     updatedAt: FieldValue.serverTimestamp(),
   });
+}
+
+/**
+ * Recompute a business's review aggregate from its reviews subcollection, then refresh its
+ * ranking (quality Q changed). Called when a review is written.
+ */
+async function recomputeReviewStats(businessId: string): Promise<void> {
+  const ref = db.collection(BUSINESSES).doc(businessId);
+  if (!(await ref.get()).exists) return;
+
+  const snap = await ref.collection(REVIEWS).get();
+  const count = snap.size;
+  let average = 0;
+  if (count > 0) {
+    const sum = snap.docs.reduce((acc, d) => acc + ((d.get("rating") as number) ?? 0), 0);
+    average = sum / count;
+  }
+
+  await ref.update({
+    reviewStats: { count, average },
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  await recomputeBusinessRanking(businessId);
 }
 
 /** Recompute a school's count of currently-supporting (distinct) businesses. */
@@ -100,9 +131,16 @@ export const onSubscriptionWritten = onDocumentWritten(
     }
 
     await Promise.all([
-      ...[...businessIds].map(recomputeBusiness),
+      ...[...businessIds].map(recomputeBusinessRanking),
       ...[...schoolIds].map(recomputeSchool),
     ]);
+  },
+);
+
+export const onReviewWritten = onDocumentWritten(
+  `${BUSINESSES}/{businessId}/${REVIEWS}/{userId}`,
+  async (event) => {
+    await recomputeReviewStats(event.params.businessId);
   },
 );
 

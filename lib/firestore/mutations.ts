@@ -174,6 +174,7 @@ export async function createBusinessPage(
     subscription: { active: false, plan: "", validUntil: null },
     ranking: { score: 0, totalDonated: 0 },
     metrics: { views: 0, interactions: 0 },
+    reviewStats: { count: 0, average: 0 },
     ownerId: uid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

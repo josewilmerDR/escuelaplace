@@ -21,6 +21,7 @@ export const RANKING_WEIGHTS = {
   bq: 0.3,
   saturationUnits: 10,
   halfLifeDays: 180,
+  reviewSaturationCount: 5,
 };
 
 /** Mirror of SUBSCRIPTION_EXPIRING_WINDOW_DAYS in types/firestore.ts. */
@@ -61,12 +62,27 @@ function saturate(decayedUnits: number): number {
   return Math.min(1, decayedUnits / RANKING_WEIGHTS.saturationUnits);
 }
 
+export interface ReviewStatsLike {
+  count: number;
+  average: number;
+}
+
+/** Mirror of qualityScore in lib/firestore/ranking.ts. Quality Q ∈ [0,1] from reviews. */
+export function qualityScore(stats: ReviewStatsLike | undefined): number {
+  if (!stats || stats.count <= 0) return 0;
+  const avgNorm = Math.min(1, Math.max(0, (stats.average - 1) / 4));
+  const confidence = Math.min(1, stats.count / RANKING_WEIGHTS.reviewSaturationCount);
+  return avgNorm * confidence;
+}
+
 /**
  * Mission-general baseline score persisted in `business.ranking.score`. All counting
- * support is treated as general (I), since there is no user community at write time.
+ * support is treated as general (I), since there is no user community at write time;
+ * quality Q comes from the business's review aggregate.
  */
 export function baselineScore(
   subs: ScorableSubscription[],
+  reviewStats: ReviewStatsLike | undefined,
   nowMs: number,
 ): number {
   let units = 0;
@@ -75,5 +91,9 @@ export function baselineScore(
     units += s.units * decayFactor(s, nowMs);
   }
   const general = saturate(units);
-  return 1 + RANKING_WEIGHTS.bi * general; // b_q·Q = 0 until reviews exist
+  return (
+    1 +
+    RANKING_WEIGHTS.bi * general +
+    RANKING_WEIGHTS.bq * qualityScore(reviewStats)
+  );
 }

@@ -18,5 +18,6 @@ export function toBusinessCardData(b: BusinessDoc): BusinessCardData {
     photo: b.photos?.[0],
     discount: b.discount,
     ranking: { score: b.ranking?.score ?? 0 },
+    reviewStats: b.reviewStats ?? { count: 0, average: 0 },
   };
 }

@@ -57,12 +57,37 @@ service cloud.firestore {
     }
 
     // ── businesses/{id} ─────────────────────────────────────────────────────
-    // Public read. Write: owner (ownerId), co-editors (editorIds) or admin.
+    // Public read. Write: owner (ownerId), co-editors (editorIds) or admin. The ranking
+    // and review aggregates are maintained by Cloud Functions (Admin SDK), so non-admin
+    // updates must leave `ranking` and `reviewStats` untouched — owners can't self-promote.
     match /businesses/{id} {
       allow read: if true;
       allow create: if isAdmin() ||
         (isSignedIn() && request.resource.data.ownerId == request.auth.uid);
-      allow update, delete: if isAdmin() || isOwnerOrEditor(resource.data);
+      allow update: if isAdmin() ||
+        (isOwnerOrEditor(resource.data) && preservesComputedFields());
+      allow delete: if isAdmin() || isOwnerOrEditor(resource.data);
+
+      // Reviews: businesses/{id}/reviews/{userId}, doc id = author uid (one per user).
+      // Public read; write requires sign-in as that user, a 1–5 rating, and the author
+      // must NOT own/edit the business (no self-reviews). Admin may delete (moderation).
+      match /reviews/{userId} {
+        allow read: if true;
+        allow create, update: if isSignedIn() &&
+          request.auth.uid == userId &&
+          request.resource.data.rating is int &&
+          request.resource.data.rating >= 1 &&
+          request.resource.data.rating <= 5 &&
+          !isOwnerOrEditor(businessData(id));
+        allow delete: if isAdmin() ||
+          (isSignedIn() && request.auth.uid == userId);
+      }
+    }
+
+    // True if a business update leaves the function-maintained aggregates unchanged.
+    function preservesComputedFields() {
+      return request.resource.data.get('ranking', null) == resource.data.get('ranking', null) &&
+        request.resource.data.get('reviewStats', null) == resource.data.get('reviewStats', null);
     }
 
     // ── schools/{id} ────────────────────────────────────────────────────────
