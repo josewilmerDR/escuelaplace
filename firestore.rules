@@ -113,8 +113,9 @@ service cloud.firestore {
 
     // ── subscriptions/{id} ────────────────────────────────────────────────────
     // First-class support relationship: a business subscribes to a school.
-    // - read: public. Confirmed support is public info (badge/ranking, rendered SSR).
-    //   `proofRef` is a plain reference string, never sensitive payment payload.
+    // - read: public. Confirmed support is public info (badge/ranking, rendered SSR). The
+    //   doc holds NO sensitive payment data — the SINPE proof file lives in Storage
+    //   (subscription-proofs/{id}, gated by storage.rules); only `proofUploaded` is public.
     // - create: a business owner/editor (or admin) creates it forced to 'pending';
     //   the business can never start a subscription already confirmed.
     // - update: the business owner/editor may edit their own subscription but may NEVER

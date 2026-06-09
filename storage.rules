@@ -14,6 +14,11 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // Business assets: businesses/{businessId}/...
     match /businesses/{businessId}/{allPaths=**} {
       allow read: if true;
@@ -24,6 +29,38 @@ service firebase.storage {
     match /schools/{schoolId}/{allPaths=**} {
       allow read: if true;
       allow write: if isSignedIn();
+    }
+
+    // SINPE proof files (sensitive): subscription-proofs/{subscriptionId}/...
+    // NOT public. Ownership is resolved via Firestore: the proof belongs to a subscription,
+    // which references a business and a school.
+    // - write: the business owner/editors (who paid) or admin.
+    // - read: the business side, the target school's owner/editors (to verify), or admin.
+    match /subscription-proofs/{subscriptionId}/{allPaths=**} {
+      function sub() {
+        return firestore.get(/databases/(default)/documents/subscriptions/$(subscriptionId)).data;
+      }
+      function business() {
+        return firestore.get(/databases/(default)/documents/businesses/$(sub().businessId)).data;
+      }
+      function school() {
+        return firestore.get(/databases/(default)/documents/schools/$(sub().schoolId)).data;
+      }
+      function ownsBusiness() {
+        return isSignedIn() && (
+          business().ownerId == request.auth.uid ||
+          request.auth.uid in business().get('editorIds', [])
+        );
+      }
+      function ownsSchool() {
+        return isSignedIn() && (
+          school().ownerId == request.auth.uid ||
+          request.auth.uid in school().get('editorIds', [])
+        );
+      }
+
+      allow write: if ownsBusiness() || isAdmin();
+      allow read: if ownsBusiness() || ownsSchool() || isAdmin();
     }
   }
 }

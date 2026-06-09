@@ -293,11 +293,13 @@ export interface Subscription {
   /** uid of the school owner/editor or admin who confirmed. */
   confirmedBy?: string;
   /**
-   * Optional reference to the SINPE proof (e.g. a transfer reference number or a Storage
-   * path). Public-readable like the rest of this doc — keep it a plain reference, not
-   * sensitive payment payload.
+   * Whether a SINPE proof file has been uploaded. The file itself is sensitive (it shows
+   * amounts, names, phone numbers) so it lives in Firebase Storage at the private path
+   * `subscription-proofs/{id}/proof`, gated by storage.rules — NEVER in this public doc.
+   * This flag is the only public signal; the school fetches the file via the Storage SDK
+   * at confirm time (see getSubscriptionProofUrl).
    */
-  proofRef?: string;
+  proofUploaded?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

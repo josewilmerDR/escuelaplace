@@ -18,8 +18,10 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+import { ref as storageRef, uploadBytes } from "firebase/storage";
 import { geohashForLocation } from "geofire-common";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
+import { subscriptionProofPath } from "./subscriptions";
 import {
   SUBSCRIPTION_CONFIRMATION_DAYS,
   SUBSCRIPTION_UNIT_CRC,
@@ -239,18 +241,18 @@ export interface CreateSubscriptionInput {
   schoolName: string; // denormalized
   /** Integer n in `n × SUBSCRIPTION_UNIT_CRC`. */
   units: number;
-  /** Optional reference to the SINPE proof (plain reference string, not payment payload). */
-  proofRef?: string;
 }
 
 /**
  * Create a `pending` subscription. Must be called by the business owner/editor (the rules
- * enforce it). `amount` is denormalized from `units`. Returns the new id.
+ * enforce it). `amount` is denormalized from `units`. The SINPE proof is uploaded
+ * separately (see uploadSubscriptionProof) — it must not go in this public doc. Returns
+ * the new id.
  */
 export async function createSubscription(
   input: CreateSubscriptionInput,
 ): Promise<string> {
-  const ref = await addDoc(collection(db, SUBSCRIPTIONS), {
+  const created = await addDoc(collection(db, SUBSCRIPTIONS), {
     businessId: input.businessId,
     businessName: input.businessName,
     schoolId: input.schoolId,
@@ -260,11 +262,30 @@ export async function createSubscription(
     status: "pending",
     confirmedAt: null,
     expiresAt: null,
-    ...(input.proofRef ? { proofRef: input.proofRef } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  return ref.id;
+  return created.id;
+}
+
+/**
+ * Upload (or replace) the SINPE proof file for a subscription. The file goes to the
+ * private Storage path (gated by storage.rules to the business side / school / admin);
+ * only the non-sensitive `proofUploaded` flag is written to the public doc. Must be called
+ * by the business owner/editor.
+ */
+export async function uploadSubscriptionProof(
+  subscriptionId: string,
+  file: Blob,
+): Promise<void> {
+  await uploadBytes(
+    storageRef(storage, subscriptionProofPath(subscriptionId)),
+    file,
+  );
+  await updateDoc(doc(db, SUBSCRIPTIONS, subscriptionId), {
+    proofUploaded: true,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /**
