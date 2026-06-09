@@ -16,6 +16,7 @@ import { SubscriptionStatusBadge } from "@/components/subscriptions/Subscription
 import {
   confirmSubscription,
   getSchoolById,
+  getSubscriptionProofUrl,
   getSubscriptionsBySchool,
 } from "@/lib/firestore";
 import { formatColones } from "@/lib/format";
@@ -74,6 +75,13 @@ export default function SchoolSubscriptionsPage() {
     }
   };
 
+  const viewProof = async (subId: string) => {
+    setError(null);
+    const url = await getSubscriptionProofUrl(subId);
+    if (url) window.open(url, "_blank", "noopener");
+    else setError("No se pudo abrir el comprobante.");
+  };
+
   const confirmAll = async () => {
     if (!user || pending.length === 0) return;
     setBusyId("all");
@@ -123,8 +131,20 @@ export default function SchoolSubscriptionsPage() {
                   <p className="font-medium">{s.businessName}</p>
                   <p className="text-muted">
                     {s.units}× · {formatColones(s.amount)}
-                    {s.proofRef ? ` · Ref: ${s.proofRef}` : ""}
                   </p>
+                  {s.proofUploaded ? (
+                    <button
+                      type="button"
+                      onClick={() => viewProof(s.id)}
+                      className="mt-1 text-xs font-medium text-brand-dark hover:underline"
+                    >
+                      Ver comprobante
+                    </button>
+                  ) : (
+                    <span className="mt-1 block text-xs text-muted">
+                      Sin comprobante
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"

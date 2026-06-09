@@ -4,10 +4,10 @@
  * Business subscription management (/panel/business/[id]/subscribe).
  *
  * The business owner commits to support a school: pick the school, choose how many units
- * (n × X), and optionally record the SINPE proof reference. This creates a `pending`
+ * (n × X), and optionally attach the SINPE proof file. This creates a `pending`
  * subscription — the platform never touches the money; the business pays the school
- * directly via SINPE, and the SCHOOL confirms the proof. The school's SINPE is shown only
- * when the school is verified (the data layer gates that).
+ * directly via SINPE, and the SCHOOL confirms the proof. The proof file goes to private
+ * Storage (not the public doc). The school's SINPE is shown only when verified.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -20,6 +20,7 @@ import {
   getSchools,
   getSubscriptionsByBusiness,
   getVerifiedSchoolSinpe,
+  uploadSubscriptionProof,
 } from "@/lib/firestore";
 import { formatColones } from "@/lib/format";
 import { SUBSCRIPTION_UNIT_CRC } from "@/types";
@@ -42,10 +43,11 @@ export default function BusinessSubscribePage() {
   // Form state
   const [schoolId, setSchoolId] = useState("");
   const [units, setUnits] = useState(1);
-  const [proofRef, setProofRef] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [sinpe, setSinpe] = useState<SchoolPrivate["sinpe"] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   const reloadSubscriptions = useCallback(() => {
     getSubscriptionsByBusiness(id).then(setSubscriptions);
@@ -98,21 +100,36 @@ export default function BusinessSubscribePage() {
     setSaving(true);
     setError(null);
     try {
-      await createSubscription({
+      const newId = await createSubscription({
         businessId: business.id,
         businessName: business.name,
         schoolId,
         schoolName: school.name,
         units,
-        proofRef: proofRef.trim() || undefined,
       });
-      setProofRef("");
+      if (proofFile) await uploadSubscriptionProof(newId, proofFile);
+      setProofFile(null);
       setUnits(1);
       reloadSubscriptions();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo registrar el apoyo.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onUploadProof = async (subId: string, file: File) => {
+    setUploadingId(subId);
+    setError(null);
+    try {
+      await uploadSubscriptionProof(subId, file);
+      reloadSubscriptions();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo subir el comprobante.",
+      );
+    } finally {
+      setUploadingId(null);
     }
   };
 
@@ -173,13 +190,16 @@ export default function BusinessSubscribePage() {
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Referencia del comprobante SINPE (opcional)</span>
+          <span className="font-medium">Comprobante SINPE (opcional)</span>
           <input
-            value={proofRef}
-            onChange={(e) => setProofRef(e.target.value)}
-            placeholder="Ej: número de referencia"
-            className="input"
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+            className="text-sm"
           />
+          <span className="text-muted">
+            Solo lo ven la escuela y vos. No se publica.
+          </span>
         </label>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -209,10 +229,30 @@ export default function BusinessSubscribePage() {
                 <div>
                   <p className="font-medium">{s.schoolName}</p>
                   <p className="text-muted">
-                    {s.units}× · {formatColones(s.amount)}
+                    {s.units}× · {formatColones(s.amount)} ·{" "}
+                    {s.proofUploaded ? "Comprobante ✓" : "Sin comprobante"}
                   </p>
                 </div>
-                <SubscriptionStatusBadge status={s.status} />
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer text-xs font-medium text-brand-dark hover:underline">
+                    {uploadingId === s.id
+                      ? "Subiendo…"
+                      : s.proofUploaded
+                        ? "Reemplazar"
+                        : "Subir comprobante"}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="sr-only"
+                      disabled={uploadingId !== null}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) onUploadProof(s.id, f);
+                      }}
+                    />
+                  </label>
+                  <SubscriptionStatusBadge status={s.status} />
+                </div>
               </li>
             ))}
           </ul>

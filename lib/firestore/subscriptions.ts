@@ -15,11 +15,34 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getDownloadURL, ref as storageRef } from "firebase/storage";
+import { db, storage } from "@/lib/firebase";
 import type { Subscription, SubscriptionDoc } from "@/types";
 import { docToTyped, snapToList } from "./converters";
 
 const SUBSCRIPTIONS = "subscriptions";
+
+/** Private Storage path of a subscription's SINPE proof (gated by storage.rules). */
+export function subscriptionProofPath(subscriptionId: string): string {
+  return `subscription-proofs/${subscriptionId}/proof`;
+}
+
+/**
+ * A temporary URL to view a subscription's SINPE proof, or null if there is none / access
+ * is denied. The read is gated by storage.rules (business side, target school, or admin),
+ * so this is called on demand from the panel — the URL is never stored in the public doc.
+ */
+export async function getSubscriptionProofUrl(
+  subscriptionId: string,
+): Promise<string | null> {
+  try {
+    return await getDownloadURL(
+      storageRef(storage, subscriptionProofPath(subscriptionId)),
+    );
+  } catch {
+    return null;
+  }
+}
 
 /** Sort by createdAt (desc) in JS to avoid a composite index with the where clause. */
 function byCreatedAtDesc(a: SubscriptionDoc, b: SubscriptionDoc): number {
