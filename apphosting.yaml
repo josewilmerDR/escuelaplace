@@ -35,9 +35,9 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     secret: NEXT_PUBLIC_FIREBASE_APP_ID
     availability: [BUILD, RUNTIME]
-  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
-    secret: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
-    availability: [BUILD, RUNTIME]
+  # NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID is omitted: it only exists when Google Analytics is
+  # enabled, and Secret Manager rejects empty values. Add it back (as a secret with the real
+  # G-XXXX value) if Analytics is turned on.
   - variable: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     secret: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     availability: [BUILD, RUNTIME]
