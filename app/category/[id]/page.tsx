@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCategoryById, getBusinessesByCategory } from "@/lib/firestore";
+import { CommunityPicker } from "@/components/buyer/CommunityPicker";
+import { RankedFeed } from "@/components/feed/RankedFeed";
+import { SiteHeader } from "@/components/layout/SiteHeader";
+import {
+  getCategoryById,
+  getBusinessesByCategory,
+  toBusinessCardData,
+} from "@/lib/firestore";
 
 /**
  * Public listing by category: /category/[id]
- * SSR for SEO. Businesses of the category ordered by ranking.score.
+ * SSR for SEO, same feed pattern as home and /buscar: baseline order (stored
+ * ranking.score) server-side, re-ranked client-side per the buyer's community.
  */
 
 interface Props {
@@ -23,21 +31,27 @@ export default async function CategoryPage({ params }: Props) {
   const category = await getCategoryById(id);
   if (!category) notFound();
 
-  const businesses = await getBusinessesByCategory(id);
+  const cards = (await getBusinessesByCategory(id)).map(toBusinessCardData);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="text-3xl font-bold">{category.name}</h1>
-      <ul className="mt-6 space-y-2">
-        {businesses.map((b) => (
-          <li key={b.id}>
-            <a className="underline" href={`/business/${b.slug}`}>
-              {b.name}
-            </a>{" "}
-            <span className="text-sm text-gray-500">— {b.schoolName}</span>
-          </li>
-        ))}
-      </ul>
-    </main>
+    <>
+      <SiteHeader />
+
+      <main className="mx-auto max-w-6xl px-6 py-10">
+        <h1 className="mb-8 text-2xl font-bold tracking-tight text-slate-900">
+          <span aria-hidden>{category.icon}</span> {category.name}
+        </h1>
+
+        <CommunityPicker />
+
+        {cards.length === 0 ? (
+          <p className="text-muted">
+            Todavía no hay comercios en esta categoría.
+          </p>
+        ) : (
+          <RankedFeed initial={cards} />
+        )}
+      </main>
+    </>
   );
 }

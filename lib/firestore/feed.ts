@@ -33,13 +33,20 @@ export interface BuyerCommunity {
 }
 
 /**
+ * Radius (km) around the buyer's location within which a school counts as part of their
+ * community. Shared with the picker UI so the "no schools near you" notice and the
+ * actual ranking can never disagree.
+ */
+export const COMMUNITY_RADIUS_KM = 5;
+
+/**
  * Resolve the set of school ids that count as the buyer's community: their explicitly
  * chosen school plus any school within `radiusKm` of their location. Returns [] if no
  * community can be resolved (then C = 0 for everyone and only general support I matters).
  */
 export async function resolveCommunitySchoolIds(
   community: BuyerCommunity,
-  radiusKm = 5,
+  radiusKm = COMMUNITY_RADIUS_KM,
 ): Promise<string[]> {
   const ids = new Set<string>();
   if (community.schoolId) ids.add(community.schoolId);

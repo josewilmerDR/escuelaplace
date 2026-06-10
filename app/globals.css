@@ -9,10 +9,12 @@
   --background: #ffffff;
   --foreground: #0f172a; /* slate-900 */
 
-  /* Brand scale (sky). --brand is the primary; -dark for hover/active. */
+  /* Brand scale (sky). --brand is the primary for decorative fills; small white text
+     needs at least -darker behind it to pass WCAG AA (white on --brand is ~2.5:1). */
   --brand: #0ea5e9; /* sky-500 */
-  --brand-dark: #0284c7; /* sky-600 */
-  --brand-darker: #0369a1; /* sky-700 */
+  --brand-dark: #0284c7; /* sky-600 — large/bold white text, borders */
+  --brand-darker: #0369a1; /* sky-700 — AA fills with white text; AA link text on white */
+  --brand-darkest: #075985; /* sky-800 — hover for -darker fills */
   --brand-tint: #e0f2fe; /* sky-100 — soft fills/badges */
 
   /* Neutral surfaces */
@@ -27,6 +29,7 @@
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
   --color-brand-darker: var(--brand-darker);
+  --color-brand-darkest: var(--brand-darkest);
   --color-brand-tint: var(--brand-tint);
   --color-surface: var(--surface);
   --color-border: var(--border);
@@ -43,5 +46,22 @@ body {
 
 /* Shared form control style used by the panel creation forms. */
 .input {
-  @apply rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand;
+  @apply rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-brand;
+}
+
+/* Shared button primitives (same spirit as .input) — compose as `btn btn-<variant>`.
+   min-h-10 keeps tap targets ≥40px. Variants follow the AA contrast rules of the brand
+   scale (see :root): white text needs at least --brand-darker behind it. */
+.btn {
+  @apply inline-flex min-h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50;
+}
+.btn-primary {
+  @apply bg-brand-darker text-white hover:bg-brand-darkest;
+}
+.btn-outline {
+  @apply border border-brand-dark text-brand-darker hover:bg-brand-tint;
+}
+/* White chip for controls sitting on the brand band (header CTAs). */
+.btn-on-brand {
+  @apply bg-white text-brand-darker hover:bg-brand-tint;
 }

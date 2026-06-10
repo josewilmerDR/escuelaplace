@@ -29,7 +29,7 @@ const STOPWORDS = new Set([
 ]);
 
 /** Lowercase and strip accents so "Inglés" matches "ingles". */
-function normalize(text: string): string {
+export function normalize(text: string): string {
   return text
     .toLowerCase()
     .normalize("NFD")
