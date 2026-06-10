@@ -73,7 +73,10 @@ export default async function SearchPage({ searchParams }: Props) {
 
       <section className="bg-brand py-8">
         <div className="mx-auto max-w-3xl px-6">
-          <SearchBar initialQuery={query} />
+          {/* autoFocus only when arriving without a query: the user came to search and
+              the empty state below asks them to type — focusing is the next action. With
+              results on screen, stealing focus would just pop the mobile keyboard. */}
+          <SearchBar initialQuery={query} autoFocus={!query} />
         </div>
       </section>
 

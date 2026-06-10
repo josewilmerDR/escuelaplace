@@ -136,7 +136,7 @@ export default function SchoolSubscriptionsPage() {
                     <button
                       type="button"
                       onClick={() => viewProof(s.id)}
-                      className="mt-1 text-xs font-medium text-brand-dark hover:underline"
+                      className="mt-1 text-xs font-medium text-brand-darker hover:underline"
                     >
                       Ver comprobante
                     </button>
@@ -150,7 +150,7 @@ export default function SchoolSubscriptionsPage() {
                   type="button"
                   onClick={() => confirmOne(s.id)}
                   disabled={busyId !== null}
-                  className="shrink-0 rounded-md border border-brand px-3 py-1.5 text-sm font-medium text-brand-dark hover:bg-brand-tint disabled:opacity-50"
+                  className="btn btn-outline shrink-0"
                 >
                   {busyId === s.id ? "Confirmando…" : "Confirmar"}
                 </button>

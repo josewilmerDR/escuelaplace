@@ -234,7 +234,7 @@ export default function BusinessSubscribePage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <label className="cursor-pointer text-xs font-medium text-brand-dark hover:underline">
+                  <label className="cursor-pointer text-xs font-medium text-brand-darker hover:underline">
                     {uploadingId === s.id
                       ? "Subiendo…"
                       : s.proofUploaded

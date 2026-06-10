@@ -1,10 +1,15 @@
+import Image from "next/image";
 import Link from "next/link";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SearchBar } from "@/components/search/SearchBar";
-import { getTopBusinesses, toBusinessCardData } from "@/lib/firestore";
-import type { BusinessCardData } from "@/types";
+import {
+  getCategories,
+  getTopBusinesses,
+  toBusinessCardData,
+} from "@/lib/firestore";
+import type { BusinessCardData, CategoryDoc } from "@/types";
 
 /**
  * Home (/). Server component — rendered on the server for SEO.
@@ -22,31 +27,49 @@ import type { BusinessCardData } from "@/types";
 export const revalidate = 300;
 
 export default async function HomePage() {
+  // Empty and error are different states for the user: "no businesses yet" gets an
+  // onboarding CTA, "catalog unavailable" (e.g. Firebase down / missing env at build)
+  // gets a retry message. Don't collapse them into a silently missing section.
   let cards: BusinessCardData[] = [];
+  let loadFailed = false;
   try {
     cards = (await getTopBusinesses(24)).map(toBusinessCardData);
   } catch {
-    // Catalog/Firebase unavailable (e.g. missing env at build) — render without the feed.
+    loadFailed = true;
   }
+
+  // Category chips are the browse path for buyers who don't know what to search yet.
+  // Best-effort enhancement: empty categories are skipped (linking to an empty listing
+  // helps no one) and a fetch failure just hides the row.
+  let categories: CategoryDoc[] = [];
+  try {
+    categories = (await getCategories()).filter((c) => c.businessCount > 0);
+  } catch {}
 
   return (
     <>
       <SiteHeader />
 
+      <main>
       {/* Hero: a community/school photo tinted with the brand color.
           Layers (back to front):
-            1. photo (decorative CSS background; base brand color so it still
-               looks right if /public/hero.jpg is missing — graceful fallback).
+            1. photo via next/image (responsive sizes + modern formats + preload: it is
+               the LCP element — as a raw CSS background it shipped 1.3 MB unoptimized).
+               The section's bg-brand still shows while it loads or if the file is
+               missing — graceful fallback.
             2. brand gradient with mix-blend-multiply → duotone "celeste" tint
                over any photo, keeping brand cohesion.
             3. darker brand fade at the bottom for text legibility + to blend
                into the white section below.
           The <h1> is real DOM text, so SEO is unaffected by the background. */}
-      <section className="relative isolate overflow-hidden">
-        <div
-          className="absolute inset-0 -z-20 bg-brand bg-cover bg-center"
-          style={{ backgroundImage: "url('/hero.jpg')" }}
-          aria-hidden
+      <section className="relative isolate overflow-hidden bg-brand">
+        <Image
+          src="/hero.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="-z-20 object-cover"
         />
         <div
           className="absolute inset-0 -z-10 bg-gradient-to-br from-brand/85 to-brand-darker/90 mix-blend-multiply"
@@ -58,76 +81,76 @@ export default async function HomePage() {
         />
 
         <div className="mx-auto max-w-3xl px-6 py-20 text-center sm:py-28">
+          {/* Copy promises only what the catalog shows (businesses). "Las personas y
+              comercios…" oversold: there are no people profiles in the product. */}
           <h1 className="mx-auto max-w-xl text-2xl font-medium tracking-tight text-white drop-shadow-sm sm:text-3xl">
-            Las personas y comercios que apoyan a tus instituciones educativas
-            favoritas
+            Los comercios que apoyan a tus instituciones educativas favoritas
           </h1>
 
+          {/* No autoFocus: this is the SEO landing page — stealing focus on load pops
+              the mobile keyboard over the hero and skips the h1 for screen readers. */}
           <div className="mt-8">
-            <SearchBar autoFocus />
-          </div>        </div>
-      </section>
-
-      {/* How ranking works: the three-tier logic, made visible. */}
-      <section className="mx-auto max-w-5xl px-6 py-16">
-        <h2 className="text-center text-2xl font-bold tracking-tight text-slate-900">
-          Resultados que priorizan a tu comunidad
-        </h2>
-
-        <ol className="mt-10 grid gap-6 sm:grid-cols-3">
-          {TIERS.map((tier, i) => (
-            <li
-              key={tier.title}
-              className="rounded-2xl border border-border bg-surface p-6"
-            >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand text-sm font-bold text-white">
-                {i + 1}
-              </span>
-              <h3 className="mt-4 font-semibold text-slate-900">{tier.title}</h3>
-              <p className="mt-2 text-sm text-muted">{tier.body}</p>
-            </li>
-          ))}
-        </ol>
-
-        <nav className="mt-12 flex flex-wrap justify-center gap-4 text-sm">
-          <Link className="font-medium text-brand-dark hover:underline" href="/category/ejemplo">
-            Ver categorías
-          </Link>
-          <Link className="font-medium text-brand-dark hover:underline" href="/school/ejemplo">
-            Ver una escuela
-          </Link>
-          <Link className="font-medium text-brand-dark hover:underline" href="/panel">
-            Crear página de comercio
-          </Link>
-        </nav>
+            <SearchBar />
+          </div>
+        </div>
       </section>
 
       {/* Explore feed: SSR baseline order (stored ranking.score), re-ranked client-side
-          per the buyer's community. */}
-      {cards.length > 0 && (
-        <section className="mx-auto max-w-6xl px-6 pb-20">
-          <h2 className="mb-8 text-2xl font-bold tracking-tight text-slate-900">
-            Comercios que apoyan
-          </h2>
-          <CommunityPicker />
+          per the buyer's community. The picker renders regardless of the feed state so
+          the buyer can set their school even when there is nothing to list yet. */}
+      <section className="mx-auto max-w-6xl px-6 pt-8 pb-20">
+        {categories.length > 0 && (
+          /* Single-line row: the list still wraps internally but is clipped to one
+             chip row (max-h = 20px line + 20px padding + 2px border), so chips that
+             don't fit are simply hidden. "Todas las categorías" sits outside the
+             clipped list, so it always stays visible at the end of the line and
+             links to the full listing. Pure CSS — no client-side measuring. */
+          <nav aria-label="Categorías" className="mb-6 flex items-start gap-2">
+            <ul className="flex max-h-[42px] min-w-0 flex-1 flex-wrap gap-2 overflow-hidden">
+              {categories.map((c) => (
+                <li key={c.id}>
+                  <Link
+                    href={`/category/${c.id}`}
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-brand-dark hover:text-brand-darker"
+                  >
+                    <span aria-hidden>{c.icon}</span>
+                    {c.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/categories"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-brand-darker hover:border-brand-dark"
+            >
+              Todas las categorías
+            </Link>
+          </nav>
+        )}
+
+        <CommunityPicker />
+
+        {loadFailed ? (
+          <p className="text-muted">
+            No pudimos cargar el catálogo. Recargá la página para intentarlo de
+            nuevo.
+          </p>
+        ) : cards.length === 0 ? (
+          <p className="text-muted">
+            Todavía no hay comercios publicados.{" "}
+            <Link
+              href="/panel"
+              className="font-medium text-brand-darker hover:underline"
+            >
+              Creá la página del tuyo
+            </Link>
+            .
+          </p>
+        ) : (
           <RankedFeed initial={cards} />
-        </section>
-      )}
+        )}
+      </section>
+      </main>
     </>
   );
 }
-
-const TIERS = [
-  {
-    title: "Apoyan a tu escuela",
-    body: "Comercios relevantes a tu búsqueda que donan a la escuela que elegiste. Aparecen de primero.",
-  },
-  {
-    title: "Apoyan a otras escuelas",
-    body: "También donan a la comunidad, aunque a otra institución. Tu compra sigue ayudando.",
-  },
-  {
-    title: "Relevantes sin donación",
-    body: "Coinciden con lo que buscás pero todavía no apoyan a ninguna escuela.",
-  },
-];

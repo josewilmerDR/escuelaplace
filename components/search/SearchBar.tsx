@@ -9,7 +9,7 @@
  * On submit it navigates to /buscar?q=<query>; the results page owns the ranking.
  */
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export function SearchBar({
   autoFocus = false,
@@ -19,12 +19,18 @@ export function SearchBar({
   initialQuery?: string;
 }) {
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState(initialQuery);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const term = q.trim();
-    if (!term) return;
+    if (!term) {
+      // Empty submit: don't navigate, but don't be inert either — put the user where
+      // the fix is (typing a query).
+      inputRef.current?.focus();
+      return;
+    }
     router.push(`/buscar?q=${encodeURIComponent(term)}`);
   };
 
@@ -34,17 +40,18 @@ export function SearchBar({
       className="flex w-full overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5"
     >
       <input
+        ref={inputRef}
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         autoFocus={autoFocus}
-        placeholder="¿Qué buscas? Ej: Panadería, Clases de Inglés"
+        placeholder="¿Qué buscás? Ej: Panadería, Clases de Inglés"
         aria-label="¿Qué buscás?"
         className="min-w-0 flex-1 px-5 py-4 text-base text-slate-800 outline-none placeholder:text-slate-400"
       />
       <button
         type="submit"
-        className="shrink-0 bg-brand px-6 py-4 text-base font-semibold text-white transition-colors hover:bg-brand-dark"
+        className="shrink-0 bg-brand-darker px-6 py-4 text-base font-semibold text-white transition-colors hover:bg-brand-darkest"
       >
         Buscar
       </button>
