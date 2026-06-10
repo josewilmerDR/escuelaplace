@@ -98,14 +98,14 @@ export default async function HomePage() {
       {/* Explore feed: SSR baseline order (stored ranking.score), re-ranked client-side
           per the buyer's community. The picker renders regardless of the feed state so
           the buyer can set their school even when there is nothing to list yet. */}
-      <section className="mx-auto max-w-6xl px-6 pt-8 pb-20">
+      <section className="mx-auto max-w-6xl px-6 pt-4 pb-20">
         {categories.length > 0 && (
           /* Single-line row: the list still wraps internally but is clipped to one
              chip row (max-h = 20px line + 20px padding + 2px border), so chips that
              don't fit are simply hidden. "Todas las categorías" sits outside the
              clipped list, so it always stays visible at the end of the line and
              links to the full listing. Pure CSS — no client-side measuring. */
-          <nav aria-label="Categorías" className="mb-6 flex items-start gap-2">
+          <nav aria-label="Categorías" className="mb-4 flex items-start gap-2">
             <ul className="flex max-h-[42px] min-w-0 flex-1 flex-wrap gap-2 overflow-hidden">
               {categories.map((c) => (
                 <li key={c.id}>
