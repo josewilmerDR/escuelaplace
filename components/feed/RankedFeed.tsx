@@ -11,6 +11,7 @@
  * badges. With no community known, the order stays at the SSR baseline.
  */
 import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
 import {
@@ -29,11 +30,24 @@ export function RankedFeed({
   relevanceById?: Record<string, number>;
 }) {
   const { prefs, ready } = useBuyerPreferences();
-  const [ranked, setRanked] = useState<RankedBusiness<BusinessCardData>[] | null>(
-    null,
-  );
+  // The personalized order, tagged with the community that produced it. The tag is what
+  // prevents stale UI: clearing the community (the effect below stops running, so the
+  // state is never overwritten) or switching school A → B (the old result lingers while
+  // B resolves) must never show tiers/badges computed for a community that is no longer
+  // the current one — the render gate compares tags instead of trusting the state.
+  const [ranked, setRanked] = useState<{
+    communityKey: string;
+    result: RankedBusiness<BusinessCardData>[];
+  } | null>(null);
+
+  // Visible degradation flag: a silently failed re-rank is indistinguishable from
+  // "personalization worked and nobody supports your community".
+  const [rankFailed, setRankFailed] = useState(false);
 
   const hasCommunity = Boolean(prefs.schoolId || prefs.location);
+  const communityKey = `${prefs.schoolId ?? ""}|${
+    prefs.location ? `${prefs.location.lat},${prefs.location.lng}` : ""
+  }`;
 
   useEffect(() => {
     if (!ready || !hasCommunity || initial.length === 0) return;
@@ -49,31 +63,67 @@ export function RankedFeed({
           communitySchoolIds,
           relevanceById,
         });
-        if (!cancelled) setRanked(result);
+        if (cancelled) return;
+        setRankFailed(false);
+        // Animate the reorder when the browser supports view transitions (each card
+        // carries a per-business view-transition-name) — a silent jump loses the
+        // user's place in the grid. flushSync so the DOM mutates inside the snapshot.
+        const apply = () => setRanked({ communityKey, result });
+        if (document.startViewTransition) {
+          document.startViewTransition(() => flushSync(apply));
+        } else {
+          apply();
+        }
       } catch {
-        // Re-rank is best-effort; on failure we keep the baseline order.
+        // Re-rank is best-effort; the baseline order stays, but say so (see rankFailed).
+        if (!cancelled) setRankFailed(true);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [ready, hasCommunity, initial, relevanceById, prefs.schoolId, prefs.location]);
+  }, [
+    ready,
+    hasCommunity,
+    initial,
+    relevanceById,
+    prefs.schoolId,
+    prefs.location,
+    communityKey,
+  ]);
 
-  // Baseline (server order) until the personalized re-rank resolves.
+  // Baseline (server order) unless we have a personalized order for the CURRENT community.
+  const personalized = hasCommunity && ranked?.communityKey === communityKey;
   const cards = useMemo(
     () =>
-      ranked ?? initial.map((business) => ({ business, tier: null as null })),
-    [ranked, initial],
+      personalized && ranked
+        ? ranked.result
+        : initial.map((business) => ({ business, tier: null as null })),
+    [personalized, ranked, initial],
   );
 
   if (initial.length === 0) return null;
 
   return (
-    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {cards.map(({ business, tier }) => (
-        <BusinessCard key={business.id} business={business} tier={tier} />
-      ))}
+    <div>
+      {/* Announce the reorder to screen readers; sighted users see the badges appear. */}
+      <p aria-live="polite" className="sr-only">
+        {personalized ? "Resultados ordenados según tu comunidad." : ""}
+      </p>
+
+      {rankFailed && hasCommunity && (
+        <p role="status" className="mb-4 text-sm text-muted">
+          No pudimos personalizar el orden según tu comunidad — mostramos el orden
+          general.
+        </p>
+      )}
+
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {cards.map(({ business, tier }) => (
+          <BusinessCard key={business.id} business={business} tier={tier} />
+        ))}
+      </div>
     </div>
   );
 }

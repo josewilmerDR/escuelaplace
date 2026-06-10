@@ -34,6 +34,24 @@ export async function getSchools(max = 100): Promise<SchoolDoc[]> {
   return snapToList<School>(await getDocs(q));
 }
 
+const SCHOOLS_CACHE_TTL_MS = 5 * 60_000;
+let schoolsCache: { at: number; data: SchoolDoc[] } | null = null;
+
+/**
+ * `getSchools()` behind a module-level TTL cache. The school list changes rarely but is
+ * read by the community picker on every page that mounts it (/, /buscar, /category/*) —
+ * without the cache each client navigation pays a full ~100-doc Firestore read and the
+ * combobox flashes empty while it loads. Errors are not cached (next call retries).
+ */
+export async function getSchoolsCached(): Promise<SchoolDoc[]> {
+  if (schoolsCache && Date.now() - schoolsCache.at < SCHOOLS_CACHE_TTL_MS) {
+    return schoolsCache.data;
+  }
+  const data = await getSchools();
+  schoolsCache = { at: Date.now(), data };
+  return data;
+}
+
 /**
  * The school's sensitive data (SINPE) from the private subcollection.
  * Reading requires Firestore auth as the school's owner/editors or admin (see rules);
