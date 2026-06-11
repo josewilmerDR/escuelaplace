@@ -12,6 +12,10 @@
  * - expireSubscriptionsDaily: time-decay the lifecycle — flip lapsed subscriptions to
  *   `expired` and near-expiry ones to `expiring`. The status writes re-fire the trigger
  *   above, which recomputes the affected docs.
+ * - trackInteraction (./track): unauthenticated view/click counters for the funnel
+ *   report — anonymous buyers can't write Firestore directly.
+ * - recordWalkIn (./track): manager-only counter of walk-in customers who mentioned
+ *   escuelaplace at the counter.
  */
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
@@ -28,6 +32,8 @@ import {
 
 initializeApp();
 const db = getFirestore();
+
+export { recordWalkIn, trackInteraction } from "./track";
 
 const DAY_MS = 86_400_000;
 const SUBSCRIPTIONS = "subscriptions";

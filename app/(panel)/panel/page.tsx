@@ -91,12 +91,20 @@ function PageCard({ page }: { page: ResolvedPage }) {
           Ver página pública
         </Link>
         {page.type === "business" && (
-          <Link
-            href={`/panel/business/${page.doc.id}/subscribe`}
-            className="underline"
-          >
-            Apoyar una escuela
-          </Link>
+          <>
+            <Link
+              href={`/panel/business/${page.doc.id}/subscribe`}
+              className="underline"
+            >
+              Apoyar una escuela
+            </Link>
+            <Link
+              href={`/panel/business/${page.doc.id}/metrics`}
+              className="underline"
+            >
+              Ver métricas
+            </Link>
+          </>
         )}
         {page.type === "school" && (
           <Link

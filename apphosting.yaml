@@ -45,3 +45,9 @@ env:
   - variable: NEXT_PUBLIC_USE_EMULATORS
     value: "false"
     availability: [BUILD, RUNTIME]
+  # Public URL of the trackInteraction function (profile view/click counters). Not a
+  # secret — it ships in the client bundle anyway. Gen 2 functions keep the
+  # cloudfunctions.net URL form; BUILD availability matters (NEXT_PUBLIC_* is inlined).
+  - variable: NEXT_PUBLIC_TRACK_INTERACTION_URL
+    value: "https://us-central1-escuelaplace.cloudfunctions.net/trackInteraction"
+    availability: [BUILD, RUNTIME]

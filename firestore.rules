@@ -68,6 +68,14 @@ service cloud.firestore {
         (isOwnerOrEditor(resource.data) && preservesComputedFields());
       allow delete: if isAdmin() || isOwnerOrEditor(resource.data);
 
+      // Daily metric counters (doc id = YYYY-MM-DD): written ONLY by the
+      // trackInteraction Cloud Function (Admin SDK bypasses these rules). They feed the
+      // owner's private funnel report — not public data, never part of the ranking.
+      match /metricsDaily/{day} {
+        allow read: if isAdmin() || isOwnerOrEditor(businessData(id));
+        allow write: if false;
+      }
+
       // Reviews: businesses/{id}/reviews/{userId}, doc id = author uid (one per user).
       // Public read; write requires sign-in as that user, a 1–5 rating, and the author
       // must NOT own/edit the business (no self-reviews). Admin may delete (moderation).

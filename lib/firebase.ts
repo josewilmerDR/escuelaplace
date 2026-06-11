@@ -17,6 +17,11 @@ import {
 } from "firebase/firestore";
 import { getAuth, connectAuthEmulator, type Auth } from "firebase/auth";
 import {
+  getFunctions,
+  connectFunctionsEmulator,
+  type Functions,
+} from "firebase/functions";
+import {
   getStorage,
   connectStorageEmulator,
   type FirebaseStorage,
@@ -50,6 +55,19 @@ export const storage: FirebaseStorage = getStorage(app);
 if (useEmulators) {
   connectFirestoreEmulator(db, EMULATOR_HOST, 8080);
   connectStorageEmulator(storage, EMULATOR_HOST, 9199);
+}
+
+// Callable Cloud Functions (e.g. recordWalkIn). Lazy for symmetry with auth; callables
+// are only invoked from client components, never during SSR.
+let _functions: Functions | undefined;
+export function getFirebaseFunctions(): Functions {
+  if (!_functions) {
+    _functions = getFunctions(app);
+    if (useEmulators) {
+      connectFunctionsEmulator(_functions, EMULATOR_HOST, 5001);
+    }
+  }
+  return _functions;
 }
 
 // Auth DOES validate the apiKey on init (throws auth/invalid-api-key without config).

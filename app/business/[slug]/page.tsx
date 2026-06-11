@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { ContactButtons } from "@/components/business/ContactButtons";
+import { TrackPageView } from "@/components/business/TrackPageView";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { Stars } from "@/components/reviews/Stars";
 import { getBusinessBySlug, getReviewsByBusiness } from "@/lib/firestore";
@@ -35,6 +37,7 @@ export default async function BusinessPage({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
+      <TrackPageView businessId={business.id} />
       <h1 className="text-3xl font-bold">{business.name}</h1>
       <p className="mt-1 text-sm text-gray-500">
         Apoya a {business.schoolName}
@@ -45,6 +48,21 @@ export default async function BusinessPage({ params }: Props) {
           {business.discount.text}
         </p>
       )}
+
+      <ContactButtons
+        businessId={business.id}
+        businessName={business.name}
+        contact={business.contact}
+        discount={business.discount}
+        coords={
+          business.location?.geopoint
+            ? {
+                lat: business.location.geopoint.latitude,
+                lng: business.location.geopoint.longitude,
+              }
+            : null
+        }
+      />
 
       <section className="mt-12">
         <div className="flex items-center gap-3">
