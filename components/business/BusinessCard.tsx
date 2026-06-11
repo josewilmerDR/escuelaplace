@@ -30,6 +30,9 @@ const TIER_BADGE: Record<SupportTier, { label: string; className: string }> = {
   },
 };
 
+/** Grid is 1 / 2 / 3 columns (see RankedFeed) — lets next/image pick the right size. */
+const COVER_SIZES = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
+
 export function BusinessCard({
   business,
   tier = null,
@@ -38,83 +41,135 @@ export function BusinessCard({
   tier?: SupportTier | null;
 }) {
   const badge = tier ? TIER_BADGE[tier] : null;
+  const initial = business.name.charAt(0).toUpperCase();
 
   return (
     // Stretched-link card (not a wrapping <Link>): the title link's ::after covers the
     // card, keeping the whole surface clickable, while the school link below stays a
     // real nested target (relative z-10 lifts it above the overlay).
     <article
-      className="group relative flex flex-col rounded-2xl border border-border bg-surface p-5 transition-shadow hover:shadow-md"
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-white transition-shadow hover:shadow-lg"
       style={{ viewTransitionName: `business-${business.id}` }}
     >
-      <div className="flex items-start gap-3">
-        {/* Logo (or first photo) with an initial-on-brand fallback, so the grid scans
-            visually even while most businesses haven't uploaded images yet. */}
-        {business.logoUrl || business.photo ? (
+      {/* Cover (YouTube-thumbnail style): the photo sells the business, so it gets the
+          top of the card. Fallback ladder keeps the grid scannable while most businesses
+          haven't uploaded images: photo → logo centered on tint → big initial. */}
+      <div className="relative aspect-video w-full overflow-hidden bg-brand-tint">
+        {business.photo ? (
           <Image
-            src={(business.logoUrl ?? business.photo)!}
+            src={business.photo}
             alt=""
-            width={48}
-            height={48}
-            className="h-12 w-12 shrink-0 rounded-xl border border-border object-cover"
+            fill
+            sizes={COVER_SIZES}
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : business.logoUrl ? (
+          // A logo stretched to 16:9 looks broken — contain it on the tint instead.
+          <Image
+            src={business.logoUrl}
+            alt=""
+            fill
+            sizes={COVER_SIZES}
+            className="object-contain p-8"
           />
         ) : (
           <span
             aria-hidden
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-tint text-lg font-bold text-brand-darker"
+            className="flex h-full items-center justify-center text-5xl font-bold text-brand-darker/40"
           >
-            {business.name.charAt(0).toUpperCase()}
+            {initial}
           </span>
         )}
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="font-semibold text-slate-900 group-hover:text-brand-darker">
-              <Link
-                href={`/business/${business.slug}`}
-                className="after:absolute after:inset-0"
-              >
-                {business.name}
-              </Link>
-            </h3>
-            {business.discount?.active && (
-              // Capped + truncated: the text is merchant-controlled and arbitrarily
-              // long — it must never squeeze the business name (the primary info)
-              // out of the row.
-              <span
-                title={business.discount.text || undefined}
-                className="max-w-[45%] shrink-0 truncate rounded-full bg-brand-tint px-2 py-0.5 text-xs font-medium text-brand-darker"
-              >
-                {business.discount.text || "Descuento"}
-              </span>
-            )}
-          </div>
+        {business.discount?.active && (
+          // Overlaid like YouTube's duration chip. Dark scrim so it stays legible over
+          // any photo. Capped + truncated: the text is merchant-controlled and
+          // arbitrarily long.
+          <span
+            title={business.discount.text || undefined}
+            className="absolute bottom-2 left-2 max-w-[80%] truncate rounded-md bg-slate-900/75 px-2 py-1 text-xs font-semibold text-white"
+          >
+            {business.discount.text || "Descuento"}
+          </span>
+        )}
+      </div>
 
-          {business.categoryNames.length > 0 && (
-            <p className="mt-1 text-sm text-muted">
-              {business.categoryNames.join(" · ")}
+      {/* Body: avatar + text column, YouTube's below-thumbnail row. */}
+      <div className="flex flex-1 gap-3 p-4">
+        {business.logoUrl ? (
+          <Image
+            src={business.logoUrl}
+            alt=""
+            width={40}
+            height={40}
+            className="h-10 w-10 shrink-0 rounded-full border border-border object-cover"
+          />
+        ) : (
+          <span
+            aria-hidden
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-tint text-base font-bold text-brand-darker"
+          >
+            {initial}
+          </span>
+        )}
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <h3 className="line-clamp-2 font-semibold leading-snug text-slate-900 group-hover:text-brand-darker">
+            <Link
+              href={`/business/${business.slug}`}
+              className="after:absolute after:inset-0"
+            >
+              {business.name}
+            </Link>
+          </h3>
+
+          {(business.reviewStats.count > 0 ||
+            business.categoryNames.length > 0) && (
+            <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-muted">
+              {business.reviewStats.count > 0 && (
+                <span className="flex shrink-0 items-center gap-1 font-medium text-slate-700">
+                  <span aria-hidden className="text-amber-500">
+                    ★
+                  </span>
+                  <span className="sr-only">Calificación:</span>
+                  {business.reviewStats.average.toFixed(1)}
+                  <span className="font-normal text-muted">
+                    ({business.reviewStats.count})
+                  </span>
+                </span>
+              )}
+              {business.categoryNames.length > 0 && (
+                <span className="truncate">
+                  {business.categoryNames.join(" · ")}
+                </span>
+              )}
             </p>
+          )}
+
+          <p className="mt-1 text-sm text-slate-600">
+            Vinculado a{" "}
+            <Link
+              href={`/school/${business.schoolId}`}
+              className="relative z-10 font-medium hover:text-brand-darker hover:underline"
+            >
+              {business.schoolName}
+            </Link>
+          </p>
+
+          {badge && (
+            // mt-auto on the wrapper bottom-aligns the badge across cards in a grid row
+            // even when titles wrap to different heights; pt-3 keeps a minimum gap when
+            // the card has little content.
+            <span className="mt-auto block pt-3">
+              <span
+                className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${badge.className}`}
+              >
+                {badge.label}
+              </span>
+            </span>
           )}
         </div>
       </div>
-
-      <p className="mt-3 text-sm text-slate-600">
-        Vinculado a{" "}
-        <Link
-          href={`/school/${business.schoolId}`}
-          className="relative z-10 font-medium hover:text-brand-darker hover:underline"
-        >
-          {business.schoolName}
-        </Link>
-      </p>
-
-      {badge && (
-        <span
-          className={`mt-4 inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${badge.className}`}
-        >
-          {badge.label}
-        </span>
-      )}
     </article>
   );
 }
