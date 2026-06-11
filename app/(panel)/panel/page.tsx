@@ -34,6 +34,7 @@ export default function PanelHome() {
         >
           Crear mi primera página
         </Link>
+        <DonateCallout />
       </main>
     );
   }
@@ -46,7 +47,27 @@ export default function PanelHome() {
           <PageCard key={`${page.type}-${page.doc?.id ?? "missing"}`} page={page} />
         ))}
       </ul>
+      <DonateCallout />
     </main>
+  );
+}
+
+function DonateCallout() {
+  return (
+    <section className="mt-8 rounded-lg border border-dashed p-4">
+      <h2 className="font-semibold">Apoyá como persona</h2>
+      <p className="mt-1 text-sm text-gray-600">
+        No necesitás una página para apoyar: doná directamente a la Junta de
+        Educación de una escuela y, si querés, aparecé en su muro de
+        agradecimiento.
+      </p>
+      <Link
+        href="/panel/donate"
+        className="mt-3 inline-block text-sm underline"
+      >
+        Donar a una escuela
+      </Link>
+    </section>
   );
 }
 

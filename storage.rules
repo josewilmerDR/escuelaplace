@@ -33,9 +33,9 @@ service firebase.storage {
 
     // SINPE proof files (sensitive): subscription-proofs/{subscriptionId}/...
     // NOT public. Ownership is resolved via Firestore: the proof belongs to a subscription,
-    // which references a business and a school.
-    // - write: the business owner/editors (who paid) or admin.
-    // - read: the business side, the target school's owner/editors (to verify), or admin.
+    // whose supporter is a business page or a personal donor (supporterType 'user').
+    // - write: the supporter side (business owner/editors, or the donor) or admin.
+    // - read: the supporter side, the target school's owner/editors (to verify), or admin.
     match /subscription-proofs/{subscriptionId}/{allPaths=**} {
       function sub() {
         return firestore.get(/databases/(default)/documents/subscriptions/$(subscriptionId)).data;
@@ -46,11 +46,17 @@ service firebase.storage {
       function school() {
         return firestore.get(/databases/(default)/documents/schools/$(sub().schoolId)).data;
       }
+      // The supporterType guard runs first (short-circuit) so donor-backed docs never
+      // dereference `businessId` — an evaluation error would deny the whole statement.
       function ownsBusiness() {
-        return isSignedIn() && (
-          business().ownerId == request.auth.uid ||
-          request.auth.uid in business().get('editorIds', [])
-        );
+        return isSignedIn() &&
+          sub().get('supporterType', 'business') == 'business' && (
+            business().ownerId == request.auth.uid ||
+            request.auth.uid in business().get('editorIds', [])
+          );
+      }
+      function isDonor() {
+        return isSignedIn() && sub().get('donorId', '') == request.auth.uid;
       }
       function ownsSchool() {
         return isSignedIn() && (
@@ -59,8 +65,8 @@ service firebase.storage {
         );
       }
 
-      allow write: if ownsBusiness() || isAdmin();
-      allow read: if ownsBusiness() || ownsSchool() || isAdmin();
+      allow write: if ownsBusiness() || isDonor() || isAdmin();
+      allow read: if ownsBusiness() || isDonor() || ownsSchool() || isAdmin();
     }
   }
 }

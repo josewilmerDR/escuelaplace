@@ -7,8 +7,9 @@
  * limit that to the business owner/editor or admin). So recomputing the business's
  * `ranking.score` must happen with Admin privileges, here.
  *
- * - onSubscriptionWritten: recompute the affected business's baseline score + totalDonated
- *   and the affected school's supportingBusinesses, on any subscription create/update/delete.
+ * - onSubscriptionWritten: recompute the affected business's baseline score + totalDonated,
+ *   the affected school's supportingBusinesses/uniqueSupporters, and — for personal
+ *   donations — the donor's recognition profile, on any subscription create/update/delete.
  * - expireSubscriptionsDaily: time-decay the lifecycle — flip lapsed subscriptions to
  *   `expired` and near-expiry ones to `expiring`. The status writes re-fire the trigger
  *   above, which recomputes the affected docs.
@@ -22,6 +23,7 @@ import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { donorTierForUnits } from "./donors";
 import {
   EXPIRING_WINDOW_DAYS,
   type ReviewStatsLike,
@@ -40,6 +42,8 @@ const SUBSCRIPTIONS = "subscriptions";
 const BUSINESSES = "businesses";
 const SCHOOLS = "schools";
 const REVIEWS = "reviews";
+const DONOR_PROFILES = "donorProfiles";
+const USERS = "users";
 
 /**
  * Recompute a business's stored baseline score and cumulative donations. Uses the review
@@ -97,7 +101,11 @@ async function recomputeReviewStats(businessId: string): Promise<void> {
   await recomputeBusinessRanking(businessId);
 }
 
-/** Recompute a school's count of currently-supporting (distinct) businesses. */
+/**
+ * Recompute a school's public support counters: distinct currently-supporting businesses,
+ * and distinct currently-supporting supporters of any kind (business pages + personal
+ * donors). Counts, never amounts — the platform does not publish money figures.
+ */
 async function recomputeSchool(schoolId: string): Promise<void> {
   const ref = db.collection(SCHOOLS).doc(schoolId);
   if (!(await ref.get()).exists) return;
@@ -109,14 +117,76 @@ async function recomputeSchool(schoolId: string): Promise<void> {
 
   const nowMs = Date.now();
   const businesses = new Set<string>();
+  const supporters = new Set<string>();
   for (const d of snap.docs) {
     const s = d.data() as ScorableSubscription;
-    if (isCounting(s, nowMs)) businesses.add(s.businessId);
+    if (!isCounting(s, nowMs)) continue;
+    // Prefixes keep a business id and a uid from ever colliding in the same set.
+    if (s.businessId) {
+      businesses.add(s.businessId);
+      supporters.add(`b:${s.businessId}`);
+    } else if (s.donorId) {
+      supporters.add(`u:${s.donorId}`);
+    }
   }
 
   await ref.update({
     "metrics.supportingBusinesses": businesses.size,
+    "metrics.uniqueSupporters": supporters.size,
     updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
+/**
+ * Recompute a personal donor's recognition profile from their donations. Lifetime
+ * accumulation: every donation that has ever been CONFIRMED counts toward the tier, even
+ * after its 90-day "active support" window lapses — recognition never decays, only the
+ * school's active-supporter counters do. Runs with Admin privileges because clients can
+ * never write the computed fields (see firestore.rules).
+ */
+async function recomputeDonorProfile(donorId: string): Promise<void> {
+  const snap = await db
+    .collection(SUBSCRIPTIONS)
+    .where("donorId", "==", donorId)
+    .get();
+
+  let totalUnits = 0;
+  const schools = new Set<string>();
+  let firstMs: number | null = null;
+  let lastMs: number | null = null;
+  for (const d of snap.docs) {
+    const data = d.data();
+    const confirmedAt = data.confirmedAt as Timestamp | null;
+    if (!confirmedAt) continue; // pending — the school never confirmed it
+    totalUnits += (data.units as number) ?? 0;
+    if (data.schoolId) schools.add(data.schoolId as string);
+    const ms = confirmedAt.toMillis();
+    if (firstMs == null || ms < firstMs) firstMs = ms;
+    if (lastMs == null || ms > lastMs) lastMs = ms;
+  }
+
+  const computed = {
+    totalUnits,
+    tier: donorTierForUnits(totalUnits),
+    schoolsSupported: schools.size,
+    firstConfirmedAt: firstMs == null ? null : Timestamp.fromMillis(firstMs),
+    lastConfirmedAt: lastMs == null ? null : Timestamp.fromMillis(lastMs),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  const ref = db.collection(DONOR_PROFILES).doc(donorId);
+  if ((await ref.get()).exists) {
+    await ref.update(computed);
+    return;
+  }
+  // The donate flow creates the profile before the first donation; this fallback keeps
+  // totals consistent if it didn't. Defaults to private — recognition is opt-in.
+  const user = await db.collection(USERS).doc(donorId).get();
+  await ref.set({
+    displayName: (user.get("name") as string | undefined) ?? "Donante",
+    isPublic: false,
+    ...computed,
+    createdAt: FieldValue.serverTimestamp(),
   });
 }
 
@@ -126,19 +196,22 @@ export const onSubscriptionWritten = onDocumentWritten(
     const before = event.data?.before.data();
     const after = event.data?.after.data();
 
-    // Collect affected ids from both sides (handles create/update/delete). businessId and
-    // schoolId never change in practice, but unioning is cheap and safe.
+    // Collect affected ids from both sides (handles create/update/delete). The identity
+    // fields never change in practice (rules freeze them), but unioning is cheap and safe.
     const businessIds = new Set<string>();
     const schoolIds = new Set<string>();
+    const donorIds = new Set<string>();
     for (const d of [before, after]) {
       if (!d) continue;
       if (d.businessId) businessIds.add(d.businessId as string);
       if (d.schoolId) schoolIds.add(d.schoolId as string);
+      if (d.donorId) donorIds.add(d.donorId as string);
     }
 
     await Promise.all([
       ...[...businessIds].map(recomputeBusinessRanking),
       ...[...schoolIds].map(recomputeSchool),
+      ...[...donorIds].map(recomputeDonorProfile),
     ]);
   },
 );

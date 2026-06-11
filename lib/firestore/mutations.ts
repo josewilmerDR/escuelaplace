@@ -14,6 +14,7 @@ import {
   arrayUnion,
   collection,
   doc,
+  getDoc,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -36,6 +37,7 @@ const SCHOOLS = "schools";
 const BUSINESSES = "businesses";
 const USERS = "users";
 const SUBSCRIPTIONS = "subscriptions";
+const DONOR_PROFILES = "donorProfiles";
 const DAY_MS = 86_400_000;
 
 /** A URL-safe slug from a display name (used for business public URLs). */
@@ -213,7 +215,7 @@ export async function createSchoolPage(
     status: "pending",
     verified: false,
     verificationStatus: "pending",
-    metrics: { supportingBusinesses: 0 },
+    metrics: { supportingBusinesses: 0, uniqueSupporters: 0 },
     ownerId: uid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -254,6 +256,7 @@ export async function createSubscription(
   input: CreateSubscriptionInput,
 ): Promise<string> {
   const created = await addDoc(collection(db, SUBSCRIPTIONS), {
+    supporterType: "business",
     businessId: input.businessId,
     businessName: input.businessName,
     schoolId: input.schoolId,
@@ -317,6 +320,85 @@ export async function confirmSubscription(
 export async function expireSubscription(id: string): Promise<void> {
   await updateDoc(doc(db, SUBSCRIPTIONS, id), {
     status: "expired",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// ── Personal donations & donor recognition ───────────────────────────────────
+// Any signed-in user — no page needed — may donate to a school. Same entity and
+// lifecycle as a business subscription (`supporterType: 'user'`): the school confirms
+// the SINPE proof; confirmed donations feed the donor's recognition tier via a Cloud
+// Function. The platform never touches the money.
+
+export interface CreateDonationInput {
+  donorId: string;
+  /** Denormalized account name so the school's confirmation UI can match the proof. */
+  donorName: string;
+  schoolId: string;
+  schoolName: string; // denormalized
+  /** Integer n in `n × SUBSCRIPTION_UNIT_CRC`. */
+  units: number;
+}
+
+/**
+ * Create a `pending` personal donation. Must be called by the signed-in donor (the rules
+ * enforce `donorId == auth.uid`). The SINPE proof is uploaded separately with
+ * uploadSubscriptionProof, exactly like a business subscription. Returns the new id.
+ */
+export async function createDonation(
+  input: CreateDonationInput,
+): Promise<string> {
+  const created = await addDoc(collection(db, SUBSCRIPTIONS), {
+    supporterType: "user",
+    donorId: input.donorId,
+    donorName: input.donorName,
+    schoolId: input.schoolId,
+    schoolName: input.schoolName,
+    units: input.units,
+    amount: input.units * SUBSCRIPTION_UNIT_CRC,
+    status: "pending",
+    confirmedAt: null,
+    expiresAt: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return created.id;
+}
+
+/**
+ * Create the donor's recognition profile if it doesn't exist yet. Private by default
+ * (recognition is opt-in); every computed field starts zeroed — the rules reject any
+ * other seed, and a Cloud Function maintains them from confirmed donations.
+ */
+export async function ensureDonorProfile(
+  uid: string,
+  displayName: string,
+): Promise<void> {
+  const ref = doc(db, DONOR_PROFILES, uid);
+  if ((await getDoc(ref)).exists()) return;
+  await setDoc(ref, {
+    displayName,
+    isPublic: false,
+    totalUnits: 0,
+    tier: null,
+    schoolsSupported: 0,
+    firstConfirmedAt: null,
+    lastConfirmedAt: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Update the donor's public-recognition preferences — the only fields the donor may
+ * write (the rules block everything computed). Must be called by the donor themselves.
+ */
+export async function updateDonorRecognition(
+  uid: string,
+  prefs: { displayName?: string; isPublic?: boolean },
+): Promise<void> {
+  await updateDoc(doc(db, DONOR_PROFILES, uid), {
+    ...prefs,
     updatedAt: serverTimestamp(),
   });
 }

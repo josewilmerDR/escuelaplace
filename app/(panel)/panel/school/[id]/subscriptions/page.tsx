@@ -18,6 +18,7 @@ import {
   getSchoolById,
   getSubscriptionProofUrl,
   getSubscriptionsBySchool,
+  supporterNameOf,
 } from "@/lib/firestore";
 import { formatColones } from "@/lib/format";
 import type { SchoolDoc, SubscriptionDoc } from "@/types";
@@ -128,7 +129,14 @@ export default function SchoolSubscriptionsPage() {
                 className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
               >
                 <div>
-                  <p className="font-medium">{s.businessName}</p>
+                  <p className="font-medium">
+                    {supporterNameOf(s)}
+                    {s.supporterType === "user" && (
+                      <span className="ml-2 text-xs font-normal text-muted">
+                        Donación personal
+                      </span>
+                    )}
+                  </p>
                   <p className="text-muted">
                     {s.units}× · {formatColones(s.amount)}
                   </p>
@@ -170,7 +178,14 @@ export default function SchoolSubscriptionsPage() {
                 className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
               >
                 <div>
-                  <p className="font-medium">{s.businessName}</p>
+                  <p className="font-medium">
+                    {supporterNameOf(s)}
+                    {s.supporterType === "user" && (
+                      <span className="ml-2 text-xs font-normal text-muted">
+                        Donación personal
+                      </span>
+                    )}
+                  </p>
                   <p className="text-muted">
                     {s.units}× · {formatColones(s.amount)}
                   </p>

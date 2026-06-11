@@ -19,6 +19,7 @@ export default function PanelLayout({
           <nav className="flex flex-col gap-2">
             <Link href="/panel">Mis páginas</Link>
             <Link href="/panel/new">Crear página</Link>
+            <Link href="/panel/donate">Donar a una escuela</Link>
           </nav>
           <div className="mt-6">
             <LoginButton />

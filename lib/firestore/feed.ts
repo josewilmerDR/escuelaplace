@@ -128,6 +128,9 @@ export async function rankBusinessFeed<T extends RankableBusiness>(
   const subs = await getSubscriptionsForBusinesses(businesses.map((b) => b.id));
   const byBusiness = new Map<string, SubscriptionDoc[]>();
   for (const s of subs) {
+    // Personal donations have no businessId and never feed a business's ranking
+    // (the query above already excludes them; this also narrows the optional field).
+    if (!s.businessId) continue;
     const arr = byBusiness.get(s.businessId);
     if (arr) arr.push(s);
     else byBusiness.set(s.businessId, [s]);
