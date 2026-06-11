@@ -6,6 +6,9 @@ rules_version = '2';
 // - Public catalog: businesses, schools and categories are READ without authentication (SEO/SSR).
 // - The platform NEVER processes payments: there are no transaction collections.
 // - Buyers ("person") have NO account: they are not referenced here.
+// - Personal donors: any signed-in user (no page needed) may support a school
+//   (`supporterType: 'user'` on subscriptions). Their public recognition lives in
+//   donorProfiles, is opt-in, and its tier/totals are Cloud-Function-maintained.
 // - "Pages" model (Facebook-style): a user account administers one or more pages
 //   (businesses and/or schools). Access control lives on the page doc via ownerId/editorIds.
 // - Schools are self-administered but verification is admin-gated: owners can never set
@@ -145,40 +148,114 @@ service cloud.firestore {
     }
 
     // ── subscriptions/{id} ────────────────────────────────────────────────────
-    // First-class support relationship: a business subscribes to a school.
-    // - read: public. Confirmed support is public info (badge/ranking, rendered SSR). The
-    //   doc holds NO sensitive payment data — the SINPE proof file lives in Storage
-    //   (subscription-proofs/{id}, gated by storage.rules); only `proofUploaded` is public.
-    // - create: a business owner/editor (or admin) creates it forced to 'pending';
-    //   the business can never start a subscription already confirmed.
-    // - update: the business owner/editor may edit their own subscription but may NEVER
-    //   self-confirm (move confirmation forward); only the TARGET school's owner/editors
-    //   or admin may confirm/expire.
-    // - delete: the business owner/editor or admin.
+    // First-class support relationship: a supporter — a business page, or a signed-in
+    // user donating personally (`supporterType: 'user'`) — supports a school.
+    // - read: public. Confirmed support is public info (badge/ranking/thank-you wall,
+    //   rendered SSR). The doc holds NO sensitive payment data — the SINPE proof file
+    //   lives in Storage (subscription-proofs/{id}, gated by storage.rules); only
+    //   `proofUploaded` is public.
+    // - create: the supporter side (business owner/editor, or the donor themselves) or
+    //   admin, forced to 'pending' — support can never start already confirmed.
+    // - update: the supporter side may edit their own doc but may NEVER self-confirm,
+    //   rewrite who supports whom, or grow `units`/`amount` once confirmed (ranking and
+    //   donor tiers feed on those); only the TARGET school's owner/editors or admin may
+    //   confirm/expire.
+    // - delete: the supporter side or admin.
     match /subscriptions/{id} {
       allow read: if true;
 
       allow create: if isAdmin() || (
         isSignedIn() &&
-        isOwnerOrEditor(businessData(request.resource.data.businessId)) &&
         request.resource.data.status == 'pending' &&
-        request.resource.data.confirmedAt == null
+        request.resource.data.confirmedAt == null &&
+        request.resource.data.units is int &&
+        request.resource.data.units >= 1 &&
+        isSupporterSide(request.resource.data)
       );
 
-      allow update: if isAdmin() ||
-        isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
-        (isOwnerOrEditor(businessData(resource.data.businessId)) && !changesConfirmation());
+      allow update: if isAdmin() || (
+        keepsSupporterIdentity() && (
+          isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
+          (isSupporterSide(resource.data) &&
+            !changesConfirmation() &&
+            keepsCommitmentOnceConfirmed())
+        )
+      );
 
-      allow delete: if isAdmin() ||
-        isOwnerOrEditor(businessData(resource.data.businessId));
+      allow delete: if isAdmin() || isSupporterSide(resource.data);
     }
 
-    // True if this update would alter the confirmation state. The business side must not
+    // The supporter side of a subscription: owner/editor of the supporting business, or
+    // the donating user themselves. Legacy docs lack `supporterType` → business-backed.
+    // The type guard runs first (short-circuit) so business docs never dereference
+    // `donorId` and donor docs never dereference `businessId` — an evaluation error
+    // would deny the whole statement.
+    function isSupporterSide(data) {
+      return (
+        data.get('supporterType', 'business') == 'business' &&
+        isOwnerOrEditor(businessData(data.businessId))
+      ) || (
+        data.get('supporterType', 'business') == 'user' &&
+        isSignedIn() &&
+        data.get('donorId', '') == request.auth.uid
+      );
+    }
+
+    // True if this update would alter the confirmation state. The supporter side must not
     // be able to self-confirm; only the school/admin may touch these fields.
     function changesConfirmation() {
       return request.resource.data.status != resource.data.status ||
         request.resource.data.confirmedAt != resource.data.confirmedAt ||
         request.resource.data.expiresAt != resource.data.expiresAt;
+    }
+
+    // No update may rewrite who supports whom: the structural identity is frozen at
+    // create time (delete and re-create is the legitimate way to change it).
+    function keepsSupporterIdentity() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['supporterType', 'businessId', 'donorId', 'schoolId']
+      );
+    }
+
+    // Once the school confirmed, the supporter may no longer change the committed
+    // magnitude (a post-confirmation `units` bump would inflate ranking/tier without a
+    // new proof). While 'pending' everything stays editable; re-uploading a proof for a
+    // renewal only touches `proofUploaded`/`updatedAt`, which stays allowed.
+    function keepsCommitmentOnceConfirmed() {
+      return resource.data.status == 'pending' ||
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['units', 'amount']);
+    }
+
+    // ── donorProfiles/{uid} ───────────────────────────────────────────────────
+    // Public recognition surface for personal donors (doc id = uid). The donor owns the
+    // recognition preferences (displayName, isPublic); totals and tier are derived from
+    // CONFIRMED donations by a Cloud Function (Admin SDK bypasses these rules), so
+    // clients can never self-assign a tier.
+    // - read: the donor and admin always; everyone else only when the donor opted in
+    //   (isPublic) — an opted-out donor still counts in aggregates but stays anonymous.
+    // - create: the donor, with every computed field zeroed (no seeding fake totals).
+    // - update: the donor may touch only the preference fields; admin freely.
+    match /donorProfiles/{uid} {
+      allow read: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == uid) ||
+        resource.data.isPublic == true;
+
+      allow create: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.totalUnits == 0 &&
+        request.resource.data.tier == null &&
+        request.resource.data.schoolsSupported == 0 &&
+        request.resource.data.firstConfirmedAt == null &&
+        request.resource.data.lastConfirmedAt == null;
+
+      allow update: if isAdmin() || (
+        isSignedIn() && request.auth.uid == uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+          ['totalUnits', 'tier', 'schoolsSupported', 'firstConfirmedAt', 'lastConfirmedAt']
+        )
+      );
+
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
     }
   }
 }

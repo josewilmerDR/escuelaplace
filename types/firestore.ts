@@ -193,6 +193,12 @@ export interface BoardContact {
 
 export interface SchoolMetrics {
   supportingBusinesses: number;
+  /**
+   * Distinct supporters with currently-counting support, of any kind: business pages +
+   * personal donors. Function-maintained (see recomputeSchool); absent on legacy docs.
+   * A count, never an amount — the platform does not publish money figures.
+   */
+  uniqueSupporters?: number;
 }
 
 export interface School {
@@ -304,14 +310,14 @@ export const SUBSCRIPTION_EXPIRING_WINDOW_DAYS = 14;
 /**
  * Subscription lifecycle. A subscription is recurring but the platform never sees the
  * money, so confirmation is time-boxed and decays if not renewed (see `expiresAt`):
- * - `pending`: business committed/uploaded a proof; the school has not confirmed yet.
- *   Does NOT count toward the ranking.
+ * - `pending`: the supporter committed/uploaded a proof; the school has not confirmed
+ *   yet. Does NOT count toward the ranking.
  * - `confirmed`: the school confirmed the SINPE proof matches. Counts toward the ranking
  *   until `expiresAt`.
  * - `expiring`: confirmed but close to `expiresAt` (renewal nudge); still counts.
  * - `expired`: `expiresAt` passed without renewal. No longer counts.
  * Only the target school's owner/editors or admin may move a subscription into
- * `confirmed` (the business can never self-confirm; see firestore.rules).
+ * `confirmed` (the supporter can never self-confirm; see firestore.rules).
  */
 export type SubscriptionStatus =
   | "pending"
@@ -320,16 +326,37 @@ export type SubscriptionStatus =
   | "expired";
 
 /**
- * First-class support relationship: a business subscribes to (supports) a school via a
- * recurring SINPE payment. Summing a business's `confirmed` subscriptions reconstructs
- * the ranking signals C (community institutions) and I (institutions in general); the
- * `status`/`expiresAt` pair drives time decay. The day the platform decides to mediate
- * payments, the money flow can be layered on top of this same schema.
+ * Who supports a school through a subscription: a business page, or a signed-in user
+ * donating personally (no page, no commercial intent). Legacy docs predate this field —
+ * absent means 'business'.
+ */
+export type SupporterType = "business" | "user";
+
+/**
+ * First-class support relationship: a supporter (business page or personal donor)
+ * supports a school via a SINPE payment. Summing a business's `confirmed` subscriptions
+ * reconstructs the ranking signals C (community institutions) and I (institutions in
+ * general); the `status`/`expiresAt` pair drives time decay. Personal donations follow
+ * the exact same lifecycle (the school confirms the proof, the confirmation is
+ * time-boxed) but feed the donor's recognition tier instead of a ranking. The day the
+ * platform decides to mediate payments, the money flow can be layered on top of this
+ * same schema.
  */
 export interface Subscription {
-  businessId: string;
+  /** Supporter discriminator. Absent on legacy docs → treat as 'business'. */
+  supporterType?: SupporterType;
+  /** Supporting business page. Present iff the supporter is a business. */
+  businessId?: string;
   /** Denormalized so the school's confirmation UI renders without extra reads. */
-  businessName: string;
+  businessName?: string;
+  /** Donating user (uid). Present iff the supporter is a person (`supporterType: 'user'`). */
+  donorId?: string;
+  /**
+   * Denormalized account name so the school's confirmation UI can match the proof
+   * without a users read. Public surfaces must NOT render it — recognition is opt-in
+   * through `donorProfiles/{uid}` (see DonorProfile).
+   */
+  donorName?: string;
   schoolId: string;
   /** Denormalized so a business's support list renders without extra reads. */
   schoolName: string;
@@ -357,6 +384,50 @@ export interface Subscription {
 }
 
 export type SubscriptionDoc = Subscription & { id: string };
+
+// ── donorProfiles/{uid} ──────────────────────────────────────────────────────
+
+/**
+ * Recognition tier for personal donors, derived from accumulated CONFIRMED units across
+ * all schools. Thresholds and the mapping live in `lib/firestore/donors.ts`
+ * (DONOR_TIER_MIN_UNITS / donorTierForUnits). Tiers deliberately blur the exact amount:
+ * public surfaces render the tier, never units or colones.
+ */
+export type DonorTier = "bronze" | "silver" | "gold" | "platinum";
+
+/**
+ * Public recognition surface for a personal donor (doc id = the user's uid). Kept apart
+ * from `users/{uid}` because that doc is private (self/admin reads only) while this one
+ * backs the school's public "thank-you wall" (SSR, anonymous readers).
+ *
+ * The donor creates it and controls ONLY the recognition preferences (`displayName`,
+ * `isPublic`). The totals and the tier are derived from confirmed donations and
+ * maintained by a Cloud Function — clients can never write them (see firestore.rules),
+ * so nobody can self-assign a tier.
+ *
+ * Reads are gated by `isPublic`: others can read the doc only when the donor opted in;
+ * a donor who opted out still counts in aggregate metrics but renders as anonymous.
+ */
+export interface DonorProfile {
+  /** Name shown on public recognition surfaces (defaults to the account name). */
+  displayName: string;
+  /** Opt-in to public recognition. False → counted in aggregates, rendered anonymous. */
+  isPublic: boolean;
+  /** Accumulated confirmed units across all schools (function-maintained). */
+  totalUnits: number;
+  /** Tier derived from `totalUnits` (function-maintained); null until first confirmation. */
+  tier: DonorTier | null;
+  /** Distinct schools with at least one confirmed donation (function-maintained). */
+  schoolsSupported: number;
+  /** First confirmation ever — the donor's seniority ("donante desde…"). */
+  firstConfirmedAt: Timestamp | null;
+  /** Most recent confirmation (function-maintained). */
+  lastConfirmedAt: Timestamp | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type DonorProfileDoc = DonorProfile & { id: string };
 
 // ── businesses/{id}/reviews/{userId} ─────────────────────────────────────────
 

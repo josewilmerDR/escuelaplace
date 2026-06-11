@@ -22,6 +22,19 @@ import { docToTyped, snapToList } from "./converters";
 
 const SUBSCRIPTIONS = "subscriptions";
 
+/**
+ * Display name of whoever supports: the business page, or the donating user. Meant for
+ * the school's confirmation/history UI — public surfaces must not render `donorName`
+ * (recognition is opt-in via donorProfiles).
+ */
+export function supporterNameOf(
+  sub: Pick<Subscription, "supporterType" | "businessName" | "donorName">,
+): string {
+  const name =
+    sub.supporterType === "user" ? sub.donorName : sub.businessName;
+  return name ?? "—";
+}
+
 /** Private Storage path of a subscription's SINPE proof (gated by storage.rules). */
 export function subscriptionProofPath(subscriptionId: string): string {
   return `subscription-proofs/${subscriptionId}/proof`;
@@ -63,6 +76,17 @@ export async function getSubscriptionsByBusiness(
   const q = query(
     collection(db, SUBSCRIPTIONS),
     where("businessId", "==", businessId),
+  );
+  return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
+}
+
+/** All personal donations of a user (any status), newest first. */
+export async function getSubscriptionsByDonor(
+  donorId: string,
+): Promise<SubscriptionDoc[]> {
+  const q = query(
+    collection(db, SUBSCRIPTIONS),
+    where("donorId", "==", donorId),
   );
   return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
 }

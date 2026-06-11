@@ -36,7 +36,10 @@ export interface ScorableSubscription {
   status: string;
   units: number;
   schoolId: string;
-  businessId: string;
+  /** Absent on personal donations (supporterType 'user') — those never feed a ranking. */
+  businessId?: string;
+  /** Present only on personal donations; feeds the school's uniqueSupporters counter. */
+  donorId?: string;
   confirmedAt: MillisLike | null;
   expiresAt: MillisLike | null;
 }
