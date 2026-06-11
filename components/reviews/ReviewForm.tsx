@@ -6,59 +6,49 @@
  * account to browse). One review per user per business (doc id = uid); the business's own
  * owner/editors can't review it. On success it refreshes the server-rendered list.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { deleteReview, getMyReview, upsertReview } from "@/lib/firestore";
+import type { UserDoc } from "@/types";
 
 export function ReviewForm({
   businessId,
+  businessName,
   ownerId,
   editorIds,
 }: {
   businessId: string;
+  /** For concrete copy in the delete confirmation. */
+  businessName: string;
   ownerId: string;
   editorIds?: string[];
 }) {
   const { user, loading } = useAuth();
-  const router = useRouter();
-  const [rating, setRating] = useState(5);
-  const [text, setText] = useState("");
-  const [hasExisting, setHasExisting] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const isManager =
-    !!user && (user.id === ownerId || !!editorIds?.includes(user.id));
-
-  // Prefill the user's existing review, if any (async — no synchronous setState in effect).
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    getMyReview(businessId, user.id).then((r) => {
-      if (cancelled || !r) return;
-      setRating(r.rating);
-      setText(r.text);
-      setHasExisting(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [user, businessId]);
-
-  if (loading) return null;
+  if (loading) {
+    // Skeleton sized like the sign-in box: no pop-in over the list while auth resolves
+    // (same idea as the LoginButton header skeleton).
+    return (
+      <div
+        aria-hidden
+        className="h-28 animate-pulse rounded-xl border border-border bg-surface"
+      />
+    );
+  }
 
   if (!user) {
     return (
       <div className="rounded-xl border border-border bg-surface p-4 text-sm">
         <p className="mb-3 text-muted">Iniciá sesión con Google para dejar tu reseña.</p>
-        <LoginButton />
+        {/* "primary": the default on-brand chip is white-on-white here. */}
+        <LoginButton variant="primary" />
       </div>
     );
   }
 
-  if (isManager) {
+  if (user.id === ownerId || editorIds?.includes(user.id)) {
     return (
       <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
         No podés reseñar tu propio comercio.
@@ -66,11 +56,88 @@ export function ReviewForm({
     );
   }
 
+  return (
+    // Keyed by user: switching accounts remounts the form with fresh state, so one
+    // account's draft can never leak into — or get published under — another one.
+    <ReviewFormInner
+      key={user.id}
+      user={user}
+      businessId={businessId}
+      businessName={businessName}
+    />
+  );
+}
+
+function ReviewFormInner({
+  user,
+  businessId,
+  businessName,
+}: {
+  user: UserDoc;
+  businessId: string;
+  businessName: string;
+}) {
+  const router = useRouter();
+  // 0 = no rating chosen yet. Preselecting 5 stars made accidental (and inflated)
+  // five-star reviews one tap away; the choice must be conscious.
+  const [rating, setRating] = useState(0);
+  const [text, setText] = useState("");
+  const [hasExisting, setHasExisting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const starRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Prefill the user's existing review, if any (async — no synchronous setState in effect).
+  useEffect(() => {
+    let cancelled = false;
+    getMyReview(businessId, user.id)
+      .then((r) => {
+        if (cancelled || !r) return;
+        setRating(r.rating);
+        setText(r.text);
+        setHasExisting(true);
+      })
+      .catch(() => {
+        // Can't know whether a review exists — submitting now would overwrite it
+        // blindly, so warn instead of failing silently.
+        if (cancelled) return;
+        setError(
+          "No pudimos comprobar si ya tenías una reseña. Recargá la página antes de publicar.",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user.id, businessId]);
+
+  // Standard radiogroup keyboard: arrows move selection AND focus (roving tabindex).
+  const onStarKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    let next: number;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      next = rating >= 5 ? 1 : rating + 1;
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      next = rating <= 1 ? 5 : rating - 1;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    setRating(next);
+    starRefs.current[next - 1]?.focus();
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSuccess(null);
+    if (rating === 0) {
+      setError("Elegí una calificación antes de publicar.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
+      const wasExisting = hasExisting;
       await upsertReview({
         businessId,
         authorId: user.id,
@@ -79,6 +146,7 @@ export function ReviewForm({
         text: text.trim(),
       });
       setHasExisting(true);
+      setSuccess(wasExisting ? "Tu reseña se actualizó." : "Tu reseña se publicó.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar la reseña.");
@@ -90,16 +158,19 @@ export function ReviewForm({
   const onDelete = async () => {
     setSaving(true);
     setError(null);
+    setSuccess(null);
     try {
       await deleteReview(businessId, user.id);
       setHasExisting(false);
-      setRating(5);
+      setRating(0);
       setText("");
+      setSuccess("Tu reseña se borró.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo borrar la reseña.");
     } finally {
       setSaving(false);
+      setConfirmingDelete(false);
     }
   };
 
@@ -112,16 +183,23 @@ export function ReviewForm({
         {hasExisting ? "Editá tu reseña" : "Dejá tu reseña"}
       </p>
 
-      <div className="mt-3 flex gap-1" role="radiogroup" aria-label="Calificación">
+      {/* h-10/w-10 buttons keep the tap targets ≥40px (the .btn rule in globals.css);
+          the glyph itself was a ~24px target. */}
+      <div className="mt-2 flex" role="radiogroup" aria-label="Calificación">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
+            ref={(el) => {
+              starRefs.current[n - 1] = el;
+            }}
             type="button"
             role="radio"
             aria-checked={rating === n}
             aria-label={`${n} estrella${n > 1 ? "s" : ""}`}
+            tabIndex={n === (rating === 0 ? 1 : rating) ? 0 : -1}
             onClick={() => setRating(n)}
-            className={`text-2xl leading-none ${
+            onKeyDown={onStarKeyDown}
+            className={`flex h-10 w-10 items-center justify-center text-2xl leading-none ${
               n <= rating ? "text-brand" : "text-slate-300"
             }`}
           >
@@ -134,30 +212,67 @@ export function ReviewForm({
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Contá tu experiencia (opcional)"
+        aria-label="Contá tu experiencia (opcional)"
+        maxLength={600}
         className="input mt-3 min-h-20 w-full"
       />
+      <p className="mt-1 text-right text-xs text-muted">{text.length}/600</p>
 
-      {error && <p className="mt-2 text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-2 text-red-700">
+          {error}
+        </p>
+      )}
+      {success && (
+        <p role="status" className="mt-2 text-green-700">
+          {success}
+        </p>
+      )}
 
-      <div className="mt-3 flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
-        >
-          {saving ? "Guardando…" : hasExisting ? "Actualizar" : "Publicar"}
-        </button>
-        {hasExisting && (
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={saving}
-            className="text-muted hover:underline disabled:opacity-50"
-          >
-            Borrar
+      {confirmingDelete ? (
+        // Inline confirmation (no modal primitive in the codebase yet). Concrete copy:
+        // what gets deleted and that there is no undo.
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-red-800">
+            ¿Borrar tu reseña de {businessName}? Esta acción no se puede
+            deshacer.
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={saving}
+              className="btn bg-red-700 text-white hover:bg-red-800"
+            >
+              {saving ? "Borrando…" : "Sí, borrar"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              disabled={saving}
+              className="btn btn-outline"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex items-center gap-3">
+          <button type="submit" disabled={saving} className="btn btn-primary">
+            {saving ? "Guardando…" : hasExisting ? "Actualizar" : "Publicar"}
           </button>
-        )}
-      </div>
+          {hasExisting && (
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              disabled={saving}
+              className="min-h-10 px-2 text-red-700 hover:underline disabled:opacity-50"
+            >
+              Borrar
+            </button>
+          )}
+        </div>
+      )}
     </form>
   );
 }

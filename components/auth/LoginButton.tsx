@@ -1,8 +1,11 @@
 "use client";
 
 /**
- * Google sign-in / sign-out for the brand header (white-on-brand chip styling, matching
- * the "Crear página" CTA). Reflects the current auth state from useAuth().
+ * Google sign-in / sign-out reflecting the current auth state from useAuth().
+ *
+ * Two surface variants: "on-brand" (default) is the white chip for the brand header,
+ * matching the "Crear página" CTA; "primary" is for light surfaces (review form,
+ * RequireAuth, panel), where the white chip has no border and disappears.
  *
  * The three states (loading / signed out / signed in) render at comparable widths so the
  * header doesn't shift on every page load while auth resolves.
@@ -11,7 +14,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "./AuthProvider";
 
-export function LoginButton() {
+export function LoginButton({
+  variant = "on-brand",
+}: {
+  variant?: "on-brand" | "primary";
+}) {
   const { user, loading, signIn, signOut } = useAuth();
   const [busy, setBusy] = useState(false);
 
@@ -29,7 +36,9 @@ export function LoginButton() {
     return (
       <span
         aria-hidden
-        className="inline-block h-10 w-36 animate-pulse rounded-md bg-white/20"
+        className={`inline-block h-10 w-36 animate-pulse rounded-md ${
+          variant === "primary" ? "bg-slate-200" : "bg-white/20"
+        }`}
       />
     );
   }
@@ -65,7 +74,11 @@ export function LoginButton() {
       type="button"
       disabled={busy}
       onClick={() => run(signIn)}
-      className="btn btn-on-brand font-semibold"
+      className={
+        variant === "primary"
+          ? "btn btn-primary"
+          : "btn btn-on-brand font-semibold"
+      }
     >
       Ingresar con Google
     </button>

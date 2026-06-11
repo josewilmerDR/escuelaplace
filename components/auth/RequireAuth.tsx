@@ -26,7 +26,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
           Creá o gestioná tu comercio o escuela. Navegar el catálogo no requiere cuenta.
         </p>
         <div className="mt-6 flex justify-center">
-          <LoginButton />
+          <LoginButton variant="primary" />
         </div>
       </div>
     );

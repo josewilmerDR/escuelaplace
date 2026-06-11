@@ -22,7 +22,7 @@ export default function PanelLayout({
             <Link href="/panel/donate">Donar a una escuela</Link>
           </nav>
           <div className="mt-6">
-            <LoginButton />
+            <LoginButton variant="primary" />
           </div>
         </aside>
         <section className="flex-1">{children}</section>

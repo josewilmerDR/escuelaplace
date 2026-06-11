@@ -80,8 +80,10 @@ service cloud.firestore {
       }
 
       // Reviews: businesses/{id}/reviews/{userId}, doc id = author uid (one per user).
-      // Public read; write requires sign-in as that user, a 1–5 rating, and the author
-      // must NOT own/edit the business (no self-reviews). Admin may delete (moderation).
+      // Public read; write requires sign-in as that user, a 1–5 rating, a text capped
+      // at 600 chars (the form enforces the same limit; the cap stops layout-breaking
+      // walls of text on someone else's profile), and the author must NOT own/edit the
+      // business (no self-reviews). Admin may delete (moderation).
       match /reviews/{userId} {
         allow read: if true;
         allow create, update: if isSignedIn() &&
@@ -89,6 +91,8 @@ service cloud.firestore {
           request.resource.data.rating is int &&
           request.resource.data.rating >= 1 &&
           request.resource.data.rating <= 5 &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() <= 600 &&
           !isOwnerOrEditor(businessData(id));
         allow delete: if isAdmin() ||
           (isSignedIn() && request.auth.uid == userId);

@@ -2,6 +2,7 @@
  * Typed reads of the `businesses` collection.
  * These functions are called from server components (SSG/SSR) for SEO.
  */
+import { cache } from "react";
 import {
   collection,
   doc,
@@ -33,19 +34,29 @@ export async function getBusinessesBySchool(
   return snapToList<Business>(await getDocs(q));
 }
 
-/** A business by its unique slug. Returns null if it does not exist. */
-export async function getBusinessBySlug(
-  slug: string,
-): Promise<BusinessDoc | null> {
-  const q = query(
-    collection(db, BUSINESSES),
-    where("slug", "==", slug),
-    fbLimit(1),
-  );
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return docToTyped<Business>(snap.docs[0]);
-}
+/**
+ * An active business by its unique slug. Returns null if it does not exist OR is not
+ * publicly visible (draft/pending/suspended): the public profile is the only consumer,
+ * and pausing a page must actually unpublish it — without the status filter a paused
+ * business stayed reachable (and indexable) by direct link.
+ *
+ * Wrapped in React cache(): generateMetadata and the page component both call it with
+ * the same slug during one request — the cache dedupes that into a single Firestore
+ * query (the Firestore SDK, unlike fetch, gets no deduping from Next).
+ */
+export const getBusinessBySlug = cache(
+  async (slug: string): Promise<BusinessDoc | null> => {
+    const q = query(
+      collection(db, BUSINESSES),
+      where("slug", "==", slug),
+      where("status", "==", "active"),
+      fbLimit(1),
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    return docToTyped<Business>(snap.docs[0]);
+  },
+);
 
 /** A business by document id. */
 export async function getBusinessById(
