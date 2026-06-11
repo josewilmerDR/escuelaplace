@@ -58,9 +58,46 @@ export interface BusinessRanking {
   totalDonated: number;
 }
 
+/** Contact channels tracked on the public business profile. */
+export type ContactChannel =
+  | "whatsapp"
+  | "phone"
+  | "directions"
+  | "website"
+  | "instagram"
+  | "facebook";
+
+/** Events the public profile reports: a profile view or a contact-channel click. */
+export type BusinessEvent = "view" | ContactChannel;
+
 export interface BusinessMetrics {
   views: number;
+  /** Sum of all contact-channel clicks (kept in sync by the trackInteraction function). */
   interactions: number;
+  /**
+   * Lifetime per-channel click counters. Keys are created on first increment, so docs
+   * predating a channel simply lack its key (missing = zero).
+   */
+  clicks?: Partial<Record<ContactChannel, number>>;
+  /**
+   * Walk-in customers who mentioned escuelaplace at the counter, recorded by the
+   * business itself via the recordWalkIn callable (manager-only). Private bookkeeping
+   * for the owner's ROI report — never part of the ranking.
+   */
+  walkIns?: number;
+}
+
+/**
+ * businesses/{id}/metricsDaily/{day} — per-day counters, doc id = YYYY-MM-DD in Costa
+ * Rica time. Written ONLY by the trackInteraction Cloud Function (Admin SDK); read by
+ * the owner's panel. Lifetime totals live in the business doc's `metrics`; this series
+ * exists because "this month vs last month" can't be answered from lifetime counters.
+ */
+export interface BusinessDailyMetrics {
+  views?: number;
+  clicks?: Partial<Record<ContactChannel, number>>;
+  /** Walk-ins recorded by the business that day (see BusinessMetrics.walkIns). */
+  walkIns?: number;
 }
 
 /**
