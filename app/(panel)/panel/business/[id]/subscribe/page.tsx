@@ -14,10 +14,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
+import { Field } from "@/components/ui/Field";
+import { FormError } from "@/components/ui/FormError";
+import { userErrorMessage } from "@/lib/errors";
+import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
   createSubscription,
   getBusinessById,
-  getSchools,
+  getSchoolsCached,
   getSubscriptionsByBusiness,
   getVerifiedSchoolSinpe,
   uploadSubscriptionProof,
@@ -54,7 +58,7 @@ export default function BusinessSubscribePage() {
   }, [id]);
 
   useEffect(() => {
-    Promise.all([getBusinessById(id), getSchools(), getSubscriptionsByBusiness(id)])
+    Promise.all([getBusinessById(id), getSchoolsCached(), getSubscriptionsByBusiness(id)])
       .then(([b, s, subs]) => {
         setBusiness(b);
         setSchools(s);
@@ -94,7 +98,11 @@ export default function BusinessSubscribePage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !schoolId) return;
+    if (!user) {
+      setError("Tu sesión expiró. Volvé a ingresar.");
+      return;
+    }
+    if (!schoolId) return; // the submit button is disabled without a school
     const school = schools.find((s) => s.id === schoolId);
     if (!school) return;
     setSaving(true);
@@ -112,7 +120,7 @@ export default function BusinessSubscribePage() {
       setUnits(1);
       reloadSubscriptions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo registrar el apoyo.");
+      setError(userErrorMessage(err, "No se pudo registrar el apoyo."));
     } finally {
       setSaving(false);
     }
@@ -125,9 +133,7 @@ export default function BusinessSubscribePage() {
       await uploadSubscriptionProof(subId, file);
       reloadSubscriptions();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "No se pudo subir el comprobante.",
-      );
+      setError(userErrorMessage(err, "No se pudo subir el comprobante."));
     } finally {
       setUploadingId(null);
     }
@@ -138,9 +144,13 @@ export default function BusinessSubscribePage() {
       <h1 className="text-2xl font-bold">Apoyar una escuela</h1>
       <p className="mt-1 text-sm text-gray-600">{business.name}</p>
 
-      <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Escuela</span>
+      <form
+        onSubmit={onSubmit}
+        onInvalidCapture={spanishRequiredMessage}
+        onInputCapture={clearValidationMessage}
+        className="mt-6 flex flex-col gap-4"
+      >
+        <Field label="Escuela">
           <select
             required
             value={schoolId}
@@ -154,7 +164,7 @@ export default function BusinessSubscribePage() {
               </option>
             ))}
           </select>
-        </label>
+        </Field>
 
         {schoolId && (
           <div className="rounded-md bg-surface p-3 text-sm">
@@ -172,10 +182,9 @@ export default function BusinessSubscribePage() {
           </div>
         )}
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">
-            Cantidad de aportes (cada uno {formatColones(SUBSCRIPTION_UNIT_CRC)})
-          </span>
+        <Field
+          label={`Cantidad de aportes (cada uno ${formatColones(SUBSCRIPTION_UNIT_CRC)})`}
+        >
           <input
             type="number"
             min={1}
@@ -187,10 +196,9 @@ export default function BusinessSubscribePage() {
           <span className="text-muted">
             Total: {formatColones(units * SUBSCRIPTION_UNIT_CRC)}
           </span>
-        </label>
+        </Field>
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Comprobante SINPE (opcional)</span>
+        <Field label="Comprobante SINPE (opcional)">
           <input
             type="file"
             accept="image/*,application/pdf"
@@ -200,14 +208,14 @@ export default function BusinessSubscribePage() {
           <span className="text-muted">
             Solo lo ven la escuela y vos. No se publica.
           </span>
-        </label>
+        </Field>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        <FormError message={error} />
 
         <button
           type="submit"
           disabled={saving || !schoolId}
-          className="rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
+          className="btn btn-primary"
         >
           {saving ? "Registrando…" : "Registrar apoyo"}
         </button>

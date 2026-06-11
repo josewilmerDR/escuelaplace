@@ -8,24 +8,27 @@ import { LoginButton } from "@/components/auth/LoginButton";
  *
  * Access is gated client-side by <RequireAuth> (UX gate; real security is in
  * firestore.rules). A user administers one or more "pages" (businesses/schools).
+ *
+ * Below md the sidebar collapses into a wrapping top bar (nav links + session button);
+ * a fixed 192px column would leave ~90px of content on a 360px viewport.
  */
 export default function PanelLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <RequireAuth>
-      <div className="mx-auto flex max-w-6xl gap-8 px-6 py-8">
-        <aside className="w-48 shrink-0 border-r pr-4 text-sm">
-          <nav className="flex flex-col gap-2">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:flex-row md:gap-8 md:px-6 md:py-8">
+        <aside className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b pb-4 text-sm md:block md:w-48 md:border-r md:border-b-0 md:pr-4 md:pb-0">
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 md:flex-col md:gap-2">
             <Link href="/panel">Mis páginas</Link>
             <Link href="/panel/new">Crear página</Link>
             <Link href="/panel/donate">Donar a una escuela</Link>
           </nav>
-          <div className="mt-6">
+          <div className="md:mt-6">
             <LoginButton variant="primary" />
           </div>
         </aside>
-        <section className="flex-1">{children}</section>
+        <section className="min-w-0 flex-1">{children}</section>
       </div>
     </RequireAuth>
   );

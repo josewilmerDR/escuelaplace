@@ -130,6 +130,12 @@ export type SchoolVerificationStatus =
 
 // ── businesses/{id} ──────────────────────────────────────────────────────────
 
+/**
+ * UI cap for page descriptions (business/school). Keeps cards and profiles readable;
+ * enforced by the form inputs (maxLength), not by rules.
+ */
+export const PAGE_DESCRIPTION_MAX = 300;
+
 export interface Business {
   name: string;
   slug: string;
