@@ -23,11 +23,22 @@ export async function getSchoolById(id: string): Promise<SchoolDoc | null> {
   return docToTyped<School>(await getDoc(doc(db, SCHOOLS, id)));
 }
 
-/** Active schools, ordered by name. For listings/selection. */
-export async function getSchools(max = 100): Promise<SchoolDoc[]> {
+/**
+ * Schools open for selection (pickers, support/donation flows), ordered by name.
+ * Deliberately includes `pending`: a just-created school must be selectable by buyers
+ * and by the business that wants to support it — verification gates the SINPE (see
+ * getVerifiedSchoolSinpe), not the school's presence in lists. Only `inactive`
+ * (delisted) schools are excluded.
+ *
+ * The cap exists so a runaway collection can't blow up every picker mount; schools
+ * beyond it silently disappear from selectors, so it is set well above the current
+ * volume. If the directory ever outgrows it, the pickers (Combobox) should switch to
+ * querying by name prefix instead of raising it again.
+ */
+export async function getSchools(max = 500): Promise<SchoolDoc[]> {
   const q = query(
     collection(db, SCHOOLS),
-    where("status", "==", "active"),
+    where("status", "in", ["active", "pending"]),
     orderBy("name"),
     fbLimit(max),
   );
@@ -50,6 +61,14 @@ export async function getSchoolsCached(): Promise<SchoolDoc[]> {
   const data = await getSchools();
   schoolsCache = { at: Date.now(), data };
   return data;
+}
+
+/**
+ * Drop the TTL cache. Called right after creating a school so the pickers (create
+ * business, donate, subscribe) list it immediately instead of after the TTL.
+ */
+export function invalidateSchoolsCache(): void {
+  schoolsCache = null;
 }
 
 /**

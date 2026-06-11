@@ -14,11 +14,15 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
+import { Field } from "@/components/ui/Field";
+import { FormError } from "@/components/ui/FormError";
+import { userErrorMessage } from "@/lib/errors";
+import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
   createDonation,
   ensureDonorProfile,
   getDonorProfile,
-  getSchools,
+  getSchoolsCached,
   getSubscriptionsByDonor,
   getVerifiedSchoolSinpe,
   updateDonorRecognition,
@@ -64,7 +68,7 @@ export default function DonatePage() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      getSchools(),
+      getSchoolsCached(),
       getSubscriptionsByDonor(user.id),
       getDonorProfile(user.id),
     ])
@@ -120,9 +124,7 @@ export default function DonatePage() {
       await reloadDonations();
       if (!profile) setProfile(await getDonorProfile(user.id));
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "No se pudo registrar la donación.",
-      );
+      setError(userErrorMessage(err, "No se pudo registrar la donación."));
     } finally {
       setSaving(false);
     }
@@ -135,9 +137,7 @@ export default function DonatePage() {
       await uploadSubscriptionProof(subId, file);
       await reloadDonations();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "No se pudo subir el comprobante.",
-      );
+      setError(userErrorMessage(err, "No se pudo subir el comprobante."));
     } finally {
       setUploadingId(null);
     }
@@ -158,11 +158,7 @@ export default function DonatePage() {
       setProfile(await getDonorProfile(user.id));
       setPrefSaved(true);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudieron guardar las preferencias.",
-      );
+      setError(userErrorMessage(err, "No se pudieron guardar las preferencias."));
     } finally {
       setPrefSaving(false);
     }
@@ -187,9 +183,13 @@ export default function DonatePage() {
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Escuela</span>
+      <form
+        onSubmit={onSubmit}
+        onInvalidCapture={spanishRequiredMessage}
+        onInputCapture={clearValidationMessage}
+        className="mt-6 flex flex-col gap-4"
+      >
+        <Field label="Escuela">
           <select
             required
             value={schoolId}
@@ -203,7 +203,7 @@ export default function DonatePage() {
               </option>
             ))}
           </select>
-        </label>
+        </Field>
 
         {schoolId && (
           <div className="rounded-md bg-surface p-3 text-sm">
@@ -221,10 +221,9 @@ export default function DonatePage() {
           </div>
         )}
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">
-            Cantidad de aportes (cada uno {formatColones(SUBSCRIPTION_UNIT_CRC)})
-          </span>
+        <Field
+          label={`Cantidad de aportes (cada uno ${formatColones(SUBSCRIPTION_UNIT_CRC)})`}
+        >
           <input
             type="number"
             min={1}
@@ -236,10 +235,9 @@ export default function DonatePage() {
           <span className="text-muted">
             Total: {formatColones(units * SUBSCRIPTION_UNIT_CRC)}
           </span>
-        </label>
+        </Field>
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Comprobante SINPE (opcional)</span>
+        <Field label="Comprobante SINPE (opcional)">
           <input
             type="file"
             accept="image/*,application/pdf"
@@ -249,14 +247,14 @@ export default function DonatePage() {
           <span className="text-muted">
             Solo lo ven la escuela y vos. No se publica.
           </span>
-        </label>
+        </Field>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        <FormError message={error} />
 
         <button
           type="submit"
           disabled={saving || !schoolId}
-          className="rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
+          className="btn btn-primary"
         >
           {saving ? "Registrando…" : "Registrar donación"}
         </button>
@@ -282,8 +280,7 @@ export default function DonatePage() {
             <span>Mostrar mi nombre en el muro de agradecimiento</span>
           </label>
           {prefPublic && (
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium">Nombre a mostrar</span>
+            <Field label="Nombre a mostrar">
               <input
                 type="text"
                 value={prefName}
@@ -294,7 +291,7 @@ export default function DonatePage() {
                 maxLength={60}
                 className="input"
               />
-            </label>
+            </Field>
           )}
           <div className="flex items-center gap-3">
             <button

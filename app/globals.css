@@ -44,9 +44,10 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-/* Shared form control style used by the panel creation forms. */
+/* Shared form control style used by the panel forms. The ring is the focus indicator:
+   a 1px border-color change alone is near-invisible for low vision (WCAG 2.4.7). */
 .input {
-  @apply rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-brand;
+  @apply rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/40;
 }
 
 /* Shared button primitives (same spirit as .input) — compose as `btn btn-<variant>`.

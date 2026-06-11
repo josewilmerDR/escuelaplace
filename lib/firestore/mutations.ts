@@ -15,13 +15,20 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  limit as fbLimit,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
+  writeBatch,
+  type WriteBatch,
 } from "firebase/firestore";
 import { ref as storageRef, uploadBytes } from "firebase/storage";
 import { geohashForLocation } from "geofire-common";
 import { db, storage } from "@/lib/firebase";
+import { invalidateSchoolsCache } from "./schools";
 import { subscriptionProofPath } from "./subscriptions";
 import {
   SUBSCRIPTION_CONFIRMATION_DAYS,
@@ -29,6 +36,8 @@ import {
 } from "@/types";
 import type {
   BusinessContact,
+  BusinessStatus,
+  Discount,
   School,
   SchoolPrivate,
 } from "@/types";
@@ -40,14 +49,43 @@ const SUBSCRIPTIONS = "subscriptions";
 const DONOR_PROFILES = "donorProfiles";
 const DAY_MS = 86_400_000;
 
-/** A URL-safe slug from a display name (used for business public URLs). */
-function slugify(name: string): string {
+/**
+ * A URL-safe slug from a display name (used for business public URLs). Exported so the
+ * create form can preview the public URL while the owner types the name.
+ */
+export function slugify(name: string): string {
   return name
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "") // strip accents
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
+}
+
+/**
+ * A slug no other business holds yet: the slugified name, or name-2, name-3… on
+ * collision. Business names repeat a lot ("Soda La Esperanza"), and getBusinessBySlug
+ * resolves a single doc — a duplicate slug would leave one of the two profiles
+ * unreachable forever, silently. The check spans every status (a draft holds its slug).
+ * Lookup + create is not transactional, so two simultaneous creates with the same name
+ * could still collide; that window is milliseconds and a collision costs one of them
+ * the public URL until renamed — acceptable next to the everyday homonym case.
+ */
+async function uniqueBusinessSlug(name: string): Promise<string> {
+  const base = slugify(name) || "comercio";
+  for (let n = 1; n < 100; n++) {
+    const candidate = n === 1 ? base : `${base}-${n}`;
+    const taken = await getDocs(
+      query(
+        collection(db, BUSINESSES),
+        where("slug", "==", candidate),
+        fbLimit(1),
+      ),
+    );
+    if (taken.empty) return candidate;
+  }
+  // 100 homonyms: give up on pretty and guarantee uniqueness with a time suffix.
+  return `${base}-${Date.now().toString(36)}`;
 }
 
 /** Location captured by the creation forms (lat/lng + administrative fields). */
@@ -64,19 +102,26 @@ function toLocation(input: LocationInput) {
   return {
     geopoint: new GeoPoint(input.lat, input.lng),
     geohash: geohashForLocation([input.lat, input.lng]),
+    // Conditional spread: Firestore rejects explicit `undefined` values.
+    ...(input.address ? { address: input.address } : {}),
     province: input.province,
     canton: input.canton,
     district: input.district,
   };
 }
 
-/** Append a page reference to the user's managedPages (as owner). */
-async function linkPageToUser(
+/**
+ * Queue the managedPages link (as owner) on the same batch as the page creation. If
+ * this write ran separately and failed after the page doc existed, the page would be
+ * orphaned: invisible in the panel, with a retry creating a duplicate.
+ */
+function linkPageToUser(
+  batch: WriteBatch,
   uid: string,
   type: "business" | "school",
   id: string,
-): Promise<void> {
-  await updateDoc(doc(db, USERS, uid), {
+): void {
+  batch.update(doc(db, USERS, uid), {
     managedPages: arrayUnion({ type, id, role: "owner" }),
   });
 }
@@ -159,9 +204,12 @@ export async function createBusinessPage(
   uid: string,
   input: CreateBusinessInput,
 ): Promise<string> {
-  const ref = await addDoc(collection(db, BUSINESSES), {
+  const slug = await uniqueBusinessSlug(input.name);
+  const ref = doc(collection(db, BUSINESSES));
+  const batch = writeBatch(db);
+  batch.set(ref, {
     name: input.name,
-    slug: slugify(input.name),
+    slug,
     description: input.description,
     categories: input.categories,
     categoryNames: input.categoryNames,
@@ -181,8 +229,70 @@ export async function createBusinessPage(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  await linkPageToUser(uid, "business", ref.id);
+  linkPageToUser(batch, uid, "business", ref.id);
+  await batch.commit();
   return ref.id;
+}
+
+/**
+ * Statuses the owner may set from the panel: publish (`active`) / unpublish (`draft`).
+ * `pending` and `suspended` are admin lifecycle states the panel never writes.
+ */
+export type BusinessPublishStatus = Extract<BusinessStatus, "draft" | "active">;
+
+/**
+ * Publish or unpublish a business page. Public reads filter by `status == 'active'`
+ * (see lib/firestore/businesses.ts), so flipping this is what actually puts the profile
+ * on — or takes it off — the catalog and its public URL.
+ */
+export async function setBusinessStatus(
+  id: string,
+  status: BusinessPublishStatus,
+): Promise<void> {
+  await updateDoc(doc(db, BUSINESSES, id), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Profile fields the owner edits from the panel (everything the edit form captures). */
+export interface UpdateBusinessInput {
+  name: string;
+  description: string;
+  categories: string[]; // category ids
+  categoryNames: string[]; // denormalized
+  schoolId: string;
+  schoolName: string; // denormalized
+  location: LocationInput;
+  contact: BusinessContact;
+  discount: Discount;
+  hours?: string;
+}
+
+/**
+ * Update the public business doc from the edit form. The slug is deliberately NOT
+ * regenerated on rename: it is the public URL (shared on WhatsApp), so breaking inbound
+ * links costs more than an outdated slug. `status` is handled separately
+ * (setBusinessStatus); `ranking`/`reviewStats` are function-maintained and the rules
+ * reject any client write that touches them.
+ */
+export async function updateBusinessProfile(
+  id: string,
+  input: UpdateBusinessInput,
+): Promise<void> {
+  await updateDoc(doc(db, BUSINESSES, id), {
+    name: input.name,
+    description: input.description,
+    categories: input.categories,
+    categoryNames: input.categoryNames,
+    schoolId: input.schoolId,
+    schoolName: input.schoolName,
+    location: toLocation(input.location),
+    contact: input.contact,
+    discount: input.discount,
+    hours: input.hours ?? "",
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export interface CreateSchoolInput {
@@ -205,7 +315,9 @@ export async function createSchoolPage(
   uid: string,
   input: CreateSchoolInput,
 ): Promise<string> {
-  const ref = await addDoc(collection(db, SCHOOLS), {
+  const ref = doc(collection(db, SCHOOLS));
+  const batch = writeBatch(db);
+  batch.set(ref, {
     name: input.name,
     mepCode: input.mepCode,
     description: input.description ?? "",
@@ -220,14 +332,20 @@ export async function createSchoolPage(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  linkPageToUser(batch, uid, "school", ref.id);
+  await batch.commit();
 
+  // The SINPE write stays OUTSIDE the batch: the private-subcollection rule guards
+  // with get(schools/{id}), which reads pre-batch state — inside the batch the school
+  // wouldn't exist yet and the whole commit would be denied.
   if (input.sinpe) {
     await setDoc(doc(db, SCHOOLS, ref.id, "private", "data"), {
       sinpe: input.sinpe,
     });
   }
 
-  await linkPageToUser(uid, "school", ref.id);
+  // New school → drop the pickers' TTL cache so it is selectable immediately.
+  invalidateSchoolsCache();
   return ref.id;
 }
 
