@@ -53,6 +53,21 @@ export function buildPhoneUrl(rawPhone: string): string | null {
   return phone ? `tel:+${phone}` : null;
 }
 
+/**
+ * Human-readable form of the number for the call button's label: desktop browsers
+ * often do nothing useful with tel:, so showing the number lets the user dial (or jot
+ * it down) manually. CR numbers read the way locals write them (+506 8888 8888);
+ * anything else stays as +E.164.
+ */
+export function formatPhoneDisplay(rawPhone: string): string | null {
+  const phone = normalizePhoneInternational(rawPhone);
+  if (!phone) return null;
+  if (phone.length === 11 && phone.startsWith("506")) {
+    return `+506 ${phone.slice(3, 7)} ${phone.slice(7)}`;
+  }
+  return `+${phone}`;
+}
+
 /** Google Maps directions to the business. A directions request is the strongest
  * visit-intent signal a physical business gets, second only to a chat. */
 export function buildDirectionsUrl(lat: number, lng: number): string {

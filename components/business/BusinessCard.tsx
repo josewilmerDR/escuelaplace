@@ -12,8 +12,11 @@ import type { SupportTier } from "@/lib/firestore";
  * reads "Vinculado a {schoolName}": supported schools come from subscriptions, which may
  * target schools other than the linked one, so "Apoya a {schoolName}" would lie (e.g. a
  * business linked to school A whose community-tier support goes to school B).
+ *
+ * Exported so the profile badge (<SupportBadge>) uses the same copy/styles — card and
+ * profile must never tell a different support story.
  */
-const TIER_BADGE: Record<SupportTier, { label: string; className: string }> = {
+export const TIER_BADGE: Record<SupportTier, { label: string; className: string }> = {
   community: {
     label: "Apoya a tu comunidad",
     className: "bg-brand-darker text-white",

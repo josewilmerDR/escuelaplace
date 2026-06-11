@@ -5,6 +5,7 @@ import {
   buildPhoneUrl,
   buildWebsiteUrl,
   buildWhatsAppUrl,
+  formatPhoneDisplay,
 } from "@/lib/contact";
 import { TrackedLink } from "@/components/business/TrackedLink";
 import type { BusinessContact, ContactChannel, Discount } from "@/types";
@@ -46,11 +47,15 @@ export function ContactButtons({
     channel: ContactChannel;
     external: boolean;
   }[] = [];
+  // Both derive from the same normalization, so they are null together.
   const phoneUrl = contact?.phone ? buildPhoneUrl(contact.phone) : null;
-  if (phoneUrl)
+  const phoneDisplay = contact?.phone ? formatPhoneDisplay(contact.phone) : null;
+  if (phoneUrl && phoneDisplay)
     secondary.push({
       href: phoneUrl,
-      label: "Llamar",
+      // The number in the label: on desktop tel: often does nothing visible, so the
+      // user must be able to read the number and dial it themselves.
+      label: `Llamar ${phoneDisplay}`,
       channel: "phone",
       external: false,
     });
@@ -93,7 +98,15 @@ export function ContactButtons({
       external: true,
     });
 
-  if (!whatsAppUrl && secondary.length === 0) return null;
+  if (!whatsAppUrl && secondary.length === 0) {
+    // The page's whole job is producing a contact: say why there are no buttons
+    // instead of silently rendering nothing (which reads as a broken page).
+    return (
+      <p className="mt-6 text-sm text-muted">
+        Este comercio todavía no publicó datos de contacto.
+      </p>
+    );
+  }
 
   return (
     <div className="mt-6 flex flex-wrap gap-3">

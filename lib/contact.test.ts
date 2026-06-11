@@ -6,6 +6,7 @@ import {
   buildPhoneUrl,
   buildWebsiteUrl,
   buildWhatsAppUrl,
+  formatPhoneDisplay,
   normalizePhoneInternational,
   whatsAppMessage,
 } from "./contact";
@@ -37,6 +38,21 @@ describe("normalizePhoneInternational", () => {
     // 9 digits: neither a local CR number nor a full international one.
     expect(normalizePhoneInternational("123456789")).toBeNull();
     expect(normalizePhoneInternational("1234567890123456")).toBeNull();
+  });
+});
+
+describe("formatPhoneDisplay", () => {
+  it("formats CR numbers the way locals write them", () => {
+    expect(formatPhoneDisplay("8888-8888")).toBe("+506 8888 8888");
+    expect(formatPhoneDisplay("+506 8888 8888")).toBe("+506 8888 8888");
+  });
+
+  it("keeps other country codes as +E.164", () => {
+    expect(formatPhoneDisplay("5215512345678")).toBe("+5215512345678");
+  });
+
+  it("rejects undialable input", () => {
+    expect(formatPhoneDisplay("hola")).toBeNull();
   });
 });
 
