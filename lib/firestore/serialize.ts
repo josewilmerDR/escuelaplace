@@ -3,10 +3,28 @@
  * values) to plain, JSON-serializable DTOs that server components can pass to client
  * components.
  */
-import type { BusinessCardData, BusinessDoc } from "@/types";
+import type { Business, BusinessCardData, BusinessDoc } from "@/types";
+
+/**
+ * Split a business's images into the explicit cover and the gallery. Docs created
+ * before `coverUrl` existed stored the cover as photos[0] — recognizable because it
+ * was uploaded to the `businesses/{id}/cover` Storage path (encoded in the download
+ * URL), unlike gallery photos which live under `.../gallery/`.
+ */
+export function splitBusinessPhotos(
+  b: Pick<Business, "coverUrl" | "photos">,
+): { cover?: string; gallery: string[] } {
+  const photos = b.photos ?? [];
+  if (b.coverUrl) return { cover: b.coverUrl, gallery: photos };
+  if (photos[0]?.includes("%2Fcover")) {
+    return { cover: photos[0], gallery: photos.slice(1) };
+  }
+  return { cover: undefined, gallery: photos };
+}
 
 /** Render-ready, serializable card data for a business. */
 export function toBusinessCardData(b: BusinessDoc): BusinessCardData {
+  const { cover, gallery } = splitBusinessPhotos(b);
   return {
     id: b.id,
     name: b.name,
@@ -15,7 +33,9 @@ export function toBusinessCardData(b: BusinessDoc): BusinessCardData {
     schoolName: b.schoolName,
     categoryNames: b.categoryNames ?? [],
     logoUrl: b.logoUrl,
-    photo: b.photos?.[0],
+    // The card thumbnail: the cover, or the first gallery photo — any photo beats
+    // the logo-on-tint fallback.
+    photo: cover ?? gallery[0],
     discount: b.discount,
     ranking: { score: b.ranking?.score ?? 0 },
     reviewStats: b.reviewStats ?? { count: 0, average: 0 },

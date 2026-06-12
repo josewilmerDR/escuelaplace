@@ -10,7 +10,12 @@ import { OwnReviewMark } from "@/components/reviews/OwnReviewMark";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { Stars } from "@/components/reviews/Stars";
 import { normalizePhoneInternational } from "@/lib/contact";
-import { getBusinessBySlug, getReviewsByBusiness } from "@/lib/firestore";
+import {
+  getBusinessBySlug,
+  getReviewsByBusiness,
+  splitBusinessPhotos,
+} from "@/lib/firestore";
+import { locationParts } from "@/lib/location";
 
 /**
  * Public business page: /business/[slug]
@@ -36,8 +41,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const business = await getBusinessBySlug(slug);
   if (!business) return { title: "Comercio no encontrado" };
   // og:image drives the share preview on WhatsApp — the platform's main share channel.
-  // Same priority as the profile cover: first photo, logo as fallback.
-  const image = business.photos?.[0] ?? business.logoUrl;
+  // Same priority as the profile cover: cover (or first gallery photo), logo fallback.
+  const { cover, gallery } = splitBusinessPhotos(business);
+  const image = cover ?? gallery[0] ?? business.logoUrl;
   return {
     title: business.name,
     description: business.description,
@@ -60,19 +66,16 @@ export default async function BusinessPage({ params }: Props) {
 
   const reviews = await getReviewsByBusiness(business.id);
   const stats = business.reviewStats ?? { count: 0, average: 0 };
-  // Legacy docs may lack the photos field entirely (same defensiveness as serialize.ts).
-  const photos = business.photos ?? [];
-  const gallery = photos.slice(1);
+  // Explicit cover vs gallery (legacy-aware — see splitBusinessPhotos). The cover slot
+  // falls back to the first gallery photo so landing here from a card (whose thumbnail
+  // does the same) is never a visual downgrade.
+  const { cover, gallery } = splitBusinessPhotos(business);
+  const coverImage = cover ?? gallery[0];
   const initial = business.name.charAt(0).toUpperCase();
   // Where the business is, in words: the buyer must not need to open Maps ("Cómo
-  // llegar") just to find out the canton. Address is optional, the rest may be empty
-  // strings on legacy docs.
-  const locationParts = [
-    business.location?.address,
-    business.location?.district,
-    business.location?.canton,
-    business.location?.province,
-  ].filter(Boolean);
+  // llegar") just to find out the locality. Empty/missing admin levels are filtered
+  // by the helper (legacy docs may lack them entirely).
+  const placeParts = locationParts(business.location);
   // categories (ids) and categoryNames are parallel denormalized arrays; zip them and
   // drop entries whose name is missing.
   const categoryChips = (business.categories ?? [])
@@ -97,20 +100,28 @@ export default async function BusinessPage({ params }: Props) {
     name: business.name,
     description: business.description,
     url: `https://escuelaplace.com/business/${business.slug}`,
-    ...(photos[0] || business.logoUrl
-      ? { image: photos[0] ?? business.logoUrl }
+    ...(coverImage || business.logoUrl
+      ? { image: coverImage ?? business.logoUrl }
       : {}),
     ...(phone ? { telephone: `+${phone}` } : {}),
     ...(business.location
       ? {
+          // Agnostic admin levels: admin2 ≈ locality, admin1 ≈ region; the country
+          // comes from the geocoder (no hardcoded default — the catalog is multi-country).
           address: {
             "@type": "PostalAddress",
             ...(business.location.address
               ? { streetAddress: business.location.address }
               : {}),
-            addressLocality: business.location.canton,
-            addressRegion: business.location.province,
-            addressCountry: "CR",
+            ...(business.location.admin2
+              ? { addressLocality: business.location.admin2 }
+              : {}),
+            ...(business.location.admin1
+              ? { addressRegion: business.location.admin1 }
+              : {}),
+            ...(business.location.country
+              ? { addressCountry: business.location.country }
+              : {}),
           },
           ...(business.location.geopoint
             ? {
@@ -160,9 +171,9 @@ export default async function BusinessPage({ params }: Props) {
               className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]"
               style={{ viewTransitionName: `business-${business.id}` }}
             >
-              {photos[0] ? (
+              {coverImage ? (
                 <Image
-                  src={photos[0]}
+                  src={coverImage}
                   alt=""
                   fill
                   priority
@@ -192,7 +203,10 @@ export default async function BusinessPage({ params }: Props) {
               {/* Centered avatar-over-cover on mobile, avatar-left row on desktop —
                   the same responsive switch FB pages do. */}
               <div className="flex flex-col items-center sm:flex-row sm:items-end sm:gap-5">
-                <div className="-mt-14 shrink-0 sm:-mt-16">
+                {/* relative z-10: the cover's fill image is absolutely positioned, and
+                    positioned boxes paint over in-flow content regardless of DOM order —
+                    without this the cover covers the avatar's overlapping half. */}
+                <div className="relative z-10 -mt-14 shrink-0 sm:-mt-16">
                   {business.logoUrl ? (
                     <Image
                       src={business.logoUrl}
@@ -335,12 +349,12 @@ export default async function BusinessPage({ params }: Props) {
               {business.description}
             </p>
 
-            {(locationParts.length > 0 || business.hours) && (
+            {(placeParts.length > 0 || business.hours) && (
               <ul className="mt-4 space-y-3 text-sm text-slate-600">
-                {locationParts.length > 0 && (
+                {placeParts.length > 0 && (
                   <li className="flex items-start gap-3">
                     <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
-                    {locationParts.join(", ")}
+                    {placeParts.join(", ")}
                   </li>
                 )}
                 {business.hours && (

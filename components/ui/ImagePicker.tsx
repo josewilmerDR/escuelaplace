@@ -13,6 +13,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 const MAX_IMAGE_MB = 5;
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
 
+/**
+ * User-facing error for an unusable image file, or null when it's fine. Shared with
+ * other image inputs (e.g. the gallery manager) so every upload validates alike.
+ */
+export function validateImageFile(file: File): string | null {
+  if (!file.type.startsWith("image/")) {
+    return "El archivo debe ser una imagen (JPG, PNG…).";
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return `La imagen no puede superar los ${MAX_IMAGE_MB} MB.`;
+  }
+  return null;
+}
+
 export function ImagePicker({
   label,
   hint,
@@ -43,13 +57,9 @@ export function ImagePicker({
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("El archivo debe ser una imagen (JPG, PNG…).");
-      e.target.value = "";
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError(`La imagen no puede superar los ${MAX_IMAGE_MB} MB.`);
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setError(validationError);
       e.target.value = "";
       return;
     }

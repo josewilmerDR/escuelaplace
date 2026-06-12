@@ -10,7 +10,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
-import { CR_PROVINCES, matchProvince } from "@/lib/cr";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
@@ -32,9 +31,12 @@ export default function NewSchoolPage() {
   const [name, setName] = useState("");
   const [mepCode, setMepCode] = useState("");
   const [description, setDescription] = useState("");
-  const [province, setProvince] = useState("");
-  const [canton, setCanton] = useState("");
-  const [district, setDistrict] = useState("");
+  // Country-agnostic administrative levels (see types/firestore.ts). country has no
+  // input: it arrives from the reverse geocoder when the pin moves.
+  const [admin1, setAdmin1] = useState("");
+  const [admin2, setAdmin2] = useState("");
+  const [admin3, setAdmin3] = useState("");
+  const [country, setCountry] = useState("");
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [boardName, setBoardName] = useState("");
   const [boardPhone, setBoardPhone] = useState("");
@@ -58,10 +60,10 @@ export default function NewSchoolPage() {
   const onAddressSuggestion = useCallback((guess: AdminAreaGuess) => {
     // The pin is the source of truth; the location fields are an editable
     // confirmation, so a recognized area overwrites what was typed.
-    const matched = matchProvince(guess.province);
-    if (matched) setProvince(matched);
-    if (guess.canton) setCanton(guess.canton);
-    if (guess.district) setDistrict(guess.district);
+    if (guess.admin1) setAdmin1(guess.admin1);
+    if (guess.admin2) setAdmin2(guess.admin2);
+    if (guess.admin3) setAdmin3(guess.admin3);
+    if (guess.country) setCountry(guess.country);
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -91,9 +93,10 @@ export default function NewSchoolPage() {
         location: {
           lat: coords.lat,
           lng: coords.lng,
-          province: province.trim(),
-          canton: canton.trim(),
-          district: district.trim(),
+          admin1: admin1.trim(),
+          admin2: admin2.trim(),
+          admin3: admin3.trim(),
+          country: country.trim() || undefined,
         },
         boardContact: {
           name: boardName.trim(),
@@ -160,33 +163,28 @@ export default function NewSchoolPage() {
           />
         </div>
 
+        {/* Country-agnostic levels: free text (no closed list — this must work for any
+            country), autofilled by the pin's reverse geocode. All optional: the pin
+            is the source of truth, and not every country fills every level. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Provincia">
-            <select
-              required
+          <Field label="Provincia / Estado (opcional)">
+            <input
               autoComplete="address-level1"
-              value={province}
-              onChange={(e) => setProvince(e.target.value)}
+              value={admin1}
+              onChange={(e) => setAdmin1(e.target.value)}
               className="input"
-            >
-              <option value="">Elegí…</option>
-              {CR_PROVINCES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+            />
           </Field>
-          <Field label="Cantón">
-            <input required autoComplete="address-level2" value={canton} onChange={(e) => setCanton(e.target.value)} className="input" />
+          <Field label="Cantón / Municipio (opcional)">
+            <input autoComplete="address-level2" value={admin2} onChange={(e) => setAdmin2(e.target.value)} className="input" />
           </Field>
-          <Field label="Distrito">
-            <input required autoComplete="address-level3" value={district} onChange={(e) => setDistrict(e.target.value)} className="input" />
+          <Field label="Distrito / Comunidad (opcional)">
+            <input autoComplete="address-level3" value={admin3} onChange={(e) => setAdmin3(e.target.value)} className="input" />
           </Field>
         </div>
         <p className="-mt-2 text-xs text-gray-500">
-          Se completan solos al marcar el punto en el mapa — revisalos y
-          corregilos si hace falta.
+          Se completan solos al marcar el punto en el mapa — revisalos,
+          corregilos o dejalos en blanco si no aplican.
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

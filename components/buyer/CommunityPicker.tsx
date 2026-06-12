@@ -11,6 +11,7 @@ import { distanceBetween } from "geofire-common";
 import { Combobox } from "@/components/ui/Combobox";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
 import { COMMUNITY_RADIUS_KM, getSchoolsCached } from "@/lib/firestore";
+import { localityLabel } from "@/lib/location";
 import type { SchoolDoc } from "@/types";
 
 type SchoolsState = "loading" | "error" | "loaded";
@@ -106,9 +107,9 @@ export function CommunityPicker() {
           options={schools.map((s) => ({
             id: s.id,
             label: s.name,
-            // Disambiguates homonyms (MEP school names repeat across cantons) and lets
+            // Disambiguates homonyms (school names repeat across localities) and lets
             // the buyer filter by place ("liberia", "escazu").
-            hint: `${s.location.canton}, ${s.location.province}`,
+            hint: localityLabel(s.location) || undefined,
           }))}
           value={ready ? (prefs.schoolId ?? "") : ""}
           onChange={onSchool}

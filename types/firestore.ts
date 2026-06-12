@@ -15,17 +15,35 @@ import type { GeoPoint, Timestamp } from "firebase/firestore";
 
 // ── Shared types ─────────────────────────────────────────────────────────────
 
+/**
+ * Where a page physically is. The pin (geopoint + geohash) is the source of truth for
+ * proximity; the admin* fields are the country-agnostic administrative hierarchy
+ * (Google geocoder levels), general → specific:
+ * - admin1: province / state / department (CR: provincia, MX: estado, NI: departamento)
+ * - admin2: canton / municipality
+ * - admin3: district / community / colonia
+ * All free text suggested by reverse geocoding, editable by the owner, and optional
+ * ("" when unknown or not applicable — display helpers in lib/location filter empties).
+ */
 export interface Location {
   geopoint: GeoPoint;
   geohash: string;
   address?: string;
-  province: string;
-  canton: string;
-  district: string;
+  /** ISO 3166-1 alpha-2 code (e.g. "CR"), when the geocoder provided it. */
+  country?: string;
+  admin1: string;
+  admin2: string;
+  admin3: string;
 }
 
 export interface BusinessContact {
   whatsapp?: string;
+  /**
+   * WhatsApp Business catalog: the wa.me/c/… share link, or the number that hosts the
+   * catalog. The platform never hosts products — it links to the catalog the owner
+   * already maintains in WhatsApp (see buildCatalogUrl in lib/contact).
+   */
+  catalog?: string;
   phone?: string;
   email?: string;
   web?: string;
@@ -61,6 +79,7 @@ export interface BusinessRanking {
 /** Contact channels tracked on the public business profile. */
 export type ContactChannel =
   | "whatsapp"
+  | "catalog"
   | "phone"
   | "directions"
   | "website"
@@ -136,6 +155,9 @@ export type SchoolVerificationStatus =
  */
 export const PAGE_DESCRIPTION_MAX = 300;
 
+/** Gallery photo cap per business. Enforced by the panel UI, not by rules. */
+export const BUSINESS_GALLERY_MAX = 5;
+
 export interface Business {
   name: string;
   slug: string;
@@ -149,6 +171,14 @@ export interface Business {
   contact: BusinessContact;
   discount: Discount;
   logoUrl?: string;
+  /** Header cover of the public profile (falls back to logo, then initial). */
+  coverUrl?: string;
+  /**
+   * Gallery photos (max BUSINESS_GALLERY_MAX), shown in the public "Fotos" section —
+   * merchants use it as a visual catalog or as ambience shots. Legacy docs created
+   * before `coverUrl` existed carry the cover as photos[0] instead; readers resolve
+   * with `coverUrl ?? photos[0]` and treat the rest as the gallery.
+   */
   photos: string[];
   hours?: string;
   status: BusinessStatus;

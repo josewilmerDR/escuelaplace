@@ -44,7 +44,10 @@ export async function getPagesByUser(uid: string): Promise<ResolvedPage[]> {
 
   return Promise.all(
     user.managedPages.map(async (page): Promise<ResolvedPage> => {
-      const snap = await getDoc(doc(db, `${page.type}s`, page.id));
+      // Explicit mapping: naive pluralization ("business" + "s") produced "businesss",
+      // a collection no rule matches — every business page denied and the panel hung.
+      const collectionName = page.type === "business" ? "businesses" : "schools";
+      const snap = await getDoc(doc(db, collectionName, page.id));
       if (page.type === "business") {
         return { type: "business", role: page.role, doc: docToTyped<Business>(snap) };
       }

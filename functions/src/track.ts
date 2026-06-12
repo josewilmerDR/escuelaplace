@@ -21,6 +21,7 @@ import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 const TRACKED_EVENTS = new Set([
   "view",
   "whatsapp",
+  "catalog",
   "phone",
   "directions",
   "website",

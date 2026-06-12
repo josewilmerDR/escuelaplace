@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCatalogUrl,
   buildDirectionsUrl,
   buildFacebookUrl,
   buildInstagramUrl,
@@ -53,6 +54,30 @@ describe("formatPhoneDisplay", () => {
 
   it("rejects undialable input", () => {
     expect(formatPhoneDisplay("hola")).toBeNull();
+  });
+});
+
+describe("buildCatalogUrl", () => {
+  it("normalizes a pasted wa.me/c share link", () => {
+    expect(buildCatalogUrl("https://wa.me/c/50688888888")).toBe(
+      "https://wa.me/c/50688888888",
+    );
+    expect(buildCatalogUrl("wa.me/c/50688888888")).toBe(
+      "https://wa.me/c/50688888888",
+    );
+  });
+
+  it("builds the link from a bare number (local CR gets the country code)", () => {
+    expect(buildCatalogUrl("8888-8888")).toBe("https://wa.me/c/50688888888");
+    expect(buildCatalogUrl("+506 8888 8888")).toBe(
+      "https://wa.me/c/50688888888",
+    );
+  });
+
+  it("rejects input that is neither a catalog link nor a dialable number", () => {
+    expect(buildCatalogUrl("hola")).toBeNull();
+    expect(buildCatalogUrl("")).toBeNull();
+    expect(buildCatalogUrl("https://example.com/catalogo")).toBeNull();
   });
 });
 

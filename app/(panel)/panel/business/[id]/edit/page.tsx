@@ -11,14 +11,15 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { GalleryManager } from "@/components/business/GalleryManager";
 import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { PhoneField } from "@/components/ui/PhoneField";
-import { normalizePhoneInternational } from "@/lib/contact";
-import { CR_PROVINCES, matchProvince } from "@/lib/cr";
+import { buildCatalogUrl, normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
+import { localityLabel } from "@/lib/location";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 import {
   LocationPicker,
@@ -30,6 +31,7 @@ import {
   getCategories,
   getSchoolsCached,
   setBusinessStatus,
+  splitBusinessPhotos,
   updateBusinessProfile,
   type BusinessPublishStatus,
 } from "@/lib/firestore";
@@ -58,15 +60,19 @@ export default function BusinessEditPage() {
   const [description, setDescription] = useState("");
   const [schoolId, setSchoolId] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [province, setProvince] = useState("");
-  const [canton, setCanton] = useState("");
-  const [district, setDistrict] = useState("");
+  // Country-agnostic administrative levels (see types/firestore.ts). country has no
+  // input: it is carried from the doc and refreshed by the reverse geocoder on pin move.
+  const [admin1, setAdmin1] = useState("");
+  const [admin2, setAdmin2] = useState("");
+  const [admin3, setAdmin3] = useState("");
+  const [country, setCountry] = useState("");
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<LatLng | null>(null);
   // Whether the user moved the pin this session (the doc prefills coords, and the
   // mount-time reverse geocode must not overwrite the stored fields unprompted).
   const [pinMoved, setPinMoved] = useState(false);
   const [whatsapp, setWhatsapp] = useState("");
+  const [catalog, setCatalog] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [web, setWeb] = useState("");
@@ -100,10 +106,10 @@ export default function BusinessEditPage() {
   const onAddressSuggestion = useCallback((guess: AdminAreaGuess) => {
     // The pin is the source of truth; the location fields are an editable
     // confirmation, so a recognized area overwrites what was typed.
-    const matched = matchProvince(guess.province);
-    if (matched) setProvince(matched);
-    if (guess.canton) setCanton(guess.canton);
-    if (guess.district) setDistrict(guess.district);
+    if (guess.admin1) setAdmin1(guess.admin1);
+    if (guess.admin2) setAdmin2(guess.admin2);
+    if (guess.admin3) setAdmin3(guess.admin3);
+    if (guess.country) setCountry(guess.country);
     if (guess.formattedAddress) setAddress(guess.formattedAddress);
   }, []);
 
@@ -123,15 +129,18 @@ export default function BusinessEditPage() {
         setDescription(b.description);
         setSchoolId(b.schoolId);
         setSelectedCategories(b.categories);
-        setProvince(b.location.province);
-        setCanton(b.location.canton);
-        setDistrict(b.location.district);
+        // ?? "": docs created before the agnostic-location rename lack these fields.
+        setAdmin1(b.location.admin1 ?? "");
+        setAdmin2(b.location.admin2 ?? "");
+        setAdmin3(b.location.admin3 ?? "");
+        setCountry(b.location.country ?? "");
         setAddress(b.location.address ?? "");
         setCoords({
           lat: b.location.geopoint.latitude,
           lng: b.location.geopoint.longitude,
         });
         setWhatsapp(b.contact?.whatsapp ?? "");
+        setCatalog(b.contact?.catalog ?? "");
         setPhone(b.contact?.phone ?? "");
         setEmail(b.contact?.email ?? "");
         setWeb(b.contact?.web ?? "");
@@ -156,15 +165,15 @@ export default function BusinessEditPage() {
       prev.includes(catId) ? prev.filter((x) => x !== catId) : [...prev, catId],
     );
 
-  // Type-to-filter options with a canton/province hint (MEP school names repeat across
-  // cantons). The current school is prepended when missing from the list (delisted, or
-  // beyond the list cap) so editing other fields never silently re-assigns it. An
+  // Type-to-filter options with a locality hint (school names repeat across
+  // localities). The current school is prepended when missing from the list (delisted,
+  // or beyond the list cap) so editing other fields never silently re-assigns it. An
   // unlinked business (schoolId "") prepends nothing — the field is optional.
   const schoolOptions = useMemo(() => {
     const options: ComboboxOption[] = schools.map((s) => ({
       id: s.id,
       label: s.name,
-      hint: `${s.location.canton}, ${s.location.province}`,
+      hint: localityLabel(s.location) || undefined,
     }));
     if (
       business?.schoolId &&
@@ -210,6 +219,12 @@ export default function BusinessEditPage() {
       setError("Revisá el número de teléfono: no parece un número marcable.");
       return;
     }
+    if (catalog.trim() && !buildCatalogUrl(catalog)) {
+      setError(
+        "Revisá el catálogo: pegá el enlace wa.me/c/… que da WhatsApp Business o el número que lo tiene.",
+      );
+      return;
+    }
     setError(null);
     setSaved(false);
     setSaving(true);
@@ -218,6 +233,7 @@ export default function BusinessEditPage() {
       const contact: BusinessContact = {};
       const channels: Array<[keyof BusinessContact, string]> = [
         ["whatsapp", whatsapp],
+        ["catalog", catalog],
         ["phone", phone],
         ["email", email],
         ["web", web],
@@ -246,9 +262,10 @@ export default function BusinessEditPage() {
         location: {
           lat: coords.lat,
           lng: coords.lng,
-          province: province.trim(),
-          canton: canton.trim(),
-          district: district.trim(),
+          admin1: admin1.trim(),
+          admin2: admin2.trim(),
+          admin3: admin3.trim(),
+          country: country.trim() || undefined,
           address: address.trim() || undefined,
         },
         contact,
@@ -449,38 +466,31 @@ export default function BusinessEditPage() {
           />
         </div>
 
+        {/* Country-agnostic levels: free text (no closed list — this must work for any
+            country), autofilled by the pin's reverse geocode. All optional: the pin
+            is the source of truth, and not every country fills every level. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Provincia">
-            <select
-              required
-              autoComplete="address-level1"
-              value={province}
-              onChange={(e) => setProvince(e.target.value)}
-              className="input"
-            >
-              <option value="">Elegí…</option>
-              {CR_PROVINCES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Cantón">
+          <Field label="Provincia / Estado (opcional)">
             <input
-              required
-              autoComplete="address-level2"
-              value={canton}
-              onChange={(e) => setCanton(e.target.value)}
+              autoComplete="address-level1"
+              value={admin1}
+              onChange={(e) => setAdmin1(e.target.value)}
               className="input"
             />
           </Field>
-          <Field label="Distrito">
+          <Field label="Cantón / Municipio (opcional)">
             <input
-              required
+              autoComplete="address-level2"
+              value={admin2}
+              onChange={(e) => setAdmin2(e.target.value)}
+              className="input"
+            />
+          </Field>
+          <Field label="Distrito / Comunidad (opcional)">
+            <input
               autoComplete="address-level3"
-              value={district}
-              onChange={(e) => setDistrict(e.target.value)}
+              value={admin3}
+              onChange={(e) => setAdmin3(e.target.value)}
               className="input"
             />
           </Field>
@@ -494,14 +504,22 @@ export default function BusinessEditPage() {
           />
         </Field>
         <p className="-mt-2 text-xs text-gray-500">
-          Se completan solos al mover el pin en el mapa — revisalos y corregilos
-          si hace falta.
+          Se completan solos al mover el pin en el mapa — revisalos, corregilos
+          o dejalos en blanco si no aplican.
         </p>
 
         <fieldset>
           <legend className="text-sm font-medium">Contacto (todo opcional)</legend>
           <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <PhoneField label="WhatsApp" value={whatsapp} onChange={setWhatsapp} />
+            <Field label="Catálogo de WhatsApp Business">
+              <input
+                value={catalog}
+                onChange={(e) => setCatalog(e.target.value)}
+                placeholder="Enlace wa.me/c/… o el número del catálogo"
+                className="input"
+              />
+            </Field>
             <PhoneField label="Teléfono" value={phone} onChange={setPhone} />
             <Field label="Email">
               <input
@@ -594,6 +612,20 @@ export default function BusinessEditPage() {
           )}
         </div>
       </form>
+
+      {/* Outside the form: gallery changes publish immediately (upload/remove mutate
+          the doc on the spot), they don't wait for "Guardar cambios". */}
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold">Galería</h2>
+        <div className="mt-2">
+          <GalleryManager
+            businessId={business.id}
+            // splitBusinessPhotos excludes a legacy cover stored as photos[0], which
+            // must not show up as a removable gallery item.
+            initialPhotos={splitBusinessPhotos(business).gallery}
+          />
+        </div>
+      </section>
 
       <p className="mt-8 text-sm">
         <Link href="/panel" className="underline">

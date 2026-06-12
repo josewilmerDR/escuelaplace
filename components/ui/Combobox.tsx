@@ -27,8 +27,8 @@ export interface ComboboxOption {
   label: string;
   /**
    * Secondary text rendered muted next to the label and included in the text filter.
-   * Use it to disambiguate homonyms (e.g. school canton/province — MEP school names
-   * repeat a lot across cantons).
+   * Use it to disambiguate homonyms (e.g. a school's locality — school names repeat
+   * a lot across localities).
    */
   hint?: string;
 }

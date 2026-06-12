@@ -67,7 +67,11 @@ se registra.
    dentro del doc del comercio para evitar lecturas extra al renderizar.
 3. **Geo con geohash** calculado por geofire-common (guardar `location.geohash`
    además del `geopoint`). Las consultas de proximidad usan `geohashQueryBounds` +
-   filtro por `distanceBetween`.
+   filtro por `distanceBetween`. La jerarquía administrativa es **agnóstica de
+   país**: `admin1/admin2/admin3` (niveles del geocoder, general → específico:
+   provincia/estado/departamento → cantón/municipio → distrito/comunidad) +
+   `country` (ISO-2). Texto libre sugerido por reverse geocoding; nunca listas
+   cerradas por país.
 4. **Datos sensibles** (SINPE de la escuela) en subcolección privada
    `schools/{id}/private/data`, jamás en el doc público. **Escritura**: dueño de la
    escuela o admin. **Lectura**: dueño/admin siempre; además **cualquier usuario
@@ -82,13 +86,14 @@ se registra.
 ## Modelo de datos (Firestore)
 
 - `businesses/{id}`: name, slug, description, categories[], categoryNames[],
-  location{geopoint, geohash, address, province, canton, district}, schoolId,
-  schoolName, contact{whatsapp, phone, email, web, instagram, facebook},
-  discount{active, text, percentage}, logoUrl, photos[], hours, status, verified,
+  location{geopoint, geohash, address, country, admin1, admin2, admin3}, schoolId,
+  schoolName, contact{whatsapp, catalog, phone, email, web, instagram, facebook},
+  discount{active, text, percentage}, logoUrl, coverUrl, photos[] (galería, máx 5),
+  hours, status, verified,
   subscription{active, plan, validUntil}, ranking{score, totalDonated},
   metrics{views, interactions}, ownerId, editorIds[], createdAt, updatedAt
 - `schools/{id}`: name, mepCode, description, thankYouMessage,
-  location{geopoint, geohash, province, canton, district}, photoUrl,
+  location{geopoint, geohash, country, admin1, admin2, admin3}, photoUrl,
   boardContact{name, phone, email}, status, verified, verificationStatus
   ('pending'|'verified'|'needs_reverification'), metrics{supportingBusinesses},
   ownerId, editorIds[], createdAt, updatedAt
