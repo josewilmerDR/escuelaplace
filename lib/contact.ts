@@ -47,6 +47,22 @@ export function buildWhatsAppUrl(
   return `https://wa.me/${phone}?text=${text}`;
 }
 
+/**
+ * WhatsApp Business catalog link. Owners enter either the wa.me/c/… share link the
+ * WhatsApp Business app gives them, or just the number that hosts the catalog —
+ * normalize both to https://wa.me/c/<number>. The catalog lives entirely in WhatsApp
+ * (the platform hosts no products); this is a browse-and-ask channel, never checkout.
+ * Returns null when the input is neither a catalog link nor a dialable number.
+ */
+export function buildCatalogUrl(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const linkMatch = trimmed.match(/wa\.me\/c\/([A-Za-z0-9]+)/i);
+  if (linkMatch) return `https://wa.me/c/${linkMatch[1]}`;
+  const phone = normalizePhoneInternational(trimmed);
+  return phone ? `https://wa.me/c/${phone}` : null;
+}
+
 /** tel: link for the least attributable but still demanded channel: the plain call. */
 export function buildPhoneUrl(rawPhone: string): string | null {
   const phone = normalizePhoneInternational(rawPhone);

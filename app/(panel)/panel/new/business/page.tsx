@@ -18,9 +18,9 @@ import { FormError } from "@/components/ui/FormError";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { normalizePhoneInternational } from "@/lib/contact";
-import { CR_PROVINCES, matchProvince } from "@/lib/cr";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
+import { localityLabel } from "@/lib/location";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 import {
   createBusinessPage,
@@ -53,9 +53,12 @@ export default function NewBusinessPage() {
   const [description, setDescription] = useState("");
   const [schoolId, setSchoolId] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [province, setProvince] = useState("");
-  const [canton, setCanton] = useState("");
-  const [district, setDistrict] = useState("");
+  // Country-agnostic administrative levels (see types/firestore.ts). country has no
+  // input: it arrives from the reverse geocoder when the pin moves.
+  const [admin1, setAdmin1] = useState("");
+  const [admin2, setAdmin2] = useState("");
+  const [admin3, setAdmin3] = useState("");
+  const [country, setCountry] = useState("");
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [whatsapp, setWhatsapp] = useState("");
@@ -81,10 +84,10 @@ export default function NewBusinessPage() {
   const onAddressSuggestion = useCallback((guess: AdminAreaGuess) => {
     // The pin is the source of truth; the location fields are an editable
     // confirmation, so a recognized area overwrites what was typed.
-    const matched = matchProvince(guess.province);
-    if (matched) setProvince(matched);
-    if (guess.canton) setCanton(guess.canton);
-    if (guess.district) setDistrict(guess.district);
+    if (guess.admin1) setAdmin1(guess.admin1);
+    if (guess.admin2) setAdmin2(guess.admin2);
+    if (guess.admin3) setAdmin3(guess.admin3);
+    if (guess.country) setCountry(guess.country);
     if (guess.formattedAddress) setAddress(guess.formattedAddress);
   }, []);
 
@@ -157,9 +160,10 @@ export default function NewBusinessPage() {
         location: {
           lat: coords.lat,
           lng: coords.lng,
-          province: province.trim(),
-          canton: canton.trim(),
-          district: district.trim(),
+          admin1: admin1.trim(),
+          admin2: admin2.trim(),
+          admin3: admin3.trim(),
+          country: country.trim() || undefined,
           address: address.trim() || undefined,
         },
         contact: trimmedWhatsapp ? { whatsapp: trimmedWhatsapp } : undefined,
@@ -260,14 +264,14 @@ export default function NewBusinessPage() {
         />
 
         <Field label="Escuela que apoyás (opcional)">
-          {/* Type-to-filter with a canton/province hint: MEP school names repeat a lot
-              across cantons, and a native select gives no way to tell homonyms apart —
+          {/* Type-to-filter with a locality hint: school names repeat a lot across
+              localities, and a native select gives no way to tell homonyms apart —
               picking the wrong school misdirects the support publicly. */}
           <Combobox
             options={schools.map((s) => ({
               id: s.id,
               label: s.name,
-              hint: `${s.location.canton}, ${s.location.province}`,
+              hint: localityLabel(s.location) || undefined,
             }))}
             value={schoolId}
             onChange={setSchoolId}
@@ -342,28 +346,23 @@ export default function NewBusinessPage() {
           />
         </div>
 
+        {/* Country-agnostic levels: free text (no closed list — this must work for any
+            country), autofilled by the pin's reverse geocode. All optional: the pin
+            is the source of truth, and not every country fills every level. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Provincia">
-            <select
-              required
+          <Field label="Provincia / Estado (opcional)">
+            <input
               autoComplete="address-level1"
-              value={province}
-              onChange={(e) => setProvince(e.target.value)}
+              value={admin1}
+              onChange={(e) => setAdmin1(e.target.value)}
               className="input"
-            >
-              <option value="">Elegí…</option>
-              {CR_PROVINCES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+            />
           </Field>
-          <Field label="Cantón">
-            <input required autoComplete="address-level2" value={canton} onChange={(e) => setCanton(e.target.value)} className="input" />
+          <Field label="Cantón / Municipio (opcional)">
+            <input autoComplete="address-level2" value={admin2} onChange={(e) => setAdmin2(e.target.value)} className="input" />
           </Field>
-          <Field label="Distrito">
-            <input required autoComplete="address-level3" value={district} onChange={(e) => setDistrict(e.target.value)} className="input" />
+          <Field label="Distrito / Comunidad (opcional)">
+            <input autoComplete="address-level3" value={admin3} onChange={(e) => setAdmin3(e.target.value)} className="input" />
           </Field>
         </div>
         <Field label="Dirección (opcional)">
@@ -375,8 +374,8 @@ export default function NewBusinessPage() {
           />
         </Field>
         <p className="-mt-2 text-xs text-gray-500">
-          Se completan solos al marcar el punto en el mapa — revisalos y
-          corregilos si hace falta.
+          Se completan solos al marcar el punto en el mapa — revisalos,
+          corregilos o dejalos en blanco si no aplican.
         </p>
 
         <PhoneField

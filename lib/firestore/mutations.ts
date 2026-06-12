@@ -11,6 +11,7 @@ import {
   GeoPoint,
   Timestamp,
   addDoc,
+  arrayRemove,
   arrayUnion,
   collection,
   doc,
@@ -25,7 +26,12 @@ import {
   writeBatch,
   type WriteBatch,
 } from "firebase/firestore";
-import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
+import {
+  deleteObject,
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
+} from "firebase/storage";
 import { geohashForLocation } from "geofire-common";
 import { db, storage } from "@/lib/firebase";
 import { invalidateSchoolsCache } from "./schools";
@@ -88,13 +94,19 @@ async function uniqueBusinessSlug(name: string): Promise<string> {
   return `${base}-${Date.now().toString(36)}`;
 }
 
-/** Location captured by the creation forms (lat/lng + administrative fields). */
+/**
+ * Location captured by the creation forms: lat/lng plus the country-agnostic
+ * administrative levels (see types/firestore.ts — admin1 = province/state/department,
+ * admin2 = canton/municipality, admin3 = district/community, "" when absent).
+ */
 export interface LocationInput {
   lat: number;
   lng: number;
-  province: string;
-  canton: string;
-  district: string;
+  admin1: string;
+  admin2: string;
+  admin3: string;
+  /** ISO 3166-1 alpha-2 code from the reverse geocoder, when available. */
+  country?: string;
   address?: string;
 }
 
@@ -104,9 +116,10 @@ function toLocation(input: LocationInput) {
     geohash: geohashForLocation([input.lat, input.lng]),
     // Conditional spread: Firestore rejects explicit `undefined` values.
     ...(input.address ? { address: input.address } : {}),
-    province: input.province,
-    canton: input.canton,
-    district: input.district,
+    ...(input.country ? { country: input.country } : {}),
+    admin1: input.admin1,
+    admin2: input.admin2,
+    admin3: input.admin3,
   };
 }
 
@@ -196,7 +209,7 @@ export interface CreateBusinessInput {
   contact?: BusinessContact;
   /** Profile (avatar) image — uploaded to Storage, its URL stored as `logoUrl`. */
   logoFile?: Blob;
-  /** Cover image — uploaded to Storage, its URL stored as `photos[0]` (the public
+  /** Cover image — uploaded to Storage, its URL stored as `coverUrl` (the public
    * profile cover; see app/business/[slug]). */
   coverFile?: Blob;
 }
@@ -217,6 +230,49 @@ async function uploadBusinessImage(
   const ref = storageRef(storage, businessImagePath(businessId, kind));
   await uploadBytes(ref, file);
   return getDownloadURL(ref);
+}
+
+/**
+ * Upload one gallery photo and append it to `photos`. Unique timestamped path so
+ * photos never overwrite each other. The BUSINESS_GALLERY_MAX cap is enforced by the
+ * panel UI (the gallery manager hides the add control when full). Must be called by
+ * the owner/editor. Returns the stored URL.
+ */
+export async function addBusinessGalleryPhoto(
+  businessId: string,
+  file: Blob,
+): Promise<string> {
+  const ref = storageRef(
+    storage,
+    `businesses/${businessId}/gallery/${Date.now()}`,
+  );
+  await uploadBytes(ref, file);
+  const url = await getDownloadURL(ref);
+  await updateDoc(doc(db, BUSINESSES, businessId), {
+    photos: arrayUnion(url),
+    updatedAt: serverTimestamp(),
+  });
+  return url;
+}
+
+/**
+ * Remove a gallery photo (by its stored URL) from `photos` and best-effort delete the
+ * Storage file. The doc update is what un-publishes the photo; a failed file delete
+ * only leaves an unreachable orphan, so it never fails the operation.
+ */
+export async function removeBusinessGalleryPhoto(
+  businessId: string,
+  url: string,
+): Promise<void> {
+  await updateDoc(doc(db, BUSINESSES, businessId), {
+    photos: arrayRemove(url),
+    updatedAt: serverTimestamp(),
+  });
+  try {
+    await deleteObject(storageRef(storage, url));
+  } catch {
+    // Orphaned file (or an emulator URL ref() can't parse) — harmless.
+  }
 }
 
 /**
@@ -255,7 +311,8 @@ export async function createBusinessPage(
     contact: input.contact ?? {},
     discount: { active: false, text: "" },
     ...(logoUrl ? { logoUrl } : {}),
-    photos: coverUrl ? [coverUrl] : [],
+    ...(coverUrl ? { coverUrl } : {}),
+    photos: [],
     status: "draft",
     verified: false,
     subscription: { active: false, plan: "", validUntil: null },

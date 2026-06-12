@@ -34,6 +34,7 @@ import type { BusinessDoc, ContactChannel } from "@/types";
 
 const CHANNEL_LABELS: Record<ContactChannel, string> = {
   whatsapp: "Chats de WhatsApp",
+  catalog: "Vistas del catálogo",
   phone: "Llamadas",
   directions: "Cómo llegar",
   website: "Sitio web",
@@ -44,6 +45,7 @@ const CHANNEL_LABELS: Record<ContactChannel, string> = {
 /** Render order: decreasing intent, same as the profile buttons. */
 const CHANNEL_ORDER: ContactChannel[] = [
   "whatsapp",
+  "catalog",
   "phone",
   "directions",
   "website",

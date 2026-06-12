@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { localityLabel } from "@/lib/location";
 import {
   getSchoolById,
   getBusinessesBySchool,
@@ -45,7 +46,8 @@ export default async function SchoolPage({ params }: Props) {
     getSchoolDonorWall(id),
   ]);
   const cards = businesses.map(toBusinessCardData);
-  const { province, canton } = school.location;
+  // "Locality, region" line; "" on legacy docs without admin levels — hidden then.
+  const locality = localityLabel(school.location);
   const uniqueSupporters = school.metrics?.uniqueSupporters ?? 0;
 
   return (
@@ -56,9 +58,7 @@ export default async function SchoolPage({ params }: Props) {
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">
           {school.name}
         </h1>
-        <p className="mt-1 text-sm text-muted">
-          {canton}, {province}
-        </p>
+        {locality && <p className="mt-1 text-sm text-muted">{locality}</p>}
         {uniqueSupporters > 0 && (
           <p className="mt-2 text-sm font-medium text-green-800">
             {uniqueSupporters === 1

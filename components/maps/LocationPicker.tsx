@@ -27,11 +27,17 @@ export interface LatLng {
   lng: number;
 }
 
-/** Administrative areas reverse-geocoded from the pin (CR: province/canton/district). */
+/**
+ * Administrative areas reverse-geocoded from the pin, as country-agnostic levels
+ * (general → specific): admin1 = province/state/department, admin2 = canton/
+ * municipality, admin3 = district/community/colonia. See types/firestore.ts.
+ */
 export interface AdminAreaGuess {
-  province?: string;
-  canton?: string;
-  district?: string;
+  admin1?: string;
+  admin2?: string;
+  admin3?: string;
+  /** ISO 3166-1 alpha-2 country code (e.g. "CR"). */
+  country?: string;
   /** Human-readable address of the most specific geocoder result. */
   formattedAddress?: string;
 }
@@ -139,19 +145,29 @@ function useReverseGeocode(
       .then(({ results }) => {
         if (cancelled) return;
         // Scan every result: the most specific one often lacks the higher levels.
-        const get = (type: string) => {
+        const find = (type: string) => {
           for (const result of results) {
             const match = result.address_components.find((c) =>
               c.types.includes(type),
             );
-            if (match) return match.long_name;
+            if (match) return match;
           }
           return undefined;
         };
+        const get = (type: string) => find(type)?.long_name;
+        // Per-level fallbacks: not every country fills every administrative level
+        // (e.g. MX often has locality instead of level_2, colonias as sublocality).
+        const admin2 = get("administrative_area_level_2") ?? get("locality");
+        const admin3 =
+          get("administrative_area_level_3") ??
+          get("sublocality_level_1") ??
+          get("sublocality");
         onAddressRef.current?.({
-          province: get("administrative_area_level_1"),
-          canton: get("administrative_area_level_2"),
-          district: get("administrative_area_level_3"),
+          admin1: get("administrative_area_level_1"),
+          admin2,
+          // Don't echo the same name twice when the fallbacks collide.
+          admin3: admin3 === admin2 ? undefined : admin3,
+          country: find("country")?.short_name,
           formattedAddress: results[0]?.formatted_address,
         });
       })
