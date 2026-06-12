@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { deleteReview, getMyReview, upsertReview } from "@/lib/firestore";
+import { useViewAsVisitor } from "@/lib/view-as";
 import type { UserDoc } from "@/types";
 
 export function ReviewForm({
@@ -26,6 +27,10 @@ export function ReviewForm({
   editorIds?: string[];
 }) {
   const { user, loading } = useAuth();
+  // "Ver como visitante" (toggled from ManageBar by the page's managers): pretend
+  // signed-out so the owner sees the sign-in prompt an anonymous buyer gets, not the
+  // "No podés reseñar tu propio comercio" notice.
+  const [asVisitor] = useViewAsVisitor();
 
   if (loading) {
     // Skeleton sized like the sign-in box: no pop-in over the list while auth resolves
@@ -38,7 +43,7 @@ export function ReviewForm({
     );
   }
 
-  if (!user) {
+  if (!user || asVisitor) {
     return (
       <div className="rounded-xl border border-border bg-surface p-4 text-sm">
         <p className="mb-3 text-muted">Iniciá sesión con Google para dejar tu reseña.</p>
