@@ -158,14 +158,18 @@ export default function BusinessEditPage() {
 
   // Type-to-filter options with a canton/province hint (MEP school names repeat across
   // cantons). The current school is prepended when missing from the list (delisted, or
-  // beyond the list cap) so editing other fields never silently re-assigns it.
+  // beyond the list cap) so editing other fields never silently re-assigns it. An
+  // unlinked business (schoolId "") prepends nothing — the field is optional.
   const schoolOptions = useMemo(() => {
     const options: ComboboxOption[] = schools.map((s) => ({
       id: s.id,
       label: s.name,
       hint: `${s.location.canton}, ${s.location.province}`,
     }));
-    if (business && !schools.some((s) => s.id === business.schoolId)) {
+    if (
+      business?.schoolId &&
+      !schools.some((s) => s.id === business.schoolId)
+    ) {
       options.unshift({ id: business.schoolId, label: business.schoolName });
     }
     return options;
@@ -188,11 +192,6 @@ export default function BusinessEditPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!business) return;
-    // The Combobox has no native `required` semantics, so validate the selection here.
-    if (!schoolId) {
-      setError("Elegí la escuela que apoyás.");
-      return;
-    }
     // Without a category the business never appears in the /category/* listings —
     // one of the main discovery paths — so it can't be emptied silently.
     if (selectedCategories.length === 0) {
@@ -394,7 +393,7 @@ export default function BusinessEditPage() {
           </span>
         </Field>
 
-        <Field label="Escuela que apoyás">
+        <Field label="Escuela que apoyás (opcional)">
           <Combobox
             options={schoolOptions}
             value={schoolId}
@@ -402,6 +401,9 @@ export default function BusinessEditPage() {
             placeholder="Buscá tu escuela por nombre o lugar…"
           />
         </Field>
+        <p className="-mt-2 text-xs text-gray-500">
+          Borrá el texto para quitar la escuela vinculada.
+        </p>
 
         <fieldset>
           <legend className="text-sm font-medium">
@@ -575,7 +577,8 @@ export default function BusinessEditPage() {
         </fieldset>
 
         <p className="text-xs text-gray-500">
-          Las fotos y el logo todavía no se pueden administrar desde el panel.
+          El logo y la portada se eligen al crear la página; todavía no se
+          pueden cambiar desde acá.
         </p>
 
         <FormError message={error} />

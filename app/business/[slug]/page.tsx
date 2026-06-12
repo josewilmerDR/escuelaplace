@@ -14,18 +14,22 @@ import { getBusinessBySlug, getReviewsByBusiness } from "@/lib/firestore";
 
 /**
  * Public business page: /business/[slug]
- * SSR for SEO. The rich profile (cover/photos, description, discount, linked school) and
- * the reviews are rendered on the server reading Firestore by slug (active businesses
- * only — see getBusinessBySlug). Writing a review is a client island (<ReviewForm>) that
- * requires Google sign-in.
+ * SSR for SEO. Laid out like a Facebook business page: wide cover, circular avatar
+ * overlapping it, name + verified badge, action buttons and section tabs in a white
+ * header card, then Información / Fotos / Reseñas cards on a gray canvas. Writing a
+ * review is a client island (<ReviewForm>) that requires Google sign-in.
  */
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
-/** The page column is max-w-3xl (768px) minus px-6 — lets next/image pick the size. */
-const COVER_SIZES = "(min-width: 768px) 720px, 100vw";
+/** The page column is max-w-4xl (896px) minus px-6 — lets next/image pick the size. */
+const COVER_SIZES = "(min-width: 896px) 848px, 100vw";
+
+/** Shared style for the section tabs under the header card (FB-style anchor nav). */
+const TAB_CLASS =
+  "rounded-md px-3 py-2 text-sm font-semibold text-muted hover:bg-surface hover:text-brand-darker";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -74,6 +78,9 @@ export default async function BusinessPage({ params }: Props) {
   const categoryChips = (business.categories ?? [])
     .map((id, i) => ({ id, name: business.categoryNames?.[i] }))
     .filter((c): c is { id: string; name: string } => Boolean(c.name));
+  // Linking a school is optional ("" = none); both denormalized fields must be set
+  // for the "Vinculado a" link to render something clickable.
+  const hasSchool = Boolean(business.schoolId && business.schoolName);
   const averageLabel = stats.average.toLocaleString("es-CR", {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
@@ -131,211 +138,422 @@ export default async function BusinessPage({ params }: Props) {
     <>
       <SiteHeader />
 
-      <main className="mx-auto max-w-3xl px-6 py-10">
-        {/* "<" escaped so merchant-controlled text can't close the script tag. */}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-          }}
-        />
-        <TrackPageView businessId={business.id} />
+      {/* Gray canvas behind white cards — the FB-page backdrop. */}
+      <div className="min-h-screen bg-surface">
+        <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+          {/* "<" escaped so merchant-controlled text can't close the script tag. */}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+            }}
+          />
+          <TrackPageView businessId={business.id} />
 
-        {/* Cover: same fallback ladder as BusinessCard (photo → logo contained on tint →
-            big initial), so landing here from a card is never a visual downgrade. The
-            viewTransitionName pairs with the one the card declares. */}
-        <div
-          className="relative aspect-video w-full overflow-hidden rounded-2xl bg-brand-tint"
-          style={{ viewTransitionName: `business-${business.id}` }}
-        >
-          {photos[0] ? (
-            <Image
-              src={photos[0]}
-              alt=""
-              fill
-              priority
-              sizes={COVER_SIZES}
-              className="object-cover"
-            />
-          ) : business.logoUrl ? (
-            <Image
-              src={business.logoUrl}
-              alt=""
-              fill
-              priority
-              sizes={COVER_SIZES}
-              className="object-contain p-8"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-full items-center justify-center text-7xl font-bold text-brand-darker/40"
+          {/* ── Header card: cover + avatar + identity + actions + tabs ─────────── */}
+          <header className="overflow-hidden rounded-2xl border border-border bg-white">
+            {/* Cover: same fallback ladder as BusinessCard (photo → logo contained on
+                tint → big initial), so landing here from a card is never a visual
+                downgrade. The viewTransitionName pairs with the one the card declares.
+                Wider than 16:9 on desktop — FB covers are short bands. */}
+            <div
+              className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]"
+              style={{ viewTransitionName: `business-${business.id}` }}
             >
-              {initial}
-            </span>
-          )}
-        </div>
-
-        <h1 className="mt-6 text-3xl font-bold">{business.name}</h1>
-        {/* "Vinculado a", not "Apoya a": support comes from subscriptions, which may
-            target a school other than the linked one (see TIER_BADGE in BusinessCard). */}
-        <p className="mt-1 text-sm text-slate-600">
-          Vinculado a{" "}
-          <Link
-            href={`/school/${business.schoolId}`}
-            className="font-medium text-brand-darker hover:underline"
-          >
-            {business.schoolName}
-          </Link>
-        </p>
-        {locationParts.length > 0 && (
-          <p className="mt-1 text-sm text-slate-600">
-            {locationParts.join(", ")}
-          </p>
-        )}
-        {business.hours && (
-          // pre-line: hours are free text the owner may write across lines.
-          <p className="mt-1 whitespace-pre-line text-sm text-slate-600">
-            Horario: {business.hours}
-          </p>
-        )}
-
-        <SupportBadge businessId={business.id} />
-
-        {categoryChips.length > 0 && (
-          <nav aria-label="Categorías" className="mt-4 flex flex-wrap gap-2">
-            {categoryChips.map((c) => (
-              <Link
-                key={c.id}
-                href={`/category/${c.id}`}
-                className="inline-flex items-center rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-brand-dark hover:text-brand-darker"
-              >
-                {c.name}
-              </Link>
-            ))}
-          </nav>
-        )}
-
-        {/* pre-line: the description is captured in a textarea — keep its line breaks. */}
-        <p className="mt-4 whitespace-pre-line text-gray-700">
-          {business.description}
-        </p>
-        {business.discount?.active && (
-          <p className="mt-4 rounded bg-amber-50 p-3 text-amber-800">
-            {/* Same fallback as the card chip: active with empty text must not render
-                an empty banner. */}
-            {business.discount.text || "Descuento"}
-            <span className="mt-1 block text-xs font-normal">
-              Mencioná que lo viste en escuelaplace al contactar para
-              aprovecharlo.
-            </span>
-          </p>
-        )}
-
-        <ContactButtons
-          businessId={business.id}
-          businessName={business.name}
-          contact={business.contact}
-          discount={business.discount}
-          coords={
-            business.location?.geopoint
-              ? {
-                  lat: business.location.geopoint.latitude,
-                  lng: business.location.geopoint.longitude,
-                }
-              : null
-          }
-        />
-
-        {gallery.length > 0 && (
-          <section aria-label="Fotos del comercio" className="mt-8">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {gallery.map((src, i) => (
-                <div
-                  key={i}
-                  className="relative aspect-square overflow-hidden rounded-xl bg-brand-tint"
+              {photos[0] ? (
+                <Image
+                  src={photos[0]}
+                  alt=""
+                  fill
+                  priority
+                  sizes={COVER_SIZES}
+                  className="object-cover"
+                />
+              ) : business.logoUrl ? (
+                <Image
+                  src={business.logoUrl}
+                  alt=""
+                  fill
+                  priority
+                  sizes={COVER_SIZES}
+                  className="object-contain p-8"
+                />
+              ) : (
+                <span
+                  aria-hidden
+                  className="flex h-full items-center justify-center text-7xl font-bold text-brand-darker/40"
                 >
-                  <Image
-                    src={src}
-                    alt={`Foto de ${business.name}`}
-                    fill
-                    sizes="(min-width: 640px) 240px, 50vw"
-                    className="object-cover"
-                  />
-                </div>
-              ))}
+                  {initial}
+                </span>
+              )}
             </div>
-          </section>
-        )}
 
-        <section className="mt-12">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold">Reseñas</h2>
-            {stats.count > 0 && (
-              <span className="flex items-center gap-1 text-sm text-muted">
-                {/* decorative: the number right after already carries the rating. */}
-                <Stars value={stats.average} decorative />
-                <span className="sr-only">Calificación promedio:</span>
-                {averageLabel} ({stats.count})
-              </span>
-            )}
-          </div>
-
-          {reviews.length === 0 ? (
-            <p className="mt-6 text-sm text-muted">
-              Todavía no hay reseñas. Sé la primera persona en dejar una.
-            </p>
-          ) : (
-            <ul className="mt-6 space-y-4">
-              {reviews.map((r) => (
-                <li key={r.id} className="rounded-xl border border-border p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-medium text-slate-900">
-                        {r.authorName}
-                      </span>
-                      <OwnReviewMark authorId={r.authorId} />
-                      {r.createdAt && (
-                        <span className="shrink-0 text-xs text-muted">
-                          {r.createdAt.toDate().toLocaleDateString("es-CR", {
-                            month: "long",
-                            year: "numeric",
-                          })}
-                        </span>
-                      )}
+            <div className="px-5 pb-4 sm:px-8">
+              {/* Centered avatar-over-cover on mobile, avatar-left row on desktop —
+                  the same responsive switch FB pages do. */}
+              <div className="flex flex-col items-center sm:flex-row sm:items-end sm:gap-5">
+                <div className="-mt-14 shrink-0 sm:-mt-16">
+                  {business.logoUrl ? (
+                    <Image
+                      src={business.logoUrl}
+                      alt=""
+                      width={128}
+                      height={128}
+                      className="h-28 w-28 rounded-full border border-border bg-white object-cover ring-4 ring-white sm:h-32 sm:w-32"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="flex h-28 w-28 items-center justify-center rounded-full bg-brand-tint text-4xl font-bold text-brand-darker ring-4 ring-white sm:h-32 sm:w-32"
+                    >
+                      {initial}
                     </span>
-                    <Stars value={r.rating} className="shrink-0 text-sm" />
-                  </div>
-                  {r.text && (
-                    // pre-line: written in a textarea — keep the line breaks.
-                    <p className="mt-2 whitespace-pre-line text-sm text-gray-700">
-                      {r.text}
+                  )}
+                </div>
+
+                <div className="mt-3 min-w-0 text-center sm:mt-0 sm:flex-1 sm:pb-1 sm:text-left">
+                  <h1 className="flex flex-wrap items-center justify-center gap-2 text-3xl font-bold sm:justify-start">
+                    {business.name}
+                    {business.verified && (
+                      <>
+                        <VerifiedIcon
+                          className="h-6 w-6 shrink-0 text-brand"
+                          title="Comercio verificado"
+                        />
+                        <span className="sr-only">Comercio verificado</span>
+                      </>
+                    )}
+                  </h1>
+                  {/* FB shows follower counts here; our social proof is the rating.
+                      "Vinculado a", not "Apoya a": support comes from subscriptions,
+                      which may target a school other than the linked one (see
+                      TIER_BADGE in BusinessCard). Linking a school is optional —
+                      unlinked businesses ("" id) show only the rating, if any. */}
+                  {(stats.count > 0 || hasSchool) && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      {stats.count > 0 && (
+                        <>
+                          <span aria-hidden className="text-amber-500">
+                            ★
+                          </span>{" "}
+                          <span className="font-medium text-slate-900">
+                            {averageLabel}
+                          </span>{" "}
+                          ({stats.count}{" "}
+                          {stats.count === 1 ? "reseña" : "reseñas"})
+                        </>
+                      )}
+                      {stats.count > 0 && hasSchool && <> · </>}
+                      {hasSchool && (
+                        <>
+                          Vinculado a{" "}
+                          <Link
+                            href={`/school/${business.schoolId}`}
+                            className="font-medium text-brand-darker hover:underline"
+                          >
+                            {business.schoolName}
+                          </Link>
+                        </>
+                      )}
                     </p>
                   )}
-                </li>
-              ))}
-            </ul>
+                  {categoryChips.length > 0 && (
+                    // The category line under the name, like FB's "Medio de
+                    // comunicación/noticias". The clickable chips live in Información.
+                    <p className="mt-1 text-sm text-muted">
+                      {categoryChips.map((c) => c.name).join(" · ")}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-center sm:justify-start">
+                <SupportBadge businessId={business.id} />
+              </div>
+
+              <ContactButtons
+                businessId={business.id}
+                businessName={business.name}
+                contact={business.contact}
+                discount={business.discount}
+                coords={
+                  business.location?.geopoint
+                    ? {
+                        lat: business.location.geopoint.latitude,
+                        lng: business.location.geopoint.longitude,
+                      }
+                    : null
+                }
+              />
+
+              {/* Section tabs (anchors): the FB tab strip. Only sections that exist. */}
+              <nav
+                aria-label="Secciones de la página"
+                className="-mx-2 mt-5 flex justify-center gap-1 border-t border-border pt-1 sm:justify-start"
+              >
+                <a href="#informacion" className={TAB_CLASS}>
+                  Información
+                </a>
+                {gallery.length > 0 && (
+                  <a href="#fotos" className={TAB_CLASS}>
+                    Fotos
+                  </a>
+                )}
+                <a href="#resenas" className={TAB_CLASS}>
+                  Reseñas
+                </a>
+              </nav>
+            </div>
+          </header>
+
+          {business.discount?.active && (
+            <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+              <TagIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <p>
+                {/* Same fallback as the card chip: active with empty text must not
+                    render an empty banner. */}
+                <span className="font-medium">
+                  {business.discount.text || "Descuento"}
+                </span>
+                <span className="mt-1 block text-xs">
+                  Mencioná que lo viste en escuelaplace al contactar para
+                  aprovecharlo.
+                </span>
+              </p>
+            </div>
           )}
 
-          {stats.count > reviews.length && (
-            <p className="mt-3 text-xs text-muted">
-              Mostrando las {reviews.length} reseñas más recientes de{" "}
-              {stats.count}.
+          {/* ── Información (FB's intro card) ───────────────────────────────────── */}
+          <section
+            id="informacion"
+            className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+          >
+            <h2 className="text-xl font-semibold">Información</h2>
+            {/* pre-line: the description is captured in a textarea — keep its line
+                breaks. */}
+            <p className="mt-3 whitespace-pre-line text-gray-700">
+              {business.description}
             </p>
+
+            {(locationParts.length > 0 || business.hours) && (
+              <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                {locationParts.length > 0 && (
+                  <li className="flex items-start gap-3">
+                    <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
+                    {locationParts.join(", ")}
+                  </li>
+                )}
+                {business.hours && (
+                  <li className="flex items-start gap-3">
+                    <ClockIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
+                    {/* pre-line: hours are free text the owner may write across
+                        lines. */}
+                    <span className="whitespace-pre-line">
+                      {business.hours}
+                    </span>
+                  </li>
+                )}
+              </ul>
+            )}
+
+            {categoryChips.length > 0 && (
+              <nav aria-label="Categorías" className="mt-4 flex flex-wrap gap-2">
+                {categoryChips.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/category/${c.id}`}
+                    className="inline-flex items-center rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-brand-dark hover:text-brand-darker"
+                  >
+                    {c.name}
+                  </Link>
+                ))}
+              </nav>
+            )}
+          </section>
+
+          {gallery.length > 0 && (
+            <section
+              id="fotos"
+              aria-label="Fotos del comercio"
+              className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+            >
+              <h2 className="text-xl font-semibold">Fotos</h2>
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {gallery.map((src, i) => (
+                  <div
+                    key={i}
+                    className="relative aspect-square overflow-hidden rounded-xl bg-brand-tint"
+                  >
+                    <Image
+                      src={src}
+                      alt={`Foto de ${business.name}`}
+                      fill
+                      sizes="(min-width: 640px) 240px, 50vw"
+                      className="object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
 
-          {/* The form goes AFTER the list: buyers come to read (social proof); writing —
-              and the sign-in it asks for — is the secondary action. */}
-          <div className="mt-6">
-            <ReviewForm
-              businessId={business.id}
-              businessName={business.name}
-              ownerId={business.ownerId}
-              editorIds={business.editorIds}
-            />
-          </div>
-        </section>
-      </main>
+          <section
+            id="resenas"
+            className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+          >
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-semibold">Reseñas</h2>
+              {stats.count > 0 && (
+                <span className="flex items-center gap-1 text-sm text-muted">
+                  {/* decorative: the number right after already carries the rating. */}
+                  <Stars value={stats.average} decorative />
+                  <span className="sr-only">Calificación promedio:</span>
+                  {averageLabel} ({stats.count})
+                </span>
+              )}
+            </div>
+
+            {reviews.length === 0 ? (
+              <p className="mt-6 text-sm text-muted">
+                Todavía no hay reseñas. Sé la primera persona en dejar una.
+              </p>
+            ) : (
+              <ul className="mt-6 space-y-4">
+                {reviews.map((r) => (
+                  <li key={r.id} className="rounded-xl border border-border p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium text-slate-900">
+                          {r.authorName}
+                        </span>
+                        <OwnReviewMark authorId={r.authorId} />
+                        {r.createdAt && (
+                          <span className="shrink-0 text-xs text-muted">
+                            {r.createdAt.toDate().toLocaleDateString("es-CR", {
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </span>
+                        )}
+                      </span>
+                      <Stars value={r.rating} className="shrink-0 text-sm" />
+                    </div>
+                    {r.text && (
+                      // pre-line: written in a textarea — keep the line breaks.
+                      <p className="mt-2 whitespace-pre-line text-sm text-gray-700">
+                        {r.text}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {stats.count > reviews.length && (
+              <p className="mt-3 text-xs text-muted">
+                Mostrando las {reviews.length} reseñas más recientes de{" "}
+                {stats.count}.
+              </p>
+            )}
+
+            {/* The form goes AFTER the list: buyers come to read (social proof);
+                writing — and the sign-in it asks for — is the secondary action. */}
+            <div className="mt-6">
+              <ReviewForm
+                businessId={business.id}
+                businessName={business.name}
+                ownerId={business.ownerId}
+                editorIds={business.editorIds}
+              />
+            </div>
+          </section>
+        </main>
+      </div>
     </>
+  );
+}
+
+/* Inline icons (Heroicons paths) — server-safe, no icon dependency. */
+
+/** Solid check-badge, the FB-style verified mark. */
+function VerifiedIcon({
+  className,
+  title,
+}: {
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      {title && <title>{title}</title>}
+      <path
+        fillRule="evenodd"
+        d="M8.603 3.799A4.49 4.49 0 0 1 12 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 0 1 3.498 1.307 4.491 4.491 0 0 1 1.307 3.497A4.49 4.49 0 0 1 21.75 12a4.49 4.49 0 0 1-1.549 3.397 4.491 4.491 0 0 1-1.307 3.497 4.491 4.491 0 0 1-3.497 1.307A4.49 4.49 0 0 1 12 21.75a4.49 4.49 0 0 1-3.397-1.549 4.49 4.49 0 0 1-3.498-1.306 4.491 4.491 0 0 1-1.307-3.498A4.49 4.49 0 0 1 2.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 0 1 1.307-3.497 4.49 4.49 0 0 1 3.497-1.307Zm7.007 6.387a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.137-.089l3.75-5.25Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function MapPinIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
+      />
+    </svg>
+  );
+}
+
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
+function TagIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
+    </svg>
   );
 }

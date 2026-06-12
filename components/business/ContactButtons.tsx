@@ -102,14 +102,16 @@ export function ContactButtons({
     // The page's whole job is producing a contact: say why there are no buttons
     // instead of silently rendering nothing (which reads as a broken page).
     return (
-      <p className="mt-6 text-sm text-muted">
+      <p className="mt-4 text-center text-sm text-muted sm:text-left">
         Este comercio todavía no publicó datos de contacto.
       </p>
     );
   }
 
   return (
-    <div className="mt-6 flex flex-wrap gap-3">
+    // Centered on mobile / left on desktop, matching the FB-style profile header
+    // (avatar and name center on small screens).
+    <div className="mt-4 flex flex-wrap justify-center gap-3 sm:justify-start">
       {whatsAppUrl && (
         <TrackedLink
           businessId={businessId}

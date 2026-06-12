@@ -25,7 +25,7 @@ import {
   writeBatch,
   type WriteBatch,
 } from "firebase/firestore";
-import { ref as storageRef, uploadBytes } from "firebase/storage";
+import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { geohashForLocation } from "geofire-common";
 import { db, storage } from "@/lib/firebase";
 import { invalidateSchoolsCache } from "./schools";
@@ -189,10 +189,34 @@ export interface CreateBusinessInput {
   description: string;
   categories: string[]; // category ids
   categoryNames: string[]; // denormalized
+  /** Linked school, or "" — linking is optional (the owner may add it later). */
   schoolId: string;
-  schoolName: string; // denormalized
+  schoolName: string; // denormalized; "" when no school is linked
   location: LocationInput;
   contact?: BusinessContact;
+  /** Profile (avatar) image — uploaded to Storage, its URL stored as `logoUrl`. */
+  logoFile?: Blob;
+  /** Cover image — uploaded to Storage, its URL stored as `photos[0]` (the public
+   * profile cover; see app/business/[slug]). */
+  coverFile?: Blob;
+}
+
+/** Public Storage path of a business profile asset (public read via storage.rules). */
+function businessImagePath(
+  businessId: string,
+  kind: "logo" | "cover",
+): string {
+  return `businesses/${businessId}/${kind}`;
+}
+
+async function uploadBusinessImage(
+  businessId: string,
+  kind: "logo" | "cover",
+  file: Blob,
+): Promise<string> {
+  const ref = storageRef(storage, businessImagePath(businessId, kind));
+  await uploadBytes(ref, file);
+  return getDownloadURL(ref);
 }
 
 /**
@@ -206,6 +230,18 @@ export async function createBusinessPage(
 ): Promise<string> {
   const slug = await uniqueBusinessSlug(input.name);
   const ref = doc(collection(db, BUSINESSES));
+  // Images go up BEFORE the doc commit: the id already exists client-side, and a
+  // failed upload must fail the whole creation (a page missing the images the owner
+  // picked would publish broken). Files under a never-committed id are unreachable
+  // orphans — harmless.
+  const [logoUrl, coverUrl] = await Promise.all([
+    input.logoFile
+      ? uploadBusinessImage(ref.id, "logo", input.logoFile)
+      : Promise.resolve(null),
+    input.coverFile
+      ? uploadBusinessImage(ref.id, "cover", input.coverFile)
+      : Promise.resolve(null),
+  ]);
   const batch = writeBatch(db);
   batch.set(ref, {
     name: input.name,
@@ -218,7 +254,8 @@ export async function createBusinessPage(
     schoolName: input.schoolName,
     contact: input.contact ?? {},
     discount: { active: false, text: "" },
-    photos: [],
+    ...(logoUrl ? { logoUrl } : {}),
+    photos: coverUrl ? [coverUrl] : [],
     status: "draft",
     verified: false,
     subscription: { active: false, plan: "", validUntil: null },
@@ -261,8 +298,9 @@ export interface UpdateBusinessInput {
   description: string;
   categories: string[]; // category ids
   categoryNames: string[]; // denormalized
+  /** Linked school, or "" — linking is optional (clearing it unlinks the school). */
   schoolId: string;
-  schoolName: string; // denormalized
+  schoolName: string; // denormalized; "" when no school is linked
   location: LocationInput;
   contact: BusinessContact;
   discount: Discount;

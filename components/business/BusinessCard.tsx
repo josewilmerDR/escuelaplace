@@ -149,15 +149,18 @@ export function BusinessCard({
             </p>
           )}
 
-          <p className="mt-1 text-sm text-slate-600">
-            Vinculado a{" "}
-            <Link
-              href={`/school/${business.schoolId}`}
-              className="relative z-10 font-medium hover:text-brand-darker hover:underline"
-            >
-              {business.schoolName}
-            </Link>
-          </p>
+          {/* Linking a school is optional — unlinked businesses ("" id) skip the line. */}
+          {business.schoolId && business.schoolName && (
+            <p className="mt-1 text-sm text-slate-600">
+              Vinculado a{" "}
+              <Link
+                href={`/school/${business.schoolId}`}
+                className="relative z-10 font-medium hover:text-brand-darker hover:underline"
+              >
+                {business.schoolName}
+              </Link>
+            </p>
+          )}
 
           {badge && (
             // mt-auto on the wrapper bottom-aligns the badge across cards in a grid row
