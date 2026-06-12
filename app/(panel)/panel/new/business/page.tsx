@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * Create-business form (/panel/new/business). Captures the essentials, creates a draft
- * business owned by the signed-in user and links it to their managedPages, then routes
- * to the panel. The page starts as a hidden draft: the owner completes the profile
- * (contact channels, hours, discount) and publishes it from /panel/business/[id]/edit.
+ * Create-business form (/panel/new/business). Captures the essentials — including the
+ * optional profile (logo) and cover images that fill the public FB-style header —
+ * creates a draft business owned by the signed-in user and links it to their
+ * managedPages, then routes to the panel. The page starts as a hidden draft: the owner
+ * completes the profile (contact channels, hours, discount) and publishes it from
+ * /panel/business/[id]/edit.
  */
 import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
@@ -13,6 +15,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Combobox } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { normalizePhoneInternational } from "@/lib/contact";
 import { CR_PROVINCES, matchProvince } from "@/lib/cr";
@@ -56,6 +59,10 @@ export default function NewBusinessPage() {
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [whatsapp, setWhatsapp] = useState("");
+  // Profile images (both optional): they fill the avatar and cover slots of the
+  // public FB-style header. Held locally and uploaded inside createBusinessPage.
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   // Any field change marks the form dirty (form-level onChange + the map handler);
   // the guard warns before close/refresh would throw the typed work away.
@@ -119,11 +126,6 @@ export default function NewBusinessPage() {
       setError("Ingresá el nombre del comercio.");
       return;
     }
-    // The Combobox has no native `required` semantics, so validate the selection here.
-    if (!schoolId) {
-      setError("Elegí la escuela que apoyás.");
-      return;
-    }
     // Without a category the business never appears in the /category/* listings —
     // one of the main discovery paths — so it can't be skipped silently.
     if (selectedCategories.length === 0) {
@@ -161,6 +163,8 @@ export default function NewBusinessPage() {
           address: address.trim() || undefined,
         },
         contact: trimmedWhatsapp ? { whatsapp: trimmedWhatsapp } : undefined,
+        logoFile: logoFile ?? undefined,
+        coverFile: coverFile ?? undefined,
       });
       router.push(`/panel?created=${id}`);
     } catch (err) {
@@ -233,7 +237,29 @@ export default function NewBusinessPage() {
           </span>
         </Field>
 
-        <Field label="Escuela que apoyás">
+        <ImagePicker
+          label="Logo o foto de perfil (opcional)"
+          hint="Se muestra en círculo junto al nombre, en tu página pública y en el catálogo."
+          variant="avatar"
+          value={logoFile}
+          onChange={(f) => {
+            setLogoFile(f);
+            setDirty(true);
+          }}
+        />
+
+        <ImagePicker
+          label="Foto de portada (opcional)"
+          hint="La franja ancha arriba de tu página pública (ideal 1200×480 px). Si no subís una, se muestra el logo en su lugar."
+          variant="cover"
+          value={coverFile}
+          onChange={(f) => {
+            setCoverFile(f);
+            setDirty(true);
+          }}
+        />
+
+        <Field label="Escuela que apoyás (opcional)">
           {/* Type-to-filter with a canton/province hint: MEP school names repeat a lot
               across cantons, and a native select gives no way to tell homonyms apart —
               picking the wrong school misdirects the support publicly. */}
@@ -250,20 +276,22 @@ export default function NewBusinessPage() {
         </Field>
         {/* Outside the Field: links must not nest inside its <label>. */}
         {schools.length === 0 ? (
-          <p className="-mt-2 text-xs text-amber-700">
-            Todavía no hay escuelas en la plataforma.{" "}
+          <p className="-mt-2 text-xs text-gray-500">
+            Todavía no hay escuelas en la plataforma. Podés crear tu comercio
+            sin escuela y vincularla después, o{" "}
             <Link href="/panel/new/school" className="font-medium underline">
-              Creá la página de tu escuela
+              crear la página de tu escuela
             </Link>{" "}
             primero.
           </p>
         ) : (
           <p className="-mt-2 text-xs text-gray-500">
-            ¿Tu escuela no está en la lista?{" "}
+            Podés dejarla en blanco y vincularla después desde la edición. ¿Tu
+            escuela no está en la lista?{" "}
             <Link href="/panel/new/school" className="font-medium underline">
               Creá su página
-            </Link>{" "}
-            y después volvé a crear tu comercio.
+            </Link>
+            .
           </p>
         )}
 
@@ -360,7 +388,12 @@ export default function NewBusinessPage() {
         <FormError message={error} />
 
         <button type="submit" disabled={saving} className="btn btn-primary">
-          {saving ? "Creando…" : "Crear comercio"}
+          {/* Uploads can take a few seconds on mobile data — say what's happening. */}
+          {saving
+            ? logoFile || coverFile
+              ? "Subiendo imágenes…"
+              : "Creando…"
+            : "Crear comercio"}
         </button>
       </form>
     </main>

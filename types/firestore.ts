@@ -143,8 +143,9 @@ export interface Business {
   categories: string[]; // category ids
   categoryNames: string[]; // denormalized for rendering without extra reads
   location: Location;
+  /** Linked school, or "" — linking is optional (the owner may add it later). */
   schoolId: string;
-  schoolName: string; // denormalized
+  schoolName: string; // denormalized; "" when no school is linked
   contact: BusinessContact;
   discount: Discount;
   logoUrl?: string;
@@ -177,6 +178,7 @@ export interface BusinessCardData {
   id: string;
   name: string;
   slug: string;
+  /** "" when the business has no linked school (see Business.schoolId). */
   schoolId: string;
   schoolName: string;
   categoryNames: string[];
