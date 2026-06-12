@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { GalleryManager } from "@/components/business/GalleryManager";
+import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -594,10 +595,19 @@ export default function BusinessEditPage() {
           )}
         </fieldset>
 
-        <p className="text-xs text-gray-500">
-          El logo y la portada se eligen al crear la página; todavía no se
-          pueden cambiar desde acá.
-        </p>
+        <div className="flex flex-col gap-2">
+          {/* Read-only mini header (cover + overlapping avatar) so the owner can
+              check the overlap without opening the public page. */}
+          <HeaderPreview
+            cover={splitBusinessPhotos(business).cover}
+            logo={business.logoUrl}
+            businessName={business.name}
+          />
+          <p className="text-xs text-gray-500">
+            El logo y la portada se eligen al crear la página; todavía no se
+            pueden cambiar desde acá.
+          </p>
+        </div>
 
         <FormError message={error} />
 

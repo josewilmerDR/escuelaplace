@@ -3,13 +3,22 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContactButtons } from "@/components/business/ContactButtons";
+import { ManageBar } from "@/components/business/ManageBar";
+import { PhotoGallery } from "@/components/business/PhotoGallery";
+import { SectionTabs } from "@/components/business/SectionTabs";
 import { SupportBadge } from "@/components/business/SupportBadge";
 import { TrackPageView } from "@/components/business/TrackPageView";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { OwnReviewMark } from "@/components/reviews/OwnReviewMark";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { Stars } from "@/components/reviews/Stars";
-import { normalizePhoneInternational } from "@/lib/contact";
+import { TrackedLink } from "@/components/business/TrackedLink";
+import {
+  buildPhoneUrl,
+  buildWebsiteUrl,
+  formatPhoneDisplay,
+  normalizePhoneInternational,
+} from "@/lib/contact";
 import {
   getBusinessBySlug,
   getReviewsByBusiness,
@@ -31,10 +40,6 @@ interface Props {
 
 /** The page column is max-w-4xl (896px) minus px-6 — lets next/image pick the size. */
 const COVER_SIZES = "(min-width: 896px) 848px, 100vw";
-
-/** Shared style for the section tabs under the header card (FB-style anchor nav). */
-const TAB_CLASS =
-  "rounded-md px-3 py-2 text-sm font-semibold text-muted hover:bg-surface hover:text-brand-darker";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -88,6 +93,18 @@ export default async function BusinessPage({ params }: Props) {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
+
+  // Phone/website for the Información list — same normalization as the action
+  // buttons, so both render (or hide) together.
+  const phoneUrl = business.contact?.phone
+    ? buildPhoneUrl(business.contact.phone)
+    : null;
+  const phoneDisplay = business.contact?.phone
+    ? formatPhoneDisplay(business.contact.phone)
+    : null;
+  const websiteUrl = business.contact?.web
+    ? buildWebsiteUrl(business.contact.web)
+    : null;
 
   // LocalBusiness structured data: the profile is the catalog's canonical SEO entity,
   // and aggregateRating is what puts review stars on the Google result.
@@ -300,23 +317,24 @@ export default async function BusinessPage({ params }: Props) {
                 }
               />
 
-              {/* Section tabs (anchors): the FB tab strip. Only sections that exist. */}
-              <nav
-                aria-label="Secciones de la página"
-                className="-mx-2 mt-5 flex justify-center gap-1 border-t border-border pt-1 sm:justify-start"
-              >
-                <a href="#informacion" className={TAB_CLASS}>
-                  Información
-                </a>
-                {gallery.length > 0 && (
-                  <a href="#fotos" className={TAB_CLASS}>
-                    Fotos
-                  </a>
-                )}
-                <a href="#resenas" className={TAB_CLASS}>
-                  Reseñas
-                </a>
-              </nav>
+              {/* Edit/metrics shortcuts — only the page's managers see this. */}
+              <ManageBar
+                businessId={business.id}
+                ownerId={business.ownerId}
+                editorIds={business.editorIds}
+                supportsSchool={Boolean(business.subscription?.active)}
+              />
+
+              {/* Section tabs (anchors) with scroll-spy. Only sections that exist. */}
+              <SectionTabs
+                sections={[
+                  { id: "informacion", label: "Información" },
+                  ...(gallery.length > 0
+                    ? [{ id: "fotos", label: "Fotos" }]
+                    : []),
+                  { id: "resenas", label: "Reseñas" },
+                ]}
+              />
             </div>
           </header>
 
@@ -349,7 +367,26 @@ export default async function BusinessPage({ params }: Props) {
               {business.description}
             </p>
 
-            {(placeParts.length > 0 || business.hours) && (
+            {/* Category chips right after the description (not a trailing block of
+                their own): with sparse data the card otherwise reads half-empty. */}
+            {categoryChips.length > 0 && (
+              <nav aria-label="Categorías" className="mt-3 flex flex-wrap gap-2">
+                {categoryChips.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/category/${c.id}`}
+                    className="inline-flex items-center rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-brand-dark hover:text-brand-darker"
+                  >
+                    {c.name}
+                  </Link>
+                ))}
+              </nav>
+            )}
+
+            {(placeParts.length > 0 ||
+              business.hours ||
+              (phoneUrl && phoneDisplay) ||
+              websiteUrl) && (
               <ul className="mt-4 space-y-3 text-sm text-slate-600">
                 {placeParts.length > 0 && (
                   <li className="flex items-start gap-3">
@@ -367,21 +404,39 @@ export default async function BusinessPage({ params }: Props) {
                     </span>
                   </li>
                 )}
+                {/* Phone and website also live in the action buttons; repeating them
+                    here as readable text is the FB intro-card pattern (the buttons are
+                    for acting, this list is for reading/copying). Same tracked
+                    channels as the buttons, so the funnel metrics stay coherent. */}
+                {phoneUrl && phoneDisplay && (
+                  <li className="flex items-start gap-3">
+                    <PhoneIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
+                    <TrackedLink
+                      businessId={business.id}
+                      channel="phone"
+                      href={phoneUrl}
+                      external={false}
+                      className="hover:underline"
+                    >
+                      {phoneDisplay}
+                    </TrackedLink>
+                  </li>
+                )}
+                {websiteUrl && (
+                  <li className="flex items-start gap-3">
+                    <GlobeIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
+                    <TrackedLink
+                      businessId={business.id}
+                      channel="website"
+                      href={websiteUrl}
+                      external
+                      className="break-all hover:underline"
+                    >
+                      {websiteUrl.replace(/^https?:\/\//, "")}
+                    </TrackedLink>
+                  </li>
+                )}
               </ul>
-            )}
-
-            {categoryChips.length > 0 && (
-              <nav aria-label="Categorías" className="mt-4 flex flex-wrap gap-2">
-                {categoryChips.map((c) => (
-                  <Link
-                    key={c.id}
-                    href={`/category/${c.id}`}
-                    className="inline-flex items-center rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-brand-dark hover:text-brand-darker"
-                  >
-                    {c.name}
-                  </Link>
-                ))}
-              </nav>
             )}
           </section>
 
@@ -392,22 +447,9 @@ export default async function BusinessPage({ params }: Props) {
               className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
             >
               <h2 className="text-xl font-semibold">Fotos</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {gallery.map((src, i) => (
-                  <div
-                    key={i}
-                    className="relative aspect-square overflow-hidden rounded-xl bg-brand-tint"
-                  >
-                    <Image
-                      src={src}
-                      alt={`Foto de ${business.name}`}
-                      fill
-                      sizes="(min-width: 640px) 240px, 50vw"
-                      className="object-cover"
-                    />
-                  </div>
-                ))}
-              </div>
+              {/* Client island: the grid crops to squares, so the lightbox is the
+                  only way to see the full photo. */}
+              <PhotoGallery photos={gallery} businessName={business.name} />
             </section>
           )}
 
@@ -547,6 +589,44 @@ function ClockIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
+function PhoneIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"
+      />
+    </svg>
+  );
+}
+
+function GlobeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m-16.432 0A8.959 8.959 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418"
       />
     </svg>
   );

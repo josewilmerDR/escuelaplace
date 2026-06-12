@@ -15,6 +15,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Combobox } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { normalizePhoneInternational } from "@/lib/contact";
@@ -262,6 +263,9 @@ export default function NewBusinessPage() {
             setDirty(true);
           }}
         />
+
+        {/* Renders nothing until at least one image is chosen. */}
+        <HeaderPreview cover={coverFile} logo={logoFile} businessName={name} />
 
         <Field label="Escuela que apoyás (opcional)">
           {/* Type-to-filter with a locality hint: school names repeat a lot across

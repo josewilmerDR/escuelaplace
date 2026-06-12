@@ -10,6 +10,10 @@
  * general/none — still truthful. The slot has a fixed min-height so the badge popping
  * in doesn't shift the description below; on failure it stays empty (no badge beats a
  * wrong badge).
+ *
+ * The "none" tier renders nothing here: a "doesn't support any school yet" label on
+ * the merchant's own profile — the page they share on WhatsApp — reads as a public
+ * warning. The nudge to subscribe lives in ManageBar, where only the owner sees it.
  */
 import { useEffect, useState } from "react";
 import { TIER_BADGE } from "@/components/business/BusinessCard";
@@ -48,7 +52,7 @@ export function SupportBadge({ businessId }: { businessId: string }) {
     };
   }, [ready, businessId, prefs.schoolId, prefs.location]);
 
-  const badge = tier ? TIER_BADGE[tier] : null;
+  const badge = tier && tier !== "none" ? TIER_BADGE[tier] : null;
 
   return (
     <div className="mt-3 flex min-h-7 items-center">
