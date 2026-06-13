@@ -16,9 +16,12 @@ export function SiteHeader() {
           <Link href="/" className="flex items-baseline gap-1 text-2xl font-bold tracking-tight">
             escuela<span className="rounded-md bg-white px-1.5 text-brand-dark">place</span>
           </Link>
-          {/* Directory entry, sits with the brand. Ghost chip (vs the solid white Crear
-              CTA) so it reads as secondary nav, not the primary action. Always shown —
-              buyers and owners alike browse schools — icon-only below sm to save room. */}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Directory entry. Ghost chip (vs the solid white Crear CTA) so it reads as
+              secondary nav, not the primary action. Always shown — buyers and owners alike
+              browse schools — icon-only below sm to save room. */}
           <Link
             href="/schools"
             aria-label="Escuelas"
@@ -27,9 +30,6 @@ export function SiteHeader() {
             <AcademicCapIcon className="h-5 w-5" />
             <span className="hidden sm:inline">Escuelas</span>
           </Link>
-        </div>
-
-        <div className="flex items-center gap-3">
           {/* Acquisition CTA — state-aware (see HeaderCreateCta): a learn-what-this-is
               entry for visitors, hidden for accounts that already own a page. */}
           <HeaderCreateCta />
