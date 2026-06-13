@@ -20,7 +20,7 @@ const COVER_SIZES = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
 function CardMedia({ school }: { school: SchoolCardData }) {
   const initial = school.name.charAt(0).toUpperCase();
   return (
-    <div className="relative aspect-video w-full overflow-hidden bg-brand-tint">
+    <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-brand-tint to-white">
       {school.photo ? (
         <Image
           src={school.photo}
@@ -40,7 +40,7 @@ function CardMedia({ school }: { school: SchoolCardData }) {
       ) : (
         <span
           aria-hidden
-          className="flex h-full items-center justify-center text-5xl font-bold text-brand-darker/40"
+          className="flex h-full items-center justify-center text-5xl font-bold text-brand-darker/50"
         >
           {initial}
         </span>

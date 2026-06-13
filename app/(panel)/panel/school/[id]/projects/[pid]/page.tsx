@@ -18,6 +18,7 @@ import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { ImagePicker, validateImageFile } from "@/components/ui/ImagePicker";
+import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
@@ -134,6 +135,8 @@ export default function ProjectEditPage() {
       setCoverFile(null);
       await load();
       setSaved(true);
+      // Auto-clear so the confirmation reads as a transient toast, not a permanent label.
+      window.setTimeout(() => setSaved(false), 4000);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudieron guardar los cambios."));
     } finally {
@@ -280,9 +283,7 @@ export default function ProjectEditPage() {
           <button type="submit" disabled={saving} className="btn btn-primary">
             {saving ? "Guardando…" : "Guardar cambios"}
           </button>
-          {saved && (
-            <span className="text-xs text-green-700">Cambios guardados.</span>
-          )}
+          <SavedIndicator show={saved} />
         </div>
       </form>
 
