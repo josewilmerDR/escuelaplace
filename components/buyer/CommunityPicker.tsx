@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { distanceBetween } from "geofire-common";
 import { Combobox } from "@/components/ui/Combobox";
-import { AcademicCapIcon, MapPinIcon } from "@/components/ui/icons";
+import { AcademicCapIcon, MapPinIcon, XMarkIcon } from "@/components/ui/icons";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
 import { COMMUNITY_RADIUS_KM, getSchoolsCached } from "@/lib/firestore";
 import { localityLabel } from "@/lib/location";
@@ -86,7 +86,19 @@ export function CommunityPicker({
     setExpanded(false);
   };
 
+  // Hide/reopen are persisted (pickerHidden in localStorage) so a buyer who dismisses the
+  // picker is not nagged with it on every visit; the quiet reopen chip keeps it reachable.
+  const hide = () => {
+    update({ ...prefs, pickerHidden: true });
+    setExpanded(false);
+  };
+  const reopen = () => {
+    update({ ...prefs, pickerHidden: false });
+    setExpanded(true);
+  };
+
   const hasCommunity = ready && (prefs.schoolId || prefs.location);
+  const hidden = ready && prefs.pickerHidden === true;
 
   // Whether any known school falls inside the community radius of the buyer's location.
   // Derived from the already-fetched list (no extra geo query) so it survives remounts;
@@ -115,6 +127,22 @@ export function CommunityPicker({
       ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elegí una de la lista.`
       : "Mostrando primero quienes apoyan cerca de tu ubicación";
 
+  // Dismissed entirely: leave only a quiet chip so the buyer can bring it back.
+  if (hidden) {
+    return (
+      <div className="mb-8">
+        <button
+          type="button"
+          onClick={reopen}
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-surface py-2 pl-3 pr-4 text-sm font-medium text-muted shadow-sm hover:border-brand-dark hover:text-brand-darker"
+        >
+          <AcademicCapIcon className="h-4 w-4 shrink-0 text-brand-dark" />
+          Elegí tu escuela
+        </button>
+      </div>
+    );
+  }
+
   // Collapsed once a usable community is set. locationWithoutSchools stays expanded
   // because the buyer still has to pick a school from the list for it to take effect.
   const collapsed = hasCommunity && !locationWithoutSchools && !expanded;
@@ -123,7 +151,7 @@ export function CommunityPicker({
     const Icon = prefs.schoolName ? AcademicCapIcon : MapPinIcon;
     return (
       <div className="mb-8">
-        <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-surface py-2 pl-4 pr-2 text-sm text-muted">
+        <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-gradient-to-br from-brand-tint/50 to-surface py-2 pl-4 pr-1 text-sm text-muted shadow-sm">
           <Icon className="h-4 w-4 shrink-0 text-brand-dark" />
           <span className="truncate">{statusText}</span>
           <button
@@ -133,28 +161,52 @@ export function CommunityPicker({
           >
             Cambiar
           </button>
+          {/* Hide the summary too, for buyers who don't want the strip at all. */}
+          <button
+            type="button"
+            onClick={hide}
+            aria-label="Ocultar"
+            className="shrink-0 rounded-full p-1.5 text-muted hover:bg-border/60 hover:text-foreground"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </button>
         </span>
       </div>
     );
   }
 
   return (
-    <div className="mb-8 rounded-2xl border border-border bg-surface p-5">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm text-muted">{description}</p>
+    // Brand-blue card (sky-500 → sky-600) with white text: softer than the deep navy
+    // (~60% of its intensity) but the same band the site header already uses, so the
+    // prompt still stands out and stays legible. Dismissable via the ✕.
+    <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-br from-brand to-brand-dark p-4 text-white shadow-md ring-1 ring-black/5">
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-inset ring-white/25">
+          <AcademicCapIcon className="h-5 w-5" />
+        </span>
+        <p className="flex-1 text-sm leading-snug text-white">{description}</p>
         {/* Editing an existing community: let the buyer back out without changing it. */}
         {hasCommunity && (
           <button
             type="button"
             onClick={() => setExpanded(false)}
-            className="shrink-0 text-sm font-medium text-brand-darker hover:underline"
+            className="shrink-0 rounded-full px-3 py-1 text-sm font-medium text-white hover:bg-white/10"
           >
             Listo
           </button>
         )}
+        {/* Dismiss the whole card; reopens from the quiet chip (pickerHidden persists). */}
+        <button
+          type="button"
+          onClick={hide}
+          aria-label="Ocultar"
+          className="shrink-0 rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+        >
+          <XMarkIcon className="h-4 w-4" />
+        </button>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mt-3 flex items-center gap-2">
         {/* Deliberate: the list includes UNVERIFIED schools (getSchools filters by
             status only). Choosing a community is not a trust signal — verification
             gates the payment/donation flows elsewhere, and a buyer whose school just
@@ -172,6 +224,12 @@ export function CommunityPicker({
           placeholder="Elegí tu escuela…"
           ariaLabel="Tu escuela"
           className="flex-1"
+          // Opaque white field so the blue card doesn't bleed through. The input also has
+          // to set its own colors: the card is `text-white`, which the base `.input`
+          // (no color of its own) would otherwise inherit — turning both the typed school
+          // name and the placeholder white-on-white. Dark text + a brand-blue placeholder
+          // that ties back to the card.
+          inputClassName="bg-white text-foreground placeholder:text-brand-dark"
           emptyMessage={
             schoolsState === "loading"
               ? "Cargando escuelas…"
@@ -181,19 +239,23 @@ export function CommunityPicker({
           }
         />
 
+        {/* Icon-only "my location" affordance (Google-Maps-style pin). aria-label + title
+            carry the meaning that the text label used to; the pin pulses while locating. */}
         <button
           type="button"
           onClick={useMyLocation}
           disabled={locating}
           aria-busy={locating}
-          className="btn btn-outline shrink-0"
+          aria-label="Usar mi ubicación"
+          title="Usar mi ubicación"
+          className="btn btn-on-brand aspect-square shrink-0 px-0"
         >
-          {locating ? "Ubicando…" : "Usar mi ubicación"}
+          <MapPinIcon className={`h-5 w-5 ${locating ? "animate-pulse" : ""}`} />
         </button>
       </div>
 
       {error && (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-sm text-red-200">
           {error}
         </p>
       )}
@@ -202,7 +264,7 @@ export function CommunityPicker({
         <p
           role="status"
           className={`mt-3 flex items-center gap-2 text-sm ${
-            locationWithoutSchools ? "text-amber-700" : "text-muted"
+            locationWithoutSchools ? "text-amber-100" : "text-white"
           }`}
         >
           <span>{statusText}</span>
@@ -210,7 +272,7 @@ export function CommunityPicker({
           <button
             type="button"
             onClick={clear}
-            className="-my-2 px-2 py-2 font-medium text-brand-darker hover:underline"
+            className="-my-2 px-2 py-2 font-medium text-white hover:underline"
           >
             Limpiar
           </button>
