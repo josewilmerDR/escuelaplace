@@ -6,9 +6,11 @@
  * the private panel, so they run authenticated (the user reads their own doc).
  */
 import {
+  arrayRemove,
   arrayUnion,
   doc,
   getDoc,
+  updateDoc,
   type WriteBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -48,17 +50,19 @@ export async function getUserById(uid: string): Promise<UserDoc | null> {
 }
 
 /**
- * A managed page resolved to its document. `role` is the user's role on that page;
- * `doc` is null if the referenced page no longer exists (stale entry in managedPages).
+ * A managed page resolved to its document. `id`/`role` come from the managedPages entry
+ * (kept even when `doc` is null, so the panel can offer a "remove stale entry" action);
+ * `doc` is null if the referenced page no longer exists or the read failed.
  */
 export type ResolvedPage =
-  | { type: "business"; role: ManagedPage["role"]; doc: BusinessDoc | null }
-  | { type: "school"; role: ManagedPage["role"]; doc: SchoolDoc | null };
+  | { type: "business"; id: string; role: ManagedPage["role"]; doc: BusinessDoc | null }
+  | { type: "school"; id: string; role: ManagedPage["role"]; doc: SchoolDoc | null };
 
 /**
  * The pages (businesses and/or schools) the user administers, resolved to their docs.
  * Used by the panel to list what the user can edit. Reads the user doc, then fetches
- * each referenced page in parallel.
+ * each referenced page in parallel. A single page's read failing (denied/offline) must
+ * not nuke the whole list, so each fetch is isolated and degrades to `doc: null`.
  */
 export async function getPagesByUser(uid: string): Promise<ResolvedPage[]> {
   const user = await getUserById(uid);
@@ -69,11 +73,41 @@ export async function getPagesByUser(uid: string): Promise<ResolvedPage[]> {
       // Explicit mapping: naive pluralization ("business" + "s") produced "businesss",
       // a collection no rule matches — every business page denied and the panel hung.
       const collectionName = page.type === "business" ? "businesses" : "schools";
-      const snap = await getDoc(doc(db, collectionName, page.id));
-      if (page.type === "business") {
-        return { type: "business", role: page.role, doc: docToTyped<Business>(snap) };
+      try {
+        const snap = await getDoc(doc(db, collectionName, page.id));
+        if (page.type === "business") {
+          return {
+            type: "business",
+            id: page.id,
+            role: page.role,
+            doc: docToTyped<Business>(snap),
+          };
+        }
+        return {
+          type: "school",
+          id: page.id,
+          role: page.role,
+          doc: docToTyped<School>(snap),
+        };
+      } catch {
+        // Degrade a single failed read to an "unavailable / no longer exists" card
+        // instead of rejecting the whole Promise.all.
+        return { type: page.type, id: page.id, role: page.role, doc: null };
       }
-      return { type: "school", role: page.role, doc: docToTyped<School>(snap) };
     }),
   );
+}
+
+/**
+ * Remove a managedPages entry from the user doc. Used to clean up stale entries (pages
+ * that no longer exist) from the panel. `arrayRemove` matches the stored object exactly,
+ * so it must be passed with only `{ type, id, role }` and no extra fields.
+ */
+export async function removeManagedPage(
+  uid: string,
+  page: ManagedPage,
+): Promise<void> {
+  await updateDoc(doc(db, USERS, uid), {
+    managedPages: arrayRemove({ type: page.type, id: page.id, role: page.role }),
+  });
 }
