@@ -114,12 +114,15 @@ export function SchoolCard({
   school,
   selected = false,
   onSelect,
+  tabIndex,
 }: {
   school: SchoolCardData;
   /** Selectable mode only: whether this card is the current choice. */
   selected?: boolean;
   /** Provide to render the card as a radio-style selector (donation picker). */
   onSelect?: (id: string) => void;
+  /** Selectable mode only: roving tabindex managed by the radiogroup (picker). */
+  tabIndex?: number;
 }) {
   if (onSelect) {
     return (
@@ -127,6 +130,7 @@ export function SchoolCard({
         type="button"
         role="radio"
         aria-checked={selected}
+        tabIndex={tabIndex}
         onClick={() => onSelect(school.id)}
         className={`group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border bg-white text-left transition hover:shadow-lg ${
           selected

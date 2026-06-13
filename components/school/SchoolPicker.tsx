@@ -14,7 +14,7 @@
  * writes. A discreet "usar mi ubicación" button lets a signed-in donor enable proximity here
  * even if they never used that picker.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Combobox } from "@/components/ui/Combobox";
 import { SchoolCard } from "@/components/school/SchoolCard";
@@ -40,6 +40,12 @@ export function SchoolPicker({
   const { prefs, ready, update } = useBuyerPreferences();
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+
+  // Edge-fade hints: shown only when the track can scroll further that way, so a short list
+  // (1–2 schools that fit) shows no fade and never looks "cut off", while an overflowing one
+  // signals there's more to swipe/arrow through.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
 
   const cards = useMemo(() => schools.map(toSchoolCardData), [schools]);
 
@@ -72,6 +78,71 @@ export function SchoolPicker({
     }
     return list;
   }, [cards, hasLocation, location, value]);
+
+  // The single tab stop into the radiogroup: the selected card, or the first when none is
+  // chosen yet (WAI-ARIA roving tabindex). Arrows then move within the group.
+  const activeIndex = Math.max(
+    0,
+    top.findIndex((s) => s.id === value),
+  );
+
+  // WAI-ARIA radiogroup keys: arrows/Home/End move focus AND select (a radiogroup checks the
+  // focused radio), and the focused card is scrolled into view so the carousel follows.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const radios = Array.from(
+      scrollRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [],
+    );
+    if (radios.length === 0) return;
+    const current = radios.indexOf(document.activeElement as HTMLButtonElement);
+    let next = current;
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        next = current < 0 ? 0 : (current + 1) % radios.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        next = current < 0 ? 0 : (current - 1 + radios.length) % radios.length;
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = radios.length - 1;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    radios[next].focus();
+    radios[next].scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
+    onChange(top[next].id);
+  };
+
+  const updateEdges = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setEdges({
+      left: scrollLeft > 1,
+      right: scrollLeft + clientWidth < scrollWidth - 1,
+    });
+  }, []);
+
+  // Recompute fades on scroll, on resize, and whenever the list length changes (content
+  // width changes without the container resizing).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    updateEdges();
+    el.addEventListener("scroll", updateEdges, { passive: true });
+    const ro = new ResizeObserver(updateEdges);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateEdges);
+      ro.disconnect();
+    };
+  }, [updateEdges, top.length]);
 
   const useMyLocation = () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -124,34 +195,61 @@ export function SchoolPicker({
       )}
 
       {top.length > 0 && (
-        <div className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2">
-          {/* `contents` keeps the radiogroup owning only the radio cards (not the trailing
-              link) while letting the slides stay flex items of the scroll track. */}
-          <div role="radiogroup" aria-label="Escuelas sugeridas" className="contents">
-            {top.map((school) => (
-              <div key={school.id} className={SLIDE}>
-                <SchoolCard
-                  school={school}
-                  selected={school.id === value}
-                  onSelect={onChange}
-                />
-              </div>
-            ))}
+        <div className="relative">
+          <div
+            ref={scrollRef}
+            className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2"
+          >
+            {/* `contents` keeps the radiogroup owning only the radio cards (not the trailing
+                link) while letting the slides stay flex items of the scroll track. Arrow-key
+                navigation is handled at the group level (see onKeyDown). */}
+            <div
+              role="radiogroup"
+              aria-label="Escuelas sugeridas"
+              onKeyDown={onKeyDown}
+              className="contents"
+            >
+              {top.map((school, i) => (
+                <div key={school.id} className={SLIDE}>
+                  <SchoolCard
+                    school={school}
+                    selected={school.id === value}
+                    onSelect={onChange}
+                    tabIndex={i === activeIndex ? 0 : -1}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* 4th element: browse/search the full directory. */}
+            <Link
+              href="/schools"
+              className={`${SLIDE} flex flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border p-4 text-center text-sm font-medium text-brand-darker transition hover:border-brand-dark hover:bg-brand-tint/40`}
+            >
+              <span aria-hidden className="text-2xl leading-none">
+                →
+              </span>
+              Más escuelas
+              <span className="text-xs font-normal text-muted">
+                Ver todas y buscar por cercanía
+              </span>
+            </Link>
           </div>
 
-          {/* 4th element: browse/search the full directory. */}
-          <Link
-            href="/schools"
-            className={`${SLIDE} flex flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border p-4 text-center text-sm font-medium text-brand-darker transition hover:border-brand-dark hover:bg-brand-tint/40`}
-          >
-            <span aria-hidden className="text-2xl leading-none">
-              →
-            </span>
-            Más escuelas
-            <span className="text-xs font-normal text-muted">
-              Ver todas y buscar por cercanía
-            </span>
-          </Link>
+          {/* "There's more" cues — non-interactive, fade the cards under the edge you can
+              still scroll toward. Hidden when that edge is fully reached. */}
+          {edges.left && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent"
+            />
+          )}
+          {edges.right && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-background to-transparent"
+            />
+          )}
         </div>
       )}
 
