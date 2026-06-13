@@ -46,6 +46,8 @@ ui-debug.log*
 
 # claude code (personal settings only; .claude/settings.json is shared/committed)
 .claude/settings.local.json
+# claude code agent worktrees (scratch dirs for parallel agents)
+.claude/worktrees/
 
 # typescript
 *.tsbuildinfo
