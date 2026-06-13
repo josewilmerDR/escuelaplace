@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { notFound } from "next/navigation";
 import { PhotoGallery } from "@/components/business/PhotoGallery";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
@@ -58,9 +59,7 @@ export default async function ProjectPage({ params }: Props) {
       <div className="min-h-screen bg-surface">
         <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
           <p className="text-sm text-muted">
-            <Link href={`/school/${id}`} className="hover:underline">
-              ← {project.schoolName}
-            </Link>
+            <BackLink href={`/school/${id}`}>{project.schoolName}</BackLink>
           </p>
 
           <article className="mt-3 overflow-hidden rounded-2xl border border-border bg-white">

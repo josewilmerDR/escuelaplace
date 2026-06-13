@@ -11,6 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
@@ -232,9 +233,7 @@ export default function SchoolProjectsPage() {
       </section>
 
       <p className="mt-8 text-sm">
-        <Link href="/panel" className="underline">
-          ← Volver al panel
-        </Link>
+        <BackLink href="/panel">Volver al panel</BackLink>
       </p>
     </main>
   );

@@ -11,7 +11,8 @@
  * payment methods are shown only when verified.
  */
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
+import { CheckIcon } from "@/components/ui/icons";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
@@ -245,7 +246,7 @@ export default function BusinessSubscribePage() {
                   <p className="font-medium">{s.schoolName}</p>
                   <p className="text-muted">
                     {s.units}× · {formatColones(s.amount)} ·{" "}
-                    {s.proofUploaded ? "Comprobante ✓" : "Sin comprobante"}
+                    {s.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3.5 w-3.5" />Comprobante</span>) : "Sin comprobante"}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -275,9 +276,7 @@ export default function BusinessSubscribePage() {
       </section>
 
       <p className="mt-8 text-sm">
-        <Link href="/panel" className="underline">
-          ← Volver al panel
-        </Link>
+        <BackLink href="/panel">Volver al panel</BackLink>
       </p>
     </main>
   );

@@ -11,6 +11,8 @@
  */
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
+import { CheckIcon } from "@/components/ui/icons";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
@@ -109,9 +111,7 @@ function FundContent() {
       <main className="max-w-xl">
         <p className="text-sm text-muted">Proyecto no encontrado.</p>
         <p className="mt-4 text-sm">
-          <Link href="/panel" className="underline">
-            ← Volver al panel
-          </Link>
+          <BackLink href="/panel">Volver al panel</BackLink>
         </p>
       </main>
     );
@@ -377,7 +377,7 @@ function FundContent() {
                     <p className="text-xs text-muted">{c.description}</p>
                   )}
                   <p className="text-xs text-muted">
-                    {c.proofUploaded ? "Comprobante ✓" : "Sin comprobante"}
+                    {c.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3 w-3" />Comprobante</span>) : "Sin comprobante"}
                   </p>
                 </div>
                 <span
@@ -396,9 +396,7 @@ function FundContent() {
       )}
 
       <p className="mt-8 text-sm">
-        <Link href="/panel" className="underline">
-          ← Volver al panel
-        </Link>
+        <BackLink href="/panel">Volver al panel</BackLink>
       </p>
     </main>
   );
