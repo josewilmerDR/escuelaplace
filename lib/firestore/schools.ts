@@ -274,6 +274,43 @@ export async function updateSchoolPaymentMethods(
   }
 }
 
+// ── Admin: school verification ───────────────────────────────────────────────
+
+/**
+ * Schools awaiting an admin decision: `pending` (never verified) or
+ * `needs_reverification` (a sensitive field changed after being verified). Sorted oldest
+ * first so the queue is fair (first-created, first-reviewed).
+ *
+ * A single `in` filter needs no composite index; the ordering is done in memory because
+ * the queue is small by nature (only unverified schools). Reads run from the admin panel;
+ * the school doc is public, but the review screen also pulls each school's private payment
+ * methods via getSchoolPrivate (admin-readable by rules) so the admin can vet them.
+ */
+export async function getSchoolsAwaitingVerification(): Promise<SchoolDoc[]> {
+  const q = query(
+    collection(db, SCHOOLS),
+    where("verificationStatus", "in", ["pending", "needs_reverification"]),
+  );
+  const list = snapToList<School>(await getDocs(q));
+  return list.sort(
+    (a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0),
+  );
+}
+
+/**
+ * Approve a school: set `verified` / `verificationStatus: 'verified'`. Admin only — the
+ * rules reject this write from anyone else (see grantsVerification in firestore.rules).
+ * Once verified the payment methods become readable to supporters and the "unverified
+ * data" banner clears.
+ */
+export async function verifySchool(id: string): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, id), {
+    verified: true,
+    verificationStatus: "verified",
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export interface CreateSchoolInput {
   name: string;
   description?: string;

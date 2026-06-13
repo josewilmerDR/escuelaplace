@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminNavLink } from "@/components/auth/AdminNavLink";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 
@@ -24,6 +25,8 @@ export default function PanelLayout({
             <Link href="/panel">Mis páginas</Link>
             <Link href="/panel/new">Crear página</Link>
             <Link href="/panel/donate">Donar a una escuela</Link>
+            {/* Admin-only; renders nothing for regular users (see AdminNavLink). */}
+            <AdminNavLink className="font-medium text-brand-darker" />
           </nav>
           {/* Session action lives in the account area now — the header only shows the
               account name. A divider + muted styling sets it apart from the nav links. */}
