@@ -44,6 +44,9 @@ ui-debug.log*
 # vercel
 .vercel
 
+# claude code (personal settings only; .claude/settings.json is shared/committed)
+.claude/settings.local.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
