@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LoginButton } from "@/components/auth/LoginButton";
+import { HeaderCreateCta } from "@/components/layout/HeaderCreateCta";
 
 /**
  * Top brand bar (encuentra24 style): solid brand-colored band with the wordmark
@@ -15,18 +16,9 @@ export function SiteHeader() {
         </Link>
 
         <div className="flex items-center gap-3">
-          {/* The page-owner CTA must exist on mobile too (owners sign up from their
-              phone): icon-only chip under sm, full label from sm up. */}
-          <Link
-            href="/panel"
-            aria-label="Crear página"
-            className="btn btn-on-brand gap-1 font-semibold"
-          >
-            <span aria-hidden className="text-base leading-none">
-              +
-            </span>
-            <span className="hidden sm:inline">Crear página</span>
-          </Link>
+          {/* Acquisition CTA — state-aware (see HeaderCreateCta): a learn-what-this-is
+              entry for visitors, hidden for accounts that already own a page. */}
+          <HeaderCreateCta />
           <LoginButton />
         </div>
       </div>

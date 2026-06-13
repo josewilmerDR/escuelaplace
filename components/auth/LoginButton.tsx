@@ -1,25 +1,29 @@
 "use client";
 
 /**
- * Google sign-in / sign-out reflecting the current auth state from useAuth().
+ * Google sign-in, plus the signed-in account avatar (the Google photo, or a person icon as
+ * fallback → panel). Reflects the auth state from useAuth(). Signing OUT is no longer here —
+ * it lives in the panel sidebar (see SignOutButton); the avatar is the way there.
  *
- * Two surface variants: "on-brand" (default) is the white chip for the brand header,
- * matching the "Crear página" CTA; "primary" is for light surfaces (review form,
- * RequireAuth, panel), where the white chip has no border and disappears.
+ * Two surface variants apply to the signed-out button and the loading skeleton: "on-brand"
+ * (default) is the white chip for the brand header, matching the "Crear página" CTA;
+ * "primary" is for light surfaces (review form, RequireAuth), where the white chip has no
+ * border and disappears.
  *
- * The three states (loading / signed out / signed in) render at comparable widths so the
- * header doesn't shift on every page load while auth resolves.
+ * The three states (loading / signed out / signed in) resolve without shifting the header
+ * much while auth settles.
  */
 import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "./AuthProvider";
+import { UserIcon } from "@/components/ui/icons";
 
 export function LoginButton({
   variant = "on-brand",
 }: {
   variant?: "on-brand" | "primary";
 }) {
-  const { user, loading, signIn, signOut } = useAuth();
+  const { user, fbUser, loading, signIn } = useAuth();
   const [busy, setBusy] = useState(false);
 
   const run = async (fn: () => Promise<void>) => {
@@ -44,28 +48,33 @@ export function LoginButton({
   }
 
   if (user) {
-    // First name keeps the header compact; the full name is in the title tooltip. The
-    // name links to the panel (the signed-in user's "my pages" home). Both pills use
-    // bg-brand-darkest: white small text on the brand-dark band itself fails WCAG AA.
-    const firstName = user.name.split(" ")[0] || user.email;
+    // Account avatar — the familiar pattern: the Google photo, or a person silhouette when
+    // there's none. Links to the panel (the signed-in user's "my pages" home, where signing
+    // out now lives); the full name is the tooltip and the accessible label.
+    const photo = fbUser?.photoURL;
     return (
-      <span className="flex items-center gap-2">
-        <Link
-          href="/panel"
-          title={user.name}
-          className="btn hidden max-w-36 truncate bg-brand-darkest text-white hover:bg-brand-darker sm:inline-flex"
-        >
-          {firstName}
-        </Link>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => run(signOut)}
-          className="btn bg-brand-darkest text-white hover:bg-brand-darker"
-        >
-          Cerrar sesión
-        </button>
-      </span>
+      <Link
+        href="/panel"
+        title={user.name}
+        aria-label={`Tu cuenta: ${user.name}`}
+        className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-darkest text-white ring-1 ring-white/40 transition hover:ring-white/70"
+      >
+        {photo ? (
+          // next/image is overkill for a 40px third-party avatar and can't set the
+          // referrerPolicy Google's photo CDN expects; a plain <img> is the right tool here.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photo}
+            alt=""
+            width={40}
+            height={40}
+            referrerPolicy="no-referrer"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <UserIcon className="h-6 w-6" />
+        )}
+      </Link>
     );
   }
 

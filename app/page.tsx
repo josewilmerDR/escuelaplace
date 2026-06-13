@@ -136,7 +136,7 @@ export default async function HomePage() {
           <p className="text-muted">
             Todavía no hay comercios publicados.{" "}
             <Link
-              href="/panel"
+              href="/create"
               className="font-medium text-brand-darker hover:underline"
             >
               Creá la página del tuyo
