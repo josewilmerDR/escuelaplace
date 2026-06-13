@@ -38,6 +38,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Keep the vertical scrollbar track present at ALL times — the same trick YouTube /
+   Facebook / Twitter use so their left rail never moves. Without it, going from a tall
+   page (scrollbar shown) to a short one (no scrollbar) reclaims ~15px of viewport width,
+   which re-centers the shell and shifts the sidebar — read as flicker/resize.
+   `overflow-y: scroll` is the universal method; `scrollbar-gutter` backs it up where the
+   scrollbar is an overlay (it reserves the gutter instead of overlapping content). */
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

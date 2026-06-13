@@ -19,6 +19,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { BusinessStatusBadge } from "@/components/business/BusinessStatusBadge";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
 import {
+  getCachedPagesByUser,
   getPagesByUser,
   removeManagedPage,
   type ResolvedPage,
@@ -30,9 +31,30 @@ export default function PanelHome() {
   // useSearchParams needs a Suspense boundary to keep the route statically
   // prerenderable; the fallback mirrors the data-loading state below.
   return (
-    <Suspense fallback={<p className="text-sm text-gray-500">{LOADING_TEXT}</p>}>
+    <Suspense fallback={<PanelHomeSkeleton />}>
       <PanelHomeInner />
     </Suspense>
+  );
+}
+
+/**
+ * Loading shell. Renders the SAME heading + a couple of card placeholders the loaded list
+ * does, so navigating here paints the heading instantly in its final position and only the
+ * cards fade in — no blank flash ("parpadeo") during the Firestore read. Used by BOTH the
+ * Suspense fallback and the in-component `pages === null` state so the two are identical.
+ */
+function PanelHomeSkeleton() {
+  return (
+    <main>
+      <h1 className="text-2xl font-bold">Mis páginas</h1>
+      <ul className="mt-6 flex flex-col gap-3" aria-hidden="true">
+        <li className="h-28 animate-pulse rounded-lg border bg-gray-50" />
+        <li className="h-28 animate-pulse rounded-lg border bg-gray-50" />
+      </ul>
+      <p className="sr-only" role="status">
+        {LOADING_TEXT}
+      </p>
+    </main>
   );
 }
 
@@ -40,7 +62,12 @@ function PanelHomeInner() {
   const { user } = useAuth();
   const router = useRouter();
   const createdId = useSearchParams().get("created");
-  const [pages, setPages] = useState<ResolvedPage[] | null>(null);
+  // Seed from the session cache so a return visit paints the known list instantly instead
+  // of flashing the skeleton (stale-while-revalidate; the effect below refreshes it). Skip
+  // the cache when arriving with ?created so the just-created page is guaranteed to show.
+  const [pages, setPages] = useState<ResolvedPage[] | null>(() =>
+    user && !createdId ? getCachedPagesByUser(user.id) : null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Single load entry point: used by the focus/visibility revalidation, the
@@ -59,6 +86,11 @@ function PanelHomeInner() {
   useEffect(() => {
     let cancelled = false;
     if (!user) return;
+    // Stale-while-revalidate: the cached list (if any) was already painted by the state
+    // initializer on this return visit; here we just refresh it in the background. A failed
+    // background refresh must not replace a list we're already showing — surface the error
+    // only on a cold load (no cache).
+    const hadCache = !createdId && getCachedPagesByUser(user.id) !== null;
     getPagesByUser(user.id)
       .then((resolved) => {
         if (cancelled) return;
@@ -66,14 +98,14 @@ function PanelHomeInner() {
         setError(null);
       })
       .catch(() => {
-        if (!cancelled) setError("No se pudieron cargar tus páginas.");
+        if (!cancelled && !hadCache) setError("No se pudieron cargar tus páginas.");
       });
     // Flipping this on cleanup drops a stale result when the account switches
     // (or the component unmounts) before the read resolves.
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, createdId]);
 
   // Revalidate when the user returns to the panel, so status/verification badges
   // aren't stale after editing a page elsewhere (or in another tab).
@@ -102,12 +134,7 @@ function PanelHomeInner() {
   }
 
   if (pages === null) {
-    return (
-      <main>
-        <h1 className="text-2xl font-bold">Mis páginas</h1>
-        <p className="mt-4 text-sm text-gray-500">{LOADING_TEXT}</p>
-      </main>
-    );
+    return <PanelHomeSkeleton />;
   }
 
   if (pages.length === 0) {

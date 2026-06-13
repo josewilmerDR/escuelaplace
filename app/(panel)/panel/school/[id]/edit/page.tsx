@@ -247,7 +247,7 @@ export default function SchoolEditPage() {
 
   if (loadState === "error") {
     return (
-      <main className="mx-auto max-w-xl">
+      <main className="max-w-xl">
         <h1 className="text-2xl font-bold">Editar escuela</h1>
         <p role="alert" className="mt-4 text-sm text-red-600">
           No pudimos cargar los datos de la escuela. Revisá tu conexión e
@@ -274,7 +274,7 @@ export default function SchoolEditPage() {
   }
 
   return (
-    <main className="mx-auto max-w-xl">
+    <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Editar escuela</h1>
       <p className="mt-1 text-sm text-gray-600">{school.name}</p>
 
