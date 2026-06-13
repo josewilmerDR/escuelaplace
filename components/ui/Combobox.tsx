@@ -42,6 +42,9 @@ interface ComboboxProps {
   ariaLabel?: string;
   /** Extra classes for the wrapper (e.g. flex sizing inside a row). */
   className?: string;
+  /** Extra classes for the <input> itself — e.g. forcing an opaque `bg-white` when the
+   * combobox sits on a dark/tinted surface (the base `.input` is transparent). */
+  inputClassName?: string;
   /**
    * Shown when the filtered list is empty. Callers with async options should pass a
    * loading/error-specific message — a bare "Sin resultados" while options are still
@@ -63,6 +66,7 @@ export function Combobox({
   placeholder,
   ariaLabel,
   className,
+  inputClassName,
   emptyMessage = "Sin resultados",
 }: ComboboxProps) {
   const listboxId = useId();
@@ -216,7 +220,7 @@ export function Combobox({
         onChange={(e) => onInput(e.target.value)}
         onFocus={openList}
         onKeyDown={onKeyDown}
-        className="input w-full pr-9"
+        className={`input w-full pr-9 ${inputClassName ?? ""}`}
       />
       {/* Dropdown affordance the native <select> had and a bare text input lacks. */}
       <svg

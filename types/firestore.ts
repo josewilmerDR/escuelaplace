@@ -729,4 +729,7 @@ export interface BuyerPreferences {
   schoolId?: string;
   schoolName?: string;
   location?: { lat: number; lng: number };
+  /** The buyer dismissed the community picker; remember it so it stays hidden across
+   * visits (it can always be reopened from the quiet "Elegí tu escuela" chip). */
+  pickerHidden?: boolean;
 }
