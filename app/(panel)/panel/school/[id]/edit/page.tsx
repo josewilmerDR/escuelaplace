@@ -20,6 +20,7 @@ import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { ImagePicker } from "@/components/ui/ImagePicker";
+import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
@@ -234,6 +235,8 @@ export default function SchoolEditPage() {
       setCoverFile(null);
       setSaved(true);
       setDirty(false);
+      // Auto-clear so the confirmation reads as a transient toast, not a permanent label.
+      window.setTimeout(() => setSaved(false), 4000);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudieron guardar los cambios."));
     } finally {
@@ -484,11 +487,7 @@ export default function SchoolEditPage() {
           <button type="submit" disabled={saving} className="btn btn-primary">
             {saving ? "Guardando…" : "Guardar cambios"}
           </button>
-          {saved && (
-            <span role="status" className="text-xs text-green-700">
-              Cambios guardados.
-            </span>
-          )}
+          <SavedIndicator show={saved} />
         </div>
       </form>
 

@@ -18,6 +18,7 @@ import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { PhoneField } from "@/components/ui/PhoneField";
+import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { buildCatalogUrl, normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -286,6 +287,8 @@ export default function BusinessEditPage() {
       setBusiness((b) => (b ? { ...b, name: trimmedName } : b));
       setSaved(true);
       setDirty(false);
+      // Auto-clear so the confirmation reads as a transient toast, not a permanent label.
+      window.setTimeout(() => setSaved(false), 4000);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudieron guardar los cambios."));
     } finally {
@@ -618,11 +621,7 @@ export default function BusinessEditPage() {
           <button type="submit" disabled={saving} className="btn btn-primary">
             {saving ? "Guardando…" : "Guardar cambios"}
           </button>
-          {saved && (
-            <span role="status" className="text-xs text-green-700">
-              Cambios guardados.
-            </span>
-          )}
+          <SavedIndicator show={saved} />
         </div>
       </form>
 
