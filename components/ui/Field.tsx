@@ -12,8 +12,8 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="font-medium">{label}</span>
+    <label className="flex flex-col gap-1.5 text-sm">
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {children}
     </label>
   );

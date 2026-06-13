@@ -92,7 +92,7 @@ export default function ProjectEditPage() {
       school.editorIds?.includes(user.id) ||
       user.role === "admin");
   if (!isManager) {
-    return <p className="text-sm text-red-600">No administrás esta escuela.</p>;
+    return <p className="text-sm text-error">No administrás esta escuela.</p>;
   }
 
   const goal = projectGoal(stages);
@@ -167,10 +167,13 @@ export default function ProjectEditPage() {
 
   return (
     <main className="max-w-2xl">
-      <h1 className="text-2xl font-bold">Editar proyecto</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Editar proyecto
+      </h1>
       <p className="mt-1 text-sm text-muted">{school.name}</p>
 
-      <div className="mt-4 rounded-lg border p-3">
+      {/* Live progress (function-maintained raised/contributorsCount) on a soft inset panel. */}
+      <div className="mt-6 rounded-2xl bg-surface p-4 ring-1 ring-black/5">
         <ProjectProgress
           raised={project.raised}
           goal={projectGoal(project.stages)}
@@ -233,7 +236,9 @@ export default function ProjectEditPage() {
         </Field>
 
         <div>
-          <p className="text-sm font-medium">Etapas</p>
+          <p className="text-sm font-semibold tracking-tight text-foreground">
+            Etapas
+          </p>
           <p className="text-xs text-muted">
             Meta total (suma de las etapas): {goal} {currency}.
           </p>
@@ -287,14 +292,16 @@ export default function ProjectEditPage() {
         </div>
       </form>
 
-      <section className="mt-10 border-t pt-6">
-        <h2 className="text-lg font-semibold">Estado del proyecto</h2>
+      <section className="mt-10 border-t border-border pt-6">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Estado del proyecto
+        </h2>
         <p className="mt-1 text-sm text-muted">
           Alcanzar la meta de dinero no cierra el proyecto: marcalo como
           completado cuando lo concretés (o cuando aceptes una donación en
           especie que lo cumpla).
         </p>
-        <div className="mt-3 flex flex-wrap gap-3">
+        <div className="mt-4 flex flex-wrap gap-3">
           {project.status !== "completed" && (
             <button
               type="button"
@@ -324,7 +331,7 @@ export default function ProjectEditPage() {
           <button
             type="button"
             onClick={onDelete}
-            className="btn btn-outline text-red-600"
+            className="btn btn-destructive"
           >
             Eliminar
           </button>
@@ -386,21 +393,24 @@ function StageCard({
   };
 
   return (
-    <fieldset className="rounded-lg border border-border p-3">
+    // Elevated calm-depth card per stage (ring + soft shadow, no hard border).
+    <fieldset className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
       <div className="flex items-center justify-between">
-        <legend className="text-sm font-medium">Etapa {index + 1}</legend>
+        <legend className="text-sm font-semibold tracking-tight text-foreground">
+          Etapa {index + 1}
+        </legend>
         {canRemove && (
           <button
             type="button"
             onClick={onRemove}
-            className="text-xs text-muted underline hover:text-red-600"
+            className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
           >
             Quitar etapa
           </button>
         )}
       </div>
 
-      <div className="mt-2 flex flex-col gap-3">
+      <div className="mt-3 flex flex-col gap-3">
         <Field label="Título de la etapa">
           <input
             type="text"
@@ -438,7 +448,7 @@ function StageCard({
             <ul className="mt-1 grid grid-cols-4 gap-2">
               {photos.map((url) => (
                 <li key={url} className="flex flex-col gap-1">
-                  <span className="relative block aspect-square overflow-hidden rounded border border-border bg-surface">
+                  <span className="relative block aspect-square overflow-hidden rounded-lg bg-surface ring-1 ring-black/5">
                     <Image src={url} alt="" fill sizes="80px" className="object-cover" />
                   </span>
                   <button
@@ -446,7 +456,7 @@ function StageCard({
                     onClick={() =>
                       onMedia({ ...stage, photos: photos.filter((p) => p !== url) })
                     }
-                    className="text-xs text-muted underline hover:text-red-600"
+                    className="text-xs font-medium text-muted transition-colors hover:text-error"
                   >
                     Quitar
                   </button>
@@ -500,7 +510,7 @@ function StageCard({
                         quoteUrls: quotes.filter((q) => q !== url),
                       })
                     }
-                    className="text-muted underline hover:text-red-600"
+                    className="font-medium text-muted transition-colors hover:text-error"
                   >
                     Quitar
                   </button>
@@ -527,7 +537,7 @@ function StageCard({
         </div>
 
         {mediaError && (
-          <p role="alert" className="text-xs text-red-600">
+          <p role="alert" className="text-xs text-error">
             {mediaError}
           </p>
         )}

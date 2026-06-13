@@ -56,7 +56,7 @@ export default function SchoolSubscriptionsPage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-red-600">No administrás esta escuela.</p>;
+    return <p className="text-sm text-error">No administrás esta escuela.</p>;
   }
 
   const pending = subscriptions.filter((s) => s.status === "pending");
@@ -99,37 +99,43 @@ export default function SchoolSubscriptionsPage() {
 
   return (
     <main className="max-w-2xl">
-      <h1 className="text-2xl font-bold">Confirmar apoyos</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Confirmar apoyos
+      </h1>
       <p className="mt-1 text-sm text-muted">{school.name}</p>
 
-      <section className="mt-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Pendientes ({pending.length})</h2>
+      <section className="mt-8">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Pendientes ({pending.length})
+          </h2>
+          {/* Bulk action is a quiet secondary; the per-row "Confirmar" is the primary. */}
           {pending.length > 0 && (
             <button
               type="button"
               onClick={confirmAll}
               disabled={busyId !== null}
-              className="btn btn-primary"
+              className="btn btn-outline"
             >
               {busyId === "all" ? "Confirmando…" : "Confirmar todas"}
             </button>
           )}
         </div>
 
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-error">{error}</p>}
 
         {pending.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No hay apoyos pendientes.</p>
         ) : (
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul className="mt-4 flex flex-col gap-4">
             {pending.map((s) => (
+              // Elevated calm-depth row per pending support, with its own primary confirm.
               <li
                 key={s.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                className="flex items-center justify-between gap-3 rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-black/5"
               >
                 <div>
-                  <p className="font-medium">
+                  <p className="font-semibold tracking-tight text-foreground">
                     {supporterNameOf(s)}
                     {s.supporterType === "user" && (
                       <span className="ml-2 text-xs font-normal text-muted">
@@ -158,7 +164,7 @@ export default function SchoolSubscriptionsPage() {
                   type="button"
                   onClick={() => confirmOne(s.id)}
                   disabled={busyId !== null}
-                  className="btn btn-outline shrink-0"
+                  className="btn btn-primary shrink-0"
                 >
                   {busyId === s.id ? "Confirmando…" : "Confirmar"}
                 </button>
@@ -170,15 +176,18 @@ export default function SchoolSubscriptionsPage() {
 
       {others.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">Historial</h2>
-          <ul className="mt-3 flex flex-col gap-2">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Historial
+          </h2>
+          <ul className="mt-4 flex flex-col gap-3">
             {others.map((s) => (
+              // History is settled: a quieter inset panel, no primary action.
               <li
                 key={s.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5"
               >
                 <div>
-                  <p className="font-medium">
+                  <p className="font-semibold tracking-tight text-foreground">
                     {supporterNameOf(s)}
                     {s.supporterType === "user" && (
                       <span className="ml-2 text-xs font-normal text-muted">

@@ -36,13 +36,15 @@ export function EmptyState({
       className={`mx-auto flex max-w-sm flex-col items-center px-4 py-12 text-center ${className}`}
     >
       {icon && (
-        <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-brand-tint text-brand-darker">
+        // App-icon tile: soft brand wash + inset hairline ring (the spec's icon-tile look),
+        // a touch more elevated than a flat circle while staying calm and restrained.
+        <span className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10">
           {icon}
         </span>
       )}
-      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-      {description && <p className="mt-1.5 text-sm text-muted">{description}</p>}
-      {cta != null && <div className="mt-5">{renderCta(cta)}</div>}
+      <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
+      {description && <p className="mt-2 text-sm text-muted">{description}</p>}
+      {cta != null && <div className="mt-6">{renderCta(cta)}</div>}
     </div>
   );
 }

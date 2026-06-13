@@ -30,9 +30,14 @@ export default async function CategoriesPage() {
   return (
     <>
       <main className="mx-auto max-w-6xl px-6 py-10">
-        <h1 className="mb-8 text-2xl font-bold tracking-tight text-foreground">
-          Todas las categorías
-        </h1>
+        <header className="mb-8">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Todas las categorías
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            Explorá el directorio por rubro y encontrá comercios de tu comunidad.
+          </p>
+        </header>
 
         {loadFailed ? (
           <p className="text-muted">
@@ -42,18 +47,23 @@ export default async function CategoriesPage() {
         ) : categories.length === 0 ? (
           <p className="text-muted">Todavía no hay categorías publicadas.</p>
         ) : (
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {categories.map((c) => (
               <li key={c.id}>
+                {/* Calm-depth card led by an app-icon tile holding the category glyph;
+                    the brand ring lights up on hover instead of a hard border swap. */}
                 <Link
                   href={`/category/${c.id}`}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-surface px-5 py-4 hover:border-brand-dark"
+                  className="flex items-center gap-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 transition hover:ring-2 hover:ring-brand"
                 >
-                  <span aria-hidden className="text-2xl">
+                  <span
+                    aria-hidden
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-2xl ring-1 ring-inset ring-brand-dark/10"
+                  >
                     {c.icon}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate font-medium text-foreground">
+                    <span className="block truncate font-semibold tracking-tight text-foreground">
                       {c.name}
                     </span>
                     <span className="block text-sm text-muted">

@@ -166,7 +166,9 @@ export default async function SchoolPage({ params }: Props) {
           />
 
           {/* ── Header card: cover + avatar + identity + CTA + tabs ─────────────── */}
-          <header className="overflow-hidden rounded-2xl border border-border bg-white">
+          {/* Depth, not a hard border: a soft hairline ring + shadow reads as an
+              elevated surface (calm-depth language). */}
+          <header className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
             {/* Cover fallback ladder: cover/gallery photo → profile photo contained on
                 tint → big initial. Wider than 16:9 on desktop — FB covers are short
                 bands. */}
@@ -211,7 +213,7 @@ export default async function SchoolPage({ params }: Props) {
                       alt=""
                       width={128}
                       height={128}
-                      className="h-28 w-28 rounded-full border border-border bg-white object-cover ring-4 ring-white sm:h-32 sm:w-32"
+                      className="h-28 w-28 rounded-full bg-white object-cover ring-4 ring-white sm:h-32 sm:w-32"
                     />
                   ) : (
                     <span
@@ -224,7 +226,7 @@ export default async function SchoolPage({ params }: Props) {
                 </div>
 
                 <div className="mt-3 min-w-0 text-center sm:mt-0 sm:flex-1 sm:pb-1 sm:text-left">
-                  <h1 className="flex flex-wrap items-center justify-center gap-2 text-3xl font-bold sm:justify-start">
+                  <h1 className="flex flex-wrap items-center justify-center gap-2 text-3xl font-semibold tracking-tight text-foreground sm:justify-start">
                     {school.name}
                     {school.verified && (
                       <>
@@ -251,7 +253,7 @@ export default async function SchoolPage({ params }: Props) {
               {(recentSupporters > 0 || confirmationTimeMs !== null) && (
                 <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
                   {recentSupporters > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-sm font-medium text-green-800 ring-1 ring-inset ring-green-200">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success-tint px-3 py-1 text-sm font-medium text-success ring-1 ring-inset ring-success/10">
                       <HeartIcon className="h-4 w-4" />
                       {recentSupporters === 1
                         ? "1 persona o comercio la apoyó en los últimos 30 días"
@@ -259,7 +261,7 @@ export default async function SchoolPage({ params }: Props) {
                     </span>
                   )}
                   {confirmationTimeMs !== null && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-sm font-medium text-sky-800 ring-1 ring-inset ring-sky-200">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1 text-sm font-medium text-muted ring-1 ring-inset ring-black/5">
                       <ClockIcon className="h-4 w-4" />
                       Normalmente confirma las donaciones en{" "}
                       {formatApproxDuration(confirmationTimeMs)}
@@ -329,9 +331,9 @@ export default async function SchoolPage({ params }: Props) {
           </header>
 
           {unverified && (
-            <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+            <div className="mt-4 flex items-start gap-3 rounded-2xl bg-warning-tint p-4 text-sm text-warning ring-1 ring-warning/10">
               <WarningIcon className="mt-0.5 h-5 w-5 shrink-0" />
-              <p className="text-sm">
+              <p>
                 <span className="font-medium">Datos sin verificar.</span> La
                 información de esta escuela todavía no fue verificada por el
                 equipo de escuelaplace; sus métodos de pago no se muestran
@@ -343,9 +345,11 @@ export default async function SchoolPage({ params }: Props) {
           {/* ── Información (FB's intro card) ───────────────────────────────────── */}
           <section
             id="informacion"
-            className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+            className="mt-4 scroll-mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6"
           >
-            <h2 className="text-xl font-semibold">Información</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Información
+            </h2>
             {/* pre-line: the description is captured in a textarea — keep its line
                 breaks. */}
             <p className="mt-3 whitespace-pre-line text-muted">
@@ -395,9 +399,9 @@ export default async function SchoolPage({ params }: Props) {
           {hasProjects && (
             <section
               id="proyectos"
-              className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+              className="mt-4 scroll-mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6"
             >
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
                 Proyectos ({projects.length})
               </h2>
               <p className="mt-1 text-sm text-muted">
@@ -417,9 +421,11 @@ export default async function SchoolPage({ params }: Props) {
             <section
               id="fotos"
               aria-label="Fotos de la escuela"
-              className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+              className="mt-4 scroll-mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6"
             >
-              <h2 className="text-xl font-semibold">Fotos</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                Fotos
+              </h2>
               {/* Client island: the grid crops to squares, so the lightbox is the
                   only way to see the full photo. */}
               <PhotoGallery photos={gallery} businessName={school.name} />
@@ -429,9 +435,9 @@ export default async function SchoolPage({ params }: Props) {
           {/* ── Businesses of the community ─────────────────────────────────────── */}
           <section
             id="comercios"
-            className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+            className="mt-4 scroll-mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6"
           >
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
               Comercios de su comunidad ({cards.length})
             </h2>
 

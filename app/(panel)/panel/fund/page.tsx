@@ -174,7 +174,9 @@ function FundContent() {
 
   return (
     <main className="max-w-xl">
-      <h1 className="text-2xl font-bold">Financiar un proyecto</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Financiar un proyecto
+      </h1>
       <p className="mt-1 text-sm text-muted">
         <Link href={`/school/${schoolId}/project/${projectId}`} className="underline">
           {project.title}
@@ -182,7 +184,8 @@ function FundContent() {
         · {school.name}
       </p>
 
-      <div className="mt-4 rounded-lg border p-3">
+      {/* Live project progress on a soft inset panel. */}
+      <div className="mt-6 rounded-2xl bg-surface p-4 ring-1 ring-black/5">
         <ProjectProgress
           raised={project.raised}
           goal={projectGoal(project.stages)}
@@ -193,7 +196,7 @@ function FundContent() {
       </div>
 
       {!isActive ? (
-        <p className="mt-6 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+        <p className="mt-6 rounded-xl bg-warning-tint p-3 text-sm text-warning ring-1 ring-warning/10">
           Este proyecto ya no recibe aportes.
         </p>
       ) : (
@@ -227,14 +230,14 @@ function FundContent() {
           </div>
 
           {type === "money" ? (
-            <div className="rounded-md bg-surface p-3 text-sm">
+            <div className="rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
               <PaymentMethodsInfo
                 methods={methods}
                 unverifiedText="Esta escuela aún no está verificada, así que todavía no podés financiar este proyecto. Vas a poder hacerlo en cuanto el equipo la verifique."
               />
             </div>
           ) : (
-            <div className="rounded-md bg-surface p-3 text-sm">
+            <div className="rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
               {canFund ? (
                 <p className="text-muted">
                   Donás bienes o trabajo en vez de dinero (por ejemplo, “los
@@ -243,7 +246,7 @@ function FundContent() {
                   que un aporte en dinero.
                 </p>
               ) : (
-                <p className="text-amber-800">
+                <p className="text-warning">
                   Esta escuela aún no está verificada, así que todavía no podés
                   aportar a este proyecto. Vas a poder hacerlo en cuanto el equipo
                   la verifique.
@@ -334,7 +337,7 @@ function FundContent() {
 
           <FormError message={error} />
           {done && (
-            <p className="text-sm text-green-700">
+            <p className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10">
               ¡Aporte registrado! La escuela lo confirmará y el avance se
               actualizará.
             </p>
@@ -361,15 +364,17 @@ function FundContent() {
 
       {myContribs.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">Tus aportes a este proyecto</h2>
-          <ul className="mt-3 flex flex-col gap-2">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Tus aportes a este proyecto
+          </h2>
+          <ul className="mt-4 flex flex-col gap-3">
             {myContribs.map((c) => (
               <li
                 key={c.id}
-                className="flex items-start justify-between gap-3 rounded-lg border p-3 text-sm"
+                className="flex items-start justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5"
               >
                 <div className="min-w-0">
-                  <p className="font-medium">
+                  <p className="font-semibold tracking-tight text-foreground">
                     {c.type === "in_kind" ? "Donación en especie" : "Aporte en dinero"}{" "}
                     · {formatMoney(c.amount, c.currency)}
                   </p>
@@ -381,10 +386,10 @@ function FundContent() {
                   </p>
                 </div>
                 <span
-                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs ${
+                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${
                     c.status === "confirmed"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-amber-100 text-amber-800"
+                      ? "bg-success-tint text-success ring-success/15"
+                      : "bg-warning-tint text-warning ring-warning/15"
                   }`}
                 >
                   {c.status === "confirmed" ? "Confirmado" : "Pendiente"}

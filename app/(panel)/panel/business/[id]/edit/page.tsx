@@ -304,8 +304,10 @@ export default function BusinessEditPage() {
   if (loadState === "error") {
     return (
       <main className="max-w-xl">
-        <h1 className="text-2xl font-bold">Editar comercio</h1>
-        <p role="alert" className="mt-4 text-sm text-red-600">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Editar comercio
+        </h1>
+        <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar los datos del comercio. Revisá tu conexión e intentá
           de nuevo.
         </p>
@@ -326,24 +328,29 @@ export default function BusinessEditPage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-red-600">No administrás este comercio.</p>;
+    return <p className="text-sm text-error">No administrás este comercio.</p>;
   }
 
   return (
     <main className="max-w-xl">
-      <h1 className="text-2xl font-bold">Editar comercio</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Editar comercio
+      </h1>
       <p className="mt-1 text-sm text-muted">{business.name}</p>
 
+      {/* Publication state + its one action, as a semantic note: green when live,
+          amber while a draft / pending / suspended. Depth-not-borders (soft ring),
+          not a hard 1px line. */}
       <section
-        className={`mt-4 rounded-lg border p-4 text-sm ${
+        className={`mt-6 rounded-2xl p-4 text-sm ring-1 ${
           business.status === "active"
-            ? "border-green-200 bg-green-50"
-            : "border-amber-200 bg-amber-50"
+            ? "bg-success-tint text-success ring-success/10"
+            : "bg-warning-tint text-warning ring-warning/10"
         }`}
       >
         {business.status === "active" ? (
           <>
-            <p className="text-green-800">
+            <p>
               Tu página está <strong>publicada</strong>: aparece en el catálogo y
               en{" "}
               <Link
@@ -365,7 +372,7 @@ export default function BusinessEditPage() {
           </>
         ) : business.status === "draft" ? (
           <>
-            <p className="text-amber-800">
+            <p>
               Tu página está en <strong>borrador</strong>: no aparece en el
               catálogo ni se puede abrir su URL pública. Completá el perfil y
               publicala cuando esté lista.
@@ -380,7 +387,7 @@ export default function BusinessEditPage() {
             </button>
           </>
         ) : (
-          <p className="text-amber-800">
+          <p>
             {business.status === "pending"
               ? "Tu página está en revisión por el equipo; todavía no es visible al público."
               : "Tu página fue suspendida por el equipo y no es visible. Escribinos si creés que es un error."}
@@ -393,9 +400,9 @@ export default function BusinessEditPage() {
         onChange={() => setDirty(true)}
         onInvalidCapture={spanishRequiredMessage}
         onInputCapture={clearValidationMessage}
-        className="mt-6 flex flex-col gap-4"
+        className="mt-8 flex flex-col gap-6"
       >
-        <FormSection legend="Información básica">
+        <FormSection legend="Información básica" boxed>
           <Field label="Nombre del comercio">
             <input
               required
@@ -441,10 +448,10 @@ export default function BusinessEditPage() {
               {categories.map((c) => (
                 <label
                   key={c.id}
-                  className={`inline-flex min-h-10 cursor-pointer items-center rounded-full border px-4 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
+                  className={`inline-flex min-h-10 cursor-pointer items-center rounded-full px-4 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
                     selectedCategories.includes(c.id)
                       ? "bg-brand-darker text-white"
-                      : ""
+                      : "bg-surface text-muted ring-1 ring-black/5 hover:text-foreground"
                   }`}
                 >
                   <input
@@ -463,6 +470,7 @@ export default function BusinessEditPage() {
         <FormSection
           legend="Ubicación"
           description="Se completan solos al mover el pin en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
+          boxed
         >
           <div
             role="group"
@@ -524,6 +532,7 @@ export default function BusinessEditPage() {
         <FormSection
           legend="Contacto"
           description="Todos los canales son opcionales."
+          boxed
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <PhoneField label="WhatsApp" value={whatsapp} onChange={setWhatsapp} />
@@ -572,7 +581,7 @@ export default function BusinessEditPage() {
           </div>
         </FormSection>
 
-        <FormSection legend="Presentación">
+        <FormSection legend="Presentación" boxed>
           <Field label="Horario (opcional)">
             <input
               value={hours}
@@ -582,8 +591,10 @@ export default function BusinessEditPage() {
             />
           </Field>
 
-          <fieldset className="rounded-md border p-3">
-            <legend className="px-1 text-sm font-medium">
+          {/* Inset (muted) panel rather than another elevated card: it's a sub-group
+              nested inside the already-elevated "Presentación" section. */}
+          <fieldset className="rounded-xl bg-surface p-4 ring-1 ring-black/5">
+            <legend className="px-1 text-sm font-medium text-foreground">
               Descuento para la comunidad
             </legend>
             <label className="flex items-center gap-2 text-sm">
@@ -637,9 +648,11 @@ export default function BusinessEditPage() {
 
       {/* Outside the form: gallery changes publish immediately (upload/remove mutate
           the doc on the spot), they don't wait for "Guardar cambios". */}
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold">Galería</h2>
-        <div className="mt-2">
+      <section className="mt-10 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Galería
+        </h2>
+        <div className="mt-3">
           <GalleryManager
             // splitBusinessPhotos excludes a legacy cover stored as photos[0], which
             // must not show up as a removable gallery item.

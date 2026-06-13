@@ -76,10 +76,11 @@ export function GalleryManager({
       </p>
 
       {photos.length > 0 && (
-        <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+        <ul className="grid grid-cols-3 gap-3 sm:grid-cols-5">
           {photos.map((url) => (
-            <li key={url} className="flex flex-col gap-1">
-              <span className="relative block aspect-square overflow-hidden rounded-lg border border-border bg-surface">
+            <li key={url} className="flex flex-col gap-1.5">
+              {/* Soft rounded thumb on a hairline ring (depth, not a hard border). */}
+              <span className="relative block aspect-square overflow-hidden rounded-xl bg-surface ring-1 ring-black/5">
                 <Image
                   src={url}
                   alt=""
@@ -92,7 +93,7 @@ export function GalleryManager({
                 type="button"
                 onClick={() => onRemove(url)}
                 disabled={busy}
-                className="text-xs text-muted underline hover:text-red-600 disabled:opacity-50"
+                className="text-xs font-medium text-muted transition-colors hover:text-error disabled:opacity-50"
               >
                 Quitar
               </button>
@@ -126,7 +127,7 @@ export function GalleryManager({
       )}
 
       {error && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs text-error">
           {error}
         </p>
       )}

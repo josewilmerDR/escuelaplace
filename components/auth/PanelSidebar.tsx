@@ -19,7 +19,7 @@ export function PanelSidebar() {
   if (loading || !user) return null;
 
   return (
-    <aside className="shrink-0 border-b pb-4 text-sm md:sticky md:top-6 md:h-fit md:w-48 md:self-start md:border-r md:border-b-0 md:pr-4 md:pb-0">
+    <aside className="shrink-0 border-b border-border pb-4 text-sm md:sticky md:top-20 md:h-fit md:w-48 md:self-start md:border-r md:border-b-0 md:border-border md:pr-4 md:pb-0">
       <nav className="flex flex-wrap gap-x-2 gap-y-1 md:flex-col md:gap-1">
         {/* "Mis páginas" stays active while managing a specific business/school, since
             those sub-flows are launched from there. */}

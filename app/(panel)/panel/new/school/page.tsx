@@ -116,8 +116,10 @@ export default function NewSchoolPage() {
 
   return (
     <main className="max-w-xl">
-      <h1 className="text-2xl font-bold">Crear escuela</h1>
-      <p className="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Crear escuela
+      </h1>
+      <p className="mt-3 rounded-xl bg-warning-tint p-3 text-sm text-warning ring-1 ring-warning/10">
         La escuela se publica como <strong>sin verificar</strong>. Los métodos de
         pago quedan ocultos hasta que el equipo verifique los datos.
       </p>
@@ -127,9 +129,9 @@ export default function NewSchoolPage() {
         onChange={() => setDirty(true)}
         onInvalidCapture={spanishRequiredMessage}
         onInputCapture={clearValidationMessage}
-        className="mt-6 flex flex-col gap-4"
+        className="mt-8 flex flex-col gap-6"
       >
-        <FormSection legend="Información básica">
+        <FormSection legend="Información básica" boxed>
           <Field label="Nombre de la escuela">
             <input required autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} className="input" />
           </Field>
@@ -150,6 +152,7 @@ export default function NewSchoolPage() {
         <FormSection
           legend="Ubicación"
           description="Se completan solos al marcar el punto en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
+          boxed
         >
           <div
             role="group"
@@ -192,6 +195,7 @@ export default function NewSchoolPage() {
         <FormSection
           legend="Contacto del comité escolar"
           description="La junta, asociación o consejo que administra los fondos de la escuela."
+          boxed
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Nombre">
@@ -203,15 +207,11 @@ export default function NewSchoolPage() {
           </div>
         </FormSection>
 
-        <fieldset className="rounded-md border p-3">
-          <legend className="px-1 text-sm font-medium">
-            Métodos de pago (opcional, se ocultan hasta verificar)
-          </legend>
-          <p className="mb-3 mt-1 text-xs text-muted">
-            Cómo puede aportar quien quiera ayudar: cuenta bancaria, método local
-            (SINPE Móvil, Modo, Bizum…), PayPal, etc. Es solo informativo —
-            escuelaplace nunca procesa ni certifica pagos.
-          </p>
+        <FormSection
+          legend="Métodos de pago (opcional, se ocultan hasta verificar)"
+          description="Cómo puede aportar quien quiera ayudar: cuenta bancaria, método local (SINPE Móvil, Modo, Bizum…), PayPal, etc. Es solo informativo — escuelaplace nunca procesa ni certifica pagos."
+          boxed
+        >
           <PaymentMethodsEditor
             value={paymentMethods}
             onChange={(rows) => {
@@ -219,7 +219,7 @@ export default function NewSchoolPage() {
               setDirty(true);
             }}
           />
-        </fieldset>
+        </FormSection>
 
         <FormError message={error} />
 

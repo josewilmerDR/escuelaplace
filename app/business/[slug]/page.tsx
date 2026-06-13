@@ -38,6 +38,10 @@ import { locationParts } from "@/lib/location";
  * overlapping it, name + verified badge, action buttons and section tabs in a white
  * header card, then Información / Fotos / Reseñas cards on a gray canvas. Writing a
  * review is a client island (<ReviewForm>) that requires Google sign-in.
+ *
+ * Surfaces follow the app's "calm, depth-not-borders" language: the header and the
+ * Información / Fotos / Reseñas blocks are soft elevated cards (hairline ring + shadow,
+ * no hard 1px border), tight section titles, generous spacing.
  */
 
 interface Props {
@@ -183,7 +187,9 @@ export default async function BusinessPage({ params }: Props) {
           <TrackPageView businessId={business.id} />
 
           {/* ── Header card: cover + avatar + identity + actions + tabs ─────────── */}
-          <header className="overflow-hidden rounded-2xl border border-border bg-white">
+          {/* Depth, not a hard border: a soft hairline ring + small shadow reads as an
+              elevated surface floating on the gray canvas. */}
+          <header className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
             {/* Cover: same fallback ladder as BusinessCard (photo → logo contained on
                 tint → big initial), so landing here from a card is never a visual
                 downgrade. The viewTransitionName pairs with the one the card declares.
@@ -229,12 +235,15 @@ export default async function BusinessPage({ params }: Props) {
                     without this the cover covers the avatar's overlapping half. */}
                 <div className="relative z-10 -mt-14 shrink-0 sm:-mt-16">
                   {business.logoUrl ? (
+                    // The white ring lifts the avatar off the cover (the FB overlap);
+                    // a thin black/10 hairline keeps a logo on a near-white background
+                    // from melting into the ring.
                     <Image
                       src={business.logoUrl}
                       alt=""
                       width={128}
                       height={128}
-                      className="h-28 w-28 rounded-full border border-border bg-white object-cover ring-4 ring-white sm:h-32 sm:w-32"
+                      className="h-28 w-28 rounded-full bg-white object-cover ring-4 ring-white sm:h-32 sm:w-32"
                     />
                   ) : (
                     <span
@@ -247,7 +256,7 @@ export default async function BusinessPage({ params }: Props) {
                 </div>
 
                 <div className="mt-3 min-w-0 text-center sm:mt-0 sm:flex-1 sm:pb-1 sm:text-left">
-                  <h1 className="flex flex-wrap items-center justify-center gap-2 text-3xl font-bold sm:justify-start">
+                  <h1 className="flex flex-wrap items-center justify-center gap-2 text-3xl font-semibold tracking-tight text-foreground sm:justify-start">
                     {business.name}
                     {business.verified && (
                       <>
@@ -343,7 +352,9 @@ export default async function BusinessPage({ params }: Props) {
           </header>
 
           {business.discount?.active && (
-            <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+            // Semantic note (warning tone = "offer/deal"): soft tint fill + hairline
+            // ring, matching the design-language banner recipe.
+            <div className="mt-4 flex items-start gap-3 rounded-2xl bg-warning-tint p-4 text-sm text-warning ring-1 ring-warning/10">
               <TagIcon className="mt-0.5 h-5 w-5 shrink-0" />
               <p>
                 {/* Same fallback as the card chip: active with empty text must not
@@ -362,9 +373,11 @@ export default async function BusinessPage({ params }: Props) {
           {/* ── Información (FB's intro card) ───────────────────────────────────── */}
           <section
             id="informacion"
-            className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+            className="mt-4 scroll-mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6"
           >
-            <h2 className="text-xl font-semibold">Información</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Información
+            </h2>
             {/* pre-line: the description is captured in a textarea — keep its line
                 breaks. */}
             <p className="mt-3 whitespace-pre-line text-muted">
@@ -448,9 +461,11 @@ export default async function BusinessPage({ params }: Props) {
             <section
               id="fotos"
               aria-label="Fotos del comercio"
-              className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+              className="mt-4 scroll-mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6"
             >
-              <h2 className="text-xl font-semibold">Fotos</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                Fotos
+              </h2>
               {/* Client island: the grid crops to squares, so the lightbox is the
                   only way to see the full photo. */}
               <PhotoGallery photos={gallery} businessName={business.name} />
@@ -459,7 +474,7 @@ export default async function BusinessPage({ params }: Props) {
 
           <section
             id="resenas"
-            className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+            className="mt-4 scroll-mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6"
           >
             <ReviewList reviews={reviews} stats={stats} />
 

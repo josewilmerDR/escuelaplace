@@ -82,13 +82,13 @@ export default async function HomePage() {
         <div className="mx-auto max-w-3xl px-6 py-20 text-center sm:py-28">
           {/* Copy promises only what the catalog shows (businesses). "Las personas y
               comercios…" oversold: there are no people profiles in the product. */}
-          <h1 className="mx-auto max-w-xl text-2xl font-medium tracking-tight text-white drop-shadow-sm sm:text-3xl">
+          <h1 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-4xl">
             Los comercios que apoyan a tus instituciones educativas favoritas
           </h1>
 
           {/* No autoFocus: this is the SEO landing page — stealing focus on load pops
               the mobile keyboard over the hero and skips the h1 for screen readers. */}
-          <div className="mt-8">
+          <div className="mx-auto mt-10 max-w-2xl">
             <SearchBar />
           </div>
         </div>

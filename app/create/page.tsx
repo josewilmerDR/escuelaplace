@@ -54,14 +54,18 @@ export default function CreatePage() {
       </section>
 
       <div className="mx-auto max-w-3xl px-6 py-12">
-        {/* What you get — three beats before asking for anything. */}
+        {/* What you get — three beats before asking for anything. Each lead glyph sits in
+            an app-icon tile (soft brand wash + inset ring), matching the calm-depth
+            surfaces used across the panel. */}
         <ul className="grid gap-6 sm:grid-cols-3">
           {BENEFITS.map(({ Icon, title, body }) => (
-            <li key={title} className="text-center sm:text-left">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-brand-tint text-brand-darker">
+            <li key={title}>
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10">
                 <Icon className="h-6 w-6" />
               </span>
-              <h2 className="mt-3 font-semibold text-foreground">{title}</h2>
+              <h2 className="mt-4 font-semibold tracking-tight text-foreground">
+                {title}
+              </h2>
               <p className="mt-1 text-sm text-muted">{body}</p>
             </li>
           ))}
@@ -70,12 +74,14 @@ export default function CreatePage() {
         {/* The choice. Picking either kind sends you to its form; creating requires a
             Google sign-in (the panel asks for it). */}
         <section className="mt-12">
-          <h2 className="text-xl font-bold text-foreground">¿Qué querés crear?</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+            ¿Qué querés crear?
+          </h2>
           <p className="mt-1 text-sm text-muted">
             Tu cuenta puede administrar varias páginas. Vas a iniciar sesión con
             Google para empezar.
           </p>
-          <div className="mt-5">
+          <div className="mt-6">
             <PageTypeChoice />
           </div>
         </section>

@@ -18,9 +18,11 @@ export function DonorWall({
   return (
     <section
       id="muro"
-      className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+      className="mt-4 scroll-mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6"
     >
-      <h2 className="text-xl font-semibold">Muro de agradecimiento</h2>
+      <h2 className="text-lg font-semibold tracking-tight text-foreground">
+        Muro de agradecimiento
+      </h2>
       {school.thankYouMessage && (
         <p className="mt-2 text-muted">{school.thankYouMessage}</p>
       )}
@@ -30,7 +32,7 @@ export function DonorWall({
           {wall.recognized.map((donor) => (
             <li
               key={donor.id}
-              className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2 text-sm ring-1 ring-black/5"
             >
               <span className="font-medium text-foreground">
                 {donor.displayName}

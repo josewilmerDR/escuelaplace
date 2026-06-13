@@ -250,10 +250,10 @@ export function Combobox({
               width: position.width,
               zIndex: 50,
             }}
-            className="max-h-64 overflow-auto rounded-md border border-border bg-white py-1 shadow-lg"
+            className="max-h-64 overflow-auto rounded-xl bg-white py-1.5 shadow-lg ring-1 ring-black/5"
           >
             {filtered.length === 0 ? (
-              <li className="px-4 py-2 text-sm text-muted">{emptyMessage}</li>
+              <li className="mx-1.5 px-3 py-2 text-sm text-muted">{emptyMessage}</li>
             ) : (
               filtered.map((option, i) => (
                 <li
@@ -268,7 +268,9 @@ export function Combobox({
                     select(option);
                   }}
                   onPointerEnter={() => setHighlighted(i)}
-                  className={`cursor-pointer px-4 py-2.5 text-sm ${
+                  // Soft inset pill on highlight (mx + rounded-lg) so the active row reads
+                  // as a rounded block inside the elevated card, matching the calm-depth look.
+                  className={`mx-1.5 cursor-pointer rounded-lg px-3 py-2.5 text-sm ${
                     i === highlighted
                       ? "bg-brand-tint text-brand-darkest"
                       : "text-foreground"

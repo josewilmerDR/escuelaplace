@@ -55,7 +55,7 @@ export default function ProjectContributionsPage() {
       school.editorIds?.includes(user.id) ||
       user.role === "admin");
   if (!isManager) {
-    return <p className="text-sm text-red-600">No administrás esta escuela.</p>;
+    return <p className="text-sm text-error">No administrás esta escuela.</p>;
   }
 
   const pending = contribs.filter((c) => c.status === "pending");
@@ -98,37 +98,43 @@ export default function ProjectContributionsPage() {
 
   return (
     <main className="max-w-2xl">
-      <h1 className="text-2xl font-bold">Confirmar aportes a proyectos</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Confirmar aportes a proyectos
+      </h1>
       <p className="mt-1 text-sm text-muted">{school.name}</p>
 
-      <section className="mt-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Pendientes ({pending.length})</h2>
+      <section className="mt-8">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Pendientes ({pending.length})
+          </h2>
+          {/* Bulk action is a quiet secondary; the per-row "Confirmar" is the primary. */}
           {pending.length > 0 && (
             <button
               type="button"
               onClick={confirmAll}
               disabled={busyId !== null}
-              className="rounded-md bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="btn btn-outline"
             >
               {busyId === "all" ? "Confirmando…" : "Confirmar todos"}
             </button>
           )}
         </div>
 
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-error">{error}</p>}
 
         {pending.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No hay aportes pendientes.</p>
         ) : (
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul className="mt-4 flex flex-col gap-4">
             {pending.map((c) => (
+              // Elevated calm-depth row per pending contribution, with its own primary confirm.
               <li
                 key={c.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                className="flex items-center justify-between gap-3 rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-black/5"
               >
                 <div className="min-w-0">
-                  <p className="font-medium">
+                  <p className="font-semibold tracking-tight text-foreground">
                     {c.donorName}
                     {c.type === "in_kind" && (
                       <span className="ml-2 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-normal text-brand-darker">
@@ -142,7 +148,7 @@ export default function ProjectContributionsPage() {
                     {formatMoney(c.amount, c.currency)}
                   </p>
                   {c.type === "in_kind" && (
-                    <p className="text-xs text-amber-800">
+                    <p className="text-xs text-warning">
                       {c.stageTitle ? `Cubre: ${c.stageTitle}. ` : ""}
                       {c.description}
                     </p>
@@ -165,7 +171,7 @@ export default function ProjectContributionsPage() {
                   type="button"
                   onClick={() => confirmOne(c.id)}
                   disabled={busyId !== null}
-                  className="btn btn-outline shrink-0"
+                  className="btn btn-primary shrink-0"
                 >
                   {busyId === c.id ? "Confirmando…" : "Confirmar"}
                 </button>
@@ -177,15 +183,18 @@ export default function ProjectContributionsPage() {
 
       {others.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">Historial</h2>
-          <ul className="mt-3 flex flex-col gap-2">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Historial
+          </h2>
+          <ul className="mt-4 flex flex-col gap-3">
             {others.map((c) => (
+              // History is settled: a quieter inset panel, no primary action.
               <li
                 key={c.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5"
               >
                 <div className="min-w-0">
-                  <p className="font-medium">
+                  <p className="font-semibold tracking-tight text-foreground">
                     {c.donorName}
                     {c.type === "in_kind" && (
                       <span className="ml-2 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-normal text-brand-darker">
@@ -197,7 +206,7 @@ export default function ProjectContributionsPage() {
                     {c.projectTitle} · {formatMoney(c.amount, c.currency)}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-green-100 px-2.5 py-0.5 text-xs text-green-800">
+                <span className="shrink-0 rounded-full bg-success-tint px-2.5 py-0.5 text-xs font-medium text-success ring-1 ring-success/15">
                   Confirmado
                 </span>
               </li>

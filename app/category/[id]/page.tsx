@@ -37,9 +37,18 @@ export default async function CategoryPage({ params }: Props) {
   return (
     <>
       <main className="mx-auto max-w-6xl px-6 py-10">
-        <h1 className="mb-8 text-2xl font-bold tracking-tight text-foreground">
-          <span aria-hidden>{category.icon}</span> {category.name}
-        </h1>
+        <header className="mb-8 flex items-center gap-4">
+          {/* App-icon tile carrying the category glyph, mirroring the categories index. */}
+          <span
+            aria-hidden
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-2xl ring-1 ring-inset ring-brand-dark/10"
+          >
+            {category.icon}
+          </span>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            {category.name}
+          </h1>
+        </header>
 
         <CommunityPicker />
 

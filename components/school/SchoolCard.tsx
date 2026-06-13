@@ -68,7 +68,7 @@ function CardBody({
           alt=""
           width={40}
           height={40}
-          className="h-10 w-10 shrink-0 rounded-full border border-border object-cover"
+          className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-black/5"
         />
       ) : (
         <span
@@ -132,10 +132,12 @@ export function SchoolCard({
         aria-checked={selected}
         tabIndex={tabIndex}
         onClick={() => onSelect(school.id)}
-        className={`group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border bg-white text-left transition hover:shadow-lg ${
+        // Depth, not a hard border: elevated card by default; the current choice swaps
+        // the hairline for a brand ring + lift (calm-depth "selected card" recipe).
+        className={`group relative flex h-full w-full flex-col overflow-hidden rounded-2xl bg-white text-left shadow-sm transition ${
           selected
-            ? "border-brand ring-2 ring-brand"
-            : "border-border hover:border-brand-dark"
+            ? "ring-2 ring-brand shadow-md"
+            : "ring-1 ring-black/5 hover:shadow-md"
         }`}
       >
         <CardMedia school={school} />
@@ -151,8 +153,9 @@ export function SchoolCard({
   }
 
   return (
-    // Stretched-link card: the title link's ::after covers the whole surface.
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-white transition-shadow hover:shadow-lg">
+    // Stretched-link card: the title link's ::after covers the whole surface. Elevated
+    // calm-depth surface — a soft hairline ring + shadow that lifts on hover.
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md">
       <CardMedia school={school} />
       <CardBody
         school={school}

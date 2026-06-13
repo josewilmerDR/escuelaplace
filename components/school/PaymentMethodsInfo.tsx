@@ -27,7 +27,7 @@ export function PaymentMethodsInfo({
   confirmationTimeMs?: number | null;
 }) {
   const responseLine = confirmationTimeMs != null && (
-    <p className="mt-2 text-xs font-medium text-sky-800">
+    <p className="mt-2 text-xs font-medium text-muted">
       Normalmente confirma los aportes en{" "}
       {formatApproxDuration(confirmationTimeMs)}.
     </p>
@@ -36,7 +36,8 @@ export function PaymentMethodsInfo({
   if (methods === null) {
     return (
       <div>
-        <p className="text-amber-800">{unverifiedText}</p>
+        {/* warning token: AA on the surface/tint the caller renders behind it. */}
+        <p className="text-warning">{unverifiedText}</p>
         {responseLine}
       </div>
     );
@@ -57,10 +58,16 @@ export function PaymentMethodsInfo({
   return (
     <div>
       <p>Pagá directo a la escuela por cualquiera de estos medios:</p>
-      <ul className="mt-2 space-y-1">
+      {/* Scannable list: each method on its own padded row on a white inset, so the
+          label/value pairs read as a clean table rather than a run-on line. */}
+      <ul className="mt-2 divide-y divide-border overflow-hidden rounded-xl bg-white ring-1 ring-black/5">
         {methods.map((m, i) => (
-          <li key={i}>
-            <span className="font-medium">{m.label}:</span> {m.value}
+          <li
+            key={i}
+            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 py-2"
+          >
+            <span className="font-medium text-foreground">{m.label}</span>
+            <span className="text-muted">{m.value}</span>
           </li>
         ))}
       </ul>

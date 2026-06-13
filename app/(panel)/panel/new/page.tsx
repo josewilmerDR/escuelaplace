@@ -8,12 +8,14 @@ import { PageTypeChoice } from "@/components/onboarding/PageTypeChoice";
 export default function NewPageChoice() {
   return (
     <main>
-      <h1 className="text-2xl font-bold">¿Qué querés crear?</h1>
-      <p className="mt-2 text-muted">
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        ¿Qué querés crear?
+      </h1>
+      <p className="mt-1 text-sm text-muted">
         Tu cuenta puede administrar varias páginas. Elegí el tipo para empezar.
       </p>
 
-      <div className="mt-6">
+      <div className="mt-8">
         <PageTypeChoice />
       </div>
     </main>

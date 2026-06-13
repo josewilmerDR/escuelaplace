@@ -77,7 +77,7 @@ export default function SchoolProjectsPage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-red-600">No administrás esta escuela.</p>;
+    return <p className="text-sm text-error">No administrás esta escuela.</p>;
   }
 
   const onCreate = async (e: React.FormEvent) => {
@@ -113,29 +113,39 @@ export default function SchoolProjectsPage() {
 
   return (
     <main className="max-w-2xl">
-      <h1 className="text-2xl font-bold">Proyectos</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Proyectos
+      </h1>
       <p className="mt-1 text-sm text-muted">{school.name}</p>
 
       {school.verificationStatus !== "verified" && (
-        <p className="mt-3 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+        <p className="mt-6 rounded-xl bg-warning-tint p-3 text-sm text-warning ring-1 ring-warning/10">
           Podés preparar proyectos desde ya, pero el botón “Financiar” recién se
           activa cuando el equipo verifique la escuela.
         </p>
       )}
 
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold">Tus proyectos ({projects.length})</h2>
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Tus proyectos ({projects.length})
+        </h2>
         {projects.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
             Todavía no creaste ningún proyecto.
           </p>
         ) : (
-          <ul className="mt-3 flex flex-col gap-3">
+          <ul className="mt-4 flex flex-col gap-4">
             {projects.map((p) => (
-              <li key={p.id} className="rounded-lg border p-3">
+              // Elevated calm-depth card per project (ring + soft shadow, no hard border).
+              <li
+                key={p.id}
+                className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-medium">{p.title}</p>
+                    <p className="font-semibold tracking-tight text-foreground">
+                      {p.title}
+                    </p>
                     <p className="text-xs text-muted">{p.stages.length} etapas</p>
                   </div>
                   <ProjectStatusBadge status={p.status} />
@@ -149,16 +159,18 @@ export default function SchoolProjectsPage() {
                     compact
                   />
                 </div>
-                <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                {/* One solid lead action; the public link is a quiet chip. A thin divider
+                    sets the action shelf apart from the card body. */}
+                <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-4 text-sm">
                   <Link
                     href={`/panel/school/${id}/projects/${p.id}`}
-                    className="underline"
+                    className="btn btn-primary mr-1"
                   >
                     Editar
                   </Link>
                   <Link
                     href={`/school/${id}/project/${p.id}`}
-                    className="underline"
+                    className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground"
                   >
                     Ver público
                   </Link>
@@ -170,7 +182,9 @@ export default function SchoolProjectsPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold">Crear un proyecto</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Crear un proyecto
+        </h2>
         <form
           onSubmit={onCreate}
           onInvalidCapture={spanishRequiredMessage}

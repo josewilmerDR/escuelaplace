@@ -38,14 +38,14 @@ export function ReviewForm({
     return (
       <div
         aria-hidden
-        className="h-28 animate-pulse rounded-xl border border-border bg-surface"
+        className="h-28 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5"
       />
     );
   }
 
   if (!user || asVisitor) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-4 text-sm">
+      <div className="rounded-2xl bg-surface p-5 text-sm ring-1 ring-black/5">
         <p className="mb-3 text-muted">Iniciá sesión con Google para dejar tu reseña.</p>
         {/* "primary": the default on-brand chip is white-on-white here. */}
         <LoginButton variant="primary" />
@@ -55,7 +55,7 @@ export function ReviewForm({
 
   if (user.id === ownerId || editorIds?.includes(user.id)) {
     return (
-      <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
+      <p className="rounded-2xl bg-surface p-5 text-sm text-muted ring-1 ring-black/5">
         No podés reseñar tu propio comercio.
       </p>
     );
@@ -182,15 +182,17 @@ function ReviewFormInner({
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-xl border border-border bg-surface p-4 text-sm"
+      // Calm-depth card: a soft elevated white surface, not a hard-bordered box.
+      className="rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-black/5"
     >
-      <p className="font-medium text-foreground">
+      <p className="text-base font-semibold tracking-tight text-foreground">
         {hasExisting ? "Editá tu reseña" : "Dejá tu reseña"}
       </p>
 
       {/* h-10/w-10 buttons keep the tap targets ≥40px (the .btn rule in globals.css);
-          the glyph itself was a ~24px target. */}
-      <div className="mt-2 flex" role="radiogroup" aria-label="Calificación">
+          the glyph itself was a ~24px target. A soft rounded hover/focus ring makes the
+          stars read as a real control rather than loose glyphs. */}
+      <div className="mt-3 flex" role="radiogroup" aria-label="Calificación">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
@@ -204,7 +206,7 @@ function ReviewFormInner({
             tabIndex={n === (rating === 0 ? 1 : rating) ? 0 : -1}
             onClick={() => setRating(n)}
             onKeyDown={onStarKeyDown}
-            className={`flex h-10 w-10 items-center justify-center text-2xl leading-none ${
+            className={`flex h-10 w-10 items-center justify-center rounded-lg text-2xl leading-none transition-colors hover:bg-surface focus-visible:bg-surface ${
               n <= rating ? "text-brand" : "text-slate-300"
             }`}
           >
@@ -224,12 +226,12 @@ function ReviewFormInner({
       <p className="mt-1 text-right text-xs text-muted">{text.length}/600</p>
 
       {error && (
-        <p role="alert" className="mt-2 text-red-700">
+        <p role="alert" className="mt-2 text-error">
           {error}
         </p>
       )}
       {success && (
-        <p role="status" className="mt-2 text-green-700">
+        <p role="status" className="mt-2 text-success">
           {success}
         </p>
       )}
@@ -237,7 +239,7 @@ function ReviewFormInner({
       {confirmingDelete ? (
         // Inline confirmation (no modal primitive in the codebase yet). Concrete copy:
         // what gets deleted and that there is no undo.
-        <div className="mt-3 rounded-lg border border-error/30 bg-error-tint p-3">
+        <div className="mt-3 rounded-xl bg-error-tint p-3 ring-1 ring-error/10">
           <p className="text-error">
             ¿Borrar tu reseña de {businessName}? Esta acción no se puede
             deshacer.
@@ -271,7 +273,7 @@ function ReviewFormInner({
               type="button"
               onClick={() => setConfirmingDelete(true)}
               disabled={saving}
-              className="min-h-10 px-2 text-red-700 hover:underline disabled:opacity-50"
+              className="min-h-10 px-2 text-error hover:underline disabled:opacity-50"
             >
               Borrar
             </button>

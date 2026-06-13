@@ -86,7 +86,8 @@ function PickerInner({ value, onChange, onAddress }: Props) {
   return (
     <div className="flex flex-col gap-2">
       <PlacesSearch onSelect={onChange} />
-      <div className="h-64 w-full overflow-hidden rounded-md border">
+      {/* Map framed as a calm-depth card: soft hairline ring, no hard border. */}
+      <div className="h-64 w-full overflow-hidden rounded-2xl ring-1 ring-black/5">
         <Map
           defaultCenter={value ?? CR_CENTER}
           defaultZoom={value ? PICKED_ZOOM : CR_ZOOM}
@@ -265,7 +266,7 @@ function ManualFallback({ value, onChange }: Props) {
 
   return (
     <div>
-      <p className="mb-2 text-xs text-amber-700">
+      <p className="mb-2 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
         El mapa no está disponible en este momento. Ingresá las coordenadas
         manualmente.
       </p>

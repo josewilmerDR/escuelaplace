@@ -186,8 +186,10 @@ export default function NewBusinessPage() {
   if (loadState === "error") {
     return (
       <main className="max-w-xl">
-        <h1 className="text-2xl font-bold">Crear comercio</h1>
-        <p role="alert" className="mt-4 text-sm text-red-600">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Crear comercio
+        </h1>
+        <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar las escuelas y categorías. Revisá tu conexión e
           intentá de nuevo.
         </p>
@@ -200,16 +202,22 @@ export default function NewBusinessPage() {
 
   return (
     <main className="max-w-xl">
-      <h1 className="text-2xl font-bold">Crear comercio</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Crear comercio
+      </h1>
+      <p className="mt-1 text-sm text-muted">
+        Empezá con lo esencial: lo publicás como borrador y completás el resto
+        después.
+      </p>
 
       <form
         onSubmit={onSubmit}
         onChange={() => setDirty(true)}
         onInvalidCapture={spanishRequiredMessage}
         onInputCapture={clearValidationMessage}
-        className="mt-6 flex flex-col gap-4"
+        className="mt-8 flex flex-col gap-6"
       >
-        <FormSection legend="Información básica">
+        <FormSection legend="Información básica" boxed>
           <div>
             <Field label="Nombre del comercio">
               <input
@@ -297,10 +305,10 @@ export default function NewBusinessPage() {
                 {categories.map((c) => (
                   <label
                     key={c.id}
-                    className={`inline-flex min-h-10 cursor-pointer items-center rounded-full border px-4 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
+                    className={`inline-flex min-h-10 cursor-pointer items-center rounded-full px-4 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
                       selectedCategories.includes(c.id)
                         ? "bg-brand-darker text-white"
-                        : ""
+                        : "bg-surface text-muted ring-1 ring-black/5 hover:text-foreground"
                     }`}
                   >
                     <input
@@ -317,7 +325,7 @@ export default function NewBusinessPage() {
           </fieldset>
         </FormSection>
 
-        <FormSection legend="Presentación">
+        <FormSection legend="Presentación" boxed>
           <ImagePicker
             label="Logo o foto de perfil (opcional)"
             hint="Se muestra en círculo junto al nombre, en tu página pública y en el catálogo."
@@ -347,6 +355,7 @@ export default function NewBusinessPage() {
         <FormSection
           legend="Ubicación"
           description="Se completan solos al marcar el punto en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
+          boxed
         >
           <div
             role="group"
@@ -392,7 +401,7 @@ export default function NewBusinessPage() {
           </Field>
         </FormSection>
 
-        <FormSection legend="Contacto">
+        <FormSection legend="Contacto" boxed>
           <PhoneField
             label="WhatsApp (opcional)"
             value={whatsapp}

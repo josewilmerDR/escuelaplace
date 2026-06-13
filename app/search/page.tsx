@@ -70,7 +70,8 @@ export default async function SearchPage({ searchParams }: Props) {
 
   return (
     <>
-      <section className="bg-brand py-8">
+      {/* Brand band echoing the home hero, with the floating search field lifted off it. */}
+      <section className="bg-gradient-to-br from-brand to-brand-dark py-10">
         <div className="mx-auto max-w-3xl px-6">
           {/* autoFocus only when arriving without a query: the user came to search and
               the empty state below asks them to type — focusing is the next action. With
@@ -96,9 +97,14 @@ export default async function SearchPage({ searchParams }: Props) {
           />
         ) : (
           <>
-            <h1 className="mb-8 text-2xl font-bold tracking-tight text-foreground">
-              Resultados para “{query}”
-            </h1>
+            <header className="mb-8">
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+                Resultados para “{query}”
+              </h1>
+              <p className="mt-1 text-sm text-muted">
+                Comercios de tu comunidad que coinciden con tu búsqueda.
+              </p>
+            </header>
             <CommunityPicker />
             <RankedFeed initial={cards} relevanceById={relevanceById} />
           </>

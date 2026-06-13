@@ -40,7 +40,7 @@ export function LoginButton({
     return (
       <span
         aria-hidden
-        className={`inline-block h-10 w-36 animate-pulse rounded-md ${
+        className={`inline-block h-10 w-36 animate-pulse rounded-xl ${
           variant === "primary" ? "bg-slate-200" : "bg-white/20"
         }`}
       />

@@ -45,10 +45,12 @@ export function PanelNavLink({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`rounded-md px-2 py-1 transition-colors ${
+      // Active: a soft filled brand pill. Inactive: quiet muted text that lifts to a
+      // surface fill on hover — the same quiet-chip language as the panel card actions.
+      className={`rounded-lg px-3 py-2 transition-colors ${
         active
           ? "bg-brand-tint font-semibold text-brand-darker"
-          : "text-foreground hover:bg-surface hover:text-brand-darker"
+          : "text-muted hover:bg-surface hover:text-foreground"
       }`}
     >
       {label}

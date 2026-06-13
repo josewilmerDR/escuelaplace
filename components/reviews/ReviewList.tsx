@@ -24,7 +24,9 @@ export function ReviewList({
   return (
     <>
       <div className="flex items-center gap-3">
-        <h2 className="text-xl font-semibold">Reseñas</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Reseñas
+        </h2>
         {stats.count > 0 && (
           <span className="flex items-center gap-1 text-sm text-muted">
             {/* decorative: the number right after already carries the rating. */}
@@ -40,9 +42,13 @@ export function ReviewList({
           Todavía no hay reseñas. Sé la primera persona en dejar una.
         </p>
       ) : (
-        <ul className="mt-6 space-y-4">
+        <ul className="mt-6 flex flex-col gap-4">
           {reviews.map((r) => (
-            <li key={r.id} className="rounded-xl border border-border p-4">
+            // Depth, not a hard border: each review sits on a soft elevated surface.
+            <li
+              key={r.id}
+              className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5"
+            >
               <div className="flex items-center justify-between gap-3">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate font-medium text-foreground">
