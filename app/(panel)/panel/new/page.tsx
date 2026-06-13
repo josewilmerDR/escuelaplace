@@ -9,7 +9,7 @@ export default function NewPageChoice() {
   return (
     <main>
       <h1 className="text-2xl font-bold">¿Qué querés crear?</h1>
-      <p className="mt-2 text-gray-600">
+      <p className="mt-2 text-muted">
         Tu cuenta puede administrar varias páginas. Elegí el tipo para empezar.
       </p>
 

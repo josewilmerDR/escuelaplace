@@ -70,7 +70,7 @@ export function GalleryManager({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-muted">
         Hasta {BUSINESS_GALLERY_MAX} fotos para la sección “Fotos” de tu página
         pública: productos, el local, tu trabajo. Se publican al instante.
       </p>
@@ -119,7 +119,7 @@ export function GalleryManager({
           />
         </label>
       ) : (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted">
           Alcanzaste el máximo de {BUSINESS_GALLERY_MAX} fotos — quitá una para
           subir otra.
         </p>

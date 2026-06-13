@@ -30,7 +30,7 @@ export default async function CategoriesPage() {
   return (
     <>
       <main className="mx-auto max-w-6xl px-6 py-10">
-        <h1 className="mb-8 text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="mb-8 text-2xl font-bold tracking-tight text-foreground">
           Todas las categorías
         </h1>
 
@@ -53,7 +53,7 @@ export default async function CategoriesPage() {
                     {c.icon}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate font-medium text-slate-700">
+                    <span className="block truncate font-medium text-foreground">
                       {c.name}
                     </span>
                     <span className="block text-sm text-muted">

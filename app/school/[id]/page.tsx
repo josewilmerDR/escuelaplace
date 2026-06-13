@@ -348,11 +348,11 @@ export default async function SchoolPage({ params }: Props) {
             <h2 className="text-xl font-semibold">Información</h2>
             {/* pre-line: the description is captured in a textarea — keep its line
                 breaks. */}
-            <p className="mt-3 whitespace-pre-line text-gray-700">
+            <p className="mt-3 whitespace-pre-line text-muted">
               {school.description}
             </p>
 
-            <ul className="mt-4 space-y-3 text-sm text-slate-600">
+            <ul className="mt-4 space-y-3 text-sm text-muted">
               {placeParts.length > 0 && (
                 <li className="flex items-start gap-3">
                   <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />

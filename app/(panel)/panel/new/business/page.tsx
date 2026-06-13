@@ -179,7 +179,7 @@ export default function NewBusinessPage() {
   };
 
   if (loadState === "loading") {
-    return <p className="text-sm text-gray-500">Cargando…</p>;
+    return <p className="text-sm text-muted">Cargando…</p>;
   }
 
   if (loadState === "error") {
@@ -220,7 +220,7 @@ export default function NewBusinessPage() {
         {/* The slug is derived from the name and never changes after creation — show
             the resulting URL before it becomes permanent. */}
         {slugify(name) && (
-          <p className="-mt-2 text-xs text-gray-500">
+          <p className="-mt-2 text-xs text-muted">
             Tu página va a estar en:{" "}
             <span className="font-medium">
               escuelaplace.com/business/{slugify(name)}
@@ -237,7 +237,7 @@ export default function NewBusinessPage() {
             onChange={(e) => setDescription(e.target.value)}
             className="input min-h-24"
           />
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted">
             {description.length}/{PAGE_DESCRIPTION_MAX}
           </span>
         </Field>
@@ -284,7 +284,7 @@ export default function NewBusinessPage() {
         </Field>
         {/* Outside the Field: links must not nest inside its <label>. */}
         {schools.length === 0 ? (
-          <p className="-mt-2 text-xs text-gray-500">
+          <p className="-mt-2 text-xs text-muted">
             Todavía no hay escuelas en la plataforma. Podés crear tu comercio
             sin escuela y vincularla después, o{" "}
             <Link href="/panel/new/school" className="font-medium underline">
@@ -293,7 +293,7 @@ export default function NewBusinessPage() {
             primero.
           </p>
         ) : (
-          <p className="-mt-2 text-xs text-gray-500">
+          <p className="-mt-2 text-xs text-muted">
             Podés dejarla en blanco y vincularla después desde la edición. ¿Tu
             escuela no está en la lista?{" "}
             <Link href="/panel/new/school" className="font-medium underline">
@@ -308,7 +308,7 @@ export default function NewBusinessPage() {
             Categorías (elegí al menos una)
           </legend>
           {categories.length === 0 ? (
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-muted">
               No hay categorías disponibles por ahora.
             </p>
           ) : (
@@ -377,7 +377,7 @@ export default function NewBusinessPage() {
             className="input"
           />
         </Field>
-        <p className="-mt-2 text-xs text-gray-500">
+        <p className="-mt-2 text-xs text-muted">
           Se completan solos al marcar el punto en el mapa — revisalos,
           corregilos o dejalos en blanco si no aplican.
         </p>

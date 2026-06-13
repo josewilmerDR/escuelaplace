@@ -184,7 +184,7 @@ function ReviewFormInner({
       onSubmit={onSubmit}
       className="rounded-xl border border-border bg-surface p-4 text-sm"
     >
-      <p className="font-medium text-slate-900">
+      <p className="font-medium text-foreground">
         {hasExisting ? "Editá tu reseña" : "Dejá tu reseña"}
       </p>
 

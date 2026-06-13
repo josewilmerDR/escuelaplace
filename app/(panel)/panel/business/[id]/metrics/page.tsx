@@ -122,7 +122,7 @@ export default function BusinessMetricsPage() {
     }
   };
 
-  if (!loaded) return <p className="text-sm text-gray-500">Cargando…</p>;
+  if (!loaded) return <p className="text-sm text-muted">Cargando…</p>;
 
   const isManager =
     user != null &&
@@ -151,7 +151,7 @@ export default function BusinessMetricsPage() {
   return (
     <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Métricas</h1>
-      <p className="mt-1 text-sm text-gray-600">{business.name}</p>
+      <p className="mt-1 text-sm text-muted">{business.name}</p>
 
       {!process.env.NEXT_PUBLIC_TRACK_INTERACTION_URL && (
         <p className="mt-4 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
@@ -163,7 +163,7 @@ export default function BusinessMetricsPage() {
 
       <section className="mt-6 rounded-xl border border-border p-5">
         <h2 className="font-semibold">Clientes de escuelaplace</h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-muted">
           Tocá el botón cada vez que un cliente mencione escuelaplace en el local —
           por ejemplo, al pedir el descuento.
         </p>
@@ -179,11 +179,11 @@ export default function BusinessMetricsPage() {
           </button>
           <span className="text-sm text-muted">
             Hoy:{" "}
-            <span className="font-semibold tabular-nums text-slate-900">
+            <span className="font-semibold tabular-nums text-foreground">
               {todayWalkIns}
             </span>{" "}
             · Este mes:{" "}
-            <span className="font-semibold tabular-nums text-slate-900">
+            <span className="font-semibold tabular-nums text-foreground">
               {cur.walkIns}
             </span>
             {todayWalkIns > 0 && (
@@ -294,7 +294,7 @@ function MetricRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5">
-      <dt className="text-sm text-gray-700">{label}</dt>
+      <dt className="text-sm text-muted">{label}</dt>
       <dd className="flex items-baseline gap-3">
         <span className="tabular-nums font-medium">{value}</span>
         <Delta value={value} prevValue={prevValue} />

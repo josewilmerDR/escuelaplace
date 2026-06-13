@@ -15,14 +15,14 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Cargando…</p>;
+    return <p className="text-sm text-muted">Cargando…</p>;
   }
 
   if (!user) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <h1 className="text-xl font-bold">Ingresá para administrar tus páginas</h1>
-        <p className="mt-2 text-gray-600">
+        <p className="mt-2 text-muted">
           Creá o gestioná tu comercio o escuela. Navegar el catálogo no requiere cuenta.
         </p>
         <div className="mt-6 flex justify-center">

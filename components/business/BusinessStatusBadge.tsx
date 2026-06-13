@@ -6,7 +6,7 @@ import type { BusinessStatus } from "@/types";
  */
 export function BusinessStatusBadge({ status }: { status: BusinessStatus }) {
   const styles: Record<BusinessStatus, string> = {
-    draft: "bg-gray-100 text-gray-700",
+    draft: "bg-gray-100 text-muted",
     pending: "bg-amber-100 text-amber-800",
     active: "bg-green-100 text-green-800",
     suspended: "bg-red-100 text-red-800",

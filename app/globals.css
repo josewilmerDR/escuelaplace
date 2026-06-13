@@ -21,6 +21,18 @@
   --surface: #f8fafc; /* slate-50 */
   --border: #e2e8f0; /* slate-200 */
   --muted: #64748b; /* slate-500 */
+
+  /* Semantic state colors. Each pairs a foreground (AA on white, for text/icons) with a
+     -tint (soft fill for banners/badges). Use the foreground for the text, the -tint for
+     the background, and the foreground at low opacity (e.g. border-warning/30) for borders.
+     These replace the scattered raw red/green/amber utilities so feedback reads the same
+     everywhere. (Status BADGES keep their own per-status palette — see the *Badge comps.) */
+  --error: #b91c1c; /* red-700 */
+  --error-tint: #fef2f2; /* red-50 */
+  --success: #15803d; /* green-700 */
+  --success-tint: #f0fdf4; /* green-50 */
+  --warning: #b45309; /* amber-700 */
+  --warning-tint: #fffbeb; /* amber-50 */
 }
 
 @theme inline {
@@ -34,6 +46,12 @@
   --color-surface: var(--surface);
   --color-border: var(--border);
   --color-muted: var(--muted);
+  --color-error: var(--error);
+  --color-error-tint: var(--error-tint);
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

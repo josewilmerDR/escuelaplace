@@ -46,8 +46,8 @@ export default function SchoolSubscriptionsPage() {
       .finally(() => setLoaded(true));
   }, [id]);
 
-  if (!loaded) return <p className="text-sm text-gray-500">Cargando…</p>;
-  if (!school) return <p className="text-sm text-gray-500">Escuela no encontrada.</p>;
+  if (!loaded) return <p className="text-sm text-muted">Cargando…</p>;
+  if (!school) return <p className="text-sm text-muted">Escuela no encontrada.</p>;
 
   const isManager =
     user != null &&
@@ -100,7 +100,7 @@ export default function SchoolSubscriptionsPage() {
   return (
     <main className="max-w-2xl">
       <h1 className="text-2xl font-bold">Confirmar apoyos</h1>
-      <p className="mt-1 text-sm text-gray-600">{school.name}</p>
+      <p className="mt-1 text-sm text-muted">{school.name}</p>
 
       <section className="mt-6">
         <div className="flex items-center justify-between">
@@ -120,7 +120,7 @@ export default function SchoolSubscriptionsPage() {
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
 
         {pending.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">No hay apoyos pendientes.</p>
+          <p className="mt-2 text-sm text-muted">No hay apoyos pendientes.</p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
             {pending.map((s) => (

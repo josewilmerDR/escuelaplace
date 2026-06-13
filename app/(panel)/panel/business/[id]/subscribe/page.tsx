@@ -96,8 +96,8 @@ export default function BusinessSubscribePage() {
     };
   }, [schoolId]);
 
-  if (!loaded) return <p className="text-sm text-gray-500">Cargando…</p>;
-  if (!business) return <p className="text-sm text-gray-500">Comercio no encontrado.</p>;
+  if (!loaded) return <p className="text-sm text-muted">Cargando…</p>;
+  if (!business) return <p className="text-sm text-muted">Comercio no encontrado.</p>;
 
   const isManager =
     user != null &&
@@ -155,7 +155,7 @@ export default function BusinessSubscribePage() {
   return (
     <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Apoyar una escuela</h1>
-      <p className="mt-1 text-sm text-gray-600">{business.name}</p>
+      <p className="mt-1 text-sm text-muted">{business.name}</p>
 
       <form
         onSubmit={onSubmit}
@@ -231,7 +231,7 @@ export default function BusinessSubscribePage() {
       <section className="mt-10">
         <h2 className="text-lg font-semibold">Tus apoyos</h2>
         {subscriptions.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-muted">
             Todavía no registraste ningún apoyo.
           </p>
         ) : (

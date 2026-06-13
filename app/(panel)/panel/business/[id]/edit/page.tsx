@@ -293,7 +293,7 @@ export default function BusinessEditPage() {
   };
 
   if (loadState === "loading") {
-    return <p className="text-sm text-gray-500">Cargando…</p>;
+    return <p className="text-sm text-muted">Cargando…</p>;
   }
 
   if (loadState === "error") {
@@ -312,7 +312,7 @@ export default function BusinessEditPage() {
   }
 
   if (!business)
-    return <p className="text-sm text-gray-500">Comercio no encontrado.</p>;
+    return <p className="text-sm text-muted">Comercio no encontrado.</p>;
 
   const isManager =
     user != null &&
@@ -327,7 +327,7 @@ export default function BusinessEditPage() {
   return (
     <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Editar comercio</h1>
-      <p className="mt-1 text-sm text-gray-600">{business.name}</p>
+      <p className="mt-1 text-sm text-muted">{business.name}</p>
 
       <section
         className={`mt-4 rounded-lg border p-4 text-sm ${
@@ -408,7 +408,7 @@ export default function BusinessEditPage() {
             onChange={(e) => setDescription(e.target.value)}
             className="input min-h-24"
           />
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted">
             {description.length}/{PAGE_DESCRIPTION_MAX}
           </span>
         </Field>
@@ -421,7 +421,7 @@ export default function BusinessEditPage() {
             placeholder="Buscá tu escuela por nombre o lugar…"
           />
         </Field>
-        <p className="-mt-2 text-xs text-gray-500">
+        <p className="-mt-2 text-xs text-muted">
           Borrá el texto para quitar la escuela vinculada.
         </p>
 
@@ -506,7 +506,7 @@ export default function BusinessEditPage() {
             className="input"
           />
         </Field>
-        <p className="-mt-2 text-xs text-gray-500">
+        <p className="-mt-2 text-xs text-muted">
           Se completan solos al mover el pin en el mapa — revisalos, corregilos
           o dejalos en blanco si no aplican.
         </p>
@@ -605,7 +605,7 @@ export default function BusinessEditPage() {
             logo={business.logoUrl}
             businessName={business.name}
           />
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             El logo y la portada se eligen al crear la página; todavía no se
             pueden cambiar desde acá.
           </p>

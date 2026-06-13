@@ -138,7 +138,7 @@ export function ImagePicker({
   return (
     <div className="flex flex-col gap-1 text-sm">
       <span className="font-medium">{label}</span>
-      {hint && <span className="text-xs text-gray-500">{hint}</span>}
+      {hint && <span className="text-xs text-muted">{hint}</span>}
       {/* Avatar: circle and controls side by side. Cover: band on top, controls below. */}
       {variant === "avatar" ? (
         <span className="mt-1 flex items-center gap-4">

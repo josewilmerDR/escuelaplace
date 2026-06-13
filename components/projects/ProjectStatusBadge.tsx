@@ -8,7 +8,7 @@ const STATUS: Partial<
   Record<ProjectStatus, { label: string; className: string }>
 > = {
   completed: { label: "Completado", className: "bg-green-100 text-green-800" },
-  cancelled: { label: "Cancelado", className: "bg-gray-100 text-gray-600" },
+  cancelled: { label: "Cancelado", className: "bg-gray-100 text-muted" },
 };
 
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {

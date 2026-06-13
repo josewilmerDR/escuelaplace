@@ -42,7 +42,7 @@ export default async function SchoolsPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Escuelas</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-foreground">Escuelas</h1>
       <p className="mt-1 max-w-2xl text-sm text-muted">
         Encontrá la escuela de tu comunidad, conocé sus proyectos y apoyala
         directamente. La plataforma nunca toca el dinero.

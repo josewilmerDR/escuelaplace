@@ -18,8 +18,8 @@ export function PageTypeChoice() {
         <span aria-hidden className="text-3xl">
           🏪
         </span>
-        <h2 className="mt-3 text-lg font-semibold text-slate-900">Comercio</h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <h2 className="mt-3 text-lg font-semibold text-foreground">Comercio</h2>
+        <p className="mt-1 text-sm text-muted">
           Mostrá tu negocio, tus ofertas y la escuela que apoyás.
         </p>
         <span className="mt-3 inline-block text-sm font-medium text-brand-darker group-hover:underline">
@@ -34,8 +34,8 @@ export function PageTypeChoice() {
         <span aria-hidden className="text-3xl">
           🏫
         </span>
-        <h2 className="mt-3 text-lg font-semibold text-slate-900">Escuela</h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <h2 className="mt-3 text-lg font-semibold text-foreground">Escuela</h2>
+        <p className="mt-1 text-sm text-muted">
           Creá la página de tu escuela. Se publica como “sin verificar” hasta que
           el equipo la apruebe.
         </p>

@@ -39,7 +39,7 @@ import type {
 
 export default function FundPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-gray-500">Cargando…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">Cargando…</p>}>
       <FundContent />
     </Suspense>
   );
@@ -102,12 +102,12 @@ function FundContent() {
   }, [user, schoolId, projectId]);
 
   if (!user || !loaded) {
-    return <p className="text-sm text-gray-500">Cargando…</p>;
+    return <p className="text-sm text-muted">Cargando…</p>;
   }
   if (!project || !school) {
     return (
       <main className="max-w-xl">
-        <p className="text-sm text-gray-600">Proyecto no encontrado.</p>
+        <p className="text-sm text-muted">Proyecto no encontrado.</p>
         <p className="mt-4 text-sm">
           <Link href="/panel" className="underline">
             ← Volver al panel
@@ -175,7 +175,7 @@ function FundContent() {
   return (
     <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Financiar un proyecto</h1>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-muted">
         <Link href={`/school/${schoolId}/project/${projectId}`} className="underline">
           {project.title}
         </Link>{" "}
@@ -236,7 +236,7 @@ function FundContent() {
           ) : (
             <div className="rounded-md bg-surface p-3 text-sm">
               {canFund ? (
-                <p className="text-slate-700">
+                <p className="text-muted">
                   Donás bienes o trabajo en vez de dinero (por ejemplo, “los
                   trabajos previos” o “el tanque”). La escuela coordina y valida
                   la entrega; su valor estimado suma al avance del proyecto igual

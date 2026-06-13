@@ -81,9 +81,9 @@ export default function ProjectEditPage() {
     load().finally(() => setLoaded(true));
   }, [load]);
 
-  if (!loaded) return <p className="text-sm text-gray-500">Cargando…</p>;
+  if (!loaded) return <p className="text-sm text-muted">Cargando…</p>;
   if (!project || !school)
-    return <p className="text-sm text-gray-500">Proyecto no encontrado.</p>;
+    return <p className="text-sm text-muted">Proyecto no encontrado.</p>;
 
   const isManager =
     user != null &&
@@ -165,7 +165,7 @@ export default function ProjectEditPage() {
   return (
     <main className="max-w-2xl">
       <h1 className="text-2xl font-bold">Editar proyecto</h1>
-      <p className="mt-1 text-sm text-gray-600">{school.name}</p>
+      <p className="mt-1 text-sm text-muted">{school.name}</p>
 
       <div className="mt-4 rounded-lg border p-3">
         <ProjectProgress

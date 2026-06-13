@@ -242,7 +242,7 @@ export default function SchoolEditPage() {
   };
 
   if (loadState === "loading") {
-    return <p className="text-sm text-gray-500">Cargando…</p>;
+    return <p className="text-sm text-muted">Cargando…</p>;
   }
 
   if (loadState === "error") {
@@ -261,7 +261,7 @@ export default function SchoolEditPage() {
   }
 
   if (!school)
-    return <p className="text-sm text-gray-500">Escuela no encontrada.</p>;
+    return <p className="text-sm text-muted">Escuela no encontrada.</p>;
 
   const isManager =
     user != null &&
@@ -276,7 +276,7 @@ export default function SchoolEditPage() {
   return (
     <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Editar escuela</h1>
-      <p className="mt-1 text-sm text-gray-600">{school.name}</p>
+      <p className="mt-1 text-sm text-muted">{school.name}</p>
 
       <section
         className={`mt-4 rounded-lg border p-4 text-sm ${
@@ -325,7 +325,7 @@ export default function SchoolEditPage() {
             onChange={(e) => setDescription(e.target.value)}
             className="input min-h-24"
           />
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted">
             {description.length}/{PAGE_DESCRIPTION_MAX}
           </span>
         </Field>
@@ -417,7 +417,7 @@ export default function SchoolEditPage() {
             />
           </Field>
         </div>
-        <p className="-mt-2 text-xs text-gray-500">
+        <p className="-mt-2 text-xs text-muted">
           Se completan solos al mover el pin en el mapa — revisalos, corregilos
           o dejalos en blanco si no aplican.
         </p>
@@ -428,7 +428,7 @@ export default function SchoolEditPage() {
           <legend className="text-sm font-medium">
             Contacto del comité escolar
           </legend>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-muted">
             La junta, asociación o consejo que administra los fondos de la
             escuela.
           </p>
@@ -463,7 +463,7 @@ export default function SchoolEditPage() {
           <legend className="px-1 text-sm font-medium">
             Métodos de pago (se ocultan hasta verificar)
           </legend>
-          <p className="mb-3 mt-1 text-xs text-gray-500">
+          <p className="mb-3 mt-1 text-xs text-muted">
             Cómo puede aportar quien quiera ayudar: cuenta bancaria, método
             local (SINPE Móvil, Modo, Bizum…), PayPal, etc. Es solo informativo
             — escuelaplace nunca procesa ni certifica pagos. Cambiarlos en una
