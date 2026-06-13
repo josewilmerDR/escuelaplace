@@ -298,7 +298,7 @@ export default function BusinessEditPage() {
 
   if (loadState === "error") {
     return (
-      <main className="mx-auto max-w-xl">
+      <main className="max-w-xl">
         <h1 className="text-2xl font-bold">Editar comercio</h1>
         <p role="alert" className="mt-4 text-sm text-red-600">
           No pudimos cargar los datos del comercio. Revisá tu conexión e intentá
@@ -325,7 +325,7 @@ export default function BusinessEditPage() {
   }
 
   return (
-    <main className="mx-auto max-w-xl">
+    <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Editar comercio</h1>
       <p className="mt-1 text-sm text-gray-600">{business.name}</p>
 

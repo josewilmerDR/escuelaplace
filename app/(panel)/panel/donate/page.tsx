@@ -44,9 +44,36 @@ import type {
 export default function DonatePage() {
   // useSearchParams needs a Suspense boundary to keep the route statically renderable.
   return (
-    <Suspense fallback={<p className="text-sm text-gray-500">Cargando…</p>}>
+    <Suspense fallback={<DonateSkeleton />}>
       <DonateContent />
     </Suspense>
+  );
+}
+
+/**
+ * Loading shell. Renders the SAME static header (title + intro) the loaded page does, so
+ * navigating here paints the heading instantly in its final position and only the form
+ * below fades in — no blank flash ("parpadeo") during the Firestore reads. Used by BOTH
+ * the Suspense fallback and the in-component `!loaded` state so the two are identical.
+ */
+function DonateSkeleton() {
+  return (
+    <main>
+      <h1 className="text-2xl font-bold">Donar a una escuela</h1>
+      <p className="mt-1 text-sm text-gray-600">
+        Tu aporte va directo a la escuela por el medio de pago que ella misma
+        publica; la plataforma nunca toca el dinero. La escuela confirma cada
+        donación.
+      </p>
+      <div className="mt-6 space-y-3" aria-hidden="true">
+        <div className="h-10 animate-pulse rounded-md bg-gray-100" />
+        <div className="h-10 animate-pulse rounded-md bg-gray-100" />
+        <div className="h-28 animate-pulse rounded-md bg-gray-100" />
+      </div>
+      <p className="sr-only" role="status">
+        Cargando…
+      </p>
+    </main>
   );
 }
 
@@ -129,7 +156,7 @@ function DonateContent() {
   }, [schoolId]);
 
   if (!user || !loaded) {
-    return <p className="text-sm text-gray-500">Cargando…</p>;
+    return <DonateSkeleton />;
   }
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -197,7 +224,7 @@ function DonateContent() {
   };
 
   return (
-    <main className="max-w-xl">
+    <main>
       <h1 className="text-2xl font-bold">Donar a una escuela</h1>
       <p className="mt-1 text-sm text-gray-600">
         Tu aporte va directo a la escuela por el medio de pago que ella misma

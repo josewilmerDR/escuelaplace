@@ -114,7 +114,7 @@ export default function NewSchoolPage() {
   };
 
   return (
-    <main className="mx-auto max-w-xl">
+    <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Crear escuela</h1>
       <p className="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
         La escuela se publica como <strong>sin verificar</strong>. Los métodos de

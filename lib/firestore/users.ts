@@ -59,16 +59,37 @@ export type ResolvedPage =
   | { type: "school"; id: string; role: ManagedPage["role"]; doc: SchoolDoc | null };
 
 /**
+ * Last resolved pages per uid, kept for the session. Enables stale-while-revalidate in the
+ * panel: returning to /panel paints the previous list INSTANTLY (no loading skeleton) while
+ * getPagesByUser refreshes it in the background — so switching between panel pages doesn't
+ * flash a skeleton every time. Populated by getPagesByUser; read by getCachedPagesByUser.
+ */
+const pagesByUserCache = new Map<string, ResolvedPage[]>();
+
+/**
+ * The cached pages for a user, if any were resolved this session (else null). Synchronous,
+ * for the panel's first render so it can paint the known list instead of a skeleton. The
+ * data may be stale — getPagesByUser is still called to refresh it.
+ */
+export function getCachedPagesByUser(uid: string): ResolvedPage[] | null {
+  return pagesByUserCache.get(uid) ?? null;
+}
+
+/**
  * The pages (businesses and/or schools) the user administers, resolved to their docs.
  * Used by the panel to list what the user can edit. Reads the user doc, then fetches
  * each referenced page in parallel. A single page's read failing (denied/offline) must
  * not nuke the whole list, so each fetch is isolated and degrades to `doc: null`.
+ * The result is cached (see getCachedPagesByUser) for stale-while-revalidate.
  */
 export async function getPagesByUser(uid: string): Promise<ResolvedPage[]> {
   const user = await getUserById(uid);
-  if (!user) return [];
+  if (!user) {
+    pagesByUserCache.set(uid, []);
+    return [];
+  }
 
-  return Promise.all(
+  const resolved = await Promise.all(
     user.managedPages.map(async (page): Promise<ResolvedPage> => {
       // Explicit mapping: naive pluralization ("business" + "s") produced "businesss",
       // a collection no rule matches — every business page denied and the panel hung.
@@ -96,6 +117,9 @@ export async function getPagesByUser(uid: string): Promise<ResolvedPage[]> {
       }
     }),
   );
+
+  pagesByUserCache.set(uid, resolved);
+  return resolved;
 }
 
 /**

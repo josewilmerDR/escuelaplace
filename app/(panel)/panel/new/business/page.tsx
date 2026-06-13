@@ -184,7 +184,7 @@ export default function NewBusinessPage() {
 
   if (loadState === "error") {
     return (
-      <main className="mx-auto max-w-xl">
+      <main className="max-w-xl">
         <h1 className="text-2xl font-bold">Crear comercio</h1>
         <p role="alert" className="mt-4 text-sm text-red-600">
           No pudimos cargar las escuelas y categorías. Revisá tu conexión e
@@ -198,7 +198,7 @@ export default function NewBusinessPage() {
   }
 
   return (
-    <main className="mx-auto max-w-xl">
+    <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Crear comercio</h1>
 
       <form
