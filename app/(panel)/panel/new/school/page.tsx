@@ -139,7 +139,7 @@ export default function NewSchoolPage() {
             onChange={(e) => setDescription(e.target.value)}
             className="input min-h-24"
           />
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted">
             {description.length}/{PAGE_DESCRIPTION_MAX}
           </span>
         </Field>
@@ -178,7 +178,7 @@ export default function NewSchoolPage() {
             <input autoComplete="address-level3" value={admin3} onChange={(e) => setAdmin3(e.target.value)} className="input" />
           </Field>
         </div>
-        <p className="-mt-2 text-xs text-gray-500">
+        <p className="-mt-2 text-xs text-muted">
           Se completan solos al marcar el punto en el mapa — revisalos,
           corregilos o dejalos en blanco si no aplican.
         </p>
@@ -193,7 +193,7 @@ export default function NewSchoolPage() {
             <input value={boardPhone} onChange={(e) => setBoardPhone(e.target.value)} className="input" />
           </Field>
         </div>
-        <p className="-mt-2 text-xs text-gray-500">
+        <p className="-mt-2 text-xs text-muted">
           La junta, asociación o consejo que administra los fondos de la escuela.
         </p>
 
@@ -201,7 +201,7 @@ export default function NewSchoolPage() {
           <legend className="px-1 text-sm font-medium">
             Métodos de pago (opcional, se ocultan hasta verificar)
           </legend>
-          <p className="mb-3 mt-1 text-xs text-gray-500">
+          <p className="mb-3 mt-1 text-xs text-muted">
             Cómo puede aportar quien quiera ayudar: cuenta bancaria, método local
             (SINPE Móvil, Modo, Bizum…), PayPal, etc. Es solo informativo —
             escuelaplace nunca procesa ni certifica pagos.

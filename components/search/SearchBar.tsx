@@ -47,7 +47,7 @@ export function SearchBar({
         autoFocus={autoFocus}
         placeholder="¿Qué buscás? Ej: Panadería, Clases de Inglés"
         aria-label="¿Qué buscás?"
-        className="min-w-0 flex-1 px-5 py-4 text-base text-slate-800 outline-none placeholder:text-slate-400"
+        className="min-w-0 flex-1 px-5 py-4 text-base text-foreground outline-none placeholder:text-muted"
       />
       <button
         type="submit"

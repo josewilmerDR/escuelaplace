@@ -265,13 +265,13 @@ export default async function BusinessPage({ params }: Props) {
                       TIER_BADGE in BusinessCard). Linking a school is optional —
                       unlinked businesses ("" id) show only the rating, if any. */}
                   {(stats.count > 0 || hasSchool) && (
-                    <p className="mt-1 text-sm text-slate-600">
+                    <p className="mt-1 text-sm text-muted">
                       {stats.count > 0 && (
                         <>
                           <span aria-hidden className="text-amber-500">
                             ★
                           </span>{" "}
-                          <span className="font-medium text-slate-900">
+                          <span className="font-medium text-foreground">
                             {averageLabel}
                           </span>{" "}
                           ({stats.count}{" "}
@@ -367,7 +367,7 @@ export default async function BusinessPage({ params }: Props) {
             <h2 className="text-xl font-semibold">Información</h2>
             {/* pre-line: the description is captured in a textarea — keep its line
                 breaks. */}
-            <p className="mt-3 whitespace-pre-line text-gray-700">
+            <p className="mt-3 whitespace-pre-line text-muted">
               {business.description}
             </p>
 
@@ -379,7 +379,7 @@ export default async function BusinessPage({ params }: Props) {
                   <Link
                     key={c.id}
                     href={`/category/${c.id}`}
-                    className="inline-flex items-center rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-brand-dark hover:text-brand-darker"
+                    className="inline-flex items-center rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-muted hover:border-brand-dark hover:text-brand-darker"
                   >
                     {c.name}
                   </Link>
@@ -391,7 +391,7 @@ export default async function BusinessPage({ params }: Props) {
               business.hours ||
               (phoneUrl && phoneDisplay) ||
               websiteUrl) && (
-              <ul className="mt-4 space-y-3 text-sm text-slate-600">
+              <ul className="mt-4 space-y-3 text-sm text-muted">
                 {placeParts.length > 0 && (
                   <li className="flex items-start gap-3">
                     <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />

@@ -4,7 +4,7 @@ const STATUS: Record<SubscriptionStatus, { label: string; className: string }> =
   pending: { label: "Pendiente", className: "bg-amber-100 text-amber-800" },
   confirmed: { label: "Confirmada", className: "bg-green-100 text-green-800" },
   expiring: { label: "Por vencer", className: "bg-orange-100 text-orange-800" },
-  expired: { label: "Vencida", className: "bg-gray-100 text-gray-600" },
+  expired: { label: "Vencida", className: "bg-gray-100 text-muted" },
 };
 
 export function SubscriptionStatusBadge({

@@ -86,7 +86,7 @@ export default async function SearchPage({ searchParams }: Props) {
           </p>
         ) : (
           <>
-            <h1 className="mb-8 text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="mb-8 text-2xl font-bold tracking-tight text-foreground">
               Resultados para “{query}”
             </h1>
             <CommunityPicker />

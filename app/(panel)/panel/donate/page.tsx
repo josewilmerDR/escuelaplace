@@ -61,7 +61,7 @@ function DonateSkeleton() {
   return (
     <main>
       <h1 className="text-2xl font-bold">Donar a una escuela</h1>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-muted">
         Tu aporte va directo a la escuela por el medio de pago que ella misma
         publica; la plataforma nunca toca el dinero. La escuela confirma cada
         donación.
@@ -227,7 +227,7 @@ function DonateContent() {
   return (
     <main>
       <h1 className="text-2xl font-bold">Donar a una escuela</h1>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-muted">
         Tu aporte va directo a la escuela por el medio de pago que ella misma
         publica; la plataforma nunca toca el dinero. La escuela confirma cada
         donación.
@@ -316,7 +316,7 @@ function DonateContent() {
 
       <section className="mt-10">
         <h2 className="text-lg font-semibold">Reconocimiento público</h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-muted">
           Por defecto tu donación es anónima: contás en los totales de la escuela,
           pero tu nombre no se publica. Si querés, podés aparecer en el muro de
           agradecimiento con tu nivel de donante.
@@ -365,7 +365,7 @@ function DonateContent() {
       <section className="mt-10">
         <h2 className="text-lg font-semibold">Tus donaciones</h2>
         {donations.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-muted">
             Todavía no registraste ninguna donación.
           </p>
         ) : (

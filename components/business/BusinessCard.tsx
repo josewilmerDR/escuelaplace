@@ -122,7 +122,7 @@ export function BusinessCard({
         )}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <h3 className="line-clamp-2 font-semibold leading-snug text-slate-900 group-hover:text-brand-darker">
+          <h3 className="line-clamp-2 font-semibold leading-snug text-foreground group-hover:text-brand-darker">
             <Link
               href={`/business/${business.slug}`}
               className="after:absolute after:inset-0"
@@ -135,7 +135,7 @@ export function BusinessCard({
             business.categoryNames.length > 0) && (
             <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-muted">
               {business.reviewStats.count > 0 && (
-                <span className="flex shrink-0 items-center gap-1 font-medium text-slate-700">
+                <span className="flex shrink-0 items-center gap-1 font-medium text-muted">
                   <span aria-hidden className="text-amber-500">
                     ★
                   </span>
@@ -158,7 +158,7 @@ export function BusinessCard({
               community re-rank resolves it). The primary school is a real link; any
               others collapse into a non-interactive "y N más". */}
           {supportedSchools.length > 0 && (
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-muted">
               Apoya a{" "}
               <Link
                 href={`/school/${supportedSchools[0].id}`}

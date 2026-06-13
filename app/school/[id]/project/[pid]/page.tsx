@@ -84,7 +84,7 @@ export default async function ProjectPage({ params }: Props) {
               </div>
 
               {project.description && (
-                <p className="mt-3 whitespace-pre-line text-gray-700">
+                <p className="mt-3 whitespace-pre-line text-muted">
                   {project.description}
                 </p>
               )}
@@ -183,7 +183,7 @@ function StageItem({
   return (
     <li className="rounded-2xl border border-border bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="font-semibold text-slate-900">
+        <h3 className="font-semibold text-foreground">
           <span className="text-muted">Etapa {index + 1}.</span> {stage.title}
         </h3>
         <span className="font-semibold text-brand-darker">
@@ -191,7 +191,7 @@ function StageItem({
         </span>
       </div>
       {stage.justification && (
-        <p className="mt-2 whitespace-pre-line text-sm text-gray-700">
+        <p className="mt-2 whitespace-pre-line text-sm text-muted">
           {stage.justification}
         </p>
       )}

@@ -65,9 +65,9 @@ export default function SchoolProjectsPage() {
       .finally(() => setLoaded(true));
   }, [id]);
 
-  if (!loaded) return <p className="text-sm text-gray-500">Cargando…</p>;
+  if (!loaded) return <p className="text-sm text-muted">Cargando…</p>;
   if (!school)
-    return <p className="text-sm text-gray-500">Escuela no encontrada.</p>;
+    return <p className="text-sm text-muted">Escuela no encontrada.</p>;
 
   const isManager =
     user != null &&
@@ -113,7 +113,7 @@ export default function SchoolProjectsPage() {
   return (
     <main className="max-w-2xl">
       <h1 className="text-2xl font-bold">Proyectos</h1>
-      <p className="mt-1 text-sm text-gray-600">{school.name}</p>
+      <p className="mt-1 text-sm text-muted">{school.name}</p>
 
       {school.verificationStatus !== "verified" && (
         <p className="mt-3 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
@@ -125,7 +125,7 @@ export default function SchoolProjectsPage() {
       <section className="mt-6">
         <h2 className="text-lg font-semibold">Tus proyectos ({projects.length})</h2>
         {projects.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-muted">
             Todavía no creaste ningún proyecto.
           </p>
         ) : (

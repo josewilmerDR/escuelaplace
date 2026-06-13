@@ -40,13 +40,13 @@ export function ProjectCard({ project }: { project: ProjectDoc }) {
 
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold leading-snug text-slate-900 group-hover:text-brand-darker">
+          <h3 className="font-semibold leading-snug text-foreground group-hover:text-brand-darker">
             {project.title}
           </h3>
           <ProjectStatusBadge status={project.status} />
         </div>
         {project.description && (
-          <p className="line-clamp-2 text-sm text-slate-600">
+          <p className="line-clamp-2 text-sm text-muted">
             {project.description}
           </p>
         )}

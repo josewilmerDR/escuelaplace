@@ -49,7 +49,7 @@ export function ProjectProgress({
           compact ? "text-xs" : "text-sm"
         }`}
       >
-        <span className="font-medium text-slate-900">
+        <span className="font-medium text-foreground">
           {formatMoney(raised, currency)}
           <span className="font-normal text-muted">
             {" "}

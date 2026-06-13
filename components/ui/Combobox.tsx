@@ -267,7 +267,7 @@ export function Combobox({
                   className={`cursor-pointer px-4 py-2.5 text-sm ${
                     i === highlighted
                       ? "bg-brand-tint text-brand-darkest"
-                      : "text-slate-900"
+                      : "text-foreground"
                   }`}
                 >
                   {option.label}

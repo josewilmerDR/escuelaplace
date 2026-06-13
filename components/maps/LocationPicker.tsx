@@ -112,7 +112,7 @@ function PickerInner({ value, onChange, onAddress }: Props) {
           <Recenter value={value} />
         </Map>
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-muted">
         {value
           ? `Ubicación: ${value.lat.toFixed(5)}, ${value.lng.toFixed(5)} — arrastrá el pin o tocá el mapa para ajustar.`
           : "Buscá la dirección o tocá el mapa para colocar el pin."}

@@ -45,9 +45,9 @@ export default function ProjectContributionsPage() {
       .finally(() => setLoaded(true));
   }, [id]);
 
-  if (!loaded) return <p className="text-sm text-gray-500">Cargando…</p>;
+  if (!loaded) return <p className="text-sm text-muted">Cargando…</p>;
   if (!school)
-    return <p className="text-sm text-gray-500">Escuela no encontrada.</p>;
+    return <p className="text-sm text-muted">Escuela no encontrada.</p>;
 
   const isManager =
     user != null &&
@@ -99,7 +99,7 @@ export default function ProjectContributionsPage() {
   return (
     <main className="max-w-2xl">
       <h1 className="text-2xl font-bold">Confirmar aportes a proyectos</h1>
-      <p className="mt-1 text-sm text-gray-600">{school.name}</p>
+      <p className="mt-1 text-sm text-muted">{school.name}</p>
 
       <section className="mt-6">
         <div className="flex items-center justify-between">
@@ -119,7 +119,7 @@ export default function ProjectContributionsPage() {
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
 
         {pending.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">No hay aportes pendientes.</p>
+          <p className="mt-2 text-sm text-muted">No hay aportes pendientes.</p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
             {pending.map((c) => (

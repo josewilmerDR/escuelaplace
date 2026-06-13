@@ -22,7 +22,7 @@ export function DonorWall({
     >
       <h2 className="text-xl font-semibold">Muro de agradecimiento</h2>
       {school.thankYouMessage && (
-        <p className="mt-2 text-slate-700">{school.thankYouMessage}</p>
+        <p className="mt-2 text-muted">{school.thankYouMessage}</p>
       )}
 
       {wall.recognized.length > 0 && (
@@ -32,7 +32,7 @@ export function DonorWall({
               key={donor.id}
               className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm"
             >
-              <span className="font-medium text-slate-900">
+              <span className="font-medium text-foreground">
                 {donor.displayName}
               </span>
               {donor.tier && <DonorTierBadge tier={donor.tier} />}

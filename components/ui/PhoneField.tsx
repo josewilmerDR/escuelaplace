@@ -48,7 +48,7 @@ export function PhoneField({
           no es de Costa Rica.
         </p>
       ) : display ? (
-        <p className="text-xs text-gray-500">Se va a marcar como {display}.</p>
+        <p className="text-xs text-muted">Se va a marcar como {display}.</p>
       ) : null}
     </div>
   );

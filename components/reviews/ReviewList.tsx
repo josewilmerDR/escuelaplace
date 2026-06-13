@@ -45,7 +45,7 @@ export function ReviewList({
             <li key={r.id} className="rounded-xl border border-border p-4">
               <div className="flex items-center justify-between gap-3">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-medium text-slate-900">
+                  <span className="truncate font-medium text-foreground">
                     {r.authorName}
                   </span>
                   <OwnReviewMark authorId={r.authorId} />
@@ -62,7 +62,7 @@ export function ReviewList({
               </div>
               {r.text && (
                 // pre-line: written in a textarea — keep the line breaks.
-                <p className="mt-2 whitespace-pre-line text-sm text-gray-700">
+                <p className="mt-2 whitespace-pre-line text-sm text-muted">
                   {r.text}
                 </p>
               )}

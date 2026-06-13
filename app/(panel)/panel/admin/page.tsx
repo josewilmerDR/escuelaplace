@@ -76,7 +76,7 @@ export default function AdminVerificationPage() {
     };
   }, [isAdmin, fetchQueue]);
 
-  if (loading) return <p className="text-sm text-gray-500">Cargando…</p>;
+  if (loading) return <p className="text-sm text-muted">Cargando…</p>;
 
   if (!isAdmin) {
     return (
@@ -104,7 +104,7 @@ export default function AdminVerificationPage() {
   return (
     <main className="max-w-2xl">
       <h1 className="text-2xl font-bold">Verificación de escuelas</h1>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-muted">
         Revisá los datos de cada escuela y aprobá las que correspondan. Al verificar, sus
         métodos de pago quedan visibles para quienes quieran apoyarla.
       </p>
@@ -112,9 +112,9 @@ export default function AdminVerificationPage() {
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
       {items === null ? (
-        <p className="mt-6 text-sm text-gray-500">Cargando cola de verificación…</p>
+        <p className="mt-6 text-sm text-muted">Cargando cola de verificación…</p>
       ) : items.length === 0 ? (
-        <p className="mt-6 text-sm text-gray-500">
+        <p className="mt-6 text-sm text-muted">
           No hay escuelas pendientes de verificación. 🎉
         </p>
       ) : (
@@ -175,7 +175,7 @@ function SchoolReviewCard({
       )}
 
       {school.description && (
-        <p className="mt-3 text-sm text-gray-700">{school.description}</p>
+        <p className="mt-3 text-sm text-muted">{school.description}</p>
       )}
 
       <dl className="mt-3 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">

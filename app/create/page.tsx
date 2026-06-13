@@ -61,8 +61,8 @@ export default function CreatePage() {
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-brand-tint text-brand-darker">
                 <Icon className="h-6 w-6" />
               </span>
-              <h2 className="mt-3 font-semibold text-slate-900">{title}</h2>
-              <p className="mt-1 text-sm text-gray-600">{body}</p>
+              <h2 className="mt-3 font-semibold text-foreground">{title}</h2>
+              <p className="mt-1 text-sm text-muted">{body}</p>
             </li>
           ))}
         </ul>
@@ -70,8 +70,8 @@ export default function CreatePage() {
         {/* The choice. Picking either kind sends you to its form; creating requires a
             Google sign-in (the panel asks for it). */}
         <section className="mt-12">
-          <h2 className="text-xl font-bold text-slate-900">¿Qué querés crear?</h2>
-          <p className="mt-1 text-sm text-gray-600">
+          <h2 className="text-xl font-bold text-foreground">¿Qué querés crear?</h2>
+          <p className="mt-1 text-sm text-muted">
             Tu cuenta puede administrar varias páginas. Vas a iniciar sesión con
             Google para empezar.
           </p>

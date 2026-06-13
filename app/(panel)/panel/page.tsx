@@ -125,7 +125,7 @@ function PanelHomeInner() {
     return (
       <main>
         <h1 className="text-2xl font-bold">Mis páginas</h1>
-        <p className="mt-2 text-gray-600">{error}</p>
+        <p className="mt-2 text-muted">{error}</p>
         <button type="button" onClick={() => void load()} className="btn btn-outline mt-4">
           Reintentar
         </button>
@@ -141,7 +141,7 @@ function PanelHomeInner() {
     return (
       <main>
         <h1 className="text-2xl font-bold">Mis páginas</h1>
-        <p className="mt-2 text-gray-600">Todavía no administrás ninguna página.</p>
+        <p className="mt-2 text-muted">Todavía no administrás ninguna página.</p>
         <Link href="/panel/new" className="btn btn-primary mt-4">
           Crear mi primera página
         </Link>
@@ -245,7 +245,7 @@ function DonateCallout() {
   return (
     <section className="mt-8 rounded-lg border border-dashed p-4">
       <h2 className="font-semibold">Apoyá como persona</h2>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-muted">
         No necesitás una página para apoyar: doná directamente a una escuela
         y, si querés, aparecé en su muro de agradecimiento.
       </p>
@@ -272,7 +272,7 @@ function PageCard({
 }) {
   if (!page.doc) {
     return (
-      <li className="rounded-lg border border-dashed p-4 text-sm text-gray-500">
+      <li className="rounded-lg border border-dashed p-4 text-sm text-muted">
         <p>
           Una {page.type === "business" ? "página de comercio" : "página de escuela"} que
           administrabas ya no existe.

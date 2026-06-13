@@ -80,7 +80,7 @@ function CardBody({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <h3 className="flex items-center gap-1.5 font-semibold leading-snug text-slate-900 group-hover:text-brand-darker">
+        <h3 className="flex items-center gap-1.5 font-semibold leading-snug text-foreground group-hover:text-brand-darker">
           <span className="line-clamp-2">{title}</span>
           {school.verified && (
             <>
@@ -98,7 +98,7 @@ function CardBody({
         )}
 
         {supporters > 0 && (
-          <p className="mt-auto flex items-center gap-1.5 pt-3 text-sm text-slate-600">
+          <p className="mt-auto flex items-center gap-1.5 pt-3 text-sm text-muted">
             <HeartIcon className="h-4 w-4 shrink-0 text-brand" />
             {supporters === 1
               ? "1 persona o comercio la apoya"

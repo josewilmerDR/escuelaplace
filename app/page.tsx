@@ -108,7 +108,7 @@ export default async function HomePage() {
                 <li key={c.id}>
                   <Link
                     href={`/category/${c.id}`}
-                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-brand-dark hover:text-brand-darker"
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-muted hover:border-brand-dark hover:text-brand-darker"
                   >
                     <span aria-hidden>{c.icon}</span>
                     {c.name}
