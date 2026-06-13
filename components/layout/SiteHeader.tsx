@@ -21,6 +21,7 @@ export function SiteHeader() {
               buyers and owners alike browse schools — icon-only below sm to save room. */}
           <Link
             href="/schools"
+            aria-label="Escuelas"
             className="inline-flex min-h-10 items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/15 hover:ring-white/50"
           >
             <AcademicCapIcon className="h-5 w-5" />
