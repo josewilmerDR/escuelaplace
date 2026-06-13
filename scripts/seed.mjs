@@ -7,7 +7,7 @@
  * - Categories (8) with accurate businessCount.
  * - Schools (9) across all 7 provinces, in every verification state:
  *   verified / pending / needs_reverification — plus a verified school with zero
- *   supporters (empty state). Private SINPE subcollection included.
+ *   supporters (empty state). Private payment-methods subcollection included.
  * - Businesses (16) in every lifecycle status (active / pending / draft / suspended),
  *   with varied discounts, contact richness, hours and editors.
  * - Users (13) covering the actor matrix: admin, multi-school board, multi-business
@@ -167,12 +167,16 @@ const schools = [
   {
     id: "esc-san-jose-centro",
     name: "Escuela Juan Rafael Mora Porras",
-    mepCode: "0123",
     description: "Escuela pública en el centro de San José, comprometida con la comunidad.",
     thankYouMessage: "¡Gracias por apoyar a nuestra escuela! Tu aporte hace la diferencia.",
     location: location(9.9325, -84.0791, { admin1: "San José", admin2: "San José", admin3: "Carmen" }),
     boardContact: { name: "María Rodríguez", phone: "8888-1111", email: "junta@esc-mora.cr" },
-    sinpe: { number: "8888-1111", accountHolder: "Junta de Educación JRMP" },
+    // Several methods: exercises the full label:value list in the support flows.
+    paymentMethods: [
+      { label: "SINPE Móvil", value: "8888-1111 (Junta de Educación JRMP)" },
+      { label: "Cuenta bancaria (IBAN)", value: "CR05 0152 0200 1026 2840 66" },
+      { label: "PayPal", value: "junta@esc-mora.cr" },
+    ],
     verificationStatus: "verified",
     ownerId: "usr-maria",
     editorIds: ["usr-elena"],
@@ -181,11 +185,12 @@ const schools = [
   {
     id: "esc-escazu",
     name: "Escuela Benjamín Herrera Angulo",
-    mepCode: "0789",
     description: "Escuela de Escazú centro, con más de 80 años de historia.",
     thankYouMessage: "Su apoyo se convierte en mejores aulas para nuestros niños.",
     location: location(9.9189, -84.1396, { admin1: "San José", admin2: "Escazú", admin3: "Escazú" }),
     boardContact: { name: "María Rodríguez", phone: "8888-3333", email: "junta@esc-herrera.cr" },
+    // LEGACY shape (single sinpe, no paymentMethods): exercises paymentMethodsOf's
+    // normalization of docs predating the agnostic payment-method list.
     sinpe: { number: "8888-3333", accountHolder: "Junta de Educación Benjamín Herrera" },
     verificationStatus: "verified",
     ownerId: "usr-maria",
@@ -194,12 +199,11 @@ const schools = [
   {
     id: "esc-heredia-centro",
     name: "Escuela República de Argentina",
-    mepCode: "0456",
     description: "Institución educativa con fuerte vínculo con el comercio local.",
     thankYouMessage: "Cada comercio aliado nos ayuda a crecer. ¡Mil gracias!",
     location: location(9.9981, -84.1167, { admin1: "Heredia", admin2: "Heredia", admin3: "Heredia" }),
     boardContact: { name: "Carlos Jiménez", phone: "8888-2222", email: "junta@esc-argentina.cr" },
-    sinpe: { number: "8888-2222", accountHolder: "Junta de Educación Rep. Argentina" },
+    paymentMethods: [{ label: "SINPE Móvil", value: "8888-2222 (Junta de Educación Rep. Argentina)" }],
     verificationStatus: "verified",
     ownerId: "usr-carlos",
     createdDaysAgo: 190,
@@ -207,12 +211,11 @@ const schools = [
   {
     id: "esc-alajuela-centro",
     name: "Escuela Ascensión Esquivel Ibarra",
-    mepCode: "1034",
     description: "Escuela centenaria frente al parque central de Alajuela.",
     thankYouMessage: "La comunidad alajuelense agradece su compromiso con la educación.",
     location: location(10.0163, -84.2117, { admin1: "Alajuela", admin2: "Alajuela", admin3: "Alajuela" }),
     boardContact: { name: "Carlos Jiménez", phone: "8888-4444", email: "junta@esc-esquivel.cr" },
-    sinpe: { number: "8888-4444", accountHolder: "Junta de Educación Ascensión Esquivel" },
+    paymentMethods: [{ label: "SINPE Móvil", value: "8888-4444 (Junta de Educación Ascensión Esquivel)" }],
     verificationStatus: "verified",
     ownerId: "usr-carlos",
     createdDaysAgo: 150,
@@ -220,12 +223,11 @@ const schools = [
   {
     id: "esc-cartago-oriental",
     name: "Escuela Jesús Jiménez Zamora",
-    mepCode: "2045",
     description: "Escuela emblemática del distrito Oriental de Cartago.",
     thankYouMessage: "Gracias por invertir en el futuro de Cartago.",
     location: location(9.8644, -83.9194, { admin1: "Cartago", admin2: "Cartago", admin3: "Oriental" }),
     boardContact: { name: "Rosa Campos", phone: "8888-5555", email: "junta@esc-jimenez.cr" },
-    sinpe: { number: "8888-5555", accountHolder: "Junta de Educación Jesús Jiménez" },
+    paymentMethods: [{ label: "SINPE Móvil", value: "8888-5555 (Junta de Educación Jesús Jiménez)" }],
     verificationStatus: "verified",
     ownerId: "usr-rosa",
     createdDaysAgo: 140,
@@ -233,41 +235,38 @@ const schools = [
   {
     id: "esc-limon-centro",
     name: "Escuela Tomás Guardia",
-    mepCode: "3012",
     description: "Escuela del centro de Limón, corazón educativo del Caribe.",
     thankYouMessage: "¡Pura vida! Su aporte fortalece a nuestra niñez caribeña.",
     location: location(9.9913, -83.036, { admin1: "Limón", admin2: "Limón", admin3: "Limón" }),
     boardContact: { name: "Rosa Campos", phone: "8888-6666", email: "junta@esc-guardia.cr" },
-    sinpe: { number: "8888-6666", accountHolder: "Junta de Educación Tomás Guardia" },
+    paymentMethods: [{ label: "SINPE Móvil", value: "8888-6666 (Junta de Educación Tomás Guardia)" }],
     verificationStatus: "verified",
     ownerId: "usr-rosa",
     createdDaysAgo: 120,
   },
   {
-    // needs_reverification: was verified, then the owner edited the SINPE → banner shown,
-    // SINPE hidden until the admin re-approves.
+    // needs_reverification: was verified, then the owner edited the payment methods → banner shown,
+    // payment data hidden until the admin re-approves.
     id: "esc-liberia",
     name: "Escuela Ascensión Esquivel (Liberia)",
-    mepCode: "5021",
     description: "Escuela del centro de Liberia, Guanacaste.",
     thankYouMessage: "La pampa guanacasteca le agradece su apoyo.",
     location: location(10.6346, -85.4407, { admin1: "Guanacaste", admin2: "Liberia", admin3: "Liberia" }),
     boardContact: { name: "Gabriela Núñez", phone: "8888-7777", email: "junta@esc-liberia.cr" },
-    sinpe: { number: "8888-7777", accountHolder: "Junta de Educación Liberia Centro" },
+    paymentMethods: [{ label: "SINPE Móvil", value: "8888-7777 (Junta de Educación Liberia Centro)" }],
     verificationStatus: "needs_reverification",
     ownerId: "usr-gabriela",
     createdDaysAgo: 110,
   },
   {
-    // pending: just created by its owner, never verified. SINPE hidden + banner.
+    // pending: just created by its owner, never verified. Payment data hidden + banner.
     id: "esc-puntarenas",
     name: "Escuela Delia Urbina de Guevara",
-    mepCode: "6008",
     description: "Escuela frente al estero de Puntarenas, recién unida a la plataforma.",
     thankYouMessage: "El Puerto agradece a los comercios que apoyan su escuela.",
     location: location(9.9762, -84.8384, { admin1: "Puntarenas", admin2: "Puntarenas", admin3: "Puntarenas" }),
     boardContact: { name: "Jorge Castro", phone: "8888-8888", email: "junta@esc-delia.cr" },
-    sinpe: { number: "8888-8888", accountHolder: "Junta de Educación Delia Urbina" },
+    paymentMethods: [{ label: "SINPE Móvil", value: "8888-8888 (Junta de Educación Delia Urbina)" }],
     verificationStatus: "pending",
     ownerId: "usr-jorge",
     createdDaysAgo: 3,
@@ -276,12 +275,11 @@ const schools = [
     // Verified school with ZERO supporting businesses (empty state in its public page).
     id: "esc-san-carlos-rural",
     name: "Escuela La Palmera",
-    mepCode: "1290",
     description: "Escuela rural de San Carlos, en la comunidad de La Palmera.",
     thankYouMessage: "En la zona norte, cada colón cuenta. ¡Gracias!",
     location: location(10.3236, -84.4297, { admin1: "Alajuela", admin2: "San Carlos", admin3: "La Palmera" }),
     boardContact: { name: "Rosa Campos", phone: "8888-9999", email: "junta@esc-palmera.cr" },
-    sinpe: { number: "8888-9999", accountHolder: "Junta de Educación La Palmera" },
+    paymentMethods: [{ label: "SINPE Móvil", value: "8888-9999 (Junta de Educación La Palmera)" }],
     verificationStatus: "verified",
     ownerId: "usr-rosa",
     createdDaysAgo: 90,
@@ -565,8 +563,10 @@ const businesses = [
 // amount = units × ₡5.000. Only the school owner/admin confirms (confirmedBy).
 const UNIT_CRC = 5000;
 const subscriptions = [
-  // Confirmed, fresh (full weight).
-  { id: "sub-soda-sj", businessId: "soda-la-esquina", schoolId: "esc-san-jose-centro", units: 3, status: "confirmed", confirmedDaysAgo: 10, expiresInDays: 80, confirmedBy: "usr-maria", proofUploaded: true, createdDaysAgo: 12 },
+  // Confirmed, fresh — and a RENEWAL: first confirmed 2 days after sign-up, renewed 10
+  // days ago. The response-time chip must read the 2-day first response, not the ~92
+  // days between createdAt and the latest confirmedAt.
+  { id: "sub-soda-sj", businessId: "soda-la-esquina", schoolId: "esc-san-jose-centro", units: 3, status: "confirmed", firstConfirmedDaysAgo: 100, confirmedDaysAgo: 10, expiresInDays: 80, confirmedBy: "usr-maria", proofUploaded: true, createdDaysAgo: 102 },
   // Confirmed, aging (decayed weight, still outside the expiring window).
   { id: "sub-trigal-sj", businessId: "panaderia-el-trigal", schoolId: "esc-san-jose-centro", units: 2, status: "confirmed", confirmedDaysAgo: 74, expiresInDays: 16, confirmedBy: "usr-maria", proofUploaded: true, createdDaysAgo: 75 },
   // Expiring (inside the 14-day renewal window; still counts).
@@ -668,12 +668,17 @@ function buildReviewStats() {
   return stats;
 }
 
-/** Materialize a subscription's Timestamps from the relative day offsets. */
+/** Materialize a subscription's Timestamps from the relative day offsets.
+ * firstConfirmedDaysAgo models a renewal (first confirmation older than the current
+ * one); when absent the subscription was confirmed once, so both stamps coincide. */
 function materializeSubscription(s) {
   const confirmed = s.confirmedDaysAgo != null;
   return {
     ...s,
     confirmedAt: confirmed ? daysAgo(s.confirmedDaysAgo) : null,
+    firstConfirmedAt: confirmed
+      ? daysAgo(s.firstConfirmedDaysAgo ?? s.confirmedDaysAgo)
+      : null,
     expiresAt: confirmed ? daysAgo(-s.expiresInDays) : null,
   };
 }
@@ -747,8 +752,9 @@ async function seed() {
     });
   }
 
-  // Schools + private SINPE subcollection. supportingBusinesses counts distinct
-  // businesses with a currently-counting subscription (same as the Cloud Function).
+  // Schools + private payment-methods subcollection (one school keeps the legacy
+  // single-sinpe shape on purpose). supportingBusinesses counts distinct businesses
+  // with a currently-counting subscription (same as the Cloud Function).
   for (const s of schools) {
     const supporters = new Set(
       subs.filter((x) => x.schoolId === s.id && isCounting(x)).map((x) => x.businessId),
@@ -756,7 +762,6 @@ async function seed() {
     const ref = db.collection("schools").doc(s.id);
     batch.set(ref, {
       name: s.name,
-      mepCode: s.mepCode,
       description: s.description,
       thankYouMessage: s.thankYouMessage,
       location: s.location,
@@ -770,7 +775,10 @@ async function seed() {
       createdAt: daysAgo(s.createdDaysAgo),
       updatedAt: now,
     });
-    batch.set(ref.collection("private").doc("data"), { sinpe: s.sinpe });
+    batch.set(
+      ref.collection("private").doc("data"),
+      s.paymentMethods ? { paymentMethods: s.paymentMethods } : { sinpe: s.sinpe },
+    );
   }
 
   // Businesses. ranking.score is the mission-general baseline (same math as the Cloud
@@ -845,6 +853,7 @@ async function seed() {
       amount: s.units * UNIT_CRC,
       status: s.status,
       confirmedAt: s.confirmedAt,
+      firstConfirmedAt: s.firstConfirmedAt,
       expiresAt: s.expiresAt,
       ...(s.confirmedBy ? { confirmedBy: s.confirmedBy } : {}),
       proofUploaded: s.proofUploaded,

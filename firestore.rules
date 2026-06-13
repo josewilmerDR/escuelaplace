@@ -13,8 +13,8 @@ rules_version = '2';
 //   (businesses and/or schools). Access control lives on the page doc via ownerId/editorIds.
 // - Schools are self-administered but verification is admin-gated: owners can never set
 //   themselves to 'verified'; only admin writes `verified`/`verificationStatus`.
-// - Sensitive data (SINPE) lives in a private subcollection: readable/writable by the
-//   school's owner/editors and admin. Public visibility of the SINPE is decided by the
+// - Sensitive data (payment methods) lives in a private subcollection: readable/writable by the
+//   school's owner/editors and admin. Public visibility of the payment methods is decided by the
 //   data layer based on verificationStatus, not here.
 
 service cloud.firestore {
@@ -125,7 +125,7 @@ service cloud.firestore {
 
       allow delete: if isAdmin() || isOwnerOrEditor(resource.data);
 
-      // Private subcollection (SINPE):
+      // Private subcollection (payment methods):
       // - write: owner/editors of THIS school, or admin.
       // - read: owner/editors or admin always; plus ANY signed-in user (e.g. a business
       //   wanting to subscribe) but ONLY when the school is 'verified'. Never anonymous.
@@ -155,7 +155,7 @@ service cloud.firestore {
     // First-class support relationship: a supporter — a business page, or a signed-in
     // user donating personally (`supporterType: 'user'`) — supports a school.
     // - read: public. Confirmed support is public info (badge/ranking/thank-you wall,
-    //   rendered SSR). The doc holds NO sensitive payment data — the SINPE proof file
+    //   rendered SSR). The doc holds NO sensitive payment data — the payment proof file
     //   lives in Storage (subscription-proofs/{id}, gated by storage.rules); only
     //   `proofUploaded` is public.
     // - create: the supporter side (business owner/editor, or the donor themselves) or
@@ -172,6 +172,7 @@ service cloud.firestore {
         isSignedIn() &&
         request.resource.data.status == 'pending' &&
         request.resource.data.confirmedAt == null &&
+        request.resource.data.get('firstConfirmedAt', null) == null &&
         request.resource.data.units is int &&
         request.resource.data.units >= 1 &&
         isSupporterSide(request.resource.data)
@@ -207,10 +208,14 @@ service cloud.firestore {
 
     // True if this update would alter the confirmation state. The supporter side must not
     // be able to self-confirm; only the school/admin may touch these fields.
+    // `firstConfirmedAt` is included: it feeds the school's public response-time chip,
+    // which the supporter must not be able to fake.
     function changesConfirmation() {
       return request.resource.data.status != resource.data.status ||
         request.resource.data.confirmedAt != resource.data.confirmedAt ||
-        request.resource.data.expiresAt != resource.data.expiresAt;
+        request.resource.data.expiresAt != resource.data.expiresAt ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['firstConfirmedAt']);
     }
 
     // No update may rewrite who supports whom: the structural identity is frozen at

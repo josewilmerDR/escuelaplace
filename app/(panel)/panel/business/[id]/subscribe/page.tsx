@@ -4,34 +4,38 @@
  * Business subscription management (/panel/business/[id]/subscribe).
  *
  * The business owner commits to support a school: pick the school, choose how many units
- * (n × X), and optionally attach the SINPE proof file. This creates a `pending`
+ * (n × X), and optionally attach the payment proof file. This creates a `pending`
  * subscription — the platform never touches the money; the business pays the school
- * directly via SINPE, and the SCHOOL confirms the proof. The proof file goes to private
- * Storage (not the public doc). The school's SINPE is shown only when verified.
+ * directly through whatever payment method the school published, and the SCHOOL confirms
+ * the proof. The proof file goes to private Storage (not the public doc). The school's
+ * payment methods are shown only when verified.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
+  averageConfirmationTimeMs,
   createSubscription,
   getBusinessById,
   getSchoolsCached,
   getSubscriptionsByBusiness,
-  getVerifiedSchoolSinpe,
+  getSubscriptionsBySchool,
+  getVerifiedSchoolPaymentMethods,
   uploadSubscriptionProof,
 } from "@/lib/firestore";
 import { formatColones } from "@/lib/format";
 import { SUBSCRIPTION_UNIT_CRC } from "@/types";
 import type {
   BusinessDoc,
+  PaymentMethod,
   SchoolDoc,
-  SchoolPrivate,
   SubscriptionDoc,
 } from "@/types";
 
@@ -48,7 +52,10 @@ export default function BusinessSubscribePage() {
   const [schoolId, setSchoolId] = useState("");
   const [units, setUnits] = useState(1);
   const [proofFile, setProofFile] = useState<File | null>(null);
-  const [sinpe, setSinpe] = useState<SchoolPrivate["sinpe"] | null>(null);
+  // null = school not verified (payment data hidden); [] = verified but none published.
+  const [methods, setMethods] = useState<PaymentMethod[] | null>(null);
+  // Average first-confirmation time of the chosen school; null until known.
+  const [confirmMs, setConfirmMs] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -67,16 +74,22 @@ export default function BusinessSubscribePage() {
       .finally(() => setLoaded(true));
   }, [id]);
 
-  // Reveal the chosen school's SINPE (only returns data when the school is verified).
-  // Routed through a promise even when empty so setState only happens in the async
+  // Reveal the chosen school's payment methods (only when the school is verified)
+  // and its typical confirmation time (public data — shown in any state). Routed
+  // through a promise even when empty so setState only happens in the async
   // callback, never synchronously in the effect body.
   useEffect(() => {
     let cancelled = false;
     const lookup = schoolId
-      ? getVerifiedSchoolSinpe(schoolId)
-      : Promise.resolve(null);
-    lookup.then((s) => {
-      if (!cancelled) setSinpe(s);
+      ? Promise.all([
+          getVerifiedSchoolPaymentMethods(schoolId),
+          getSubscriptionsBySchool(schoolId).then(averageConfirmationTimeMs),
+        ])
+      : Promise.resolve([null, null] as const);
+    lookup.then(([m, avg]) => {
+      if (cancelled) return;
+      setMethods(m);
+      setConfirmMs(avg);
     });
     return () => {
       cancelled = true;
@@ -168,17 +181,11 @@ export default function BusinessSubscribePage() {
 
         {schoolId && (
           <div className="rounded-md bg-surface p-3 text-sm">
-            {sinpe ? (
-              <p>
-                Pagá por SINPE a <span className="font-medium">{sinpe.number}</span> (
-                {sinpe.accountHolder}).
-              </p>
-            ) : (
-              <p className="text-amber-800">
-                Esta escuela aún no está verificada, así que su SINPE no está disponible.
-                Podés registrar el apoyo igual; la escuela lo confirmará al verificarse.
-              </p>
-            )}
+            <PaymentMethodsInfo
+              methods={methods}
+              confirmationTimeMs={confirmMs}
+              unverifiedText="Esta escuela aún no está verificada, así que sus métodos de pago no están disponibles. Podés registrar el apoyo igual; la escuela lo confirmará al verificarse."
+            />
           </div>
         )}
 
@@ -198,7 +205,7 @@ export default function BusinessSubscribePage() {
           </span>
         </Field>
 
-        <Field label="Comprobante SINPE (opcional)">
+        <Field label="Comprobante de pago (opcional)">
           <input
             type="file"
             accept="image/*,application/pdf"

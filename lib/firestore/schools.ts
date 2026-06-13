@@ -1,6 +1,7 @@
 /**
  * Typed reads of the `schools` collection.
- * The private subcollection (SINPE) is NOT exposed here: it requires admin and a separate access.
+ * The private subcollection (payment methods) is gated separately: owner/editors/admin
+ * always; everyone else only through getVerifiedSchoolPaymentMethods.
  */
 import {
   collection,
@@ -13,7 +14,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { School, SchoolDoc, SchoolPrivate } from "@/types";
+import type { PaymentMethod, School, SchoolDoc, SchoolPrivate } from "@/types";
 import { docToTyped, snapToList } from "./converters";
 
 const SCHOOLS = "schools";
@@ -26,8 +27,8 @@ export async function getSchoolById(id: string): Promise<SchoolDoc | null> {
 /**
  * Schools open for selection (pickers, support/donation flows), ordered by name.
  * Deliberately includes `pending`: a just-created school must be selectable by buyers
- * and by the business that wants to support it — verification gates the SINPE (see
- * getVerifiedSchoolSinpe), not the school's presence in lists. Only `inactive`
+ * and by the business that wants to support it — verification gates the payment methods
+ * (see getVerifiedSchoolPaymentMethods), not the school's presence in lists. Only `inactive`
  * (delisted) schools are excluded.
  *
  * The cap exists so a runaway collection can't blow up every picker mount; schools
@@ -72,7 +73,7 @@ export function invalidateSchoolsCache(): void {
 }
 
 /**
- * The school's sensitive data (SINPE) from the private subcollection.
+ * The school's sensitive payment data from the private subcollection.
  * Reading requires Firestore auth as the school's owner/editors or admin (see rules);
  * this is for the owner panel / admin, NOT for public rendering.
  */
@@ -84,16 +85,38 @@ export async function getSchoolPrivate(
 }
 
 /**
- * The SINPE intended for public display (to businesses wanting to subscribe), gated by
- * verification: returns null unless the school is in `verificationStatus === 'verified'`.
- * Centralizes the "hide SINPE until verified / on re-verification" business rule so no
- * caller can accidentally surface unverified payment data.
+ * Normalize a private doc into the payment-method list, folding the legacy single
+ * SINPE (docs predating `paymentMethods`) into an equivalent entry. Pure — shared by
+ * the gated read below and the owner's edit form.
  */
-export async function getVerifiedSchoolSinpe(
+export function paymentMethodsOf(
+  priv: SchoolPrivate | null | undefined,
+): PaymentMethod[] {
+  if (priv?.paymentMethods?.length) return priv.paymentMethods;
+  if (priv?.sinpe?.number) {
+    return [
+      {
+        label: "SINPE Móvil",
+        value: priv.sinpe.accountHolder
+          ? `${priv.sinpe.number} (${priv.sinpe.accountHolder})`
+          : priv.sinpe.number,
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * The payment methods intended for display to supporters (donors and businesses wanting
+ * to subscribe), gated by verification: returns null unless the school is in
+ * `verificationStatus === 'verified'` ([] when verified but none published yet).
+ * Centralizes the "hide payment data until verified / on re-verification" business rule
+ * so no caller can accidentally surface unverified payment data.
+ */
+export async function getVerifiedSchoolPaymentMethods(
   id: string,
-): Promise<SchoolPrivate["sinpe"] | null> {
+): Promise<PaymentMethod[] | null> {
   const school = await getSchoolById(id);
   if (!school || school.verificationStatus !== "verified") return null;
-  const priv = await getSchoolPrivate(id);
-  return priv?.sinpe ?? null;
+  return paymentMethodsOf(await getSchoolPrivate(id));
 }

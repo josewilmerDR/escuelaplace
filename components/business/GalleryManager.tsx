@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Gallery manager for the business edit page. Owners add up to BUSINESS_GALLERY_MAX
- * photos (shown in the public "Fotos" section — some use it as a visual catalog,
- * others as ambience shots) and remove them individually.
+ * Gallery manager for the page edit forms (business and school). Owners add up to
+ * BUSINESS_GALLERY_MAX photos (shown in the public "Fotos" section) and remove them
+ * individually. The actual persistence is injected (addPhoto/removePhoto), so the same
+ * UI manages either page type.
  *
  * Unlike the create-form pickers (which hold files until submit), this mutates
  * immediately: each add uploads to Storage and appends to `photos`, each remove
@@ -12,20 +13,20 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
 import { validateImageFile } from "@/components/ui/ImagePicker";
-import {
-  addBusinessGalleryPhoto,
-  removeBusinessGalleryPhoto,
-} from "@/lib/firestore";
 import { userErrorMessage } from "@/lib/errors";
 import { BUSINESS_GALLERY_MAX } from "@/types";
 
 export function GalleryManager({
-  businessId,
   initialPhotos,
+  addPhoto,
+  removePhoto,
 }: {
-  businessId: string;
   /** Current gallery URLs (already excluding any legacy cover at photos[0]). */
   initialPhotos: string[];
+  /** Upload the file, persist it on the page doc, and return the stored URL. */
+  addPhoto: (file: File) => Promise<string>;
+  /** Remove the URL from the page doc (and best-effort delete the file). */
+  removePhoto: (url: string) => Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState(initialPhotos);
@@ -45,7 +46,7 @@ export function GalleryManager({
     setError(null);
     setBusy(true);
     try {
-      const url = await addBusinessGalleryPhoto(businessId, file);
+      const url = await addPhoto(file);
       setPhotos((prev) => [...prev, url]);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo subir la foto."));
@@ -58,7 +59,7 @@ export function GalleryManager({
     setError(null);
     setBusy(true);
     try {
-      await removeBusinessGalleryPhoto(businessId, url);
+      await removePhoto(url);
       setPhotos((prev) => prev.filter((p) => p !== url));
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo quitar la foto."));

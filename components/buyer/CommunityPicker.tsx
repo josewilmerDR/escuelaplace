@@ -101,7 +101,7 @@ export function CommunityPicker() {
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         {/* Deliberate: the list includes UNVERIFIED schools (getSchools filters by
             status only). Choosing a community is not a trust signal — verification
-            gates the SINPE/donation flows elsewhere, and a buyer whose school just
+            gates the payment/donation flows elsewhere, and a buyer whose school just
             joined must still be able to pick it. */}
         <Combobox
           options={schools.map((s) => ({

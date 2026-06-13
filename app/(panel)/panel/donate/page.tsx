@@ -4,27 +4,31 @@
  * Personal donation flow (/panel/donate).
  *
  * Any signed-in user — no page needed, no commercial intent — donates to a school: pick
- * the school, choose how many units (n × X), optionally attach the SINPE proof. Same
+ * the school, choose how many units (n × X), optionally attach the payment proof. Same
  * lifecycle as a business subscription: the platform never touches the money; the SCHOOL
  * confirms the proof. Confirmed donations feed the donor's recognition tier
  * (donorProfiles), which is shown publicly only if the donor opts in.
  */
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
+import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
+  averageConfirmationTimeMs,
   createDonation,
   ensureDonorProfile,
   getDonorProfile,
   getSchoolsCached,
   getSubscriptionsByDonor,
-  getVerifiedSchoolSinpe,
+  getSubscriptionsBySchool,
+  getVerifiedSchoolPaymentMethods,
   updateDonorRecognition,
   uploadSubscriptionProof,
 } from "@/lib/firestore";
@@ -32,13 +36,24 @@ import { formatColones } from "@/lib/format";
 import { SUBSCRIPTION_UNIT_CRC } from "@/types";
 import type {
   DonorProfileDoc,
+  PaymentMethod,
   SchoolDoc,
-  SchoolPrivate,
   SubscriptionDoc,
 } from "@/types";
 
 export default function DonatePage() {
+  // useSearchParams needs a Suspense boundary to keep the route statically renderable.
+  return (
+    <Suspense fallback={<p className="text-sm text-gray-500">Cargando…</p>}>
+      <DonateContent />
+    </Suspense>
+  );
+}
+
+function DonateContent() {
   const { user } = useAuth();
+  // The school page's "Donar" button lands here with the school preselected.
+  const preselectedSchoolId = useSearchParams().get("schoolId") ?? "";
 
   const [schools, setSchools] = useState<SchoolDoc[]>([]);
   const [donations, setDonations] = useState<SubscriptionDoc[]>([]);
@@ -46,10 +61,13 @@ export default function DonatePage() {
   const [loaded, setLoaded] = useState(false);
 
   // Donation form state
-  const [schoolId, setSchoolId] = useState("");
+  const [schoolId, setSchoolId] = useState(preselectedSchoolId);
   const [units, setUnits] = useState(1);
   const [proofFile, setProofFile] = useState<File | null>(null);
-  const [sinpe, setSinpe] = useState<SchoolPrivate["sinpe"] | null>(null);
+  // null = school not verified (payment data hidden); [] = verified but none published.
+  const [methods, setMethods] = useState<PaymentMethod[] | null>(null);
+  // Average first-confirmation time of the chosen school; null until known.
+  const [confirmMs, setConfirmMs] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -74,22 +92,36 @@ export default function DonatePage() {
     ])
       .then(([s, d, p]) => {
         setSchools(s);
+        // A stale/foreign ?schoolId must not leave the form pointing at a school
+        // that isn't in the list (the select would render blank but "valid").
+        if (
+          preselectedSchoolId &&
+          !s.some((school) => school.id === preselectedSchoolId)
+        ) {
+          setSchoolId("");
+        }
         setDonations(d);
         setProfile(p);
         setPrefName(p?.displayName ?? user.name);
         setPrefPublic(p?.isPublic ?? false);
       })
       .finally(() => setLoaded(true));
-  }, [user]);
+  }, [user, preselectedSchoolId]);
 
-  // Reveal the chosen school's SINPE (only returns data when the school is verified).
+  // Reveal the chosen school's payment methods (only when the school is verified)
+  // and its typical confirmation time (public data — shown in any state).
   useEffect(() => {
     let cancelled = false;
     const lookup = schoolId
-      ? getVerifiedSchoolSinpe(schoolId)
-      : Promise.resolve(null);
-    lookup.then((s) => {
-      if (!cancelled) setSinpe(s);
+      ? Promise.all([
+          getVerifiedSchoolPaymentMethods(schoolId),
+          getSubscriptionsBySchool(schoolId).then(averageConfirmationTimeMs),
+        ])
+      : Promise.resolve([null, null] as const);
+    lookup.then(([m, avg]) => {
+      if (cancelled) return;
+      setMethods(m);
+      setConfirmMs(avg);
     });
     return () => {
       cancelled = true;
@@ -168,8 +200,9 @@ export default function DonatePage() {
     <main className="max-w-xl">
       <h1 className="text-2xl font-bold">Donar a una escuela</h1>
       <p className="mt-1 text-sm text-gray-600">
-        Tu aporte va directo a la Junta de Educación por SINPE; la plataforma
-        nunca toca el dinero. La escuela confirma cada donación.
+        Tu aporte va directo a la escuela por el medio de pago que ella misma
+        publica; la plataforma nunca toca el dinero. La escuela confirma cada
+        donación.
       </p>
 
       {profile?.tier && (
@@ -207,17 +240,11 @@ export default function DonatePage() {
 
         {schoolId && (
           <div className="rounded-md bg-surface p-3 text-sm">
-            {sinpe ? (
-              <p>
-                Pagá por SINPE a <span className="font-medium">{sinpe.number}</span> (
-                {sinpe.accountHolder}).
-              </p>
-            ) : (
-              <p className="text-amber-800">
-                Esta escuela aún no está verificada, así que su SINPE no está disponible.
-                Podés registrar la donación igual; la escuela la confirmará al verificarse.
-              </p>
-            )}
+            <PaymentMethodsInfo
+              methods={methods}
+              confirmationTimeMs={confirmMs}
+              unverifiedText="Esta escuela aún no está verificada, así que sus métodos de pago no están disponibles. Podés registrar la donación igual; la escuela la confirmará al verificarse."
+            />
           </div>
         )}
 
@@ -237,7 +264,7 @@ export default function DonatePage() {
           </span>
         </Field>
 
-        <Field label="Comprobante SINPE (opcional)">
+        <Field label="Comprobante de pago (opcional)">
           <input
             type="file"
             accept="image/*,application/pdf"

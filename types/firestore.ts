@@ -8,7 +8,7 @@
  *   into the document to avoid extra reads when rendering.
  * - Geo stores `geopoint` (GeoPoint) + `geohash` (string computed with geofire-common)
  *   so proximity queries by geohash range are possible.
- * - Sensitive data (the school's SINPE) does NOT live in the public doc: it goes in the
+ * - Sensitive data (the school's payment methods) does NOT live in the public doc: it goes in the
  *   private subcollection `schools/{id}/private/data` (see `SchoolPrivate`).
  */
 import type { GeoPoint, Timestamp } from "firebase/firestore";
@@ -136,10 +136,10 @@ export type SchoolStatus = "pending" | "active" | "inactive";
 /**
  * Verification lifecycle for schools. Schools are self-administered (anyone signed in
  * can create one), so sensitive data must be admin-vetted:
- * - `pending`: just created, never verified. SINPE hidden, "unverified" banner shown.
- * - `verified`: admin approved. SINPE visible to businesses wanting to subscribe.
- * - `needs_reverification`: owner edited a sensitive field (name or SINPE) after being
- *   verified. SINPE is hidden again and the banner reappears until admin re-approves.
+ * - `pending`: just created, never verified. Payment methods hidden, "unverified" banner shown.
+ * - `verified`: admin approved. Payment methods visible to supporters.
+ * - `needs_reverification`: owner edited a sensitive field (name or payment methods) after being
+ *   verified. They are hidden again and the banner reappears until admin re-approves.
  * Only admin may write this field (the owner cannot self-verify; see firestore.rules).
  */
 export type SchoolVerificationStatus =
@@ -241,16 +241,21 @@ export interface SchoolMetrics {
 
 export interface School {
   name: string;
-  mepCode: string;
   description: string;
   thankYouMessage: string;
   location: Omit<Location, "address">;
+  /** Round profile photo of the public page (the "avatar" slot). */
   photoUrl?: string;
+  /** Header cover of the public profile (falls back to photos[0], then photoUrl). */
+  coverUrl?: string;
+  /** Gallery photos (max BUSINESS_GALLERY_MAX, same cap as businesses), shown in the
+   * public "Fotos" section — the school's life: activities, infrastructure, projects. */
+  photos?: string[];
   boardContact: BoardContact;
   status: SchoolStatus;
   verified: boolean;
   /**
-   * Verification lifecycle (see SchoolVerificationStatus). Drives whether the SINPE is
+   * Verification lifecycle (see SchoolVerificationStatus). Drives whether the payment methods are
    * exposed publicly and whether the "unverified data" banner is shown. Admin-only write.
    */
   verificationStatus: SchoolVerificationStatus;
@@ -266,12 +271,28 @@ export interface School {
 export type SchoolDoc = School & { id: string };
 
 /**
+ * One way to send money directly to the school, as free-form label:value — e.g.
+ * "Cuenta bancaria: CR05…", "SINPE Móvil: 8888-1234", "PayPal: junta@escuela.org".
+ * Purely INFORMATIONAL for the supporter: the platform never processes nor certifies
+ * payments, it only relays what the school published. Free text on both sides so any
+ * country's local rails (Modo, Bizum, Pix, IBAN…) fit without code changes.
+ */
+export interface PaymentMethod {
+  label: string;
+  value: string;
+}
+
+/**
  * Private subcollection: schools/{id}/private/data
- * Sensitive data. ONLY admin can read/write (see firestore.rules).
- * NEVER included in the public school document.
+ * Sensitive payment data, hidden until the school is verified (see firestore.rules and
+ * getVerifiedSchoolPaymentMethods). NEVER included in the public school document.
  */
 export interface SchoolPrivate {
-  sinpe: {
+  /** Ordered list shown to supporters once the school is verified. */
+  paymentMethods?: PaymentMethod[];
+  /** Legacy single SINPE (docs predating paymentMethods). Readers normalize it into
+   * the list via paymentMethodsOf — do not render it directly. */
+  sinpe?: {
     number: string;
     accountHolder: string;
   };
@@ -328,7 +349,7 @@ export type CategoryDoc = Category & { id: string };
  * Base monetary unit (in CRC) for a subscription. The amount a business commits is an
  * integer multiple of this unit (`units`); that integer feeds the support magnitude in
  * the ranking score. ~₡5.000 ≈ US$10. The platform NEVER processes this money — the
- * business pays the school directly via SINPE; this entity only records the relationship.
+ * business pays the school directly through its published payment methods; this entity only records the relationship.
  */
 export const SUBSCRIPTION_UNIT_CRC = 5000;
 
@@ -350,7 +371,7 @@ export const SUBSCRIPTION_EXPIRING_WINDOW_DAYS = 14;
  * money, so confirmation is time-boxed and decays if not renewed (see `expiresAt`):
  * - `pending`: the supporter committed/uploaded a proof; the school has not confirmed
  *   yet. Does NOT count toward the ranking.
- * - `confirmed`: the school confirmed the SINPE proof matches. Counts toward the ranking
+ * - `confirmed`: the school confirmed the payment proof matches. Counts toward the ranking
  *   until `expiresAt`.
  * - `expiring`: confirmed but close to `expiresAt` (renewal nudge); still counts.
  * - `expired`: `expiresAt` passed without renewal. No longer counts.
@@ -372,7 +393,7 @@ export type SupporterType = "business" | "user";
 
 /**
  * First-class support relationship: a supporter (business page or personal donor)
- * supports a school via a SINPE payment. Summing a business's `confirmed` subscriptions
+ * supports a school via a direct payment. Summing a business's `confirmed` subscriptions
  * reconstructs the ranking signals C (community institutions) and I (institutions in
  * general); the `status`/`expiresAt` pair drives time decay. Personal donations follow
  * the exact same lifecycle (the school confirms the proof, the confirmation is
@@ -403,14 +424,24 @@ export interface Subscription {
   /** Denormalized convenience: `units * SUBSCRIPTION_UNIT_CRC` (CRC). */
   amount: number;
   status: SubscriptionStatus;
-  /** Set by the school/admin when the proof is confirmed; null while pending. */
+  /** Set by the school/admin when the proof is confirmed; null while pending. Moves
+   * forward on every renewal — for response-time math use `firstConfirmedAt`. */
   confirmedAt: Timestamp | null;
+  /**
+   * First time the school ever confirmed this subscription. Set once (renewals move
+   * `confirmedAt` but never this), so `firstConfirmedAt - createdAt` is the school's
+   * real response time — the basis of the public "normalmente confirma en ~X" chip.
+   * Only the school/admin may write it (see firestore.rules: a supporter faking it
+   * would fake the school's responsiveness). Absent on legacy docs → readers fall
+   * back to `confirmedAt`.
+   */
+  firstConfirmedAt?: Timestamp | null;
   /** When the confirmation lapses if not renewed; null while pending. */
   expiresAt: Timestamp | null;
   /** uid of the school owner/editor or admin who confirmed. */
   confirmedBy?: string;
   /**
-   * Whether a SINPE proof file has been uploaded. The file itself is sensitive (it shows
+   * Whether a payment proof file has been uploaded. The file itself is sensitive (it shows
    * amounts, names, phone numbers) so it lives in Firebase Storage at the private path
    * `subscription-proofs/{id}/proof`, gated by storage.rules — NEVER in this public doc.
    * This flag is the only public signal; the school fetches the file via the Storage SDK

@@ -35,13 +35,13 @@ export function supporterNameOf(
   return name ?? "—";
 }
 
-/** Private Storage path of a subscription's SINPE proof (gated by storage.rules). */
+/** Private Storage path of a subscription's payment proof (gated by storage.rules). */
 export function subscriptionProofPath(subscriptionId: string): string {
   return `subscription-proofs/${subscriptionId}/proof`;
 }
 
 /**
- * A temporary URL to view a subscription's SINPE proof, or null if there is none / access
+ * A temporary URL to view a subscription's payment proof, or null if there is none / access
  * is denied. The read is gated by storage.rules (business side, target school, or admin),
  * so this is called on demand from the panel — the URL is never stored in the public doc.
  */
@@ -104,7 +104,7 @@ export async function getSubscriptionsBySchool(
 
 /**
  * Pending subscriptions targeting a school — the queue the school's board confirms (the
- * institution validates that each SINPE proof matches). Newest first.
+ * institution validates that each payment proof matches). Newest first.
  */
 export async function getPendingSubscriptionsBySchool(
   schoolId: string,

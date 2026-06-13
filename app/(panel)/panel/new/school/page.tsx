@@ -2,19 +2,21 @@
 
 /**
  * Create-school form (/panel/new/school). Schools are self-administered but start
- * unverified ('pending'): the SINPE stays hidden and an "unverified data" banner shows
- * until admin approves. Creates the school + optional SINPE and links it to the user.
+ * unverified ('pending'): the payment methods stay hidden and an "unverified data"
+ * banner shows until admin approves. Creates the school + optional payment methods and
+ * links it to the user.
  */
 import { useCallback, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 import { createSchoolPage } from "@/lib/firestore";
-import { PAGE_DESCRIPTION_MAX } from "@/types";
+import { PAGE_DESCRIPTION_MAX, type PaymentMethod } from "@/types";
 import {
   LocationPicker,
   type AdminAreaGuess,
@@ -29,7 +31,6 @@ export default function NewSchoolPage() {
   const [saving, setSaving] = useState(false);
 
   const [name, setName] = useState("");
-  const [mepCode, setMepCode] = useState("");
   const [description, setDescription] = useState("");
   // Country-agnostic administrative levels (see types/firestore.ts). country has no
   // input: it arrives from the reverse geocoder when the pin moves.
@@ -40,8 +41,7 @@ export default function NewSchoolPage() {
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [boardName, setBoardName] = useState("");
   const [boardPhone, setBoardPhone] = useState("");
-  const [sinpeNumber, setSinpeNumber] = useState("");
-  const [sinpeHolder, setSinpeHolder] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
 
   // Any field change marks the form dirty (form-level onChange + the map handler);
   // the guard warns before close/refresh would throw the typed work away.
@@ -85,10 +85,12 @@ export default function NewSchoolPage() {
     setError(null);
     setSaving(true);
     try {
-      const hasSinpe = sinpeNumber.trim() && sinpeHolder.trim();
+      // Only complete rows are stored; half-typed ones can't be paid to.
+      const completeMethods = paymentMethods
+        .map((m) => ({ label: m.label.trim(), value: m.value.trim() }))
+        .filter((m) => m.label && m.value);
       const id = await createSchoolPage(user.id, {
         name: trimmedName,
-        mepCode: mepCode.trim(),
         description: description.trim(),
         location: {
           lat: coords.lat,
@@ -102,9 +104,7 @@ export default function NewSchoolPage() {
           name: boardName.trim(),
           phone: boardPhone.trim() || undefined,
         },
-        sinpe: hasSinpe
-          ? { number: sinpeNumber.trim(), accountHolder: sinpeHolder.trim() }
-          : undefined,
+        paymentMethods: completeMethods.length ? completeMethods : undefined,
       });
       router.push(`/panel?created=${id}`);
     } catch (err) {
@@ -117,8 +117,8 @@ export default function NewSchoolPage() {
     <main className="mx-auto max-w-xl">
       <h1 className="text-2xl font-bold">Crear escuela</h1>
       <p className="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-        La escuela se publica como <strong>sin verificar</strong>. El SINPE queda
-        oculto hasta que el equipo verifique los datos.
+        La escuela se publica como <strong>sin verificar</strong>. Los métodos de
+        pago quedan ocultos hasta que el equipo verifique los datos.
       </p>
 
       <form
@@ -130,10 +130,6 @@ export default function NewSchoolPage() {
       >
         <Field label="Nombre de la escuela">
           <input required autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} className="input" />
-        </Field>
-
-        <Field label="Código MEP">
-          <input required value={mepCode} onChange={(e) => setMepCode(e.target.value)} className="input" />
         </Field>
 
         <Field label="Descripción (opcional)">
@@ -187,25 +183,36 @@ export default function NewSchoolPage() {
           corregilos o dejalos en blanco si no aplican.
         </p>
 
+        {/* "Comité escolar": neutral term for whoever administers the school's funds
+            (junta de educación, asociación de padres, consejo escolar…). */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Contacto de la Junta — nombre">
+          <Field label="Contacto del comité escolar — nombre">
             <input required value={boardName} onChange={(e) => setBoardName(e.target.value)} className="input" />
           </Field>
           <Field label="Teléfono (opcional)">
             <input value={boardPhone} onChange={(e) => setBoardPhone(e.target.value)} className="input" />
           </Field>
         </div>
+        <p className="-mt-2 text-xs text-gray-500">
+          La junta, asociación o consejo que administra los fondos de la escuela.
+        </p>
 
         <fieldset className="rounded-md border p-3">
-          <legend className="px-1 text-sm font-medium">SINPE (opcional, se oculta hasta verificar)</legend>
-          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Número SINPE">
-              <input value={sinpeNumber} onChange={(e) => setSinpeNumber(e.target.value)} className="input" />
-            </Field>
-            <Field label="Titular de la cuenta">
-              <input value={sinpeHolder} onChange={(e) => setSinpeHolder(e.target.value)} className="input" />
-            </Field>
-          </div>
+          <legend className="px-1 text-sm font-medium">
+            Métodos de pago (opcional, se ocultan hasta verificar)
+          </legend>
+          <p className="mb-3 mt-1 text-xs text-gray-500">
+            Cómo puede aportar quien quiera ayudar: cuenta bancaria, método local
+            (SINPE Móvil, Modo, Bizum…), PayPal, etc. Es solo informativo —
+            escuelaplace nunca procesa ni certifica pagos.
+          </p>
+          <PaymentMethodsEditor
+            value={paymentMethods}
+            onChange={(rows) => {
+              setPaymentMethods(rows);
+              setDirty(true);
+            }}
+          />
         </fieldset>
 
         <FormError message={error} />

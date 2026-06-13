@@ -5,8 +5,11 @@
 **Directorio comunitario** (catálogo, **NO marketplace**) que conecta comercios
 locales con escuelas en Costa Rica (internacionalización después).
 
-Los comercios pagan una **suscripción recurrente directo a la Junta de Educación**
-de la escuela vía SINPE Móvil o cuenta bancaria. **La plataforma NUNCA procesa ni
+Los comercios pagan una **suscripción recurrente directo a la escuela** (a su junta,
+comité o asociación) por los **métodos de pago que la propia escuela publica** —
+lista `label:value` agnóstica de país: cuenta bancaria, billetera local (SINPE
+Móvil, Modo, Bizum…), PayPal, etc. Esa información es **solo informativa** para el
+donante. **La plataforma NUNCA procesa, certifica ni
 toca pagos** — solo da visibilidad, insignia y ranking. Los compradores navegan el
 catálogo **sin registrarse**.
 
@@ -50,10 +53,11 @@ se registra.
   vive ahí, no en el rol global (que solo distingue `admin`).
 - **Comercio** (página): perfil público rico. Es el **contenido central**.
 - **Escuela** (página): **autoadministrada**. Cualquier usuario puede crearla, pero
-  nace **sin verificar** (`verificationStatus:'pending'`): el SINPE queda **oculto** y
-  se muestra un **banner "datos sin verificar"** hasta que el **admin** la apruebe. Si
-  el dueño edita un campo sensible (`name` o SINPE) tras estar verificada, vuelve a
-  `'needs_reverification'` (SINPE oculto + banner) hasta nueva aprobación del admin.
+  nace **sin verificar** (`verificationStatus:'pending'`): los métodos de pago quedan
+  **ocultos** y se muestra un **banner "datos sin verificar"** hasta que el **admin**
+  la apruebe. Si el dueño edita un campo sensible (`name` o métodos de pago) tras
+  estar verificada, vuelve a `'needs_reverification'` (métodos de pago ocultos +
+  banner) hasta nueva aprobación del admin.
   Esta mecánica de re-verificación aplica **solo a escuelas**, no a comercios.
 - **Admin**: verifica páginas y datos sensibles. Único que escribe
   `verified`/`verificationStatus`.
@@ -72,15 +76,17 @@ se registra.
    provincia/estado/departamento → cantón/municipio → distrito/comunidad) +
    `country` (ISO-2). Texto libre sugerido por reverse geocoding; nunca listas
    cerradas por país.
-4. **Datos sensibles** (SINPE de la escuela) en subcolección privada
-   `schools/{id}/private/data`, jamás en el doc público. **Escritura**: dueño de la
+4. **Datos sensibles** (métodos de pago de la escuela) en subcolección privada
+   `schools/{id}/private/data`, jamás en el doc público. Modelo `label:value`
+   agnóstico de país (`paymentMethods[]`; los docs legacy traen `sinpe` y se
+   normalizan con `paymentMethodsOf()`). **Escritura**: dueño de la
    escuela o admin. **Lectura**: dueño/admin siempre; además **cualquier usuario
    autenticado** (p.ej. un comercio que quiere suscribirse) pero **solo si la escuela
    está `verified`** — nunca anónimos. La capa de datos centraliza esto en
-   `getVerifiedSchoolSinpe()` (devuelve null si no está verificada).
+   `getVerifiedSchoolPaymentMethods()` (devuelve null si no está verificada).
 5. **Contadores con `increment()` atómico** (métricas, businessCount, etc.).
 6. **Verificación de escuelas**: el dueño nunca escribe `verified`/`verificationStatus`
-   (solo admin). Editar `name`/SINPE de una escuela verificada debe disparar
+   (solo admin). Editar `name`/métodos de pago de una escuela verificada debe disparar
    `needs_reverification`.
 
 ## Modelo de datos (Firestore)
@@ -92,12 +98,14 @@ se registra.
   hours, status, verified,
   subscription{active, plan, validUntil}, ranking{score, totalDonated},
   metrics{views, interactions}, ownerId, editorIds[], createdAt, updatedAt
-- `schools/{id}`: name, mepCode, description, thankYouMessage,
+- `schools/{id}`: name, description, thankYouMessage,
   location{geopoint, geohash, country, admin1, admin2, admin3}, photoUrl,
+  coverUrl, photos[] (galería, máx 5),
   boardContact{name, phone, email}, status, verified, verificationStatus
   ('pending'|'verified'|'needs_reverification'), metrics{supportingBusinesses},
   ownerId, editorIds[], createdAt, updatedAt
-  - subcollection `private/data`: sinpe{number, accountHolder}
+  - subcollection `private/data`: paymentMethods[{label, value}] (legacy:
+    sinpe{number, accountHolder}, normalizado al leer)
 - `users/{uid}`: name, email, phone, role('user'|'admin'),
   managedPages[{type('business'|'school'), id, role('owner'|'editor')}], createdAt
 - `categories/{id}`: name, icon, order, businessCount
@@ -146,7 +154,7 @@ firestore.rules                # reglas de seguridad
 - `schools` (doc público): escritura del **dueño**/**editores** o **admin**, EXCEPTO
   `verified`/`verificationStatus` que son **solo admin**.
 - `categories`: escritura solo **admin**.
-- `schools/{id}/private/*` (SINPE): escritura del **dueño** o **admin**; lectura del
+- `schools/{id}/private/*` (métodos de pago): escritura del **dueño** o **admin**; lectura del
   dueño/admin, o de **cualquier usuario autenticado si la escuela está `verified`**.
 - `users/{uid}`: solo el **propio** usuario (o admin).
 
