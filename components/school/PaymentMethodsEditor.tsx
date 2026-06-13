@@ -28,7 +28,12 @@ export function PaymentMethodsEditor({
     <div className="flex flex-col gap-3">
       {value.map((row, i) => (
         // Index key: rows are positional while being typed (no stable id exists yet).
-        <div key={i} className="flex items-start gap-2">
+        // Each method is a soft inset row (calm-depth panel, no hard border) so the
+        // label:value pair reads as one unit with its remove action.
+        <div
+          key={i}
+          className="flex items-start gap-2 rounded-xl bg-surface p-3 ring-1 ring-black/5"
+        >
           <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
             <input
               value={row.label}
@@ -50,7 +55,8 @@ export function PaymentMethodsEditor({
           <button
             type="button"
             onClick={() => onChange(value.filter((_, j) => j !== i))}
-            className="mt-2 text-xs text-muted underline hover:text-red-600"
+            aria-label={`Quitar método de pago ${i + 1}`}
+            className="mt-1.5 inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
           >
             Quitar
           </button>

@@ -45,23 +45,26 @@ export function StagesEditor({
   return (
     <div className="flex flex-col gap-4">
       {stages.map((stage, i) => (
+        // Each stage is an elevated calm-depth card (ring + soft shadow, no hard border).
         <fieldset
           key={i}
-          className="rounded-lg border border-border p-3"
+          className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5"
         >
           <div className="flex items-center justify-between">
-            <legend className="text-sm font-medium">Etapa {i + 1}</legend>
+            <legend className="text-sm font-semibold tracking-tight text-foreground">
+              Etapa {i + 1}
+            </legend>
             {stages.length > 1 && (
               <button
                 type="button"
                 onClick={() => remove(i)}
-                className="text-xs text-muted underline hover:text-red-600"
+                className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
               >
                 Quitar
               </button>
             )}
           </div>
-          <div className="mt-2 flex flex-col gap-3">
+          <div className="mt-3 flex flex-col gap-3">
             <Field label="Título de la etapa">
               <input
                 type="text"
@@ -98,7 +101,7 @@ export function StagesEditor({
         </fieldset>
       ))}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         {stages.length < PROJECT_STAGE_MAX ? (
           <button type="button" onClick={add} className="btn btn-outline">
             Agregar etapa
@@ -108,7 +111,8 @@ export function StagesEditor({
             Máximo {PROJECT_STAGE_MAX} etapas.
           </span>
         )}
-        <span className="text-sm font-medium">
+        {/* Running total = the project goal it's building as the board types. */}
+        <span className="text-sm font-semibold tracking-tight text-foreground">
           Meta total: {formatMoney(total, currency)}
         </span>
       </div>

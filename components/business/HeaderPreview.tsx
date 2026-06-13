@@ -49,7 +49,7 @@ export function HeaderPreview({
         El círculo del logo se superpone a la portada — revisá que no tape una
         cara ni un texto importante.
       </span>
-      <div className="mt-1 max-w-md overflow-hidden rounded-xl border border-border bg-white">
+      <div className="mt-1 max-w-md overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
         <div className="relative aspect-[5/2] w-full bg-brand-tint">
           {coverUrl ? (
             // unoptimized: the source may be a blob: object URL, which can't go
@@ -84,7 +84,7 @@ export function HeaderPreview({
                 width={72}
                 height={72}
                 unoptimized
-                className="h-18 w-18 rounded-full border border-border bg-white object-cover ring-2 ring-white"
+                className="h-18 w-18 rounded-full bg-white object-cover ring-2 ring-white"
               />
             ) : (
               <span

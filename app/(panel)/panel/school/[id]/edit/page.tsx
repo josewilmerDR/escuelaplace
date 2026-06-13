@@ -252,8 +252,10 @@ export default function SchoolEditPage() {
   if (loadState === "error") {
     return (
       <main className="max-w-xl">
-        <h1 className="text-2xl font-bold">Editar escuela</h1>
-        <p role="alert" className="mt-4 text-sm text-red-600">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Editar escuela
+        </h1>
+        <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar los datos de la escuela. Revisá tu conexión e
           intentá de nuevo.
         </p>
@@ -274,30 +276,36 @@ export default function SchoolEditPage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-red-600">No administrás esta escuela.</p>;
+    return <p className="text-sm text-error">No administrás esta escuela.</p>;
   }
+
+  const verified = school.verificationStatus === "verified";
 
   return (
     <main className="max-w-xl">
-      <h1 className="text-2xl font-bold">Editar escuela</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Editar escuela
+      </h1>
       <p className="mt-1 text-sm text-muted">{school.name}</p>
 
+      {/* Verification state: a calm-depth semantic banner (success when verified,
+          warning while pending/needs_reverification) — soft tint + hairline ring. */}
       <section
-        className={`mt-4 rounded-lg border p-4 text-sm ${
-          school.verificationStatus === "verified"
-            ? "border-green-200 bg-green-50"
-            : "border-amber-200 bg-amber-50"
+        className={`mt-6 rounded-2xl p-4 text-sm ring-1 ${
+          verified
+            ? "bg-success-tint text-success ring-success/15"
+            : "bg-warning-tint text-warning ring-warning/15"
         }`}
       >
-        {school.verificationStatus === "verified" ? (
-          <p className="text-green-800">
+        {verified ? (
+          <p>
             Tu escuela está <strong>verificada</strong>: sus métodos de pago son
             visibles para quienes quieren apoyarla. Cambiar el{" "}
             <strong>nombre</strong> o los <strong>métodos de pago</strong> la
             devuelve a revisión y los oculta hasta que el equipo la re-apruebe.
           </p>
         ) : (
-          <p className="text-amber-800">
+          <p>
             {school.verificationStatus === "needs_reverification"
               ? "Cambiaste datos sensibles: la escuela está en re-verificación y sus métodos de pago están ocultos hasta que el equipo la re-apruebe."
               : "Tu escuela todavía no está verificada: sus métodos de pago están ocultos y la página muestra el aviso “datos sin verificar” hasta que el equipo la apruebe."}
@@ -464,11 +472,13 @@ export default function SchoolEditPage() {
           </div>
         </FormSection>
 
-        <fieldset className="rounded-md border p-3">
-          <legend className="px-1 text-sm font-medium">
+        {/* Boxed calm-depth sub-group (ring + soft shadow, no hard border), matching the
+            FormSection `boxed` treatment used for self-contained blocks like this one. */}
+        <fieldset className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+          <legend className="px-1 text-base font-semibold tracking-tight text-foreground">
             Métodos de pago (se ocultan hasta verificar)
           </legend>
-          <p className="mb-3 mt-1 text-xs text-muted">
+          <p className="mb-4 mt-1 text-sm text-muted">
             Cómo puede aportar quien quiera ayudar: cuenta bancaria, método
             local (SINPE Móvil, Modo, Bizum…), PayPal, etc. Es solo informativo
             — escuelaplace nunca procesa ni certifica pagos. Cambiarlos en una
@@ -495,9 +505,11 @@ export default function SchoolEditPage() {
 
       {/* Outside the form: gallery changes publish immediately (upload/remove mutate
           the doc on the spot), they don't wait for "Guardar cambios". */}
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold">Galería</h2>
-        <div className="mt-2">
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Galería
+        </h2>
+        <div className="mt-3">
           <GalleryManager
             initialPhotos={school.photos ?? []}
             addPhoto={(file) => addSchoolGalleryPhoto(school.id, file)}

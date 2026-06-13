@@ -13,7 +13,7 @@ export function FormError({ message }: { message: string | null }) {
       key={message}
       role="alert"
       ref={(el) => el?.scrollIntoView({ block: "nearest", behavior: "smooth" })}
-      className="text-sm text-red-600"
+      className="text-sm font-medium text-error"
     >
       {message}
     </p>

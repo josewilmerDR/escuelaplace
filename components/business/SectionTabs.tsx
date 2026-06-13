@@ -47,7 +47,7 @@ export function SectionTabs({ sections }: { sections: SectionTab[] }) {
             key={id}
             href={`#${id}`}
             aria-current={isActive ? "true" : undefined}
-            className={`relative rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+            className={`relative rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
               isActive
                 ? "text-brand-darker after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand"
                 : "text-muted hover:bg-surface hover:text-brand-darker"

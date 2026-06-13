@@ -11,7 +11,7 @@ export function SavedIndicator({ show }: { show: boolean }) {
   return (
     <span
       role="status"
-      className="inline-flex items-center gap-1.5 rounded-full bg-success-tint px-2.5 py-1 text-xs font-medium text-success"
+      className="inline-flex items-center gap-1.5 rounded-full bg-success-tint px-2.5 py-1 text-xs font-medium text-success ring-1 ring-success/10"
     >
       <CheckIcon className="h-3.5 w-3.5" />
       Guardado

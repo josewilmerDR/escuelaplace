@@ -17,7 +17,8 @@ export function ProjectCard({ project }: { project: ProjectDoc }) {
   return (
     <Link
       href={`/school/${project.schoolId}/project/${project.id}`}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-white transition-shadow hover:shadow-md"
+      // Elevated calm-depth card: a soft hairline ring + shadow that lifts on hover.
+      className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md"
     >
       <div className="relative aspect-[3/2] w-full bg-brand-tint">
         {project.coverUrl ? (

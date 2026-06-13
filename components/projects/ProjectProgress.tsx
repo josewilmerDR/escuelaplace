@@ -31,8 +31,10 @@ export function ProjectProgress({
 
   return (
     <div>
+      {/* Soft rounded track with a brand fill; the reached state fills with the success
+          token. The ARIA values and the raised/goal math above are unchanged. */}
       <div
-        className="h-2.5 w-full overflow-hidden rounded-full bg-surface ring-1 ring-inset ring-border"
+        className="h-2.5 w-full overflow-hidden rounded-full bg-surface ring-1 ring-inset ring-black/5"
         role="progressbar"
         aria-valuenow={percent}
         aria-valuemin={0}
@@ -40,7 +42,7 @@ export function ProjectProgress({
         aria-label="Avance de la meta"
       >
         <div
-          className={`h-full rounded-full ${reached ? "bg-green-600" : "bg-brand"}`}
+          className={`h-full rounded-full ${reached ? "bg-success" : "bg-brand"}`}
           style={{ width: `${percent}%` }}
         />
       </div>

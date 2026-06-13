@@ -107,7 +107,7 @@ export default function BusinessSubscribePage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-red-600">No administrás este comercio.</p>;
+    return <p className="text-sm text-error">No administrás este comercio.</p>;
   }
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -155,14 +155,19 @@ export default function BusinessSubscribePage() {
 
   return (
     <main className="max-w-xl">
-      <h1 className="text-2xl font-bold">Apoyar una escuela</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Apoyar una escuela
+      </h1>
       <p className="mt-1 text-sm text-muted">{business.name}</p>
 
+      {/* The support form on one elevated surface — the school choice, units math and
+          optional proof upload. The platform never touches the money; this only records a
+          `pending` subscription the school later confirms. */}
       <form
         onSubmit={onSubmit}
         onInvalidCapture={spanishRequiredMessage}
         onInputCapture={clearValidationMessage}
-        className="mt-6 flex flex-col gap-4"
+        className="mt-8 flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5"
       >
         <Field label="Escuela">
           <select
@@ -181,7 +186,7 @@ export default function BusinessSubscribePage() {
         </Field>
 
         {schoolId && (
-          <div className="rounded-md bg-surface p-3 text-sm">
+          <div className="rounded-xl bg-surface p-3 text-sm ring-1 ring-black/5">
             <PaymentMethodsInfo
               methods={methods}
               confirmationTimeMs={confirmMs}
@@ -230,17 +235,19 @@ export default function BusinessSubscribePage() {
       </form>
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold">Tus apoyos</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Tus apoyos
+        </h2>
         {subscriptions.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
             Todavía no registraste ningún apoyo.
           </p>
         ) : (
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul className="mt-4 flex flex-col gap-3">
             {subscriptions.map((s) => (
               <li
                 key={s.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5"
               >
                 <div>
                   <p className="font-medium">{s.schoolName}</p>

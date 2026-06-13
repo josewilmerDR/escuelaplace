@@ -62,7 +62,7 @@ export default async function ProjectPage({ params }: Props) {
             <BackLink href={`/school/${id}`}>{project.schoolName}</BackLink>
           </p>
 
-          <article className="mt-3 overflow-hidden rounded-2xl border border-border bg-white">
+          <article className="mt-3 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
             {project.coverUrl && (
               <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
                 <Image
@@ -78,7 +78,9 @@ export default async function ProjectPage({ params }: Props) {
 
             <div className="p-5 sm:p-8">
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-3xl font-bold">{project.title}</h1>
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+                  {project.title}
+                </h1>
                 <ProjectStatusBadge status={project.status} />
               </div>
 
@@ -88,7 +90,7 @@ export default async function ProjectPage({ params }: Props) {
                 </p>
               )}
 
-              <div className="mt-6 rounded-2xl border border-border bg-surface p-4 sm:p-5">
+              <div className="mt-6 rounded-2xl bg-surface p-5 ring-1 ring-black/5">
                 <ProjectProgress
                   raised={project.raised}
                   goal={goal}
@@ -96,7 +98,7 @@ export default async function ProjectPage({ params }: Props) {
                   contributorsCount={project.contributorsCount}
                 />
                 {reached && (
-                  <p className="mt-3 text-sm font-medium text-green-800">
+                  <p className="mt-3 text-sm font-medium text-success">
                     ¡Meta alcanzada! Gracias a quienes aportaron.
                   </p>
                 )}
@@ -125,7 +127,7 @@ export default async function ProjectPage({ params }: Props) {
                       y ya no recibe aportes.
                     </p>
                   ) : (
-                    <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                    <p className="rounded-xl bg-warning-tint p-3 text-sm text-warning ring-1 ring-warning/10">
                       Esta escuela todavía no fue verificada por el equipo de
                       escuelaplace. Vas a poder financiar este proyecto en cuanto
                       se verifique.
@@ -141,7 +143,7 @@ export default async function ProjectPage({ params }: Props) {
 
               {/* ── Stages ──────────────────────────────────────────────────── */}
               <section className="mt-8">
-                <h2 className="text-xl font-semibold">
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
                   Etapas del proyecto ({project.stages.length})
                 </h2>
                 <p className="mt-1 text-sm text-muted">
@@ -180,7 +182,9 @@ function StageItem({
   projectTitle: string;
 }) {
   return (
-    <li className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+    // Inset panel inside the white article card: a soft surface fill + hairline ring
+    // reads as a nested block without stacking white-on-white.
+    <li className="rounded-xl bg-surface p-4 ring-1 ring-black/5 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-semibold text-foreground">
           <span className="text-muted">Etapa {index + 1}.</span> {stage.title}

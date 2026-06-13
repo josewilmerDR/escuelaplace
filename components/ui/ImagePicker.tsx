@@ -76,7 +76,7 @@ export function ImagePicker({
 
   const preview =
     variant === "avatar" ? (
-      <span className="relative block h-24 w-24 shrink-0 overflow-hidden rounded-full border border-border bg-surface">
+      <span className="relative block h-24 w-24 shrink-0 overflow-hidden rounded-full bg-surface ring-1 ring-black/5">
         {previewUrl ? (
           // unoptimized: blob: object URLs can't go through the image optimizer.
           <Image
@@ -93,7 +93,7 @@ export function ImagePicker({
         )}
       </span>
     ) : (
-      <span className="relative block aspect-[5/2] w-full overflow-hidden rounded-lg border border-border bg-surface">
+      <span className="relative block aspect-[5/2] w-full overflow-hidden rounded-xl bg-surface ring-1 ring-black/5">
         {previewUrl ? (
           <Image
             src={previewUrl}
@@ -127,7 +127,7 @@ export function ImagePicker({
         <button
           type="button"
           onClick={remove}
-          className="text-sm text-muted underline hover:text-red-600"
+          className="text-sm font-medium text-muted underline-offset-2 transition-colors hover:text-error"
         >
           Quitar
         </button>
@@ -136,8 +136,8 @@ export function ImagePicker({
   );
 
   return (
-    <div className="flex flex-col gap-1 text-sm">
-      <span className="font-medium">{label}</span>
+    <div className="flex flex-col gap-1.5 text-sm">
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {hint && <span className="text-xs text-muted">{hint}</span>}
       {/* Avatar: circle and controls side by side. Cover: band on top, controls below. */}
       {variant === "avatar" ? (
@@ -152,7 +152,7 @@ export function ImagePicker({
         </span>
       )}
       {error && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs font-medium text-error">
           {error}
         </p>
       )}

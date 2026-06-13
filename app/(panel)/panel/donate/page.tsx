@@ -61,16 +61,18 @@ export default function DonatePage() {
 function DonateSkeleton() {
   return (
     <main>
-      <h1 className="text-2xl font-bold">Donar a una escuela</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Donar a una escuela
+      </h1>
       <p className="mt-1 text-sm text-muted">
         Tu aporte va directo a la escuela por el medio de pago que ella misma
         publica; la plataforma nunca toca el dinero. La escuela confirma cada
         donación.
       </p>
       <div className="mt-6 space-y-3" aria-hidden="true">
-        <div className="h-10 animate-pulse rounded-md bg-gray-100" />
-        <div className="h-10 animate-pulse rounded-md bg-gray-100" />
-        <div className="h-28 animate-pulse rounded-md bg-gray-100" />
+        <div className="h-10 animate-pulse rounded-xl bg-surface ring-1 ring-black/5" />
+        <div className="h-10 animate-pulse rounded-xl bg-surface ring-1 ring-black/5" />
+        <div className="h-28 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
       </div>
       <p className="sr-only" role="status">
         Cargando…
@@ -227,7 +229,9 @@ function DonateContent() {
 
   return (
     <main>
-      <h1 className="text-2xl font-bold">Donar a una escuela</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Donar a una escuela
+      </h1>
       <p className="mt-1 text-sm text-muted">
         Tu aporte va directo a la escuela por el medio de pago que ella misma
         publica; la plataforma nunca toca el dinero. La escuela confirma cada
@@ -235,7 +239,7 @@ function DonateContent() {
       </p>
 
       {(profile?.tier || (profile?.projectsSupported ?? 0) > 0) && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
+        <div className="mt-6 flex flex-wrap items-center gap-2 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
           {profile?.tier && <DonorTierBadge tier={profile.tier} />}
           {(profile?.projectsSupported ?? 0) > 0 && (
             <span className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-medium text-brand-darker">
@@ -267,7 +271,7 @@ function DonateContent() {
         </div>
 
         {schoolId && (
-          <div className="rounded-md bg-surface p-3 text-sm">
+          <div className="rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
             <PaymentMethodsInfo
               methods={methods}
               confirmationTimeMs={confirmMs}
@@ -316,7 +320,9 @@ function DonateContent() {
       </form>
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold">Reconocimiento público</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Reconocimiento público
+        </h2>
         <p className="mt-1 text-sm text-muted">
           Por defecto tu donación es anónima: contás en los totales de la escuela,
           pero tu nombre no se publica. Si querés, podés aparecer en el muro de
@@ -357,27 +363,31 @@ function DonateContent() {
               {prefSaving ? "Guardando…" : "Guardar preferencias"}
             </button>
             {prefSaved && (
-              <span className="text-xs text-green-700">Preferencias guardadas.</span>
+              <span className="text-xs text-success">Preferencias guardadas.</span>
             )}
           </div>
         </form>
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold">Tus donaciones</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Tus donaciones
+        </h2>
         {donations.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
             Todavía no registraste ninguna donación.
           </p>
         ) : (
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul className="mt-4 flex flex-col gap-3">
             {donations.map((d) => (
               <li
                 key={d.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5"
               >
                 <div>
-                  <p className="font-medium">{d.schoolName}</p>
+                  <p className="font-semibold tracking-tight text-foreground">
+                    {d.schoolName}
+                  </p>
                   <p className="text-muted">
                     {d.units}× · {formatColones(d.amount)} ·{" "}
                     {d.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3.5 w-3.5" />Comprobante</span>) : "Sin comprobante"}

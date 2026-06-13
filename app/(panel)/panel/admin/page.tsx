@@ -84,8 +84,10 @@ export default function AdminVerificationPage() {
   if (!isAdmin) {
     return (
       <main>
-        <h1 className="text-2xl font-bold">Verificación de escuelas</h1>
-        <p className="mt-2 text-red-600">No tenés acceso a esta sección.</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Verificación de escuelas
+        </h1>
+        <p className="mt-2 text-error">No tenés acceso a esta sección.</p>
       </main>
     );
   }
@@ -106,13 +108,15 @@ export default function AdminVerificationPage() {
 
   return (
     <main className="max-w-2xl">
-      <h1 className="text-2xl font-bold">Verificación de escuelas</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Verificación de escuelas
+      </h1>
       <p className="mt-1 text-sm text-muted">
         Revisá los datos de cada escuela y aprobá las que correspondan. Al verificar, sus
         métodos de pago quedan visibles para quienes quieran apoyarla.
       </p>
 
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-sm text-error">{error}</p>}
 
       {items === null ? (
         <p className="mt-6 text-sm text-muted">Cargando cola de verificación…</p>
@@ -161,17 +165,20 @@ function SchoolReviewCard({
   const contact = school.boardContact;
 
   return (
-    <li className="rounded-lg border p-4">
+    // Elevated calm-depth card per queued school (ring + soft shadow, no hard border).
+    <li className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold">{school.name}</h2>
+          <h2 className="truncate text-lg font-semibold tracking-tight text-foreground">
+            {school.name}
+          </h2>
           {where && <p className="text-sm text-muted">{where}</p>}
         </div>
         <VerificationBadge status={school.verificationStatus} />
       </div>
 
       {school.verificationStatus === "needs_reverification" && (
-        <p className="mt-3 rounded-md bg-amber-50 p-2 text-xs text-amber-800">
+        <p className="mt-3 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
           Ya estuvo verificada: editó un dato sensible (nombre o métodos de pago) y quedó
           pendiente de re-aprobación. Revisá los cambios antes de confirmar.
         </p>
@@ -207,7 +214,7 @@ function SchoolReviewCard({
           Métodos de pago
         </p>
         {paymentMethods.length === 0 ? (
-          <p className="mt-1 text-sm text-amber-700">
+          <p className="mt-1 text-sm text-warning">
             Sin métodos de pago cargados. Al verificar no habrá datos para mostrar a los
             donantes.
           </p>
@@ -222,19 +229,21 @@ function SchoolReviewCard({
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+      {/* One solid primary approve action; the public-page link is a quiet chip. A thin
+          divider sets the action shelf apart from the review details above. */}
+      <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-4 text-sm">
         <button
           type="button"
           onClick={onApprove}
           disabled={disabled}
-          className="btn btn-primary"
+          className="btn btn-primary mr-1"
         >
           {busy ? "Verificando…" : "Verificar escuela"}
         </button>
         <Link
           href={`/school/${school.id}`}
           target="_blank"
-          className="inline-block py-1 underline"
+          className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground"
         >
           Ver página pública
         </Link>

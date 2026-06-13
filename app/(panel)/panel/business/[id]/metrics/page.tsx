@@ -134,7 +134,7 @@ export default function BusinessMetricsPage() {
 
   if (denied || !business || !isManager) {
     return (
-      <p className="text-sm text-red-600">
+      <p className="text-sm text-error">
         No administrás este comercio o no se pudieron cargar sus métricas.
       </p>
     );
@@ -151,19 +151,23 @@ export default function BusinessMetricsPage() {
 
   return (
     <main className="max-w-xl">
-      <h1 className="text-2xl font-bold">Métricas</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Métricas
+      </h1>
       <p className="mt-1 text-sm text-muted">{business.name}</p>
 
       {!process.env.NEXT_PUBLIC_TRACK_INTERACTION_URL && (
-        <p className="mt-4 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
+        <p className="mt-4 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
           El conteo de eventos no está configurado en este entorno
           (NEXT_PUBLIC_TRACK_INTERACTION_URL), así que las visitas nuevas no se están
           registrando.
         </p>
       )}
 
-      <section className="mt-6 rounded-xl border border-border p-5">
-        <h2 className="font-semibold">Clientes de escuelaplace</h2>
+      <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Clientes de escuelaplace
+        </h2>
         <p className="mt-1 text-sm text-muted">
           Tocá el botón cada vez que un cliente mencione escuelaplace en el local —
           por ejemplo, al pedir el descuento.
@@ -201,7 +205,7 @@ export default function BusinessMetricsPage() {
         </div>
 
         {walkInError && (
-          <p className="mt-2 text-sm text-red-600">{walkInError}</p>
+          <p className="mt-2 text-sm text-error">{walkInError}</p>
         )}
 
         <p className="mt-3 text-xs text-muted">
@@ -212,9 +216,9 @@ export default function BusinessMetricsPage() {
         </p>
       </section>
 
-      <section className="mt-6 rounded-xl border border-border p-5">
+      <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-semibold capitalize">
+          <h2 className="text-lg font-semibold capitalize tracking-tight text-foreground">
             {monthLabel(ranges.current.month)}
           </h2>
           <span className="text-xs text-muted">
@@ -257,7 +261,7 @@ export default function BusinessMetricsPage() {
         )}
 
         {costPerContact !== null && (
-          <p className="mt-4 rounded-md bg-brand-tint p-3 text-sm text-brand-darker">
+          <p className="mt-4 rounded-xl bg-brand-tint p-3 text-sm text-brand-darker ring-1 ring-brand-dark/10">
             Tu apoyo activo a escuelas es {formatColones(activeSupport)} →{" "}
             <span className="font-semibold">
               ≈ {formatColones(Math.round(costPerContact))} por contacto

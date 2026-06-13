@@ -27,9 +27,9 @@ export function PhoneField({
   const showError = touched && raw !== "" && display === null;
 
   return (
-    <div className="flex flex-col gap-1 text-sm">
-      <label className="flex flex-col gap-1">
-        <span className="font-medium">{label}</span>
+    <div className="flex flex-col gap-1.5 text-sm">
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-foreground">{label}</span>
         <input
           type="tel"
           inputMode="tel"
@@ -43,7 +43,7 @@ export function PhoneField({
         />
       </label>
       {showError ? (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs font-medium text-error">
           No parece un número marcable. Usá 8888-8888, o con código de país si
           no es de Costa Rica.
         </p>
