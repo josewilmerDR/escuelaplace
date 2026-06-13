@@ -7,12 +7,14 @@ import { PhotoGallery } from "@/components/business/PhotoGallery";
 import { SectionTabs } from "@/components/business/SectionTabs";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { ProjectCard } from "@/components/projects/ProjectCard";
 import { SchoolManageBar } from "@/components/school/SchoolManageBar";
 import { buildDirectionsUrl } from "@/lib/contact";
 import {
   averageConfirmationTimeMs,
   countRecentUniqueSupporters,
   getBusinessesBySchool,
+  getProjectsBySchool,
   getSchoolById,
   getSchoolDonorWall,
   getSubscriptionsBySchool,
@@ -72,12 +74,19 @@ export default async function SchoolPage({ params }: Props) {
   const school = await getSchoolById(id);
   if (!school) notFound();
 
-  const [businesses, wall, subscriptions] = await Promise.all([
+  const [businesses, wall, subscriptions, allProjects] = await Promise.all([
     getBusinessesBySchool(id),
     getSchoolDonorWall(id),
     getSubscriptionsBySchool(id),
+    getProjectsBySchool(id),
   ]);
   const cards = businesses.map(toBusinessCardData);
+  // Cancelled projects are dropped from the public profile; active ones lead and
+  // completed ones stay as a track record.
+  const projects = allProjects
+    .filter((p) => p.status !== "cancelled")
+    .sort((a, b) => Number(a.status === "completed") - Number(b.status === "completed"));
+  const hasProjects = projects.length > 0;
   const recentSupporters = countRecentUniqueSupporters(subscriptions);
   // Responsiveness signal: average registration→confirmation time of the last 10
   // confirmed donations. null (no chip) until the first confirmation.
@@ -265,6 +274,12 @@ export default async function SchoolPage({ params }: Props) {
                   <HeartIcon className="mr-2 h-5 w-5" />
                   Donar a esta escuela
                 </Link>
+                {hasProjects && (
+                  <a href="#proyectos" className="btn btn-outline justify-center">
+                    <FlagIcon className="mr-2 h-5 w-5" />
+                    Ver proyectos
+                  </a>
+                )}
                 {directionsUrl && (
                   <a
                     href={directionsUrl}
@@ -293,6 +308,9 @@ export default async function SchoolPage({ params }: Props) {
               <SectionTabs
                 sections={[
                   { id: "informacion", label: "Información" },
+                  ...(hasProjects
+                    ? [{ id: "proyectos", label: "Proyectos" }]
+                    : []),
                   ...(gallery.length > 0
                     ? [{ id: "fotos", label: "Fotos" }]
                     : []),
@@ -369,6 +387,27 @@ export default async function SchoolPage({ params }: Props) {
             </ul>
           </section>
 
+          {hasProjects && (
+            <section
+              id="proyectos"
+              className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
+            >
+              <h2 className="text-xl font-semibold">
+                Proyectos ({projects.length})
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Metas concretas de la escuela. Tu aporte va directo a ella; la
+                plataforma nunca toca el dinero y la escuela confirma cada
+                colaboración.
+              </p>
+              <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {projects.map((project) => (
+                  <ProjectCard key={project.id} project={project} />
+                ))}
+              </div>
+            </section>
+          )}
+
           {gallery.length > 0 && (
             <section
               id="fotos"
@@ -444,6 +483,13 @@ function DonorWall({
                 {donor.displayName}
               </span>
               {donor.tier && <DonorTierBadge tier={donor.tier} />}
+              {(donor.projectsSupported ?? 0) > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-medium text-brand-darker">
+                  {donor.projectsSupported === 1
+                    ? "Participó en 1 proyecto"
+                    : `Participó en ${donor.projectsSupported} proyectos`}
+                </span>
+              )}
               {donor.firstConfirmedAt && (
                 <span className="text-xs text-muted">
                   Desde {donor.firstConfirmedAt.toDate().getFullYear()}
@@ -520,6 +566,25 @@ function ClockIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
+function FlagIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"
       />
     </svg>
   );

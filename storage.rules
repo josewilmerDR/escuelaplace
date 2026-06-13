@@ -68,5 +68,35 @@ service firebase.storage {
       allow write: if ownsBusiness() || isDonor() || isAdmin();
       allow read: if ownsBusiness() || isDonor() || ownsSchool() || isAdmin();
     }
+
+    // Project contribution proofs (sensitive): project-contribution-proofs/{contributionId}/...
+    // NOT public. Ownership is resolved via Firestore: the proof belongs to a contribution,
+    // which references its contributor (donorId) and target school.
+    // - write: the contributor or admin.
+    // - read: the contributor, the target school's owner/editors (to verify), or admin.
+    match /project-contribution-proofs/{contributionId}/{allPaths=**} {
+      function contribution() {
+        return firestore.get(
+          /databases/(default)/documents/projectContributions/$(contributionId)
+        ).data;
+      }
+      function school() {
+        return firestore.get(
+          /databases/(default)/documents/schools/$(contribution().schoolId)
+        ).data;
+      }
+      function isContributor() {
+        return isSignedIn() && contribution().donorId == request.auth.uid;
+      }
+      function ownsSchool() {
+        return isSignedIn() && (
+          school().ownerId == request.auth.uid ||
+          request.auth.uid in school().get('editorIds', [])
+        );
+      }
+
+      allow write: if isContributor() || isAdmin();
+      allow read: if isContributor() || ownsSchool() || isAdmin();
+    }
   }
 }

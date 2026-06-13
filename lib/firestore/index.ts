@@ -6,6 +6,7 @@ export * from "./businesses";
 export * from "./schools";
 export * from "./categories";
 export * from "./subscriptions";
+export * from "./projects";
 export * from "./donors";
 export * from "./reviews";
 export * from "./metrics";

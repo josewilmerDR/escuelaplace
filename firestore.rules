@@ -134,6 +134,32 @@ service cloud.firestore {
         allow read: if isAdmin() || isOwnerOrEditor(schoolData(id)) ||
           (isSignedIn() && schoolData(id).verificationStatus == 'verified');
       }
+
+      // Projects (crowdfunding): schools/{id}/projects/{projectId}.
+      // - read: public (the project section + detail page are SSR).
+      // - create/update/delete: the school's owner/editors or admin.
+      // `raised`/`contributorsCount` are derived from confirmed contributions by a Cloud
+      // Function (Admin SDK bypasses these rules); a non-admin write must leave them at
+      // zero (create) or unchanged (update) so the public progress bar can't be faked.
+      match /projects/{projectId} {
+        allow read: if true;
+        allow create: if isAdmin() || (
+          isOwnerOrEditor(schoolData(id)) &&
+          request.resource.data.raised == 0 &&
+          request.resource.data.contributorsCount == 0
+        );
+        allow update: if isAdmin() || (
+          isOwnerOrEditor(schoolData(id)) && preservesProjectCounters()
+        );
+        allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
+      }
+    }
+
+    // True if a project update leaves the function-maintained counters untouched.
+    function preservesProjectCounters() {
+      return request.resource.data.get('raised', 0) == resource.data.get('raised', 0) &&
+        request.resource.data.get('contributorsCount', 0) ==
+          resource.data.get('contributorsCount', 0);
     }
 
     // True if this update would elevate the school's verification state. Owners must
@@ -236,6 +262,57 @@ service cloud.firestore {
           .hasAny(['units', 'amount']);
     }
 
+    // ── projectContributions/{id} ─────────────────────────────────────────────
+    // One-off contribution to a school project. Like subscriptions, the doc holds NO
+    // sensitive payment data — the proof file lives in Storage
+    // (project-contribution-proofs/{id}, gated by storage.rules); only `proofUploaded`
+    // is public.
+    // - read: public (confirmed contributions feed the public progress bar and counts).
+    // - create: the contributor themselves, forced to 'pending', and ONLY while the
+    //   target school is 'verified' — the same gate the SINPE data uses, so an unverified
+    //   school can list projects but its "Financiar" button stays off.
+    // - update: the contributor may edit their own pending doc (e.g. the proof flag) but
+    //   may NEVER self-confirm or rewrite who/what; only the TARGET school's owner/editors
+    //   or admin may confirm. The structural identity is frozen at create time.
+    // - delete: the contributor or admin.
+    match /projectContributions/{id} {
+      allow read: if true;
+
+      allow create: if isAdmin() || (
+        isSignedIn() &&
+        request.resource.data.donorId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.confirmedAt == null &&
+        schoolData(request.resource.data.schoolId).verificationStatus == 'verified'
+      );
+
+      allow update: if isAdmin() || (
+        keepsContributionIdentity() && (
+          isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
+          (isSignedIn() &&
+            resource.data.donorId == request.auth.uid &&
+            !changesContributionConfirmation())
+        )
+      );
+
+      allow delete: if isAdmin() ||
+        (isSignedIn() && resource.data.donorId == request.auth.uid);
+    }
+
+    // No update may rewrite who contributed what to which project (frozen at create).
+    function keepsContributionIdentity() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['schoolId', 'projectId', 'donorId', 'type', 'amount', 'currency']
+      );
+    }
+
+    // True if an update would alter the confirmation state — the contributor must not be
+    // able to self-confirm; only the school/admin may touch these fields.
+    function changesContributionConfirmation() {
+      return request.resource.data.status != resource.data.status ||
+        request.resource.data.confirmedAt != resource.data.confirmedAt;
+    }
+
     // ── donorProfiles/{uid} ───────────────────────────────────────────────────
     // Public recognition surface for personal donors (doc id = uid). The donor owns the
     // recognition preferences (displayName, isPublic); totals and tier are derived from
@@ -254,13 +331,15 @@ service cloud.firestore {
         request.resource.data.totalUnits == 0 &&
         request.resource.data.tier == null &&
         request.resource.data.schoolsSupported == 0 &&
+        request.resource.data.get('projectsSupported', 0) == 0 &&
         request.resource.data.firstConfirmedAt == null &&
         request.resource.data.lastConfirmedAt == null;
 
       allow update: if isAdmin() || (
         isSignedIn() && request.auth.uid == uid &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-          ['totalUnits', 'tier', 'schoolsSupported', 'firstConfirmedAt', 'lastConfirmedAt']
+          ['totalUnits', 'tier', 'schoolsSupported', 'projectsSupported',
+           'firstConfirmedAt', 'lastConfirmedAt']
         )
       );
 

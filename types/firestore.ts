@@ -488,6 +488,12 @@ export interface DonorProfile {
   tier: DonorTier | null;
   /** Distinct schools with at least one confirmed donation (function-maintained). */
   schoolsSupported: number;
+  /**
+   * Distinct school projects this donor has contributed to with at least one CONFIRMED
+   * contribution, across all schools (function-maintained). Backs the "participó en N
+   * proyectos" badge. Absent on profiles predating the projects feature → treat as 0.
+   */
+  projectsSupported?: number;
   /** First confirmation ever — the donor's seniority ("donante desde…"). */
   firstConfirmedAt: Timestamp | null;
   /** Most recent confirmation (function-maintained). */
@@ -497,6 +503,172 @@ export interface DonorProfile {
 }
 
 export type DonorProfileDoc = DonorProfile & { id: string };
+
+// ── schools/{schoolId}/projects/{projectId} ─────────────────────────────────
+
+/** UI caps for the project crowdfunding form. Enforced by the panel inputs, not rules. */
+export const PROJECT_TITLE_MAX = 120;
+export const PROJECT_DESCRIPTION_MAX = 600;
+/** Stages per project, and media per stage. */
+export const PROJECT_STAGE_MAX = 12;
+export const PROJECT_STAGE_TITLE_MAX = 120;
+export const PROJECT_STAGE_JUSTIFICATION_MAX = 500;
+export const PROJECT_STAGE_PHOTO_MAX = 4;
+export const PROJECT_STAGE_QUOTE_MAX = 3;
+
+/**
+ * Currencies a project goal can be denominated in. The platform is country-agnostic, so
+ * the cost of a project is NOT assumed to be colones — the school picks the currency and
+ * every amount (stage costs, raised, contributions) is read in it. The platform never
+ * processes the money; this only labels the figures the school itself publishes.
+ */
+export type ProjectCurrency = "CRC" | "USD" | "NIO" | "MXN" | "EUR";
+export const PROJECT_CURRENCIES: ProjectCurrency[] = [
+  "CRC",
+  "USD",
+  "NIO",
+  "MXN",
+  "EUR",
+];
+
+/**
+ * Project lifecycle. Unlike support subscriptions there is NO time decay — a project runs
+ * until the school closes it:
+ * - `active`: open for contributions.
+ * - `completed`: the school closed it (goal funded AND delivered, or an in-kind donation
+ *   fulfilled it). Reaching the money goal alone does NOT auto-complete it — buying the
+ *   tank still has to happen — so completion is always a manual board action.
+ * - `cancelled`: the school abandoned it.
+ * "Goal reached" (raised ≥ goal) is derived in the UI from the figures, not a stored status.
+ */
+export type ProjectStatus = "active" | "completed" | "cancelled";
+
+/**
+ * One funded step of a project, embedded in the project doc. Each stage justifies its own
+ * cost and may attach photos (e.g. the terrain today + a projection of the result) and
+ * quotes (cotizaciones) for transparency — the same evidence the verification mechanic
+ * already rewards. The project goal is the SUM of the stage costs (computed, never stored).
+ */
+export interface ProjectStage {
+  title: string;
+  /** Why this stage exists and why it costs what it costs. */
+  justification: string;
+  /** Cost in the project's `currency`. */
+  cost: number;
+  /** Public Storage URLs (schools/{id}/projects/{pid}/...). */
+  photos?: string[];
+  /** Public Storage URLs of quotes/receipts (images or PDFs). */
+  quoteUrls?: string[];
+}
+
+/**
+ * A concrete fundraising project a school lists (e.g. "Comprar tanque de agua potable").
+ * Lives in the subcollection `schools/{schoolId}/projects/{projectId}` (public read).
+ *
+ * Like the payment methods, contributing is gated by verification: anyone managing the
+ * school may DRAFT projects, but the public "Financiar" button only appears once the
+ * school is `verified` (see the contribution create rule) — the same gate that protects
+ * the SINPE data, so no human content moderation is needed.
+ *
+ * `raised` and `contributorsCount` are derived from CONFIRMED contributions and maintained
+ * by a Cloud Function (Admin SDK) — clients can never write them (see firestore.rules), so
+ * the progress bar can't be faked.
+ */
+export interface Project {
+  /** Denormalized parent id (the doc already lives under the school, kept for the
+   * contribution flow and queries that start from a project). */
+  schoolId: string;
+  /** Denormalized so the contribution UI renders without an extra read. */
+  schoolName: string;
+  title: string;
+  description: string;
+  currency: ProjectCurrency;
+  status: ProjectStatus;
+  /** Ordered stages; the goal is the sum of their costs. */
+  stages: ProjectStage[];
+  /** Header image of the project card/detail. */
+  coverUrl?: string;
+  /** Sum of CONFIRMED money contributions, in `currency` (function-maintained). */
+  raised: number;
+  /** Distinct donors with at least one confirmed contribution (function-maintained). */
+  contributorsCount: number;
+  /** Denormalized from the school so rules/UI can resolve the board without an extra read. */
+  ownerId: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type ProjectDoc = Project & { id: string };
+
+// ── projectContributions/{id} ────────────────────────────────────────────────
+
+/**
+ * How someone contributes to a project. Both carry a monetary `amount` (in the project's
+ * currency) that advances the progress bar once confirmed — by design there is ONE flow,
+ * not two:
+ * - `money`: a cash contribution. `amount` is what was paid.
+ * - `in_kind`: a donation in goods or labour (e.g. "I'll donate the tank", "I'll do the
+ *   site prep"). `amount` is its ASSESSED VALUE — the cost of the stage it covers, or a
+ *   fraction of it (the school defines the stage cost; donating that stage credits that
+ *   value). So donating the ₡100.000 "trabajos previos" advances `raised` by ₡100.000,
+ *   exactly as if ₡100.000 had been paid. Accepting one can fulfil the project — but the
+ *   board still closes it manually (reaching the goal isn't the same as it being done).
+ * The per-person amount is never shown publicly (like subscriptions); only the aggregate
+ * `raised` and a contributor COUNT are.
+ */
+export type ProjectContributionType = "money" | "in_kind";
+
+/**
+ * Project contributions are one-off (not recurring, no expiry), so unlike subscriptions
+ * their lifecycle is just pending → confirmed.
+ */
+export type ProjectContributionStatus = "pending" | "confirmed";
+
+/**
+ * A one-off contribution to a school project (top-level collection, public read). Mirrors
+ * the subscription flow: the donor creates it as `pending` and the SCHOOL confirms the
+ * proof; the platform never touches the money. A Cloud Function then recomputes the
+ * project's `raised`/`contributorsCount` from confirmed contributions.
+ */
+export interface ProjectContribution {
+  schoolId: string;
+  /** Denormalized for the school's confirmation queue. */
+  schoolName: string;
+  projectId: string;
+  /** Denormalized so queues/history render without reading the project. */
+  projectTitle: string;
+  type: ProjectContributionType;
+  /** Contributing user (uid). Contributing requires sign-in. */
+  donorId: string;
+  /** Denormalized account name so the board can match the proof. Not public. */
+  donorName: string;
+  /** Money: amount paid. In-kind: assessed value of the goods/labour. Both in `currency`
+   * and both feed the progress bar once confirmed. */
+  amount: number;
+  /** Copied from the project so history reads standalone. */
+  currency: ProjectCurrency;
+  /** What is being donated, for in-kind contributions. */
+  description?: string;
+  /** Stage this contribution is meant to cover (index into the project's `stages`), when
+   * the contributor tied it to one — mostly used by in-kind ("dono los trabajos previos").
+   * Cosmetic: it helps the board assess and the UI label the aport; the progress math only
+   * uses `amount`. */
+  stageIndex?: number;
+  /** Snapshot of the stage title at contribution time (stages can be edited later), so the
+   * confirmation queue renders without reading the project. */
+  stageTitle?: string;
+  status: ProjectContributionStatus;
+  confirmedAt: Timestamp | null;
+  /** uid of the school owner/editor or admin who confirmed. */
+  confirmedBy?: string;
+  /** Whether a payment proof file was uploaded (file itself is private Storage, like
+   * subscriptions — see project-contribution-proofs in storage.rules). */
+  proofUploaded?: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type ProjectContributionDoc = ProjectContribution & { id: string };
 
 // ── businesses/{id}/reviews/{userId} ─────────────────────────────────────────
 
