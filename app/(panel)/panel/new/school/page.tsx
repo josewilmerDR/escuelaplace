@@ -12,6 +12,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { FormSection } from "@/components/ui/FormSection";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
@@ -128,74 +129,79 @@ export default function NewSchoolPage() {
         onInputCapture={clearValidationMessage}
         className="mt-6 flex flex-col gap-4"
       >
-        <Field label="Nombre de la escuela">
-          <input required autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} className="input" />
-        </Field>
+        <FormSection legend="Información básica">
+          <Field label="Nombre de la escuela">
+            <input required autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} className="input" />
+          </Field>
 
-        <Field label="Descripción (opcional)">
-          <textarea
-            maxLength={PAGE_DESCRIPTION_MAX}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="input min-h-24"
-          />
-          <span className="text-xs text-muted">
-            {description.length}/{PAGE_DESCRIPTION_MAX}
-          </span>
-        </Field>
-
-        <div
-          role="group"
-          aria-labelledby={locationLabelId}
-          className="flex flex-col gap-1 text-sm"
-        >
-          <span id={locationLabelId} className="font-medium">
-            Ubicación en el mapa
-          </span>
-          <LocationPicker
-            value={coords}
-            onChange={onPickLocation}
-            onAddress={onAddressSuggestion}
-          />
-        </div>
-
-        {/* Country-agnostic levels: free text (no closed list — this must work for any
-            country), autofilled by the pin's reverse geocode. All optional: the pin
-            is the source of truth, and not every country fills every level. */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Provincia / Estado (opcional)">
-            <input
-              autoComplete="address-level1"
-              value={admin1}
-              onChange={(e) => setAdmin1(e.target.value)}
-              className="input"
+          <Field label="Descripción (opcional)">
+            <textarea
+              maxLength={PAGE_DESCRIPTION_MAX}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="input min-h-24"
             />
+            <span className="text-xs text-muted">
+              {description.length}/{PAGE_DESCRIPTION_MAX}
+            </span>
           </Field>
-          <Field label="Cantón / Municipio (opcional)">
-            <input autoComplete="address-level2" value={admin2} onChange={(e) => setAdmin2(e.target.value)} className="input" />
-          </Field>
-          <Field label="Distrito / Comunidad (opcional)">
-            <input autoComplete="address-level3" value={admin3} onChange={(e) => setAdmin3(e.target.value)} className="input" />
-          </Field>
-        </div>
-        <p className="-mt-2 text-xs text-muted">
-          Se completan solos al marcar el punto en el mapa — revisalos,
-          corregilos o dejalos en blanco si no aplican.
-        </p>
+        </FormSection>
+
+        <FormSection
+          legend="Ubicación"
+          description="Se completan solos al marcar el punto en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
+        >
+          <div
+            role="group"
+            aria-labelledby={locationLabelId}
+            className="flex flex-col gap-1 text-sm"
+          >
+            <span id={locationLabelId} className="font-medium">
+              Ubicación en el mapa
+            </span>
+            <LocationPicker
+              value={coords}
+              onChange={onPickLocation}
+              onAddress={onAddressSuggestion}
+            />
+          </div>
+
+          {/* Country-agnostic levels: free text (no closed list — this must work for any
+              country), autofilled by the pin's reverse geocode. All optional: the pin
+              is the source of truth, and not every country fills every level. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label="Provincia / Estado (opcional)">
+              <input
+                autoComplete="address-level1"
+                value={admin1}
+                onChange={(e) => setAdmin1(e.target.value)}
+                className="input"
+              />
+            </Field>
+            <Field label="Cantón / Municipio (opcional)">
+              <input autoComplete="address-level2" value={admin2} onChange={(e) => setAdmin2(e.target.value)} className="input" />
+            </Field>
+            <Field label="Distrito / Comunidad (opcional)">
+              <input autoComplete="address-level3" value={admin3} onChange={(e) => setAdmin3(e.target.value)} className="input" />
+            </Field>
+          </div>
+        </FormSection>
 
         {/* "Comité escolar": neutral term for whoever administers the school's funds
             (junta de educación, asociación de padres, consejo escolar…). */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Contacto del comité escolar — nombre">
-            <input required value={boardName} onChange={(e) => setBoardName(e.target.value)} className="input" />
-          </Field>
-          <Field label="Teléfono (opcional)">
-            <input value={boardPhone} onChange={(e) => setBoardPhone(e.target.value)} className="input" />
-          </Field>
-        </div>
-        <p className="-mt-2 text-xs text-muted">
-          La junta, asociación o consejo que administra los fondos de la escuela.
-        </p>
+        <FormSection
+          legend="Contacto del comité escolar"
+          description="La junta, asociación o consejo que administra los fondos de la escuela."
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Nombre">
+              <input required value={boardName} onChange={(e) => setBoardName(e.target.value)} className="input" />
+            </Field>
+            <Field label="Teléfono (opcional)">
+              <input value={boardPhone} onChange={(e) => setBoardPhone(e.target.value)} className="input" />
+            </Field>
+          </div>
+        </FormSection>
 
         <fieldset className="rounded-md border p-3">
           <legend className="px-1 text-sm font-medium">

@@ -17,6 +17,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { VerifiedIcon } from "@/components/ui/icons";
 import {
   getSchoolPrivate,
   getSchoolsAwaitingVerification,
@@ -114,9 +116,11 @@ export default function AdminVerificationPage() {
       {items === null ? (
         <p className="mt-6 text-sm text-muted">Cargando cola de verificación…</p>
       ) : items.length === 0 ? (
-        <p className="mt-6 text-sm text-muted">
-          No hay escuelas pendientes de verificación. 🎉
-        </p>
+        <EmptyState
+          icon={<VerifiedIcon className="h-7 w-7" />}
+          title="No hay escuelas pendientes"
+          description="Ya revisaste toda la cola: cuando una escuela nueva pida verificación, aparecerá acá."
+        />
       ) : (
         <ul className="mt-6 flex flex-col gap-4">
           {items.map(({ school, paymentMethods }) => (

@@ -18,6 +18,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { BusinessStatusBadge } from "@/components/business/BusinessStatusBadge";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PagesIcon } from "@/components/ui/icons";
 import {
   getCachedPagesByUser,
   getPagesByUser,
@@ -141,10 +143,12 @@ function PanelHomeInner() {
     return (
       <main>
         <h1 className="text-2xl font-bold">Mis páginas</h1>
-        <p className="mt-2 text-muted">Todavía no administrás ninguna página.</p>
-        <Link href="/panel/new" className="btn btn-primary mt-4">
-          Crear mi primera página
-        </Link>
+        <EmptyState
+          icon={<PagesIcon className="h-7 w-7" />}
+          title="Todavía no administrás ninguna página"
+          description="Creá la página de tu comercio o de tu escuela para empezar a aparecer en el directorio de tu comunidad."
+          cta={{ label: "Crear página", href: "/panel/new" }}
+        />
         <DonateCallout />
       </main>
     );

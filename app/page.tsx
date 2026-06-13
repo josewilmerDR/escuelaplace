@@ -3,6 +3,8 @@ import Link from "next/link";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SearchBar } from "@/components/search/SearchBar";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { TagIcon, WarningIcon } from "@/components/ui/icons";
 import {
   getCategories,
   getTopBusinesses,
@@ -128,21 +130,18 @@ export default async function HomePage() {
         <CommunityPicker />
 
         {loadFailed ? (
-          <p className="text-muted">
-            No pudimos cargar el catálogo. Recargá la página para intentarlo de
-            nuevo.
-          </p>
+          <EmptyState
+            icon={<WarningIcon className="h-7 w-7" />}
+            title="No pudimos cargar el catálogo"
+            description="Recargá la página para intentarlo de nuevo."
+          />
         ) : cards.length === 0 ? (
-          <p className="text-muted">
-            Todavía no hay comercios publicados.{" "}
-            <Link
-              href="/create"
-              className="font-medium text-brand-darker hover:underline"
-            >
-              Creá la página del tuyo
-            </Link>
-            .
-          </p>
+          <EmptyState
+            icon={<TagIcon className="h-7 w-7" />}
+            title="Todavía no hay comercios publicados"
+            description="Sé el primero en sumarte: creá la página de tu comercio y aparecé en el directorio de tu comunidad."
+            cta={{ label: "Creá la página del tuyo", href: "/create" }}
+          />
         ) : (
           <RankedFeed initial={cards} />
         )}

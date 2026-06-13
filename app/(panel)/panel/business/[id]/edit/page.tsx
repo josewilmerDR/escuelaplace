@@ -16,6 +16,7 @@ import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { FormSection } from "@/components/ui/FormSection";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { buildCatalogUrl, normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
@@ -390,130 +391,137 @@ export default function BusinessEditPage() {
         onInputCapture={clearValidationMessage}
         className="mt-6 flex flex-col gap-4"
       >
-        <Field label="Nombre del comercio">
-          <input
-            required
-            autoComplete="organization"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="input"
-          />
-        </Field>
+        <FormSection legend="Información básica">
+          <Field label="Nombre del comercio">
+            <input
+              required
+              autoComplete="organization"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="input"
+            />
+          </Field>
 
-        <Field label="Descripción">
-          <textarea
-            required
-            maxLength={PAGE_DESCRIPTION_MAX}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="input min-h-24"
-          />
-          <span className="text-xs text-muted">
-            {description.length}/{PAGE_DESCRIPTION_MAX}
-          </span>
-        </Field>
+          <Field label="Descripción">
+            <textarea
+              required
+              maxLength={PAGE_DESCRIPTION_MAX}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="input min-h-24"
+            />
+            <span className="text-xs text-muted">
+              {description.length}/{PAGE_DESCRIPTION_MAX}
+            </span>
+          </Field>
 
-        <Field label="Escuela que apoyás (opcional)">
-          <Combobox
-            options={schoolOptions}
-            value={schoolId}
-            onChange={setSchoolId}
-            placeholder="Buscá tu escuela por nombre o lugar…"
-          />
-        </Field>
-        <p className="-mt-2 text-xs text-muted">
-          Borrá el texto para quitar la escuela vinculada.
-        </p>
-
-        <fieldset>
-          <legend className="text-sm font-medium">
-            Categorías (elegí al menos una)
-          </legend>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {categories.map((c) => (
-              <label
-                key={c.id}
-                className={`inline-flex min-h-10 cursor-pointer items-center rounded-full border px-4 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
-                  selectedCategories.includes(c.id)
-                    ? "bg-brand-darker text-white"
-                    : ""
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={selectedCategories.includes(c.id)}
-                  onChange={() => toggleCategory(c.id)}
-                />
-                {c.name}
-              </label>
-            ))}
+          <div>
+            <Field label="Escuela que apoyás (opcional)">
+              <Combobox
+                options={schoolOptions}
+                value={schoolId}
+                onChange={setSchoolId}
+                placeholder="Buscá tu escuela por nombre o lugar…"
+              />
+            </Field>
+            <p className="mt-1 text-xs text-muted">
+              Borrá el texto para quitar la escuela vinculada.
+            </p>
           </div>
-        </fieldset>
 
-        <div
-          role="group"
-          aria-labelledby={locationLabelId}
-          className="flex flex-col gap-1 text-sm"
+          <fieldset>
+            <legend className="text-sm font-medium">
+              Categorías (elegí al menos una)
+            </legend>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {categories.map((c) => (
+                <label
+                  key={c.id}
+                  className={`inline-flex min-h-10 cursor-pointer items-center rounded-full border px-4 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
+                    selectedCategories.includes(c.id)
+                      ? "bg-brand-darker text-white"
+                      : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={selectedCategories.includes(c.id)}
+                    onChange={() => toggleCategory(c.id)}
+                  />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </FormSection>
+
+        <FormSection
+          legend="Ubicación"
+          description="Se completan solos al mover el pin en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
         >
-          <span id={locationLabelId} className="font-medium">
-            Ubicación en el mapa
-          </span>
-          <LocationPicker
-            value={coords}
-            onChange={onPickLocation}
-            // Suggestions only after an actual pin move; on mount the stored
-            // fields stand (the doc prefills coords, and the mount-time reverse
-            // geocode must not overwrite them unprompted).
-            onAddress={pinMoved ? onAddressSuggestion : undefined}
-          />
-        </div>
+          <div
+            role="group"
+            aria-labelledby={locationLabelId}
+            className="flex flex-col gap-1 text-sm"
+          >
+            <span id={locationLabelId} className="font-medium">
+              Ubicación en el mapa
+            </span>
+            <LocationPicker
+              value={coords}
+              onChange={onPickLocation}
+              // Suggestions only after an actual pin move; on mount the stored
+              // fields stand (the doc prefills coords, and the mount-time reverse
+              // geocode must not overwrite them unprompted).
+              onAddress={pinMoved ? onAddressSuggestion : undefined}
+            />
+          </div>
 
-        {/* Country-agnostic levels: free text (no closed list — this must work for any
-            country), autofilled by the pin's reverse geocode. All optional: the pin
-            is the source of truth, and not every country fills every level. */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Provincia / Estado (opcional)">
+          {/* Country-agnostic levels: free text (no closed list — this must work for any
+              country), autofilled by the pin's reverse geocode. All optional: the pin
+              is the source of truth, and not every country fills every level. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label="Provincia / Estado (opcional)">
+              <input
+                autoComplete="address-level1"
+                value={admin1}
+                onChange={(e) => setAdmin1(e.target.value)}
+                className="input"
+              />
+            </Field>
+            <Field label="Cantón / Municipio (opcional)">
+              <input
+                autoComplete="address-level2"
+                value={admin2}
+                onChange={(e) => setAdmin2(e.target.value)}
+                className="input"
+              />
+            </Field>
+            <Field label="Distrito / Comunidad (opcional)">
+              <input
+                autoComplete="address-level3"
+                value={admin3}
+                onChange={(e) => setAdmin3(e.target.value)}
+                className="input"
+              />
+            </Field>
+          </div>
+          <Field label="Dirección (opcional)">
             <input
-              autoComplete="address-level1"
-              value={admin1}
-              onChange={(e) => setAdmin1(e.target.value)}
+              autoComplete="street-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
               className="input"
             />
           </Field>
-          <Field label="Cantón / Municipio (opcional)">
-            <input
-              autoComplete="address-level2"
-              value={admin2}
-              onChange={(e) => setAdmin2(e.target.value)}
-              className="input"
-            />
-          </Field>
-          <Field label="Distrito / Comunidad (opcional)">
-            <input
-              autoComplete="address-level3"
-              value={admin3}
-              onChange={(e) => setAdmin3(e.target.value)}
-              className="input"
-            />
-          </Field>
-        </div>
-        <Field label="Dirección (opcional)">
-          <input
-            autoComplete="street-address"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            className="input"
-          />
-        </Field>
-        <p className="-mt-2 text-xs text-muted">
-          Se completan solos al mover el pin en el mapa — revisalos, corregilos
-          o dejalos en blanco si no aplican.
-        </p>
+        </FormSection>
 
-        <fieldset>
-          <legend className="text-sm font-medium">Contacto (todo opcional)</legend>
-          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FormSection
+          legend="Contacto"
+          description="Todos los canales son opcionales."
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <PhoneField label="WhatsApp" value={whatsapp} onChange={setWhatsapp} />
             <Field label="Catálogo de WhatsApp Business">
               <input
@@ -558,44 +566,46 @@ export default function BusinessEditPage() {
               />
             </Field>
           </div>
-        </fieldset>
+        </FormSection>
 
-        <Field label="Horario (opcional)">
-          <input
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-            placeholder="L–V 8:00–18:00, S 8:00–12:00"
-            className="input"
-          />
-        </Field>
-
-        <fieldset className="rounded-md border p-3">
-          <legend className="px-1 text-sm font-medium">
-            Descuento para la comunidad
-          </legend>
-          <label className="flex items-center gap-2 text-sm">
+        <FormSection legend="Presentación">
+          <Field label="Horario (opcional)">
             <input
-              type="checkbox"
-              checked={discountActive}
-              onChange={(e) => setDiscountActive(e.target.checked)}
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+              placeholder="L–V 8:00–18:00, S 8:00–12:00"
+              className="input"
             />
-            <span>Ofrezco un descuento</span>
-          </label>
-          {discountActive && (
-            <div className="mt-3">
-              <Field label="Descripción del descuento">
-                <input
-                  required
-                  value={discountText}
-                  onChange={(e) => setDiscountText(e.target.value)}
-                  maxLength={120}
-                  placeholder="10% en útiles escolares mencionando escuelaplace"
-                  className="input"
-                />
-              </Field>
-            </div>
-          )}
-        </fieldset>
+          </Field>
+
+          <fieldset className="rounded-md border p-3">
+            <legend className="px-1 text-sm font-medium">
+              Descuento para la comunidad
+            </legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={discountActive}
+                onChange={(e) => setDiscountActive(e.target.checked)}
+              />
+              <span>Ofrezco un descuento</span>
+            </label>
+            {discountActive && (
+              <div className="mt-3">
+                <Field label="Descripción del descuento">
+                  <input
+                    required
+                    value={discountText}
+                    onChange={(e) => setDiscountText(e.target.value)}
+                    maxLength={120}
+                    placeholder="10% en útiles escolares mencionando escuelaplace"
+                    className="input"
+                  />
+                </Field>
+              </div>
+            )}
+          </fieldset>
+        </FormSection>
 
         <div className="flex flex-col gap-2">
           {/* Read-only mini header (cover + overlapping avatar) so the owner can
