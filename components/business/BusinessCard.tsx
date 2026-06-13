@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import type { BusinessCardData } from "@/types";
 import type { SupportedSchool, SupportTier } from "@/lib/firestore";
 
@@ -18,20 +19,20 @@ import type { SupportedSchool, SupportTier } from "@/lib/firestore";
  * Exported so the profile badge (<SupportBadge>) uses the same copy/styles — card and
  * profile must never tell a different support story.
  */
-export const TIER_BADGE: Record<SupportTier, { label: string; className: string }> = {
+export const TIER_BADGE: Record<SupportTier, { label: string; tone: BadgeTone }> = {
   community: {
     label: "Apoya a tu comunidad",
-    className: "bg-brand-darker text-white",
+    tone: "brand",
   },
   general: {
     label: "Apoya a una escuela",
-    className: "bg-brand-tint text-brand-darker",
+    tone: "info",
   },
   none: {
     // Descriptive, NOT imperative: "invitalo" reads as a button, but there is no invite
     // flow behind it — don't afford an action that doesn't exist.
     label: "Aún no apoya a ninguna escuela",
-    className: "border border-border text-muted",
+    tone: "outline",
   },
 };
 
@@ -177,11 +178,7 @@ export function BusinessCard({
             // even when titles wrap to different heights; pt-3 keeps a minimum gap when
             // the card has little content.
             <span className="mt-auto block pt-3">
-              <span
-                className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${badge.className}`}
-              >
-                {badge.label}
-              </span>
+              <Badge tone={badge.tone}>{badge.label}</Badge>
             </span>
           )}
         </div>

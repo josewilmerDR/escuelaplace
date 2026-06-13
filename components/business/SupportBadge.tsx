@@ -16,6 +16,7 @@
  * warning. The nudge to subscribe lives in ManageBar, where only the owner sees it.
  */
 import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/Badge";
 import { TIER_BADGE } from "@/components/business/BusinessCard";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
 import {
@@ -56,13 +57,7 @@ export function SupportBadge({ businessId }: { businessId: string }) {
 
   return (
     <div className="mt-3 flex min-h-7 items-center">
-      {badge && (
-        <span
-          className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${badge.className}`}
-        >
-          {badge.label}
-        </span>
-      )}
+      {badge && <Badge tone={badge.tone}>{badge.label}</Badge>}
     </div>
   );
 }
