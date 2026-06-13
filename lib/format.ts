@@ -11,6 +11,23 @@ export function formatColones(amount: number): string {
   return crc.format(amount);
 }
 
+/**
+ * Format an amount in an arbitrary ISO 4217 currency (project goals are country-agnostic,
+ * so they are NOT assumed to be colones). Falls back to the code if the runtime can't
+ * format it. Costa Rica locale for grouping, consistent with formatColones.
+ */
+export function formatMoney(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("es-CR", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toLocaleString("es-CR")}`;
+  }
+}
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 

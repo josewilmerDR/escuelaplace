@@ -44,6 +44,8 @@ const SCHOOLS = "schools";
 const REVIEWS = "reviews";
 const DONOR_PROFILES = "donorProfiles";
 const USERS = "users";
+const PROJECTS = "projects";
+const PROJECT_CONTRIBUTIONS = "projectContributions";
 
 /**
  * Recompute a business's stored baseline score and cumulative donations. Uses the review
@@ -212,6 +214,122 @@ export const onSubscriptionWritten = onDocumentWritten(
       ...[...businessIds].map(recomputeBusinessRanking),
       ...[...schoolIds].map(recomputeSchool),
       ...[...donorIds].map(recomputeDonorProfile),
+    ]);
+  },
+);
+
+/**
+ * Recompute a project's public funding figures from its contributions: `raised` (sum of
+ * CONFIRMED money contributions) and `contributorsCount` (distinct donors with at least
+ * one confirmed contribution). Money figures only — the per-person amount is never
+ * published, but the aggregate `raised` is the whole point of the progress bar. Runs with
+ * Admin privileges because clients can never write these fields (see firestore.rules).
+ */
+async function recomputeProject(
+  schoolId: string,
+  projectId: string,
+): Promise<void> {
+  const ref = db
+    .collection(SCHOOLS)
+    .doc(schoolId)
+    .collection(PROJECTS)
+    .doc(projectId);
+  if (!(await ref.get()).exists) return; // project deleted — nothing to update
+
+  const snap = await db
+    .collection(PROJECT_CONTRIBUTIONS)
+    .where("projectId", "==", projectId)
+    .get();
+
+  let raised = 0;
+  const contributors = new Set<string>();
+  for (const d of snap.docs) {
+    const c = d.data();
+    if (!c.confirmedAt) continue; // pending — the school never confirmed it
+    // Both money and in-kind carry an `amount` in the project's currency (in-kind's is its
+    // assessed value), so both advance the bar — one flow, not two.
+    raised += (c.amount as number) ?? 0;
+    if (c.donorId) contributors.add(c.donorId as string);
+  }
+
+  await ref.update({
+    raised,
+    contributorsCount: contributors.size,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
+/**
+ * Recompute how many distinct projects a donor has contributed to with at least one
+ * CONFIRMED contribution (across all schools) — backs the public "participó en N proyectos"
+ * badge. Lifetime, like the donation tier: recognition never decays. Creates the profile
+ * (private by default) if the donor doesn't have one yet, mirroring recomputeDonorProfile.
+ */
+async function recomputeDonorProjects(donorId: string): Promise<void> {
+  const snap = await db
+    .collection(PROJECT_CONTRIBUTIONS)
+    .where("donorId", "==", donorId)
+    .get();
+
+  const projects = new Set<string>();
+  for (const d of snap.docs) {
+    const c = d.data();
+    if (!c.confirmedAt) continue; // pending — the school never confirmed it
+    if (c.projectId) projects.add(c.projectId as string);
+  }
+
+  const ref = db.collection(DONOR_PROFILES).doc(donorId);
+  if ((await ref.get()).exists) {
+    await ref.update({
+      projectsSupported: projects.size,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+  // The fund flow creates the profile before the first contribution; this fallback keeps
+  // the count consistent if it didn't. Defaults to private — recognition is opt-in.
+  const user = await db.collection(USERS).doc(donorId).get();
+  await ref.set({
+    displayName: (user.get("name") as string | undefined) ?? "Donante",
+    isPublic: false,
+    totalUnits: 0,
+    tier: null,
+    schoolsSupported: 0,
+    projectsSupported: projects.size,
+    firstConfirmedAt: null,
+    lastConfirmedAt: null,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
+export const onProjectContributionWritten = onDocumentWritten(
+  `${PROJECT_CONTRIBUTIONS}/{id}`,
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+
+    // Collect the affected (schoolId, projectId) pairs and donor ids from both sides
+    // (handles create/update/delete). The identity fields are frozen by the rules, but
+    // unioning is cheap and safe.
+    const targets = new Map<string, { schoolId: string; projectId: string }>();
+    const donorIds = new Set<string>();
+    for (const d of [before, after]) {
+      if (!d) continue;
+      if (d.schoolId && d.projectId) {
+        targets.set(`${d.schoolId}/${d.projectId}`, {
+          schoolId: d.schoolId as string,
+          projectId: d.projectId as string,
+        });
+      }
+      if (d.donorId) donorIds.add(d.donorId as string);
+    }
+
+    await Promise.all([
+      ...[...targets.values()].map((t) =>
+        recomputeProject(t.schoolId, t.projectId),
+      ),
+      ...[...donorIds].map(recomputeDonorProjects),
     ]);
   },
 );

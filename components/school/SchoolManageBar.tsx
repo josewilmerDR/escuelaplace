@@ -66,6 +66,12 @@ export function SchoolManageBar({
         >
           Confirmar aportes
         </Link>
+        <Link
+          href={`/panel/school/${schoolId}/projects`}
+          className="btn btn-outline"
+        >
+          Proyectos
+        </Link>
         <button
           type="button"
           onClick={() => setAsVisitor(true)}

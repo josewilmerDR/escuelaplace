@@ -205,10 +205,17 @@ function DonateContent() {
         donación.
       </p>
 
-      {profile?.tier && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg border p-3 text-sm">
-          <DonorTierBadge tier={profile.tier} />
-          {profile.firstConfirmedAt && (
+      {(profile?.tier || (profile?.projectsSupported ?? 0) > 0) && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
+          {profile?.tier && <DonorTierBadge tier={profile.tier} />}
+          {(profile?.projectsSupported ?? 0) > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-medium text-brand-darker">
+              {profile?.projectsSupported === 1
+                ? "Participaste en 1 proyecto"
+                : `Participaste en ${profile?.projectsSupported} proyectos`}
+            </span>
+          )}
+          {profile?.firstConfirmedAt && (
             <span className="text-muted">
               Donante desde {profile.firstConfirmedAt.toDate().getFullYear()}
             </span>

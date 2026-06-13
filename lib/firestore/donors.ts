@@ -15,6 +15,7 @@ import { db } from "@/lib/firebase";
 import type { DonorProfile, DonorProfileDoc, DonorTier } from "@/types";
 import { docToTyped } from "./converters";
 import { getSubscriptionsBySchool } from "./subscriptions";
+import { getContributionsBySchool } from "./projects";
 
 const DONOR_PROFILES = "donorProfiles";
 
@@ -70,19 +71,22 @@ export interface SchoolDonorWall {
 }
 
 /**
- * The thank-you wall of a school: every personal donor whose donation the school has
- * EVER confirmed (gratitude doesn't lapse with the 90-day active-support window).
- * Profiles are resolved through the rules gate — anonymous readers only see opted-in
- * ones; the rest are counted, not named. Deliberately ordered by seniority, never by
- * amount: this is gratitude, not a leaderboard.
+ * The thank-you wall of a school: every personal supporter the school has EVER confirmed —
+ * both recurring donors and one-off project contributors (gratitude doesn't lapse with the
+ * 90-day active-support window). Profiles are resolved through the rules gate — anonymous
+ * readers only see opted-in ones; the rest are counted, not named. Deliberately ordered by
+ * seniority, never by amount: this is gratitude, not a leaderboard.
  */
 export async function getSchoolDonorWall(
   schoolId: string,
 ): Promise<SchoolDonorWall> {
-  const subs = await getSubscriptionsBySchool(schoolId);
+  const [subs, contributions] = await Promise.all([
+    getSubscriptionsBySchool(schoolId),
+    getContributionsBySchool(schoolId),
+  ]);
   const donorIds = [
-    ...new Set(
-      subs
+    ...new Set([
+      ...subs
         .filter(
           (s) =>
             s.supporterType === "user" &&
@@ -90,7 +94,10 @@ export async function getSchoolDonorWall(
             s.confirmedAt != null,
         )
         .map((s) => s.donorId as string),
-    ),
+      ...contributions
+        .filter((c) => c.confirmedAt != null)
+        .map((c) => c.donorId),
+    ]),
   ];
 
   const profiles = await Promise.all(donorIds.map(getDonorProfile));

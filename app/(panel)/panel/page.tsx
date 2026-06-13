@@ -248,12 +248,26 @@ function PageCard({
           </>
         )}
         {page.type === "school" && (
-          <Link
-            href={`/panel/school/${page.doc.id}/subscriptions`}
-            className="underline"
-          >
-            Confirmar apoyos
-          </Link>
+          <>
+            <Link
+              href={`/panel/school/${page.doc.id}/subscriptions`}
+              className="underline"
+            >
+              Confirmar apoyos
+            </Link>
+            <Link
+              href={`/panel/school/${page.doc.id}/projects`}
+              className="underline"
+            >
+              Proyectos
+            </Link>
+            <Link
+              href={`/panel/school/${page.doc.id}/project-contributions`}
+              className="underline"
+            >
+              Confirmar aportes a proyectos
+            </Link>
+          </>
         )}
       </div>
     </li>
