@@ -1,17 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { BusinessCardData } from "@/types";
-import type { SupportTier } from "@/lib/firestore";
+import type { SupportedSchool, SupportTier } from "@/lib/firestore";
 
 /**
  * Support badge copy + style per tier. `null` = not yet known (baseline SSR render before
  * the client re-rank resolves the buyer's community). Non-supporters are never hidden —
  * they show with an "invite them" badge (the ramp), which flips once they support.
  *
- * The badge is the ONLY place that talks about support. The school line below always
- * reads "Vinculado a {schoolName}": supported schools come from subscriptions, which may
- * target schools other than the linked one, so "Apoya a {schoolName}" would lie (e.g. a
- * business linked to school A whose community-tier support goes to school B).
+ * The school line below reads "Apoya a {school}" and names a school the business
+ * GENUINELY supports (from `supportedSchools`, reconstructed from its subscriptions),
+ * NOT its linked school — those can differ (a business linked to school A whose support
+ * goes to school B). It shows only once support is known (after the community re-rank)
+ * and stays hidden for non-supporters, so the copy can never claim support that isn't
+ * there. The named school is the most buyer-relevant one; "y N más" covers the rest.
  *
  * Exported so the profile badge (<SupportBadge>) uses the same copy/styles — card and
  * profile must never tell a different support story.
@@ -39,9 +41,12 @@ const COVER_SIZES = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
 export function BusinessCard({
   business,
   tier = null,
+  supportedSchools = [],
 }: {
   business: BusinessCardData;
   tier?: SupportTier | null;
+  /** Schools this business genuinely supports, most buyer-relevant first. */
+  supportedSchools?: SupportedSchool[];
 }) {
   const badge = tier ? TIER_BADGE[tier] : null;
   const initial = business.name.charAt(0).toUpperCase();
@@ -149,16 +154,21 @@ export function BusinessCard({
             </p>
           )}
 
-          {/* Linking a school is optional — unlinked businesses ("" id) skip the line. */}
-          {business.schoolId && business.schoolName && (
+          {/* Only rendered for businesses that genuinely support a school (after the
+              community re-rank resolves it). The primary school is a real link; any
+              others collapse into a non-interactive "y N más". */}
+          {supportedSchools.length > 0 && (
             <p className="mt-1 text-sm text-slate-600">
-              Vinculado a{" "}
+              Apoya a{" "}
               <Link
-                href={`/school/${business.schoolId}`}
+                href={`/school/${supportedSchools[0].id}`}
                 className="relative z-10 font-medium hover:text-brand-darker hover:underline"
               >
-                {business.schoolName}
+                {supportedSchools[0].name}
               </Link>
+              {supportedSchools.length > 1 && (
+                <> y {supportedSchools.length - 1} más</>
+              )}
             </p>
           )}
 

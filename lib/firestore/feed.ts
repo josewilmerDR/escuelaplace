@@ -20,6 +20,8 @@ import {
   DEFAULT_RANKING_WEIGHTS,
   type RankingWeights,
   computeSupportSignals,
+  decayFactor,
+  isCountingSubscription,
   qualityScore,
   scoreBusiness,
 } from "./ranking";
@@ -77,6 +79,12 @@ export interface RankableBusiness {
   reviewStats?: { count: number; average: number };
 }
 
+/** A school a business actually supports (from its counting subscriptions). */
+export interface SupportedSchool {
+  id: string;
+  name: string;
+}
+
 export interface RankedBusiness<T extends RankableBusiness = BusinessDoc> {
   business: T;
   /** Final score S used for ordering. */
@@ -84,6 +92,49 @@ export interface RankedBusiness<T extends RankableBusiness = BusinessDoc> {
   tier: SupportTier;
   /** Relevance R applied (1 in explore mode). */
   relevance: number;
+  /**
+   * Schools this business genuinely supports, ordered by relevance to the buyer
+   * (community schools first, then by decayed support magnitude). Empty when it
+   * supports none. Powers the "Apoya a {school} y N más" card line — distinct from
+   * the business's *linked* school, which it may not support.
+   */
+  supportedSchools: SupportedSchool[];
+}
+
+/**
+ * Schools a business genuinely supports, deduped by id and ordered so the most
+ * buyer-relevant one comes first: community schools (by decayed units), then the rest
+ * (by decayed units). Only counting subscriptions contribute, so a business that never
+ * confirmed — or whose support lapsed — yields [].
+ */
+export function supportedSchoolsOf(
+  subscriptions: SubscriptionDoc[],
+  communitySchoolIds: Iterable<string>,
+  nowMs: number = Date.now(),
+): SupportedSchool[] {
+  const community = new Set(communitySchoolIds);
+  // Accumulate decayed weight per school so multiple subscriptions to one school
+  // collapse to a single entry ranked by total support.
+  const byId = new Map<string, { name: string; weight: number; inCommunity: boolean }>();
+  for (const sub of subscriptions) {
+    if (!isCountingSubscription(sub, nowMs)) continue;
+    const weight = sub.units * decayFactor(sub, DEFAULT_RANKING_WEIGHTS, nowMs);
+    const existing = byId.get(sub.schoolId);
+    if (existing) existing.weight += weight;
+    else
+      byId.set(sub.schoolId, {
+        name: sub.schoolName,
+        weight,
+        inCommunity: community.has(sub.schoolId),
+      });
+  }
+  return [...byId.entries()]
+    .sort(
+      (a, b) =>
+        Number(b[1].inCommunity) - Number(a[1].inCommunity) ||
+        b[1].weight - a[1].weight,
+    )
+    .map(([id, { name }]) => ({ id, name }));
 }
 
 export interface RankFeedOptions {
@@ -138,18 +189,15 @@ export async function rankBusinessFeed<T extends RankableBusiness>(
 
   const community = [...communitySchoolIds];
   const ranked = businesses.map((business) => {
-    const signals = computeSupportSignals(
-      byBusiness.get(business.id) ?? [],
-      community,
-      weights,
-      nowMs,
-    );
+    const businessSubs = byBusiness.get(business.id) ?? [];
+    const signals = computeSupportSignals(businessSubs, community, weights, nowMs);
     const relevance = relevanceOf(relevanceById, business.id);
     const quality = qualityScore(business.reviewStats, weights);
     const score = scoreBusiness({ relevance, signals, quality }, weights);
     const tier: SupportTier =
       signals.community > 0 ? "community" : signals.general > 0 ? "general" : "none";
-    return { business, score, tier, relevance };
+    const supportedSchools = supportedSchoolsOf(businessSubs, community, nowMs);
+    return { business, score, tier, relevance, supportedSchools };
   });
 
   const visible = isExplore ? ranked : ranked.filter((r) => r.relevance > 0);
