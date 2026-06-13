@@ -19,6 +19,7 @@ import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { FormSection } from "@/components/ui/FormSection";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -308,131 +309,132 @@ export default function SchoolEditPage() {
         onInputCapture={clearValidationMessage}
         className="mt-6 flex flex-col gap-4"
       >
-        <Field label="Nombre de la escuela">
-          <input
-            required
-            autoComplete="organization"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="input"
+        <FormSection legend="Información básica">
+          <Field label="Nombre de la escuela">
+            <input
+              required
+              autoComplete="organization"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="input"
+            />
+          </Field>
+
+          <Field label="Descripción">
+            <textarea
+              maxLength={PAGE_DESCRIPTION_MAX}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="input min-h-24"
+            />
+            <span className="text-xs text-muted">
+              {description.length}/{PAGE_DESCRIPTION_MAX}
+            </span>
+          </Field>
+
+          <Field label="Mensaje de agradecimiento (opcional)">
+            <textarea
+              maxLength={PAGE_DESCRIPTION_MAX}
+              value={thankYouMessage}
+              onChange={(e) => setThankYouMessage(e.target.value)}
+              placeholder="Se muestra en el muro de agradecimiento de tu página pública."
+              className="input min-h-24"
+            />
+          </Field>
+        </FormSection>
+
+        <FormSection legend="Presentación">
+          <ImagePicker
+            label="Foto de perfil"
+            hint="Se muestra como círculo sobre la portada (escudo o fachada)."
+            value={photoFile}
+            onChange={(file) => {
+              setPhotoFile(file);
+              setDirty(true);
+            }}
+            variant="avatar"
           />
-        </Field>
 
-        <Field label="Descripción">
-          <textarea
-            maxLength={PAGE_DESCRIPTION_MAX}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="input min-h-24"
+          <ImagePicker
+            label="Foto de portada"
+            hint="Banda ancha arriba de la página (patio, actividades, la comunidad)."
+            value={coverFile}
+            onChange={(file) => {
+              setCoverFile(file);
+              setDirty(true);
+            }}
+            variant="cover"
           />
-          <span className="text-xs text-muted">
-            {description.length}/{PAGE_DESCRIPTION_MAX}
-          </span>
-        </Field>
 
-        <Field label="Mensaje de agradecimiento (opcional)">
-          <textarea
-            maxLength={PAGE_DESCRIPTION_MAX}
-            value={thankYouMessage}
-            onChange={(e) => setThankYouMessage(e.target.value)}
-            placeholder="Se muestra en el muro de agradecimiento de tu página pública."
-            className="input min-h-24"
+          {/* Mini header so the board can check the avatar/cover overlap without
+              opening the public page. Newly picked files win over the stored URLs. */}
+          <HeaderPreview
+            cover={coverFile ?? school.coverUrl ?? school.photos?.[0]}
+            logo={photoFile ?? school.photoUrl}
+            businessName={school.name}
           />
-        </Field>
+        </FormSection>
 
-        <ImagePicker
-          label="Foto de perfil"
-          hint="Se muestra como círculo sobre la portada (escudo o fachada)."
-          value={photoFile}
-          onChange={(file) => {
-            setPhotoFile(file);
-            setDirty(true);
-          }}
-          variant="avatar"
-        />
-
-        <ImagePicker
-          label="Foto de portada"
-          hint="Banda ancha arriba de la página (patio, actividades, la comunidad)."
-          value={coverFile}
-          onChange={(file) => {
-            setCoverFile(file);
-            setDirty(true);
-          }}
-          variant="cover"
-        />
-
-        {/* Mini header so the board can check the avatar/cover overlap without
-            opening the public page. Newly picked files win over the stored URLs. */}
-        <HeaderPreview
-          cover={coverFile ?? school.coverUrl ?? school.photos?.[0]}
-          logo={photoFile ?? school.photoUrl}
-          businessName={school.name}
-        />
-
-        <div
-          role="group"
-          aria-labelledby={locationLabelId}
-          className="flex flex-col gap-1 text-sm"
+        <FormSection
+          legend="Ubicación"
+          description="Se completan solos al mover el pin en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
         >
-          <span id={locationLabelId} className="font-medium">
-            Ubicación en el mapa
-          </span>
-          <LocationPicker
-            value={coords}
-            onChange={onPickLocation}
-            // Suggestions only after an actual pin move; on mount the stored
-            // fields stand (the doc prefills coords, and the mount-time reverse
-            // geocode must not overwrite them unprompted).
-            onAddress={pinMoved ? onAddressSuggestion : undefined}
-          />
-        </div>
+          <div
+            role="group"
+            aria-labelledby={locationLabelId}
+            className="flex flex-col gap-1 text-sm"
+          >
+            <span id={locationLabelId} className="font-medium">
+              Ubicación en el mapa
+            </span>
+            <LocationPicker
+              value={coords}
+              onChange={onPickLocation}
+              // Suggestions only after an actual pin move; on mount the stored
+              // fields stand (the doc prefills coords, and the mount-time reverse
+              // geocode must not overwrite them unprompted).
+              onAddress={pinMoved ? onAddressSuggestion : undefined}
+            />
+          </div>
 
-        {/* Country-agnostic levels: free text (no closed list — this must work for any
-            country), autofilled by the pin's reverse geocode. All optional: the pin
-            is the source of truth, and not every country fills every level. */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Provincia / Estado (opcional)">
-            <input
-              autoComplete="address-level1"
-              value={admin1}
-              onChange={(e) => setAdmin1(e.target.value)}
-              className="input"
-            />
-          </Field>
-          <Field label="Cantón / Municipio (opcional)">
-            <input
-              autoComplete="address-level2"
-              value={admin2}
-              onChange={(e) => setAdmin2(e.target.value)}
-              className="input"
-            />
-          </Field>
-          <Field label="Distrito / Comunidad (opcional)">
-            <input
-              autoComplete="address-level3"
-              value={admin3}
-              onChange={(e) => setAdmin3(e.target.value)}
-              className="input"
-            />
-          </Field>
-        </div>
-        <p className="-mt-2 text-xs text-muted">
-          Se completan solos al mover el pin en el mapa — revisalos, corregilos
-          o dejalos en blanco si no aplican.
-        </p>
+          {/* Country-agnostic levels: free text (no closed list — this must work for any
+              country), autofilled by the pin's reverse geocode. All optional: the pin
+              is the source of truth, and not every country fills every level. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label="Provincia / Estado (opcional)">
+              <input
+                autoComplete="address-level1"
+                value={admin1}
+                onChange={(e) => setAdmin1(e.target.value)}
+                className="input"
+              />
+            </Field>
+            <Field label="Cantón / Municipio (opcional)">
+              <input
+                autoComplete="address-level2"
+                value={admin2}
+                onChange={(e) => setAdmin2(e.target.value)}
+                className="input"
+              />
+            </Field>
+            <Field label="Distrito / Comunidad (opcional)">
+              <input
+                autoComplete="address-level3"
+                value={admin3}
+                onChange={(e) => setAdmin3(e.target.value)}
+                className="input"
+              />
+            </Field>
+          </div>
+        </FormSection>
 
         {/* "Comité escolar": neutral term for whoever administers the school's funds
             (junta de educación, asociación de padres, consejo escolar…). */}
-        <fieldset>
-          <legend className="text-sm font-medium">
-            Contacto del comité escolar
-          </legend>
-          <p className="mt-1 text-xs text-muted">
-            La junta, asociación o consejo que administra los fondos de la
-            escuela.
-          </p>
-          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FormSection
+          legend="Contacto del comité escolar"
+          description="La junta, asociación o consejo que administra los fondos de la escuela."
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Nombre">
               <input
                 required
@@ -457,7 +459,7 @@ export default function SchoolEditPage() {
               />
             </Field>
           </div>
-        </fieldset>
+        </FormSection>
 
         <fieldset className="rounded-md border p-3">
           <legend className="px-1 text-sm font-medium">

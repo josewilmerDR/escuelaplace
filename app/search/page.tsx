@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SearchBar } from "@/components/search/SearchBar";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SearchIcon } from "@/components/ui/icons";
 import {
   getActiveBusinesses,
   rankBusinessFeed,
@@ -79,11 +81,19 @@ export default async function SearchPage({ searchParams }: Props) {
 
       <main className="mx-auto max-w-6xl px-6 py-10">
         {!query ? (
-          <p className="text-muted">Escribí algo para buscar comercios.</p>
+          <EmptyState
+            icon={<SearchIcon className="h-7 w-7" />}
+            title="Buscá comercios"
+            description="Escribí el nombre, la categoría o lo que necesitás para encontrar comercios de tu comunidad."
+            cta={{ label: "Explorar por categoría", href: "/categories" }}
+          />
         ) : cards.length === 0 ? (
-          <p className="text-muted">
-            No encontramos comercios para <span className="font-medium">“{query}”</span>.
-          </p>
+          <EmptyState
+            icon={<SearchIcon className="h-7 w-7" />}
+            title={`No encontramos comercios para “${query}”`}
+            description="Probá con otras palabras o explorá el directorio por categoría."
+            cta={{ label: "Explorar por categoría", href: "/categories" }}
+          />
         ) : (
           <>
             <h1 className="mb-8 text-2xl font-bold tracking-tight text-foreground">

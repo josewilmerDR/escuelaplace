@@ -15,6 +15,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Combobox } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { FormSection } from "@/components/ui/FormSection";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PhoneField } from "@/components/ui/PhoneField";
@@ -208,185 +209,196 @@ export default function NewBusinessPage() {
         onInputCapture={clearValidationMessage}
         className="mt-6 flex flex-col gap-4"
       >
-        <Field label="Nombre del comercio">
-          <input
-            required
-            autoComplete="organization"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="input"
+        <FormSection legend="Información básica">
+          <div>
+            <Field label="Nombre del comercio">
+              <input
+                required
+                autoComplete="organization"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="input"
+              />
+            </Field>
+            {/* The slug is derived from the name and never changes after creation — show
+                the resulting URL before it becomes permanent. */}
+            {slugify(name) && (
+              <p className="mt-1 text-xs text-muted">
+                Tu página va a estar en:{" "}
+                <span className="font-medium">
+                  escuelaplace.com/business/{slugify(name)}
+                </span>{" "}
+                (si el nombre ya está usado, se agrega un número).
+              </p>
+            )}
+          </div>
+
+          <Field label="Descripción">
+            <textarea
+              required
+              maxLength={PAGE_DESCRIPTION_MAX}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="input min-h-24"
+            />
+            <span className="text-xs text-muted">
+              {description.length}/{PAGE_DESCRIPTION_MAX}
+            </span>
+          </Field>
+
+          <div>
+            <Field label="Escuela que apoyás (opcional)">
+              {/* Type-to-filter with a locality hint: school names repeat a lot across
+                  localities, and a native select gives no way to tell homonyms apart —
+                  picking the wrong school misdirects the support publicly. */}
+              <Combobox
+                options={schools.map((s) => ({
+                  id: s.id,
+                  label: s.name,
+                  hint: localityLabel(s.location) || undefined,
+                }))}
+                value={schoolId}
+                onChange={setSchoolId}
+                placeholder="Buscá tu escuela por nombre o lugar…"
+              />
+            </Field>
+            {/* Outside the Field: links must not nest inside its <label>. */}
+            {schools.length === 0 ? (
+              <p className="mt-1 text-xs text-muted">
+                Todavía no hay escuelas en la plataforma. Podés crear tu comercio
+                sin escuela y vincularla después, o{" "}
+                <Link href="/panel/new/school" className="font-medium underline">
+                  crear la página de tu escuela
+                </Link>{" "}
+                primero.
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-muted">
+                Podés dejarla en blanco y vincularla después desde la edición. ¿Tu
+                escuela no está en la lista?{" "}
+                <Link href="/panel/new/school" className="font-medium underline">
+                  Creá su página
+                </Link>
+                .
+              </p>
+            )}
+          </div>
+
+          <fieldset>
+            <legend className="text-sm font-medium">
+              Categorías (elegí al menos una)
+            </legend>
+            {categories.length === 0 ? (
+              <p className="mt-2 text-xs text-muted">
+                No hay categorías disponibles por ahora.
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {categories.map((c) => (
+                  <label
+                    key={c.id}
+                    className={`inline-flex min-h-10 cursor-pointer items-center rounded-full border px-4 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
+                      selectedCategories.includes(c.id)
+                        ? "bg-brand-darker text-white"
+                        : ""
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={selectedCategories.includes(c.id)}
+                      onChange={() => toggleCategory(c.id)}
+                    />
+                    {c.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </fieldset>
+        </FormSection>
+
+        <FormSection legend="Presentación">
+          <ImagePicker
+            label="Logo o foto de perfil (opcional)"
+            hint="Se muestra en círculo junto al nombre, en tu página pública y en el catálogo."
+            variant="avatar"
+            value={logoFile}
+            onChange={(f) => {
+              setLogoFile(f);
+              setDirty(true);
+            }}
           />
-        </Field>
-        {/* The slug is derived from the name and never changes after creation — show
-            the resulting URL before it becomes permanent. */}
-        {slugify(name) && (
-          <p className="-mt-2 text-xs text-muted">
-            Tu página va a estar en:{" "}
-            <span className="font-medium">
-              escuelaplace.com/business/{slugify(name)}
-            </span>{" "}
-            (si el nombre ya está usado, se agrega un número).
-          </p>
-        )}
 
-        <Field label="Descripción">
-          <textarea
-            required
-            maxLength={PAGE_DESCRIPTION_MAX}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="input min-h-24"
+          <ImagePicker
+            label="Foto de portada (opcional)"
+            hint="La franja ancha arriba de tu página pública (ideal 1200×480 px). Si no subís una, se muestra el logo en su lugar."
+            variant="cover"
+            value={coverFile}
+            onChange={(f) => {
+              setCoverFile(f);
+              setDirty(true);
+            }}
           />
-          <span className="text-xs text-muted">
-            {description.length}/{PAGE_DESCRIPTION_MAX}
-          </span>
-        </Field>
 
-        <ImagePicker
-          label="Logo o foto de perfil (opcional)"
-          hint="Se muestra en círculo junto al nombre, en tu página pública y en el catálogo."
-          variant="avatar"
-          value={logoFile}
-          onChange={(f) => {
-            setLogoFile(f);
-            setDirty(true);
-          }}
-        />
+          {/* Renders nothing until at least one image is chosen. */}
+          <HeaderPreview cover={coverFile} logo={logoFile} businessName={name} />
+        </FormSection>
 
-        <ImagePicker
-          label="Foto de portada (opcional)"
-          hint="La franja ancha arriba de tu página pública (ideal 1200×480 px). Si no subís una, se muestra el logo en su lugar."
-          variant="cover"
-          value={coverFile}
-          onChange={(f) => {
-            setCoverFile(f);
-            setDirty(true);
-          }}
-        />
-
-        {/* Renders nothing until at least one image is chosen. */}
-        <HeaderPreview cover={coverFile} logo={logoFile} businessName={name} />
-
-        <Field label="Escuela que apoyás (opcional)">
-          {/* Type-to-filter with a locality hint: school names repeat a lot across
-              localities, and a native select gives no way to tell homonyms apart —
-              picking the wrong school misdirects the support publicly. */}
-          <Combobox
-            options={schools.map((s) => ({
-              id: s.id,
-              label: s.name,
-              hint: localityLabel(s.location) || undefined,
-            }))}
-            value={schoolId}
-            onChange={setSchoolId}
-            placeholder="Buscá tu escuela por nombre o lugar…"
-          />
-        </Field>
-        {/* Outside the Field: links must not nest inside its <label>. */}
-        {schools.length === 0 ? (
-          <p className="-mt-2 text-xs text-muted">
-            Todavía no hay escuelas en la plataforma. Podés crear tu comercio
-            sin escuela y vincularla después, o{" "}
-            <Link href="/panel/new/school" className="font-medium underline">
-              crear la página de tu escuela
-            </Link>{" "}
-            primero.
-          </p>
-        ) : (
-          <p className="-mt-2 text-xs text-muted">
-            Podés dejarla en blanco y vincularla después desde la edición. ¿Tu
-            escuela no está en la lista?{" "}
-            <Link href="/panel/new/school" className="font-medium underline">
-              Creá su página
-            </Link>
-            .
-          </p>
-        )}
-
-        <fieldset>
-          <legend className="text-sm font-medium">
-            Categorías (elegí al menos una)
-          </legend>
-          {categories.length === 0 ? (
-            <p className="mt-2 text-xs text-muted">
-              No hay categorías disponibles por ahora.
-            </p>
-          ) : (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {categories.map((c) => (
-                <label
-                  key={c.id}
-                  className={`inline-flex min-h-10 cursor-pointer items-center rounded-full border px-4 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
-                    selectedCategories.includes(c.id)
-                      ? "bg-brand-darker text-white"
-                      : ""
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={selectedCategories.includes(c.id)}
-                    onChange={() => toggleCategory(c.id)}
-                  />
-                  {c.name}
-                </label>
-              ))}
-            </div>
-          )}
-        </fieldset>
-
-        <div
-          role="group"
-          aria-labelledby={locationLabelId}
-          className="flex flex-col gap-1 text-sm"
+        <FormSection
+          legend="Ubicación"
+          description="Se completan solos al marcar el punto en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
         >
-          <span id={locationLabelId} className="font-medium">
-            Ubicación en el mapa
-          </span>
-          <LocationPicker
-            value={coords}
-            onChange={onPickLocation}
-            onAddress={onAddressSuggestion}
-          />
-        </div>
+          <div
+            role="group"
+            aria-labelledby={locationLabelId}
+            className="flex flex-col gap-1 text-sm"
+          >
+            <span id={locationLabelId} className="font-medium">
+              Ubicación en el mapa
+            </span>
+            <LocationPicker
+              value={coords}
+              onChange={onPickLocation}
+              onAddress={onAddressSuggestion}
+            />
+          </div>
 
-        {/* Country-agnostic levels: free text (no closed list — this must work for any
-            country), autofilled by the pin's reverse geocode. All optional: the pin
-            is the source of truth, and not every country fills every level. */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Provincia / Estado (opcional)">
+          {/* Country-agnostic levels: free text (no closed list — this must work for any
+              country), autofilled by the pin's reverse geocode. All optional: the pin
+              is the source of truth, and not every country fills every level. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label="Provincia / Estado (opcional)">
+              <input
+                autoComplete="address-level1"
+                value={admin1}
+                onChange={(e) => setAdmin1(e.target.value)}
+                className="input"
+              />
+            </Field>
+            <Field label="Cantón / Municipio (opcional)">
+              <input autoComplete="address-level2" value={admin2} onChange={(e) => setAdmin2(e.target.value)} className="input" />
+            </Field>
+            <Field label="Distrito / Comunidad (opcional)">
+              <input autoComplete="address-level3" value={admin3} onChange={(e) => setAdmin3(e.target.value)} className="input" />
+            </Field>
+          </div>
+          <Field label="Dirección (opcional)">
             <input
-              autoComplete="address-level1"
-              value={admin1}
-              onChange={(e) => setAdmin1(e.target.value)}
+              autoComplete="street-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
               className="input"
             />
           </Field>
-          <Field label="Cantón / Municipio (opcional)">
-            <input autoComplete="address-level2" value={admin2} onChange={(e) => setAdmin2(e.target.value)} className="input" />
-          </Field>
-          <Field label="Distrito / Comunidad (opcional)">
-            <input autoComplete="address-level3" value={admin3} onChange={(e) => setAdmin3(e.target.value)} className="input" />
-          </Field>
-        </div>
-        <Field label="Dirección (opcional)">
-          <input
-            autoComplete="street-address"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            className="input"
-          />
-        </Field>
-        <p className="-mt-2 text-xs text-muted">
-          Se completan solos al marcar el punto en el mapa — revisalos,
-          corregilos o dejalos en blanco si no aplican.
-        </p>
+        </FormSection>
 
-        <PhoneField
-          label="WhatsApp (opcional)"
-          value={whatsapp}
-          onChange={setWhatsapp}
-        />
+        <FormSection legend="Contacto">
+          <PhoneField
+            label="WhatsApp (opcional)"
+            value={whatsapp}
+            onChange={setWhatsapp}
+          />
+        </FormSection>
 
         <FormError message={error} />
 
