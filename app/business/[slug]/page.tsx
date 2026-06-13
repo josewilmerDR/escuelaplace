@@ -9,10 +9,17 @@ import { SectionTabs } from "@/components/business/SectionTabs";
 import { SupportBadge } from "@/components/business/SupportBadge";
 import { TrackPageView } from "@/components/business/TrackPageView";
 import { SiteHeader } from "@/components/layout/SiteHeader";
-import { OwnReviewMark } from "@/components/reviews/OwnReviewMark";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
-import { Stars } from "@/components/reviews/Stars";
+import { ReviewList } from "@/components/reviews/ReviewList";
 import { TrackedLink } from "@/components/business/TrackedLink";
+import {
+  ClockIcon,
+  GlobeIcon,
+  MapPinIcon,
+  PhoneIcon,
+  TagIcon,
+  VerifiedIcon,
+} from "@/components/ui/icons";
 import {
   buildPhoneUrl,
   buildWebsiteUrl,
@@ -457,60 +464,7 @@ export default async function BusinessPage({ params }: Props) {
             id="resenas"
             className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
           >
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-semibold">Reseñas</h2>
-              {stats.count > 0 && (
-                <span className="flex items-center gap-1 text-sm text-muted">
-                  {/* decorative: the number right after already carries the rating. */}
-                  <Stars value={stats.average} decorative />
-                  <span className="sr-only">Calificación promedio:</span>
-                  {averageLabel} ({stats.count})
-                </span>
-              )}
-            </div>
-
-            {reviews.length === 0 ? (
-              <p className="mt-6 text-sm text-muted">
-                Todavía no hay reseñas. Sé la primera persona en dejar una.
-              </p>
-            ) : (
-              <ul className="mt-6 space-y-4">
-                {reviews.map((r) => (
-                  <li key={r.id} className="rounded-xl border border-border p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium text-slate-900">
-                          {r.authorName}
-                        </span>
-                        <OwnReviewMark authorId={r.authorId} />
-                        {r.createdAt && (
-                          <span className="shrink-0 text-xs text-muted">
-                            {r.createdAt.toDate().toLocaleDateString("es-CR", {
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </span>
-                        )}
-                      </span>
-                      <Stars value={r.rating} className="shrink-0 text-sm" />
-                    </div>
-                    {r.text && (
-                      // pre-line: written in a textarea — keep the line breaks.
-                      <p className="mt-2 whitespace-pre-line text-sm text-gray-700">
-                        {r.text}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {stats.count > reviews.length && (
-              <p className="mt-3 text-xs text-muted">
-                Mostrando las {reviews.length} reseñas más recientes de{" "}
-                {stats.count}.
-              </p>
-            )}
+            <ReviewList reviews={reviews} stats={stats} />
 
             {/* The form goes AFTER the list: buyers come to read (social proof);
                 writing — and the sign-in it asks for — is the secondary action. */}
@@ -526,128 +480,5 @@ export default async function BusinessPage({ params }: Props) {
         </main>
       </div>
     </>
-  );
-}
-
-/* Inline icons (Heroicons paths) — server-safe, no icon dependency. */
-
-/** Solid check-badge, the FB-style verified mark. */
-function VerifiedIcon({
-  className,
-  title,
-}: {
-  className?: string;
-  title?: string;
-}) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
-      {title && <title>{title}</title>}
-      <path
-        fillRule="evenodd"
-        d="M8.603 3.799A4.49 4.49 0 0 1 12 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 0 1 3.498 1.307 4.491 4.491 0 0 1 1.307 3.497A4.49 4.49 0 0 1 21.75 12a4.49 4.49 0 0 1-1.549 3.397 4.491 4.491 0 0 1-1.307 3.497 4.491 4.491 0 0 1-3.497 1.307A4.49 4.49 0 0 1 12 21.75a4.49 4.49 0 0 1-3.397-1.549 4.49 4.49 0 0 1-3.498-1.306 4.491 4.491 0 0 1-1.307-3.498A4.49 4.49 0 0 1 2.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 0 1 1.307-3.497 4.49 4.49 0 0 1 3.497-1.307Zm7.007 6.387a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.137-.089l3.75-5.25Z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function MapPinIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-      />
-    </svg>
-  );
-}
-
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      />
-    </svg>
-  );
-}
-
-function PhoneIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"
-      />
-    </svg>
-  );
-}
-
-function GlobeIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m-16.432 0A8.959 8.959 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418"
-      />
-    </svg>
-  );
-}
-
-function TagIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"
-      />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
-    </svg>
   );
 }
