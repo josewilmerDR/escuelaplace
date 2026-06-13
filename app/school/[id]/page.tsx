@@ -6,7 +6,6 @@ import { BusinessCard } from "@/components/business/BusinessCard";
 import { PhotoGallery } from "@/components/business/PhotoGallery";
 import { SectionTabs } from "@/components/business/SectionTabs";
 import { DonorWall } from "@/components/donors/DonorWall";
-import { SiteHeader } from "@/components/layout/SiteHeader";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { SchoolManageBar } from "@/components/school/SchoolManageBar";
 import {
@@ -155,8 +154,6 @@ export default async function SchoolPage({ params }: Props) {
 
   return (
     <>
-      <SiteHeader />
-
       {/* Gray canvas behind white cards — the FB-page backdrop. */}
       <div className="min-h-screen bg-surface">
         <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">

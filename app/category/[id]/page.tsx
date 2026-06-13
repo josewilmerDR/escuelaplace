@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { RankedFeed } from "@/components/feed/RankedFeed";
-import { SiteHeader } from "@/components/layout/SiteHeader";
 import {
   getCategoryById,
   getBusinessesByCategory,
@@ -35,8 +34,6 @@ export default async function CategoryPage({ params }: Props) {
 
   return (
     <>
-      <SiteHeader />
-
       <main className="mx-auto max-w-6xl px-6 py-10">
         <h1 className="mb-8 text-2xl font-bold tracking-tight text-slate-900">
           <span aria-hidden>{category.icon}</span> {category.name}

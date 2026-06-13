@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { SiteHeader } from "@/components/layout/SiteHeader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,7 +38,13 @@ export default function RootLayout({
           cz-shortcut-listen) add attributes to <body> before hydration, which would
           otherwise log a hydration mismatch. Scoped to this node's attributes only. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <AuthProvider>{children}</AuthProvider>
+        {/* The brand header is part of the app shell: rendered once here so every
+            route — the public catalog and the private panel alike — shares it,
+            instead of each page importing and rendering <SiteHeader /> on its own. */}
+        <AuthProvider>
+          <SiteHeader />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

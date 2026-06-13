@@ -1,5 +1,3 @@
-import { SiteHeader } from "@/components/layout/SiteHeader";
-
 /**
  * Route-level skeleton: without it, clicking a card freezes the current page until the
  * profile's SSR Firestore reads finish. Mirrors the page's layout (cover, title, meta,
@@ -8,8 +6,6 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 export default function LoadingBusinessPage() {
   return (
     <>
-      <SiteHeader />
-
       <main aria-busy className="mx-auto max-w-3xl px-6 py-10">
         <div className="aspect-video w-full animate-pulse rounded-2xl bg-brand-tint" />
         <div className="mt-6 h-8 w-2/3 animate-pulse rounded bg-slate-200" />

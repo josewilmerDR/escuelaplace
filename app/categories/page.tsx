@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SiteHeader } from "@/components/layout/SiteHeader";
 import { getCategories } from "@/lib/firestore";
 import type { CategoryDoc } from "@/types";
 
@@ -30,8 +29,6 @@ export default async function CategoriesPage() {
 
   return (
     <>
-      <SiteHeader />
-
       <main className="mx-auto max-w-6xl px-6 py-10">
         <h1 className="mb-8 text-2xl font-bold tracking-tight text-slate-900">
           Todas las categorías

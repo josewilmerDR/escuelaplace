@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SiteHeader } from "@/components/layout/SiteHeader";
 
 /**
  * Site-wide 404. Next's default is English-only with no navigation; shared links with a
@@ -9,8 +8,6 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 export default function NotFound() {
   return (
     <>
-      <SiteHeader />
-
       <main className="mx-auto max-w-md px-6 py-24 text-center">
         <h1 className="text-2xl font-bold text-slate-900">
           Página no encontrada
