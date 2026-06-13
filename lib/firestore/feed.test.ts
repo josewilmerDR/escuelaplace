@@ -11,7 +11,11 @@ vi.mock("./geo", () => ({
 
 import { getNearbySchoolIds } from "./geo";
 import { getSubscriptionsForBusinesses } from "./subscriptions";
-import { rankBusinessFeed, resolveCommunitySchoolIds } from "./feed";
+import {
+  rankBusinessFeed,
+  resolveCommunitySchoolIds,
+  supportedSchoolsOf,
+} from "./feed";
 
 const NOW = 1_700_000_000_000;
 const DAY = 86_400_000;
@@ -36,6 +40,7 @@ function confirmedSub(businessId: string, schoolId: string, units = 2): Subscrip
     id: `${businessId}-${schoolId}`,
     businessId,
     schoolId,
+    schoolName: `Escuela ${schoolId}`,
     units,
     status: "confirmed",
     confirmedAt: ts(NOW),
@@ -108,6 +113,48 @@ describe("rankBusinessFeed — explore mode", () => {
       nowMs: NOW,
     });
     expect(ranked.map((r) => r.business.id)).toEqual(["high", "low"]);
+  });
+});
+
+describe("supportedSchoolsOf", () => {
+  function sub(schoolId: string, units: number, confirmedMs = NOW): SubscriptionDoc {
+    return {
+      id: `s-${schoolId}-${units}`,
+      businessId: "b1",
+      schoolId,
+      schoolName: `Escuela ${schoolId}`,
+      units,
+      status: "confirmed",
+      confirmedAt: ts(confirmedMs),
+      expiresAt: ts(NOW + 30 * DAY),
+    } as unknown as SubscriptionDoc;
+  }
+
+  it("puts community schools first, then ranks the rest by support magnitude", () => {
+    const result = supportedSchoolsOf(
+      [sub("general-weak", 1), sub("general-strong", 9), sub("home", 1)],
+      ["home"],
+      NOW,
+    );
+    expect(result.map((s) => s.id)).toEqual([
+      "home", // community always leads
+      "general-strong", // then by decayed units
+      "general-weak",
+    ]);
+    expect(result[0].name).toBe("Escuela home");
+  });
+
+  it("collapses multiple subscriptions to one school into a single entry", () => {
+    const result = supportedSchoolsOf([sub("a", 3), sub("a", 4), sub("b", 5)], [], NOW);
+    expect(result.map((s) => s.id)).toEqual(["a", "b"]); // a's 3+4=7 > b's 5
+  });
+
+  it("excludes pending and lapsed subscriptions", () => {
+    const pending = { ...sub("p", 9), status: "pending" } as SubscriptionDoc;
+    const lapsed = { ...sub("l", 9), expiresAt: ts(NOW - DAY) } as SubscriptionDoc;
+    expect(supportedSchoolsOf([pending, lapsed, sub("ok", 1)], [], NOW)).toEqual([
+      { id: "ok", name: "Escuela ok" },
+    ]);
   });
 });
 

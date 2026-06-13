@@ -149,7 +149,11 @@ export function averageConfirmationTimeMs(
 }
 
 /** Recency decay factor in (0,1] based on age since confirmation. */
-function decayFactor(sub: SubscriptionDoc, weights: RankingWeights, nowMs: number) {
+export function decayFactor(
+  sub: SubscriptionDoc,
+  weights: RankingWeights = DEFAULT_RANKING_WEIGHTS,
+  nowMs: number = Date.now(),
+) {
   const confirmedMs = sub.confirmedAt?.toMillis?.() ?? null;
   if (confirmedMs == null) return 1;
   const ageDays = Math.max(0, (nowMs - confirmedMs) / DAY_MS);

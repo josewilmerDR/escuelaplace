@@ -99,7 +99,13 @@ export function RankedFeed({
     () =>
       personalized && ranked
         ? ranked.result
-        : initial.map((business) => ({ business, tier: null as null })),
+        : initial.map((business) => ({
+            business,
+            tier: null as null,
+            // Baseline (no community yet): supported schools are unknown, so the
+            // "Apoya a …" line stays hidden until the re-rank resolves them.
+            supportedSchools: [],
+          })),
     [personalized, ranked, initial],
   );
 
@@ -120,8 +126,13 @@ export function RankedFeed({
       )}
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map(({ business, tier }) => (
-          <BusinessCard key={business.id} business={business} tier={tier} />
+        {cards.map(({ business, tier, supportedSchools }) => (
+          <BusinessCard
+            key={business.id}
+            business={business}
+            tier={tier}
+            supportedSchools={supportedSchools}
+          />
         ))}
       </div>
     </div>
