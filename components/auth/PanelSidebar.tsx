@@ -9,9 +9,9 @@
  * signed out), so signed-out visitors see only the login prompt in the content area —
  * the same behavior as when <RequireAuth> wrapped the whole layout.
  */
-import Link from "next/link";
 import { useAuth } from "./AuthProvider";
 import { AdminNavLink } from "./AdminNavLink";
+import { PanelNavLink } from "./PanelNavLink";
 import { SignOutButton } from "./SignOutButton";
 
 export function PanelSidebar() {
@@ -20,12 +20,19 @@ export function PanelSidebar() {
 
   return (
     <aside className="shrink-0 border-b pb-4 text-sm md:sticky md:top-6 md:h-fit md:w-48 md:self-start md:border-r md:border-b-0 md:pr-4 md:pb-0">
-      <nav className="flex flex-wrap gap-x-5 gap-y-2 md:flex-col md:gap-2">
-        <Link href="/panel">Mis páginas</Link>
-        <Link href="/panel/new">Crear página</Link>
-        <Link href="/panel/donate">Donar a una escuela</Link>
+      <nav className="flex flex-wrap gap-x-2 gap-y-1 md:flex-col md:gap-1">
+        {/* "Mis páginas" stays active while managing a specific business/school, since
+            those sub-flows are launched from there. */}
+        <PanelNavLink
+          href="/panel"
+          label="Mis páginas"
+          exact
+          extraPrefixes={["/panel/business", "/panel/school"]}
+        />
+        <PanelNavLink href="/panel/new" label="Crear página" />
+        <PanelNavLink href="/panel/donate" label="Donar a una escuela" />
         {/* Admin-only; renders nothing for regular users (see AdminNavLink). */}
-        <AdminNavLink className="font-medium text-brand-darker" />
+        <AdminNavLink />
       </nav>
       {/* Session action lives in the account area now — the header only shows the
           account name. A divider + muted styling sets it apart from the nav links. */}
