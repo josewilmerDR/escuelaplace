@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { RankedFeed } from "@/components/feed/RankedFeed";
-import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SearchBar } from "@/components/search/SearchBar";
 import {
   getCategories,
@@ -48,8 +47,6 @@ export default async function HomePage() {
 
   return (
     <>
-      <SiteHeader />
-
       <main>
       {/* Hero: a community/school photo tinted with the brand color.
           Layers (back to front):

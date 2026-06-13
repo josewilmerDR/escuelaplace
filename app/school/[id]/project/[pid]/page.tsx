@@ -3,7 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PhotoGallery } from "@/components/business/PhotoGallery";
-import { SiteHeader } from "@/components/layout/SiteHeader";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { ProjectStatusBadge } from "@/components/projects/ProjectStatusBadge";
 import { getProjectById, getSchoolById, projectGoal } from "@/lib/firestore";
@@ -56,7 +55,6 @@ export default async function ProjectPage({ params }: Props) {
 
   return (
     <>
-      <SiteHeader />
       <div className="min-h-screen bg-surface">
         <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
           <p className="text-sm text-muted">

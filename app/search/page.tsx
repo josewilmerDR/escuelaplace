@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { RankedFeed } from "@/components/feed/RankedFeed";
-import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SearchBar } from "@/components/search/SearchBar";
 import {
   getActiveBusinesses,
@@ -69,8 +68,6 @@ export default async function SearchPage({ searchParams }: Props) {
 
   return (
     <>
-      <SiteHeader />
-
       <section className="bg-brand py-8">
         <div className="mx-auto max-w-3xl px-6">
           {/* autoFocus only when arriving without a query: the user came to search and

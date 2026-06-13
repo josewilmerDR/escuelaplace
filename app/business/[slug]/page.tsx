@@ -8,7 +8,6 @@ import { PhotoGallery } from "@/components/business/PhotoGallery";
 import { SectionTabs } from "@/components/business/SectionTabs";
 import { SupportBadge } from "@/components/business/SupportBadge";
 import { TrackPageView } from "@/components/business/TrackPageView";
-import { SiteHeader } from "@/components/layout/SiteHeader";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { ReviewList } from "@/components/reviews/ReviewList";
 import { TrackedLink } from "@/components/business/TrackedLink";
@@ -171,8 +170,6 @@ export default async function BusinessPage({ params }: Props) {
 
   return (
     <>
-      <SiteHeader />
-
       {/* Gray canvas behind white cards — the FB-page backdrop. */}
       <div className="min-h-screen bg-surface">
         <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
