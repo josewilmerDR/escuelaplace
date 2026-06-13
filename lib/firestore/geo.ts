@@ -10,6 +10,7 @@
  * `geohashForLocation([lat, lng])` when writing the document.
  */
 import {
+  GeoPoint,
   collection,
   endAt,
   getDocs,
@@ -19,6 +20,7 @@ import {
 } from "firebase/firestore";
 import {
   distanceBetween,
+  geohashForLocation,
   geohashQueryBounds,
   type Geopoint,
 } from "geofire-common";
@@ -28,6 +30,40 @@ import { snapToList } from "./converters";
 
 const BUSINESSES = "businesses";
 const SCHOOLS = "schools";
+
+/**
+ * Location captured by the creation/edit forms: lat/lng plus the country-agnostic
+ * administrative levels (see types/firestore.ts — admin1 = province/state/department,
+ * admin2 = canton/municipality, admin3 = district/community, "" when absent). Shared by
+ * the business and school writes, which both convert it with `toLocation`.
+ */
+export interface LocationInput {
+  lat: number;
+  lng: number;
+  admin1: string;
+  admin2: string;
+  admin3: string;
+  /** ISO 3166-1 alpha-2 code from the reverse geocoder, when available. */
+  country?: string;
+  address?: string;
+}
+
+/**
+ * Build the stored `location` object from raw form input, always recomputing the geohash
+ * so proximity queries stay correct when the pin moves. Conditional spread because
+ * Firestore rejects explicit `undefined` values.
+ */
+export function toLocation(input: LocationInput) {
+  return {
+    geopoint: new GeoPoint(input.lat, input.lng),
+    geohash: geohashForLocation([input.lat, input.lng]),
+    ...(input.address ? { address: input.address } : {}),
+    ...(input.country ? { country: input.country } : {}),
+    admin1: input.admin1,
+    admin2: input.admin2,
+    admin3: input.admin3,
+  };
+}
 
 export interface NearbyBusiness extends BusinessDoc {
   /** Distance to the search center, in kilometers. */

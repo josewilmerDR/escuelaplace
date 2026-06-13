@@ -10,14 +10,24 @@
  * Keep the thresholds IN SYNC with the mirror in functions/src (dependency-free copy for
  * the functions runtime), like the ranking weights.
  */
-import { doc, getDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { SUBSCRIPTION_UNIT_CRC } from "@/types";
 import type { DonorProfile, DonorProfileDoc, DonorTier } from "@/types";
 import { docToTyped } from "./converters";
 import { getSubscriptionsBySchool } from "./subscriptions";
 import { getContributionsBySchool } from "./projects";
 
 const DONOR_PROFILES = "donorProfiles";
+const SUBSCRIPTIONS = "subscriptions";
 
 /** Tiers from lowest to highest. */
 export const DONOR_TIER_ORDER: DonorTier[] = [
@@ -110,4 +120,86 @@ export async function getSchoolDonorWall(
     );
 
   return { recognized, anonymousCount: donorIds.length - recognized.length };
+}
+
+// ── Writes (donations & donor recognition) ───────────────────────────────────
+// Any signed-in user — no page needed — may donate to a school. Same entity and
+// lifecycle as a business subscription (`supporterType: 'user'`, stored in the
+// `subscriptions` collection): the school confirms the payment proof; confirmed donations
+// feed the donor's recognition tier via a Cloud Function. The platform never touches the
+// money. The proof is uploaded with uploadSubscriptionProof, exactly like a subscription.
+
+export interface CreateDonationInput {
+  donorId: string;
+  /** Denormalized account name so the school's confirmation UI can match the proof. */
+  donorName: string;
+  schoolId: string;
+  schoolName: string; // denormalized
+  /** Integer n in `n × SUBSCRIPTION_UNIT_CRC`. */
+  units: number;
+}
+
+/**
+ * Create a `pending` personal donation. Must be called by the signed-in donor (the rules
+ * enforce `donorId == auth.uid`). The payment proof is uploaded separately with
+ * uploadSubscriptionProof, exactly like a business subscription. Returns the new id.
+ */
+export async function createDonation(
+  input: CreateDonationInput,
+): Promise<string> {
+  const created = await addDoc(collection(db, SUBSCRIPTIONS), {
+    supporterType: "user",
+    donorId: input.donorId,
+    donorName: input.donorName,
+    schoolId: input.schoolId,
+    schoolName: input.schoolName,
+    units: input.units,
+    amount: input.units * SUBSCRIPTION_UNIT_CRC,
+    status: "pending",
+    confirmedAt: null,
+    firstConfirmedAt: null,
+    expiresAt: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return created.id;
+}
+
+/**
+ * Create the donor's recognition profile if it doesn't exist yet. Private by default
+ * (recognition is opt-in); every computed field starts zeroed — the rules reject any
+ * other seed, and a Cloud Function maintains them from confirmed donations.
+ */
+export async function ensureDonorProfile(
+  uid: string,
+  displayName: string,
+): Promise<void> {
+  const ref = doc(db, DONOR_PROFILES, uid);
+  if ((await getDoc(ref)).exists()) return;
+  await setDoc(ref, {
+    displayName,
+    isPublic: false,
+    totalUnits: 0,
+    tier: null,
+    schoolsSupported: 0,
+    projectsSupported: 0,
+    firstConfirmedAt: null,
+    lastConfirmedAt: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Update the donor's public-recognition preferences — the only fields the donor may
+ * write (the rules block everything computed). Must be called by the donor themselves.
+ */
+export async function updateDonorRecognition(
+  uid: string,
+  prefs: { displayName?: string; isPublic?: boolean },
+): Promise<void> {
+  await updateDoc(doc(db, DONOR_PROFILES, uid), {
+    ...prefs,
+    updatedAt: serverTimestamp(),
+  });
 }

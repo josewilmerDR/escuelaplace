@@ -1,9 +1,13 @@
 /**
- * Typed reads of the `businesses` collection.
- * These functions are called from server components (SSG/SSR) for SEO.
+ * Typed reads AND writes of the `businesses` collection. Reads run from server components
+ * (SSG/SSR) for SEO; writes (creation, profile edits, gallery, publish/unpublish) run
+ * client-side from the owner's panel. Keeping both here means everything about a business
+ * lives in one file.
  */
 import { cache } from "react";
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -11,11 +15,28 @@ import {
   limit as fbLimit,
   orderBy,
   query,
+  serverTimestamp,
+  updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import type { Business, BusinessDoc } from "@/types";
+import {
+  deleteObject,
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
+} from "firebase/storage";
+import { db, storage } from "@/lib/firebase";
+import type {
+  Business,
+  BusinessContact,
+  BusinessDoc,
+  BusinessStatus,
+  Discount,
+} from "@/types";
 import { docToTyped, snapToList } from "./converters";
+import { toLocation, type LocationInput } from "./geo";
+import { linkPageToUser } from "./users";
 
 const BUSINESSES = "businesses";
 
@@ -98,4 +119,238 @@ export async function getActiveBusinesses(max = 200): Promise<BusinessDoc[]> {
 /** Top active businesses for the explore feed. Thin wrapper over `getActiveBusinesses`. */
 export function getTopBusinesses(max = 24): Promise<BusinessDoc[]> {
   return getActiveBusinesses(max);
+}
+
+// ── Writes (owner panel) ─────────────────────────────────────────────────────
+
+/**
+ * A URL-safe slug from a display name (used for business public URLs). Exported so the
+ * create form can preview the public URL while the owner types the name.
+ */
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // strip accents
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+/**
+ * A slug no other business holds yet: the slugified name, or name-2, name-3… on
+ * collision. Business names repeat a lot ("Soda La Esperanza"), and getBusinessBySlug
+ * resolves a single doc — a duplicate slug would leave one of the two profiles
+ * unreachable forever, silently. The check spans every status (a draft holds its slug).
+ * Lookup + create is not transactional, so two simultaneous creates with the same name
+ * could still collide; that window is milliseconds and a collision costs one of them
+ * the public URL until renamed — acceptable next to the everyday homonym case.
+ */
+async function uniqueBusinessSlug(name: string): Promise<string> {
+  const base = slugify(name) || "comercio";
+  for (let n = 1; n < 100; n++) {
+    const candidate = n === 1 ? base : `${base}-${n}`;
+    const taken = await getDocs(
+      query(
+        collection(db, BUSINESSES),
+        where("slug", "==", candidate),
+        fbLimit(1),
+      ),
+    );
+    if (taken.empty) return candidate;
+  }
+  // 100 homonyms: give up on pretty and guarantee uniqueness with a time suffix.
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+export interface CreateBusinessInput {
+  name: string;
+  description: string;
+  categories: string[]; // category ids
+  categoryNames: string[]; // denormalized
+  /** Linked school, or "" — linking is optional (the owner may add it later). */
+  schoolId: string;
+  schoolName: string; // denormalized; "" when no school is linked
+  location: LocationInput;
+  contact?: BusinessContact;
+  /** Profile (avatar) image — uploaded to Storage, its URL stored as `logoUrl`. */
+  logoFile?: Blob;
+  /** Cover image — uploaded to Storage, its URL stored as `coverUrl` (the public
+   * profile cover; see app/business/[slug]). */
+  coverFile?: Blob;
+}
+
+/** Public Storage path of a business profile asset (public read via storage.rules). */
+function businessImagePath(
+  businessId: string,
+  kind: "logo" | "cover",
+): string {
+  return `businesses/${businessId}/${kind}`;
+}
+
+async function uploadBusinessImage(
+  businessId: string,
+  kind: "logo" | "cover",
+  file: Blob,
+): Promise<string> {
+  const ref = storageRef(storage, businessImagePath(businessId, kind));
+  await uploadBytes(ref, file);
+  return getDownloadURL(ref);
+}
+
+/**
+ * Upload one gallery photo and append it to `photos`. Unique timestamped path so
+ * photos never overwrite each other. The BUSINESS_GALLERY_MAX cap is enforced by the
+ * panel UI (the gallery manager hides the add control when full). Must be called by
+ * the owner/editor. Returns the stored URL.
+ */
+export async function addBusinessGalleryPhoto(
+  businessId: string,
+  file: Blob,
+): Promise<string> {
+  const ref = storageRef(
+    storage,
+    `businesses/${businessId}/gallery/${Date.now()}`,
+  );
+  await uploadBytes(ref, file);
+  const url = await getDownloadURL(ref);
+  await updateDoc(doc(db, BUSINESSES, businessId), {
+    photos: arrayUnion(url),
+    updatedAt: serverTimestamp(),
+  });
+  return url;
+}
+
+/**
+ * Remove a gallery photo (by its stored URL) from `photos` and best-effort delete the
+ * Storage file. The doc update is what un-publishes the photo; a failed file delete
+ * only leaves an unreachable orphan, so it never fails the operation.
+ */
+export async function removeBusinessGalleryPhoto(
+  businessId: string,
+  url: string,
+): Promise<void> {
+  await updateDoc(doc(db, BUSINESSES, businessId), {
+    photos: arrayRemove(url),
+    updatedAt: serverTimestamp(),
+  });
+  try {
+    await deleteObject(storageRef(storage, url));
+  } catch {
+    // Orphaned file (or an emulator URL ref() can't parse) — harmless.
+  }
+}
+
+/**
+ * Create a business page owned by `uid` and link it to the user's managedPages.
+ * Starts as a `draft`, unverified, with empty metrics/ranking and an inactive
+ * subscription — the owner completes the rest from the edit page. Returns the new id.
+ */
+export async function createBusinessPage(
+  uid: string,
+  input: CreateBusinessInput,
+): Promise<string> {
+  const slug = await uniqueBusinessSlug(input.name);
+  const ref = doc(collection(db, BUSINESSES));
+  // Images go up BEFORE the doc commit: the id already exists client-side, and a
+  // failed upload must fail the whole creation (a page missing the images the owner
+  // picked would publish broken). Files under a never-committed id are unreachable
+  // orphans — harmless.
+  const [logoUrl, coverUrl] = await Promise.all([
+    input.logoFile
+      ? uploadBusinessImage(ref.id, "logo", input.logoFile)
+      : Promise.resolve(null),
+    input.coverFile
+      ? uploadBusinessImage(ref.id, "cover", input.coverFile)
+      : Promise.resolve(null),
+  ]);
+  const batch = writeBatch(db);
+  batch.set(ref, {
+    name: input.name,
+    slug,
+    description: input.description,
+    categories: input.categories,
+    categoryNames: input.categoryNames,
+    location: toLocation(input.location),
+    schoolId: input.schoolId,
+    schoolName: input.schoolName,
+    contact: input.contact ?? {},
+    discount: { active: false, text: "" },
+    ...(logoUrl ? { logoUrl } : {}),
+    ...(coverUrl ? { coverUrl } : {}),
+    photos: [],
+    status: "draft",
+    verified: false,
+    subscription: { active: false, plan: "", validUntil: null },
+    ranking: { score: 0, totalDonated: 0 },
+    metrics: { views: 0, interactions: 0 },
+    reviewStats: { count: 0, average: 0 },
+    ownerId: uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  linkPageToUser(batch, uid, "business", ref.id);
+  await batch.commit();
+  return ref.id;
+}
+
+/**
+ * Statuses the owner may set from the panel: publish (`active`) / unpublish (`draft`).
+ * `pending` and `suspended` are admin lifecycle states the panel never writes.
+ */
+export type BusinessPublishStatus = Extract<BusinessStatus, "draft" | "active">;
+
+/**
+ * Publish or unpublish a business page. Public reads filter by `status == 'active'`
+ * (see getBusinessBySlug above), so flipping this is what actually puts the profile
+ * on — or takes it off — the catalog and its public URL.
+ */
+export async function setBusinessStatus(
+  id: string,
+  status: BusinessPublishStatus,
+): Promise<void> {
+  await updateDoc(doc(db, BUSINESSES, id), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Profile fields the owner edits from the panel (everything the edit form captures). */
+export interface UpdateBusinessInput {
+  name: string;
+  description: string;
+  categories: string[]; // category ids
+  categoryNames: string[]; // denormalized
+  /** Linked school, or "" — linking is optional (clearing it unlinks the school). */
+  schoolId: string;
+  schoolName: string; // denormalized; "" when no school is linked
+  location: LocationInput;
+  contact: BusinessContact;
+  discount: Discount;
+  hours?: string;
+}
+
+/**
+ * Update the public business doc from the edit form. The slug is deliberately NOT
+ * regenerated on rename: it is the public URL (shared on WhatsApp), so breaking inbound
+ * links costs more than an outdated slug. `status` is handled separately
+ * (setBusinessStatus); `ranking`/`reviewStats` are function-maintained and the rules
+ * reject any client write that touches them.
+ */
+export async function updateBusinessProfile(
+  id: string,
+  input: UpdateBusinessInput,
+): Promise<void> {
+  await updateDoc(doc(db, BUSINESSES, id), {
+    name: input.name,
+    description: input.description,
+    categories: input.categories,
+    categoryNames: input.categoryNames,
+    schoolId: input.schoolId,
+    schoolName: input.schoolName,
+    location: toLocation(input.location),
+    contact: input.contact,
+    discount: input.discount,
+    hours: input.hours ?? "",
+    updatedAt: serverTimestamp(),
+  });
 }

@@ -5,7 +5,12 @@
  * (businesses and/or schools), listed in `users/{uid}.managedPages`. These reads back
  * the private panel, so they run authenticated (the user reads their own doc).
  */
-import { doc, getDoc } from "firebase/firestore";
+import {
+  arrayUnion,
+  doc,
+  getDoc,
+  type WriteBatch,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type {
   Business,
@@ -19,6 +24,23 @@ import type {
 import { docToTyped } from "./converters";
 
 const USERS = "users";
+
+/**
+ * Queue the managedPages link (as owner) on the SAME batch as a page creation. If this
+ * write ran separately and failed after the page doc existed, the page would be orphaned:
+ * invisible in the panel, with a retry creating a duplicate. Used by createBusinessPage /
+ * createSchoolPage.
+ */
+export function linkPageToUser(
+  batch: WriteBatch,
+  uid: string,
+  type: "business" | "school",
+  id: string,
+): void {
+  batch.update(doc(db, USERS, uid), {
+    managedPages: arrayUnion({ type, id, role: "owner" }),
+  });
+}
 
 /** A user by uid. Returns null if the doc does not exist. */
 export async function getUserById(uid: string): Promise<UserDoc | null> {
