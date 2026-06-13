@@ -20,7 +20,13 @@ catálogo **sin registrarse**.
 - **Next.js (App Router) + TypeScript** — `next` 16, React 19
 - **Tailwind CSS** v4
 - **Firebase**: Firestore, Auth, Storage (SDK de cliente)
+- **Cloud Functions (Gen 2)** en [`functions/`](functions/) — paquete aparte (su propio
+  `package.json`), con privilegios de Admin para mantener señales denormalizadas que el
+  cliente no puede escribir (ranking, contadores, tiers de donante). Ver
+  [Cloud Functions](#cloud-functions-functions).
 - **geofire-common** para consultas de proximidad (geohash)
+- **Vitest** para tests unitarios (helpers puros: ranking, search, métricas, contacto).
+  Co-locados como `*.test.ts` junto al código.
 
 ### Notas de entorno
 
@@ -32,9 +38,15 @@ catálogo **sin registrarse**.
 
 ## Convenciones de código
 
-- **Idioma del código en inglés**: nombres de archivos, carpetas, variables,
-  funciones, tipos y **comentarios** se escriben en **inglés**. El contenido de
-  cara al usuario (UI, textos, copy) se mantiene en español.
+- **Todo el código en inglés.** Nombres de archivos, carpetas, **segmentos de ruta**
+  (`app/search`, no `app/buscar`), variables, funciones, tipos y **comentarios** van en
+  **inglés**, sin excepción.
+- **Solo el texto visible en pantalla va en español** (labels, títulos, copy, `placeholder`,
+  `aria-label`, mensajes). El idioma activo hoy es español; de ahí que la UI sea en español,
+  pero eso **no** alcanza al código. Ej.: la ruta es `/search` pero el botón dice "Buscar".
+- **Excepción: slugs generados por el usuario** (no son código). La URL pública del comercio
+  es el nombre que el dueño eligió, sin restricción de idioma:
+  `/business/el-comercio-de-aurora` o `/business/johns-restaurant`.
 
 ## Actores y modelo de "páginas" (estilo Facebook — importante)
 
@@ -84,78 +96,200 @@ se registra.
    autenticado** (p.ej. un comercio que quiere suscribirse) pero **solo si la escuela
    está `verified`** — nunca anónimos. La capa de datos centraliza esto en
    `getVerifiedSchoolPaymentMethods()` (devuelve null si no está verificada).
-5. **Contadores con `increment()` atómico** (métricas, businessCount, etc.).
+5. **Señales computadas mantenidas por Cloud Functions, nunca por el cliente.** El
+   ranking del comercio (`ranking.score`, `ranking.totalDonated`), su agregado de reseñas
+   (`reviewStats`), los contadores de la escuela (`metrics.supportingBusinesses`,
+   `uniqueSupporters`), el progreso del proyecto (`raised`, `contributorsCount`) y el tier
+   del donante (`donorProfiles`) se recalculan con el Admin SDK al confirmarse el hecho que
+   los alimenta. Las reglas **rechazan** cualquier escritura del cliente a esos campos, así
+   nadie infla su propio ranking/barra/tier. La capa de datos solo los **lee**.
 6. **Verificación de escuelas**: el dueño nunca escribe `verified`/`verificationStatus`
    (solo admin). Editar `name`/métodos de pago de una escuela verificada debe disparar
    `needs_reverification`.
+7. **El "soporte" es una relación de primera clase, no un pago.** Un comercio que apoya a
+   una escuela y un donante personal son el **mismo** documento `subscriptions/{id}`
+   (`supporterType: 'business' | 'user'`); el aporte único a un proyecto es
+   `projectContributions/{id}`. El documento guarda **solo** el flag `proofUploaded` — el
+   comprobante real vive en Storage (gated por `storage.rules`), nunca en el doc público.
+   La escuela confirma; la plataforma nunca toca el dinero. El día que se decida mediar
+   pagos, el flujo de dinero se monta encima de este mismo esquema.
 
 ## Modelo de datos (Firestore)
+
+Campos marcados **(fn)** los mantiene una Cloud Function; el cliente no los escribe.
 
 - `businesses/{id}`: name, slug, description, categories[], categoryNames[],
   location{geopoint, geohash, address, country, admin1, admin2, admin3}, schoolId,
   schoolName, contact{whatsapp, catalog, phone, email, web, instagram, facebook},
   discount{active, text, percentage}, logoUrl, coverUrl, photos[] (galería, máx 5),
-  hours, status, verified,
-  subscription{active, plan, validUntil}, ranking{score, totalDonated},
-  metrics{views, interactions}, ownerId, editorIds[], createdAt, updatedAt
+  hours, status('draft'|'pending'|'active'|'suspended'), verified,
+  subscription{active, plan, validUntil}, **ranking{score, totalDonated} (fn)**,
+  metrics{views, interactions}, **reviewStats{count, average} (fn)**,
+  ownerId, editorIds[], createdAt, updatedAt
+  - subcollection `reviews/{userId}` (id = uid del autor → una reseña por persona):
+    authorId, authorName, rating(1–5), text, createdAt, updatedAt
+  - subcollection `metricsDaily/{YYYY-MM-DD}`: contadores diarios del embudo, privados
+    del dueño; escritos **solo** por la función `trackInteraction`
 - `schools/{id}`: name, description, thankYouMessage,
   location{geopoint, geohash, country, admin1, admin2, admin3}, photoUrl,
   coverUrl, photos[] (galería, máx 5),
-  boardContact{name, phone, email}, status, verified, verificationStatus
-  ('pending'|'verified'|'needs_reverification'), metrics{supportingBusinesses},
+  boardContact{name, phone, email}, status('pending'|'active'|'inactive'), verified,
+  verificationStatus('pending'|'verified'|'needs_reverification'),
+  **metrics{supportingBusinesses, uniqueSupporters} (fn)**,
   ownerId, editorIds[], createdAt, updatedAt
   - subcollection `private/data`: paymentMethods[{label, value}] (legacy:
-    sinpe{number, accountHolder}, normalizado al leer)
+    sinpe{number, accountHolder}, normalizado al leer con `paymentMethodsOf()`)
+  - subcollection `projects/{projectId}`: schoolId, schoolName, title, description,
+    currency('CRC'|'USD'|'NIO'|'MXN'|'EUR'), status('active'|'completed'|'cancelled'),
+    stages[{title, justification, cost, photos[], quoteUrls[]}] (meta = suma de costos),
+    coverUrl, **raised (fn)**, **contributorsCount (fn)**, ownerId, createdAt, updatedAt
+- `subscriptions/{id}`: relación de soporte (comercio→escuela **o** donante→escuela).
+  supporterType('business'|'user'), businessId/businessName **o** donorId/donorName,
+  schoolId, schoolName, units (entero × `SUBSCRIPTION_UNIT_CRC`), amount, status
+  ('pending'|'confirmed'|'expiring'|'expired'), confirmedAt, firstConfirmedAt, expiresAt,
+  confirmedBy, proofUploaded, createdAt, updatedAt
+- `projectContributions/{id}`: aporte único a un proyecto. schoolId, schoolName, projectId,
+  projectTitle, type('money'|'in_kind'), donorId, donorName, amount (in-kind = valor
+  asignado), currency, description?, stageIndex?, stageTitle?,
+  status('pending'|'confirmed'), confirmedAt, confirmedBy, proofUploaded, createdAt, updatedAt
+- `donorProfiles/{uid}`: reconocimiento público del donante (id = uid). displayName,
+  isPublic (opt-in), **totalUnits (fn)**, **tier('bronze'|'silver'|'gold'|'platinum') (fn)**,
+  **schoolsSupported (fn)**, **projectsSupported (fn)**, **firstConfirmedAt (fn)**,
+  **lastConfirmedAt (fn)**, createdAt, updatedAt
 - `users/{uid}`: name, email, phone, role('user'|'admin'),
   managedPages[{type('business'|'school'), id, role('owner'|'editor')}], createdAt
 - `categories/{id}`: name, icon, order, businessCount
 
-Tipos en [`/types/firestore.ts`](types/firestore.ts).
+Tipos (y los `*_MAX`/`SUBSCRIPTION_*` constantes) en
+[`/types/firestore.ts`](types/firestore.ts).
 
 ## Estructura del proyecto
 
 ```
 app/
-  page.tsx                     # / (home) — SSR
-  business/[slug]/page.tsx     # perfil público del comercio — SSR
-  school/[id]/page.tsx         # página pública de la escuela — SSR
-  category/[id]/page.tsx       # listado por categoría — SSR
-  (panel)/                     # grupo de rutas privadas (URL: /panel/*)
+  page.tsx                       # / (home) — SSR
+  layout.tsx  globals.css  not-found.tsx
+  search/page.tsx                # /search — búsqueda (SSR + filtrado en cliente)
+  categories/page.tsx            # /categories — índice de categorías
+  category/[id]/page.tsx         # listado por categoría — SSR
+  business/[slug]/page.tsx       # perfil público del comercio — SSR (+ loading.tsx)
+  school/[id]/page.tsx           # página pública de la escuela — SSR
+  school/[id]/project/[pid]/page.tsx   # detalle público de un proyecto — SSR
+  (panel)/                       # grupo de rutas privadas (URL: /panel/*, requiere Auth)
     layout.tsx
-    panel/page.tsx             # panel: lista las páginas del usuario (requiere Auth)
-components/
-  auth/                        # AuthProvider (contexto), useAuth, LoginButton, RequireAuth
+    panel/page.tsx               # lista las páginas (managedPages) del usuario
+    panel/new/{,business,school}/page.tsx   # onboarding: crear comercio o escuela
+    panel/donate/page.tsx        # donación personal a una escuela
+    panel/fund/page.tsx          # financiar (aportar a) un proyecto
+    panel/business/[id]/{edit,metrics,subscribe}/page.tsx
+    panel/school/[id]/{edit,projects,projects/[pid],project-contributions,subscriptions}/page.tsx
+components/                      # agrupados por dominio (client components)
+  auth/        # AuthProvider (contexto), useAuth, LoginButton, RequireAuth
+  business/    # BusinessCard, ContactButtons, Gallery/Photo, ManageBar, SupportBadge, Track*
+  buyer/       # CommunityPicker (escuela/ubicación del comprador → localStorage)
+  donors/      # DonorTierBadge          reviews/   # ReviewForm, Stars, OwnReviewMark
+  feed/        # RankedFeed              school/    # PaymentMethods{Editor,Info}, SchoolManageBar
+  layout/      # SiteHeader              search/    # SearchBar
+  maps/        # LocationPicker          subscriptions/ # SubscriptionStatusBadge
+  projects/    # ProjectCard, ProjectProgress, ProjectStatusBadge, StagesEditor
+  ui/          # Combobox, Field, FormError, ImagePicker, PhoneField
 lib/
-  firebase.ts                  # init de app/firestore/auth/storage (singleton)
-  auth/                        # login Google + creación de users/{uid} (ensureUserDoc)
-  firestore/                   # capa de acceso a datos tipada
-    businesses.ts  schools.ts  categories.ts  users.ts
-    geo.ts  converters.ts  mutations.ts  index.ts
+  firebase.ts                    # init de app/firestore/auth/storage (singleton)
+  auth/                          # login Google + creación de users/{uid} (ensureUserDoc)
+  buyer/preferences.ts           # estado del comprador en localStorage (sin Firestore)
+  firestore/                     # capa de datos tipada — un archivo por dominio,
+    businesses.ts  schools.ts  categories.ts  subscriptions.ts  projects.ts
+    donors.ts  reviews.ts  metrics.ts  ranking.ts  feed.ts  users.ts
+    geo.ts  converters.ts  serialize.ts  index.ts   # cada dominio expone READS + WRITES
+  contact.ts  format.ts  forms.ts  location.ts  metrics.ts  search.ts  track.ts ...
+                                 # helpers puros de UI/dominio (varios con *.test.ts al lado)
+functions/                       # Cloud Functions Gen 2 (paquete aparte, su package.json)
+  src/index.ts  src/ranking.ts  src/donors.ts  src/track.ts
 types/
-  firestore.ts                 # tipos de todas las colecciones
-firestore.rules                # reglas de seguridad
-.env.local.example             # nombres de variables de entorno
+  firestore.ts                   # tipos + constantes de todas las colecciones
+scripts/seed.mjs                 # carga datos de ejemplo (npm run seed)
+docs/DEPLOY.md                   # guía de despliegue
+firestore.rules  storage.rules  firestore.indexes.json   # seguridad e índices
+firebase.json  .firebaserc  apphosting.yaml              # config Firebase / App Hosting
+vitest.config.ts  eslint.config.mjs  next.config.ts  .env.local.example
 ```
 
 ## Capa de datos (`@/lib/firestore`)
 
-- `getBusinessesBySchool(schoolId)` — ordenados por `ranking.score` desc, solo activos
-- `getBusinessBySlug(slug)` / `getBusinessById(id)`
-- `getBusinessesByCategory(categoryId)`
-- `getSchoolById(id)` / `getSchools()`
-- `getCategories()` / `getCategoryById(id)`
-- `getNearbyBusinesses([lat, lng], radiusKm)` — proximidad por geohash
-- `getPagesByUser(uid)` — páginas (`managedPages`) que administra el usuario, para el panel
+**Punto de entrada único**: importar siempre desde `@/lib/firestore` (el barrel
+[`index.ts`](lib/firestore/index.ts)), nunca desde un subarchivo. Cada archivo de dominio
+contiene **tanto sus lecturas (SSR/SSG) como sus escrituras** (mutaciones del panel); los
+helpers de escritura compartidos viven en `geo.ts` (`toLocation`, `LocationInput`) y
+`users.ts` (`linkPageToUser`).
+
+- **businesses.ts** — `getBusinessesBySchool` (orden `ranking.score` desc, solo activos),
+  `getBusinessBySlug` / `getBusinessById`, `getBusinessesByCategory`, `getActiveBusinesses`;
+  writes: `slugify`, `createBusinessPage`, `updateBusinessProfile`, `setBusinessStatus`,
+  galería.
+- **schools.ts** — `getSchoolById`, `getSchools` / `getSchoolsCached`,
+  `getVerifiedSchoolPaymentMethods` (null si no está verificada), `paymentMethodsOf`;
+  writes: `createSchoolPage`, `updateSchoolProfile`, `updateSchoolPaymentMethods`, galería.
+- **subscriptions.ts** — reads por comercio/escuela/donante + cola de pendientes;
+  writes: `createSubscription`, `uploadSubscriptionProof`, `confirmSubscription`,
+  `expireSubscription`.
+- **projects.ts** — `getProjectsBySchool`, `getProjectById`, contribuciones, `projectGoal`,
+  `projectProgress`; writes: CRUD de proyectos + `createContribution`/`confirmContribution`.
+- **donors.ts** — tiers (`donorTierForUnits`), `getDonorProfile`, `getSchoolDonorWall`;
+  writes: `createDonation`, `ensureDonorProfile`, `updateDonorRecognition`.
+- **reviews.ts** — `getReviewsByBusiness`, `getMyReview`, `upsertReview`, `deleteReview`.
+- **categories.ts** — `getCategories` / `getCategoryById`.
+- **geo.ts** — `getNearbyBusinesses` / `getNearbySchoolIds` (proximidad por geohash) +
+  `toLocation`/`LocationInput`.
+- **feed.ts** / **ranking.ts** — re-ranking del feed por comunidad del comprador y los
+  helpers puros del score (espejados en `functions/src/ranking.ts`).
+- **metrics.ts** — métricas diarias del comercio; **users.ts** — `getPagesByUser`,
+  `getUserById`, `linkPageToUser`.
+
+## Cloud Functions (`functions/`)
+
+Paquete aparte (Gen 2, Admin SDK) que mantiene las señales que el cliente no puede escribir
+(ver decisión de arquitectura #5). El Admin SDK **omite** las reglas de Firestore.
+
+- `onSubscriptionWritten` — al crear/editar/borrar una suscripción recalcula el
+  `ranking.score`/`totalDonated` del comercio, los contadores de la escuela y —si es
+  donación personal— el `donorProfiles` del donante.
+- `onProjectContributionWritten` — recalcula `raised`/`contributorsCount` del proyecto y
+  `projectsSupported` del donante.
+- `onReviewWritten` — recalcula `reviewStats` del comercio (y su ranking).
+- `expireSubscriptionsDaily` — job programado (03:00): vence las suscripciones lapsas
+  (`expired`) y marca las próximas a vencer (`expiring`); esas escrituras vuelven a
+  disparar `onSubscriptionWritten`.
+- `trackInteraction` / `recordWalkIn` (`./track`) — contadores del embudo
+  (`businesses/{id}/metricsDaily`) que el comprador anónimo no puede escribir directo.
+
+Los pesos del ranking y los umbrales de tier se **duplican** en `functions/src`
+(`ranking.ts`, `donors.ts`) como copia sin dependencias para el runtime de funciones;
+mantenerlos en sync con `lib/firestore/ranking.ts` y `donors.ts`.
 
 ## Reglas de seguridad (resumen)
 
-- `businesses`, `schools`, `categories`: **lectura pública**.
-- `businesses`: escritura del **dueño** (`ownerId`), **editores** (`editorIds`) o **admin**.
+- `businesses`, `schools`, `categories`, `subscriptions`, `projectContributions`,
+  `schools/{id}/projects`, `businesses/{id}/reviews`: **lectura pública** (catálogo SSR).
+- `businesses`: escritura del **dueño** (`ownerId`), **editores** (`editorIds`) o **admin**;
+  un update no-admin debe **dejar intactos** `ranking` y `reviewStats` (los mantiene la fn).
 - `schools` (doc público): escritura del **dueño**/**editores** o **admin**, EXCEPTO
   `verified`/`verificationStatus` que son **solo admin**.
 - `categories`: escritura solo **admin**.
 - `schools/{id}/private/*` (métodos de pago): escritura del **dueño** o **admin**; lectura del
   dueño/admin, o de **cualquier usuario autenticado si la escuela está `verified`**.
+- `schools/{id}/projects/*`: crear/editar/borrar dueño/editores o admin; un update no-admin
+  debe dejar `raised`/`contributorsCount` intactos.
+- `subscriptions`: crea el **lado que apoya** (comercio o el propio donante), forzado a
+  `pending`; **solo la escuela destino** (o admin) confirma/vence; nadie puede reescribir
+  quién apoya a quién ni subir `units`/`amount` tras confirmar.
+- `projectContributions`: crea el **contribuyente**, forzado a `pending` y **solo si la
+  escuela está `verified`**; solo la escuela/admin confirma.
+- `donorProfiles/{uid}`: lectura del propio donante/admin, o de cualquiera si `isPublic`;
+  el donante crea con todos los computados en cero y solo edita `displayName`/`isPublic`
+  (tier/totales los pone la fn).
+- `businesses/{id}/reviews/{userId}`: escritura del propio usuario (rating 1–5, texto ≤600),
+  **no** puede reseñar su propio comercio; admin puede borrar (moderación).
+- `businesses/{id}/metricsDaily/*`: lectura dueño/admin; escritura **solo** vía función.
 - `users/{uid}`: solo el **propio** usuario (o admin).
 
 ## Comandos
@@ -164,4 +298,6 @@ firestore.rules                # reglas de seguridad
 npm run dev     # desarrollo
 npm run build   # build de producción
 npm run lint    # eslint
+npm test        # vitest (helpers puros) — usa `npm run test:watch` en desarrollo
+npm run seed    # carga datos de ejemplo en Firestore (scripts/seed.mjs)
 ```
