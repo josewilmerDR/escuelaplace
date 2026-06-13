@@ -16,6 +16,7 @@ export * from "./reviews";
 export * from "./metrics";
 export * from "./ranking";
 export * from "./feed";
+export * from "./schools-feed";
 export * from "./users";
 export * from "./geo";
 export * from "./converters";

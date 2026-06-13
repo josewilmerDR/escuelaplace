@@ -271,6 +271,31 @@ export interface School {
 export type SchoolDoc = School & { id: string };
 
 /**
+ * Plain, JSON-serializable subset of a school for rendering cards (the public /schools
+ * directory and the donation picker). Server components map `SchoolDoc` to this (dropping
+ * the non-serializable Timestamp/GeoPoint values) before handing it to client components,
+ * which re-order it by proximity. `lat`/`lng` are the pin coordinates the client re-rank
+ * needs (null when the school has no geopoint); `supportingBusinesses`/`uniqueSupporters`
+ * feed the activity signal and the supporters chip. Mirrors `BusinessCardData`.
+ */
+export interface SchoolCardData {
+  id: string;
+  name: string;
+  /** "locality, region" precomputed (localityLabel); "" when unknown. */
+  locality: string;
+  /** Round avatar photo. */
+  photoUrl?: string;
+  /** Card cover thumbnail: coverUrl ?? photos[0] ?? photoUrl. */
+  photo?: string;
+  verified: boolean;
+  supportingBusinesses: number;
+  uniqueSupporters: number;
+  /** Pin coordinates for the proximity re-rank; null when the school has no geopoint. */
+  lat: number | null;
+  lng: number | null;
+}
+
+/**
  * One way to send money directly to the school, as free-form label:value — e.g.
  * "Cuenta bancaria: CR05…", "SINPE Móvil: 8888-1234", "PayPal: junta@escuela.org".
  * Purely INFORMATIONAL for the supporter: the platform never processes nor certifies

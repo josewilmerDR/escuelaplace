@@ -15,6 +15,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
+import { SchoolPicker } from "@/components/school/SchoolPicker";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -256,21 +257,13 @@ function DonateContent() {
         onInputCapture={clearValidationMessage}
         className="mt-6 flex flex-col gap-4"
       >
-        <Field label="Escuela">
-          <select
-            required
-            value={schoolId}
-            onChange={(e) => setSchoolId(e.target.value)}
-            className="input"
-          >
-            <option value="">Elegí una escuela…</option>
-            {schools.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {/* Not a <Field>: the picker holds several controls (carousel buttons, a link and
+            a search input), which can't live inside a single wrapping <label>. The submit
+            button stays disabled until a school is chosen, so no native `required` is needed. */}
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Escuela</span>
+          <SchoolPicker schools={schools} value={schoolId} onChange={setSchoolId} />
+        </div>
 
         {schoolId && (
           <div className="rounded-md bg-surface p-3 text-sm">
