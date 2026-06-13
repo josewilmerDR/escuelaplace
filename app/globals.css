@@ -95,3 +95,11 @@ body {
 .btn-on-brand {
   @apply bg-white text-brand-darker hover:bg-brand-tint;
 }
+/* Low-emphasis action: outlined neutral chip (sign out, dismiss, "ver como visitante"). */
+.btn-secondary {
+  @apply border border-border text-muted hover:bg-surface hover:text-foreground;
+}
+/* Destructive action (delete review, remove). Uses the error token; darkens on hover. */
+.btn-destructive {
+  @apply bg-error text-white hover:brightness-90;
+}

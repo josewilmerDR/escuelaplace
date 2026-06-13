@@ -1,10 +1,11 @@
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import type { SubscriptionStatus } from "@/types";
 
-const STATUS: Record<SubscriptionStatus, { label: string; className: string }> = {
-  pending: { label: "Pendiente", className: "bg-amber-100 text-amber-800" },
-  confirmed: { label: "Confirmada", className: "bg-green-100 text-green-800" },
-  expiring: { label: "Por vencer", className: "bg-orange-100 text-orange-800" },
-  expired: { label: "Vencida", className: "bg-gray-100 text-muted" },
+const MAP: Record<SubscriptionStatus, { tone: BadgeTone; label: string }> = {
+  pending: { tone: "warning", label: "Pendiente" },
+  confirmed: { tone: "success", label: "Confirmada" },
+  expiring: { tone: "alert", label: "Por vencer" },
+  expired: { tone: "neutral", label: "Vencida" },
 };
 
 export function SubscriptionStatusBadge({
@@ -12,10 +13,6 @@ export function SubscriptionStatusBadge({
 }: {
   status: SubscriptionStatus;
 }) {
-  const s = STATUS[status];
-  return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs ${s.className}`}>
-      {s.label}
-    </span>
-  );
+  const { tone, label } = MAP[status];
+  return <Badge tone={tone}>{label}</Badge>;
 }

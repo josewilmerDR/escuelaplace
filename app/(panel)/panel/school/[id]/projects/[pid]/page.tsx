@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
@@ -331,9 +331,7 @@ export default function ProjectEditPage() {
       </section>
 
       <p className="mt-8 text-sm">
-        <Link href={`/panel/school/${id}/projects`} className="underline">
-          ← Volver a proyectos
-        </Link>
+        <BackLink href={`/panel/school/${id}/projects`}>Volver a proyectos</BackLink>
       </p>
     </main>
   );
