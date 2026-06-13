@@ -110,7 +110,7 @@ export default function SchoolSubscriptionsPage() {
               type="button"
               onClick={confirmAll}
               disabled={busyId !== null}
-              className="rounded-md bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="btn btn-primary"
             >
               {busyId === "all" ? "Confirmando…" : "Confirmar todas"}
             </button>
