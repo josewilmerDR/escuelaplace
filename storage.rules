@@ -31,7 +31,7 @@ service firebase.storage {
       allow write: if isSignedIn();
     }
 
-    // SINPE proof files (sensitive): subscription-proofs/{subscriptionId}/...
+    // Payment proof files (sensitive): subscription-proofs/{subscriptionId}/...
     // NOT public. Ownership is resolved via Firestore: the proof belongs to a subscription,
     // whose supporter is a business page or a personal donor (supporterType 'user').
     // - write: the supporter side (business owner/editors, or the donor) or admin.

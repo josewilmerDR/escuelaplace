@@ -120,8 +120,8 @@ function CreatedBanner({
       ) : (
         <p>
           <strong>¡Tu escuela se creó!</strong> Se publica como “sin verificar”:
-          el equipo va a revisar los datos y mientras tanto el SINPE queda
-          oculto.{" "}
+          el equipo va a revisar los datos y mientras tanto los métodos de pago
+          quedan ocultos.{" "}
           <Link href={`/school/${page.doc.id}`} className="font-medium underline">
             Ver página pública
           </Link>
@@ -146,9 +146,8 @@ function DonateCallout() {
     <section className="mt-8 rounded-lg border border-dashed p-4">
       <h2 className="font-semibold">Apoyá como persona</h2>
       <p className="mt-1 text-sm text-gray-600">
-        No necesitás una página para apoyar: doná directamente a la Junta de
-        Educación de una escuela y, si querés, aparecé en su muro de
-        agradecimiento.
+        No necesitás una página para apoyar: doná directamente a una escuela
+        y, si querés, aparecé en su muro de agradecimiento.
       </p>
       <Link
         href="/panel/donate"
@@ -206,8 +205,8 @@ function PageCard({
       {page.type === "school" && page.doc.verificationStatus !== "verified" && (
         <p className="mt-3 rounded-md bg-amber-50 p-2 text-xs text-amber-800">
           {page.doc.verificationStatus === "needs_reverification"
-            ? "Editaste datos sensibles: la escuela quedó pendiente de re-verificación. El SINPE está oculto hasta que el equipo apruebe los cambios."
-            : "Datos sin verificar. El SINPE permanece oculto hasta que el equipo verifique la escuela."}
+            ? "Editaste datos sensibles: la escuela quedó pendiente de re-verificación. Los métodos de pago están ocultos hasta que el equipo apruebe los cambios."
+            : "Datos sin verificar. Los métodos de pago permanecen ocultos hasta que el equipo verifique la escuela."}
         </p>
       )}
 
@@ -219,14 +218,12 @@ function PageCard({
       )}
 
       <div className="mt-3 flex flex-wrap gap-4 text-sm">
-        {page.type === "business" && (
-          <Link
-            href={`/panel/business/${page.doc.id}/edit`}
-            className="underline"
-          >
-            Editar página
-          </Link>
-        )}
+        <Link
+          href={`/panel/${page.type}/${page.doc.id}/edit`}
+          className="underline"
+        >
+          Editar página
+        </Link>
         {/* A non-active business profile 404s (public reads filter by status), so the
             public link only renders when it actually resolves. */}
         {(page.type === "school" || page.doc.status === "active") && (

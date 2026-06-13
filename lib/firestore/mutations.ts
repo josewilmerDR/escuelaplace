@@ -2,9 +2,10 @@
  * Typed writes (mutations) for self-administered pages. These run client-side from the
  * panel (the owner is signed in); reads for SSR live in the per-collection files.
  *
- * School verification rule (schools only): editing a sensitive field (name or SINPE) of
- * an already-verified school drops it back to `needs_reverification` so the SINPE is
- * hidden and the "unverified data" banner reappears until admin re-approves. Owners can
+ * School verification rule (schools only): editing a sensitive field (name or payment
+ * methods) of an already-verified school drops it back to `needs_reverification` so the
+ * payment data is hidden and the "unverified data" banner reappears until admin
+ * re-approves. Owners can
  * never set `verified`/`verificationStatus` to verified — only admin can (see rules).
  */
 import {
@@ -44,8 +45,8 @@ import type {
   BusinessContact,
   BusinessStatus,
   Discount,
+  PaymentMethod,
   School,
-  SchoolPrivate,
 } from "@/types";
 
 const SCHOOLS = "schools";
@@ -139,23 +140,28 @@ function linkPageToUser(
   });
 }
 
-/** Fields of the public school doc an owner may edit through the panel. */
+/** Fields of the public school doc an owner may edit through the panel. The location
+ * comes as raw form input (lat/lng + admin levels) and is converted with toLocation so
+ * the geohash is always recomputed when the pin moves. */
 export type SchoolProfilePatch = Partial<
   Pick<
     School,
     | "name"
     | "description"
     | "thankYouMessage"
-    | "location"
     | "photoUrl"
+    | "coverUrl"
+    | "photos"
     | "boardContact"
   >
->;
+> & { location?: Omit<LocationInput, "address"> };
 
 /**
  * Update the public school doc. If `name` changes while the school is currently
  * `verified`, the verification is dropped to `needs_reverification`. Pass the school's
  * current `verificationStatus` so we don't need an extra read before writing.
+ * Callers should include `name` in the patch ONLY when it actually changed — its mere
+ * presence is what drops the verification.
  */
 export async function updateSchoolProfile(
   id: string,
@@ -165,26 +171,93 @@ export async function updateSchoolProfile(
   const dropsVerification =
     "name" in patch && currentStatus === "verified";
 
+  const { location, ...rest } = patch;
   await updateDoc(doc(db, SCHOOLS, id), {
-    ...patch,
+    ...rest,
+    ...(location ? { location: toLocation(location) } : {}),
     ...(dropsVerification
       ? { verified: false, verificationStatus: "needs_reverification" }
       : {}),
     updatedAt: serverTimestamp(),
   });
+
+  // A rename must reach the pickers (donate, subscribe, community combobox) before
+  // their TTL cache would naturally expire.
+  if ("name" in patch) invalidateSchoolsCache();
+}
+
+/** Public Storage path of a school profile asset (public read via storage.rules). */
+function schoolImagePath(schoolId: string, kind: "photo" | "cover"): string {
+  return `schools/${schoolId}/${kind}`;
 }
 
 /**
- * Write the school's SINPE (private subcollection). Editing the SINPE is always
- * sensitive, so if the school is currently `verified` we also drop the public doc to
- * `needs_reverification` (which re-hides the SINPE until admin re-approves).
+ * Upload (or replace) the school's profile photo or cover and return its URL. The
+ * caller persists the URL via updateSchoolProfile (photoUrl/coverUrl) — image changes
+ * are not sensitive, so they never touch the verification status.
  */
-export async function updateSchoolSinpe(
+export async function uploadSchoolImage(
+  schoolId: string,
+  kind: "photo" | "cover",
+  file: Blob,
+): Promise<string> {
+  const ref = storageRef(storage, schoolImagePath(schoolId, kind));
+  await uploadBytes(ref, file);
+  return getDownloadURL(ref);
+}
+
+/**
+ * Upload one gallery photo and append it to `photos` (arrayUnion creates the array on
+ * legacy docs). Unique timestamped path so photos never overwrite each other. The
+ * BUSINESS_GALLERY_MAX cap (shared with businesses) is enforced by the panel UI. Must
+ * be called by the owner/editor. Returns the stored URL.
+ */
+export async function addSchoolGalleryPhoto(
+  schoolId: string,
+  file: Blob,
+): Promise<string> {
+  const ref = storageRef(storage, `schools/${schoolId}/gallery/${Date.now()}`);
+  await uploadBytes(ref, file);
+  const url = await getDownloadURL(ref);
+  await updateDoc(doc(db, SCHOOLS, schoolId), {
+    photos: arrayUnion(url),
+    updatedAt: serverTimestamp(),
+  });
+  return url;
+}
+
+/**
+ * Remove a gallery photo (by its stored URL) from `photos` and best-effort delete the
+ * Storage file — same contract as removeBusinessGalleryPhoto.
+ */
+export async function removeSchoolGalleryPhoto(
+  schoolId: string,
+  url: string,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId), {
+    photos: arrayRemove(url),
+    updatedAt: serverTimestamp(),
+  });
+  try {
+    await deleteObject(storageRef(storage, url));
+  } catch {
+    // Orphaned file (or an emulator URL ref() can't parse) — harmless.
+  }
+}
+
+/**
+ * Write the school's payment methods (private subcollection). The set REPLACES the
+ * whole doc, so a legacy single `sinpe` is retired the first time the owner saves the
+ * list. Editing payment data is always sensitive, so if the school is currently
+ * `verified` we also drop the public doc to `needs_reverification` (which re-hides the
+ * payment methods until admin re-approves).
+ */
+export async function updateSchoolPaymentMethods(
   id: string,
-  sinpe: SchoolPrivate["sinpe"],
+  paymentMethods: PaymentMethod[],
   currentStatus: School["verificationStatus"],
 ): Promise<void> {
-  await setDoc(doc(db, SCHOOLS, id, "private", "data"), { sinpe }, { merge: true });
+  await setDoc(doc(db, SCHOOLS, id, "private", "data"), { paymentMethods });
 
   if (currentStatus === "verified") {
     await updateDoc(doc(db, SCHOOLS, id), {
@@ -392,18 +465,18 @@ export async function updateBusinessProfile(
 
 export interface CreateSchoolInput {
   name: string;
-  mepCode: string;
   description?: string;
   thankYouMessage?: string;
   location: Omit<LocationInput, "address">;
   boardContact: School["boardContact"];
-  /** Optional SINPE; stored in the private subcollection, hidden until verified. */
-  sinpe?: SchoolPrivate["sinpe"];
+  /** Optional payment methods; stored in the private subcollection, hidden until
+   * verified. Informational only — the platform never processes payments. */
+  paymentMethods?: PaymentMethod[];
 }
 
 /**
  * Create a school page owned by `uid` and link it to the user's managedPages. Schools
- * are self-administered but start unverified (`pending`): the SINPE stays hidden and an
+ * are self-administered but start unverified (`pending`): the payment methods stay hidden and an
  * "unverified data" banner shows until admin approves. Returns the new id.
  */
 export async function createSchoolPage(
@@ -414,7 +487,6 @@ export async function createSchoolPage(
   const batch = writeBatch(db);
   batch.set(ref, {
     name: input.name,
-    mepCode: input.mepCode,
     description: input.description ?? "",
     thankYouMessage: input.thankYouMessage ?? "",
     location: toLocation(input.location),
@@ -430,12 +502,12 @@ export async function createSchoolPage(
   linkPageToUser(batch, uid, "school", ref.id);
   await batch.commit();
 
-  // The SINPE write stays OUTSIDE the batch: the private-subcollection rule guards
-  // with get(schools/{id}), which reads pre-batch state — inside the batch the school
-  // wouldn't exist yet and the whole commit would be denied.
-  if (input.sinpe) {
+  // The payment-methods write stays OUTSIDE the batch: the private-subcollection rule
+  // guards with get(schools/{id}), which reads pre-batch state — inside the batch the
+  // school wouldn't exist yet and the whole commit would be denied.
+  if (input.paymentMethods?.length) {
     await setDoc(doc(db, SCHOOLS, ref.id, "private", "data"), {
-      sinpe: input.sinpe,
+      paymentMethods: input.paymentMethods,
     });
   }
 
@@ -461,7 +533,7 @@ export interface CreateSubscriptionInput {
 
 /**
  * Create a `pending` subscription. Must be called by the business owner/editor (the rules
- * enforce it). `amount` is denormalized from `units`. The SINPE proof is uploaded
+ * enforce it). `amount` is denormalized from `units`. The payment proof is uploaded
  * separately (see uploadSubscriptionProof) — it must not go in this public doc. Returns
  * the new id.
  */
@@ -478,6 +550,7 @@ export async function createSubscription(
     amount: input.units * SUBSCRIPTION_UNIT_CRC,
     status: "pending",
     confirmedAt: null,
+    firstConfirmedAt: null,
     expiresAt: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -486,7 +559,7 @@ export async function createSubscription(
 }
 
 /**
- * Upload (or replace) the SINPE proof file for a subscription. The file goes to the
+ * Upload (or replace) the payment proof file for a subscription. The file goes to the
  * private Storage path (gated by storage.rules to the business side / school / admin);
  * only the non-sensitive `proofUploaded` flag is written to the public doc. Must be called
  * by the business owner/editor.
@@ -510,15 +583,26 @@ export async function uploadSubscriptionProof(
  * or admin. Sets it to `confirmed`, stamps `confirmedAt`/`confirmedBy`, and sets
  * `expiresAt` `durationDays` from now (computed client-side since serverTimestamp can't be
  * offset). Renewing simply re-confirms and pushes `expiresAt` forward.
+ *
+ * On the FIRST confirmation it also stamps `firstConfirmedAt`, which renewals never
+ * touch — that's what the response-time chip averages. The pre-read costs one get on a
+ * panel action; without it a renewal couldn't tell itself apart from a first confirm.
  */
 export async function confirmSubscription(
   id: string,
   confirmedBy: string,
   durationDays: number = SUBSCRIPTION_CONFIRMATION_DAYS,
 ): Promise<void> {
-  await updateDoc(doc(db, SUBSCRIPTIONS, id), {
+  const ref = doc(db, SUBSCRIPTIONS, id);
+  const existing = (await getDoc(ref)).data();
+  // Never confirmed before → this confirmation is the school's first response. A
+  // legacy doc already confirmed (renewal without firstConfirmedAt) keeps it absent:
+  // stamping "now" there would fake a slow response.
+  const isFirstConfirmation = existing?.confirmedAt == null;
+  await updateDoc(ref, {
     status: "confirmed",
     confirmedAt: serverTimestamp(),
+    ...(isFirstConfirmation ? { firstConfirmedAt: serverTimestamp() } : {}),
     confirmedBy,
     expiresAt: Timestamp.fromMillis(Date.now() + durationDays * DAY_MS),
     updatedAt: serverTimestamp(),
@@ -540,7 +624,7 @@ export async function expireSubscription(id: string): Promise<void> {
 // ── Personal donations & donor recognition ───────────────────────────────────
 // Any signed-in user — no page needed — may donate to a school. Same entity and
 // lifecycle as a business subscription (`supporterType: 'user'`): the school confirms
-// the SINPE proof; confirmed donations feed the donor's recognition tier via a Cloud
+// the payment proof; confirmed donations feed the donor's recognition tier via a Cloud
 // Function. The platform never touches the money.
 
 export interface CreateDonationInput {
@@ -555,7 +639,7 @@ export interface CreateDonationInput {
 
 /**
  * Create a `pending` personal donation. Must be called by the signed-in donor (the rules
- * enforce `donorId == auth.uid`). The SINPE proof is uploaded separately with
+ * enforce `donorId == auth.uid`). The payment proof is uploaded separately with
  * uploadSubscriptionProof, exactly like a business subscription. Returns the new id.
  */
 export async function createDonation(
@@ -571,6 +655,7 @@ export async function createDonation(
     amount: input.units * SUBSCRIPTION_UNIT_CRC,
     status: "pending",
     confirmedAt: null,
+    firstConfirmedAt: null,
     expiresAt: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

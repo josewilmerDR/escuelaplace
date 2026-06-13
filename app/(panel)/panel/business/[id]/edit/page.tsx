@@ -28,9 +28,11 @@ import {
   type LatLng,
 } from "@/components/maps/LocationPicker";
 import {
+  addBusinessGalleryPhoto,
   getBusinessById,
   getCategories,
   getSchoolsCached,
+  removeBusinessGalleryPhoto,
   setBusinessStatus,
   splitBusinessPhotos,
   updateBusinessProfile,
@@ -629,10 +631,11 @@ export default function BusinessEditPage() {
         <h2 className="text-lg font-semibold">Galería</h2>
         <div className="mt-2">
           <GalleryManager
-            businessId={business.id}
             // splitBusinessPhotos excludes a legacy cover stored as photos[0], which
             // must not show up as a removable gallery item.
             initialPhotos={splitBusinessPhotos(business).gallery}
+            addPhoto={(file) => addBusinessGalleryPhoto(business.id, file)}
+            removePhoto={(url) => removeBusinessGalleryPhoto(business.id, url)}
           />
         </div>
       </section>

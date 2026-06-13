@@ -4,7 +4,7 @@
  * School confirmation queue (/panel/school/[id]/subscriptions).
  *
  * The board reviews the pending subscriptions targeting their school and confirms the ones
- * whose SINPE proof matches what they received. Confirming time-boxes the support
+ * whose payment proof matches what they received. Confirming time-boxes the support
  * (expiresAt); a Cloud Function then recomputes the supporting business's ranking. The
  * board can confirm one at a time or all pending at once.
  */

@@ -78,6 +78,76 @@ export function isCountingSubscription(
   return expMs == null || expMs > nowMs;
 }
 
+/** Window (days) of the public "recent support" chip on the school page. */
+export const RECENT_SUPPORT_WINDOW_DAYS = 30;
+
+/**
+ * Distinct supporters (business pages + personal donors) whose confirmed support was
+ * active at some point during the last RECENT_SUPPORT_WINDOW_DAYS. Unlike
+ * isCountingSubscription (a point-in-time check), support that lapsed *inside* the
+ * window still counts — the school did receive that help within the last 30 days.
+ * A COUNT, never an amount: the platform does not publish money figures.
+ */
+export function countRecentUniqueSupporters(
+  subscriptions: SubscriptionDoc[],
+  nowMs: number = Date.now(),
+): number {
+  const windowStartMs = nowMs - RECENT_SUPPORT_WINDOW_DAYS * DAY_MS;
+  const supporters = new Set<string>();
+  for (const sub of subscriptions) {
+    const confirmedMs = sub.confirmedAt?.toMillis?.() ?? null;
+    if (confirmedMs == null || confirmedMs > nowMs) continue; // never confirmed
+    const expMs = sub.expiresAt?.toMillis?.() ?? null;
+    if (expMs != null && expMs <= windowStartMs) continue; // lapsed before the window
+    // Absent supporterType = legacy business subscription (see SupporterType).
+    const isDonor = sub.supporterType === "user";
+    const supporterId = isDonor ? sub.donorId : sub.businessId;
+    if (supporterId) supporters.add(`${isDonor ? "u" : "b"}:${supporterId}`);
+  }
+  return supporters.size;
+}
+
+/** Sample size for the "typically confirms in ~X" responsiveness signal. */
+export const CONFIRMATION_TIME_SAMPLE = 10;
+
+/**
+ * Average registration→first-confirmation time (ms) over the school's most recent
+ * CONFIRMATION_TIME_SAMPLE confirmed subscriptions (fewer if the school has fewer),
+ * or null with no confirmations. Powers the public "normalmente confirma las
+ * donaciones en ~X" chip — gentle pressure on the board that reads as reliability to
+ * the donor.
+ *
+ * The duration is `firstConfirmedAt - createdAt`: renewals move `confirmedAt` forward
+ * but never `firstConfirmedAt`, so a renewed subscription contributes its real first
+ * response time. Legacy docs predating `firstConfirmedAt` fall back to `confirmedAt`
+ * (slightly inflated if they were ever renewed). Recency is still ranked by
+ * `confirmedAt` — the latest confirmation activity, renewals included.
+ */
+export function averageConfirmationTimeMs(
+  subscriptions: SubscriptionDoc[],
+  sampleSize: number = CONFIRMATION_TIME_SAMPLE,
+): number | null {
+  const durations = subscriptions
+    .map((sub) => {
+      const confirmedMs = sub.confirmedAt?.toMillis?.() ?? null;
+      const firstMs = sub.firstConfirmedAt?.toMillis?.() ?? confirmedMs;
+      const createdMs = sub.createdAt?.toMillis?.() ?? null;
+      if (confirmedMs == null || firstMs == null || createdMs == null) {
+        return null;
+      }
+      return { confirmedMs, duration: Math.max(0, firstMs - createdMs) };
+    })
+    .filter((d): d is { confirmedMs: number; duration: number } => d !== null)
+    // Most recent confirmations first — responsiveness is about how the board
+    // behaves NOW, not at sign-up time.
+    .sort((a, b) => b.confirmedMs - a.confirmedMs)
+    .slice(0, sampleSize);
+  if (durations.length === 0) return null;
+  return (
+    durations.reduce((sum, d) => sum + d.duration, 0) / durations.length
+  );
+}
+
 /** Recency decay factor in (0,1] based on age since confirmation. */
 function decayFactor(sub: SubscriptionDoc, weights: RankingWeights, nowMs: number) {
   const confirmedMs = sub.confirmedAt?.toMillis?.() ?? null;

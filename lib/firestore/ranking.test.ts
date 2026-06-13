@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { SubscriptionDoc } from "@/types";
 import {
+  CONFIRMATION_TIME_SAMPLE,
   DEFAULT_RANKING_WEIGHTS,
+  RECENT_SUPPORT_WINDOW_DAYS,
   type RankingWeights,
+  averageConfirmationTimeMs,
   computeSupportSignals,
+  countRecentUniqueSupporters,
   isCountingSubscription,
   qualityScore,
   scoreBusiness,
@@ -55,6 +59,113 @@ describe("isCountingSubscription", () => {
 
   it("counts when expiresAt is null (no expiry set)", () => {
     expect(isCountingSubscription(sub({ expiresAt: null }), NOW)).toBe(true);
+  });
+});
+
+describe("countRecentUniqueSupporters", () => {
+  const WINDOW = RECENT_SUPPORT_WINDOW_DAYS * DAY;
+
+  it("counts distinct supporters, not subscriptions", () => {
+    const subs = [
+      sub({ id: "s1", businessId: "b1" }),
+      sub({ id: "s2", businessId: "b1" }), // renewal of the same business
+      sub({ id: "s3", businessId: "b2" }),
+      sub({ id: "s4", supporterType: "user", donorId: "u1", businessId: undefined }),
+    ];
+    expect(countRecentUniqueSupporters(subs, NOW)).toBe(3);
+  });
+
+  it("ignores never-confirmed subscriptions", () => {
+    const pending = sub({ status: "pending", confirmedAt: null, expiresAt: null });
+    expect(countRecentUniqueSupporters([pending], NOW)).toBe(0);
+  });
+
+  it("still counts support that lapsed inside the window", () => {
+    // Expired a week ago: the school did receive this help within the last 30 days.
+    const lapsedInside = sub({
+      status: "expired",
+      confirmedAt: ts(NOW - 100 * DAY),
+      expiresAt: ts(NOW - 7 * DAY),
+    });
+    expect(countRecentUniqueSupporters([lapsedInside], NOW)).toBe(1);
+  });
+
+  it("drops support that lapsed before the window", () => {
+    const lapsedBefore = sub({
+      status: "expired",
+      confirmedAt: ts(NOW - 200 * DAY),
+      expiresAt: ts(NOW - WINDOW - DAY),
+    });
+    expect(countRecentUniqueSupporters([lapsedBefore], NOW)).toBe(0);
+  });
+
+  it("a donor and a business never collide even with equal ids", () => {
+    const subs = [
+      sub({ id: "s1", businessId: "same-id" }),
+      sub({ id: "s2", supporterType: "user", donorId: "same-id", businessId: undefined }),
+    ];
+    expect(countRecentUniqueSupporters(subs, NOW)).toBe(2);
+  });
+});
+
+describe("averageConfirmationTimeMs", () => {
+  const HOUR = 3_600_000;
+
+  it("averages registration→confirmation time of confirmed subscriptions", () => {
+    const subs = [
+      sub({ createdAt: ts(NOW - 4 * HOUR), confirmedAt: ts(NOW - 2 * HOUR) }), // 2h
+      sub({ createdAt: ts(NOW - 7 * HOUR), confirmedAt: ts(NOW - 3 * HOUR) }), // 4h
+    ];
+    expect(averageConfirmationTimeMs(subs)).toBe(3 * HOUR);
+  });
+
+  it("returns null with no confirmations (pending-only or empty)", () => {
+    expect(averageConfirmationTimeMs([])).toBeNull();
+    const pending = sub({ status: "pending", confirmedAt: null, expiresAt: null });
+    expect(averageConfirmationTimeMs([pending])).toBeNull();
+  });
+
+  it("samples only the most recently confirmed subscriptions", () => {
+    // CONFIRMATION_TIME_SAMPLE fast recent confirmations (1h each) preceded by one
+    // ancient slow one (100h) that must fall out of the sample.
+    const old = sub({
+      id: "old",
+      createdAt: ts(NOW - 200 * HOUR),
+      confirmedAt: ts(NOW - 100 * HOUR),
+    });
+    const recent = Array.from({ length: CONFIRMATION_TIME_SAMPLE }, (_, i) =>
+      sub({
+        id: `s${i}`,
+        createdAt: ts(NOW - (i + 2) * HOUR),
+        confirmedAt: ts(NOW - (i + 1) * HOUR),
+      }),
+    );
+    expect(averageConfirmationTimeMs([old, ...recent])).toBe(HOUR);
+  });
+
+  it("clamps clock-skewed negative durations to zero", () => {
+    const skewed = sub({ createdAt: ts(NOW), confirmedAt: ts(NOW - HOUR) });
+    expect(averageConfirmationTimeMs([skewed])).toBe(0);
+  });
+
+  it("measures renewals by firstConfirmedAt, not the moved confirmedAt", () => {
+    // Registered 100h ago, first confirmed 2h later, renewed just now: the school's
+    // response time is 2h — the renewal must not contribute the 100h lifetime.
+    const renewed = sub({
+      createdAt: ts(NOW - 100 * HOUR),
+      firstConfirmedAt: ts(NOW - 98 * HOUR),
+      confirmedAt: ts(NOW),
+    });
+    expect(averageConfirmationTimeMs([renewed])).toBe(2 * HOUR);
+  });
+
+  it("falls back to confirmedAt on legacy docs without firstConfirmedAt", () => {
+    const legacy = sub({
+      createdAt: ts(NOW - 3 * HOUR),
+      firstConfirmedAt: undefined,
+      confirmedAt: ts(NOW),
+    });
+    expect(averageConfirmationTimeMs([legacy])).toBe(3 * HOUR);
   });
 });
 
