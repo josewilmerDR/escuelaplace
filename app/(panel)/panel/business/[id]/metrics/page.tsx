@@ -11,7 +11,8 @@
  * owner's own chats, which is what makes the report credible.
  */
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
+import { PlusIcon } from "@/components/ui/icons";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
@@ -175,7 +176,7 @@ export default function BusinessMetricsPage() {
             disabled={recording}
             className="btn btn-primary"
           >
-            ➕ Cliente de escuelaplace
+            <PlusIcon className="mr-1.5 h-4 w-4" />Cliente de escuelaplace
           </button>
           <span className="text-sm text-muted">
             Hoy:{" "}
@@ -274,9 +275,7 @@ export default function BusinessMetricsPage() {
       </p>
 
       <p className="mt-8 text-sm">
-        <Link href="/panel" className="underline">
-          ← Volver al panel
-        </Link>
+        <BackLink href="/panel">Volver al panel</BackLink>
       </p>
     </main>
   );

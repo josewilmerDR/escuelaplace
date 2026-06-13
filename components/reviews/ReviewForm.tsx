@@ -237,8 +237,8 @@ function ReviewFormInner({
       {confirmingDelete ? (
         // Inline confirmation (no modal primitive in the codebase yet). Concrete copy:
         // what gets deleted and that there is no undo.
-        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
-          <p className="text-red-800">
+        <div className="mt-3 rounded-lg border border-error/30 bg-error-tint p-3">
+          <p className="text-error">
             ¿Borrar tu reseña de {businessName}? Esta acción no se puede
             deshacer.
           </p>
@@ -247,7 +247,7 @@ function ReviewFormInner({
               type="button"
               onClick={onDelete}
               disabled={saving}
-              className="btn bg-red-700 text-white hover:bg-red-800"
+              className="btn btn-destructive"
             >
               {saving ? "Borrando…" : "Sí, borrar"}
             </button>

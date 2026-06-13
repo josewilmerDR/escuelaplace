@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Combobox } from "@/components/ui/Combobox";
 import { SchoolCard } from "@/components/school/SchoolCard";
-import { MapPinIcon } from "@/components/ui/icons";
+import { ArrowRightIcon, MapPinIcon } from "@/components/ui/icons";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
 import { rankSchoolsByRelevance, toSchoolCardData } from "@/lib/firestore";
 import type { SchoolDoc } from "@/types";
@@ -226,9 +226,7 @@ export function SchoolPicker({
               href="/schools"
               className={`${SLIDE} flex flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-border p-4 text-center text-sm font-medium text-brand-darker transition hover:border-brand-dark hover:bg-brand-tint/40`}
             >
-              <span aria-hidden className="text-2xl leading-none">
-                →
-              </span>
+              <ArrowRightIcon className="h-6 w-6" />
               Más escuelas
               <span className="text-xs font-normal text-muted">
                 Ver todas y buscar por cercanía

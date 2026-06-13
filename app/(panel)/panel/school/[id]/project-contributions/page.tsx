@@ -9,7 +9,7 @@
  * can confirm one at a time or all pending at once.
  */
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
@@ -207,9 +207,7 @@ export default function ProjectContributionsPage() {
       )}
 
       <p className="mt-8 text-sm">
-        <Link href="/panel" className="underline">
-          ← Volver al panel
-        </Link>
+        <BackLink href="/panel">Volver al panel</BackLink>
       </p>
     </main>
   );

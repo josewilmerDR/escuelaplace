@@ -10,7 +10,8 @@
  * (donorProfiles), which is shown publicly only if the donor opts in.
  */
 import { Suspense, useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
+import { CheckIcon } from "@/components/ui/icons";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
@@ -379,7 +380,7 @@ function DonateContent() {
                   <p className="font-medium">{d.schoolName}</p>
                   <p className="text-muted">
                     {d.units}× · {formatColones(d.amount)} ·{" "}
-                    {d.proofUploaded ? "Comprobante ✓" : "Sin comprobante"}
+                    {d.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3.5 w-3.5" />Comprobante</span>) : "Sin comprobante"}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -409,9 +410,7 @@ function DonateContent() {
       </section>
 
       <p className="mt-8 text-sm">
-        <Link href="/panel" className="underline">
-          ← Volver al panel
-        </Link>
+        <BackLink href="/panel">Volver al panel</BackLink>
       </p>
     </main>
   );

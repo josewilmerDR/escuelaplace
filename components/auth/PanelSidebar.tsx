@@ -37,7 +37,7 @@ export function PanelSidebar() {
       {/* Session action lives in the account area now — the header only shows the
           account name. A divider + muted styling sets it apart from the nav links. */}
       <div className="mt-4 md:mt-6 md:border-t md:border-border md:pt-6">
-        <SignOutButton className="btn border border-border text-muted hover:bg-surface hover:text-foreground md:w-full" />
+        <SignOutButton className="btn btn-secondary md:w-full" />
       </div>
     </aside>
   );

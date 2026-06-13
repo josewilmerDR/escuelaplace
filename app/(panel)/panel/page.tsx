@@ -19,7 +19,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { BusinessStatusBadge } from "@/components/business/BusinessStatusBadge";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { PagesIcon } from "@/components/ui/icons";
+import { PagesIcon, XMarkIcon } from "@/components/ui/icons";
 import {
   getCachedPagesByUser,
   getPagesByUser,
@@ -239,7 +239,7 @@ function CreatedBanner({
         aria-label="Cerrar aviso"
         className="-m-2 shrink-0 p-2 hover:underline"
       >
-        ✕
+        <XMarkIcon className="h-4 w-4" />
       </button>
     </div>
   );
