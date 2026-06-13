@@ -5,10 +5,19 @@ import { notFound } from "next/navigation";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { PhotoGallery } from "@/components/business/PhotoGallery";
 import { SectionTabs } from "@/components/business/SectionTabs";
-import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
+import { DonorWall } from "@/components/donors/DonorWall";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { SchoolManageBar } from "@/components/school/SchoolManageBar";
+import {
+  ClockIcon,
+  FlagIcon,
+  HeartIcon,
+  MapPinIcon,
+  UsersIcon,
+  VerifiedIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 import { buildDirectionsUrl } from "@/lib/contact";
 import {
   averageConfirmationTimeMs,
@@ -19,7 +28,6 @@ import {
   getSchoolDonorWall,
   getSubscriptionsBySchool,
   toBusinessCardData,
-  type SchoolDonorWall,
 } from "@/lib/firestore";
 import { formatApproxDuration } from "@/lib/format";
 import { locationParts } from "@/lib/location";
@@ -447,207 +455,5 @@ export default async function SchoolPage({ params }: Props) {
         </main>
       </div>
     </>
-  );
-}
-
-/**
- * Thank-you wall: personal donors whose donations the school confirmed. Only opted-in
- * donors are named (name + tier + seniority — never amounts); the rest are acknowledged
- * as an anonymous count. Seniority order, not a leaderboard.
- */
-function DonorWall({
-  school,
-  wall,
-}: {
-  school: SchoolDoc;
-  wall: SchoolDonorWall;
-}) {
-  return (
-    <section
-      id="muro"
-      className="mt-4 scroll-mt-6 rounded-2xl border border-border bg-white p-5 sm:p-6"
-    >
-      <h2 className="text-xl font-semibold">Muro de agradecimiento</h2>
-      {school.thankYouMessage && (
-        <p className="mt-2 text-slate-700">{school.thankYouMessage}</p>
-      )}
-
-      {wall.recognized.length > 0 && (
-        <ul className="mt-4 flex flex-wrap gap-3">
-          {wall.recognized.map((donor) => (
-            <li
-              key={donor.id}
-              className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-            >
-              <span className="font-medium text-slate-900">
-                {donor.displayName}
-              </span>
-              {donor.tier && <DonorTierBadge tier={donor.tier} />}
-              {(donor.projectsSupported ?? 0) > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-medium text-brand-darker">
-                  {donor.projectsSupported === 1
-                    ? "Participó en 1 proyecto"
-                    : `Participó en ${donor.projectsSupported} proyectos`}
-                </span>
-              )}
-              {donor.firstConfirmedAt && (
-                <span className="text-xs text-muted">
-                  Desde {donor.firstConfirmedAt.toDate().getFullYear()}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {wall.anonymousCount > 0 && (
-        <p className="mt-3 text-sm text-muted">
-          {wall.anonymousCount === 1
-            ? "…y 1 persona más que dona de forma anónima. ¡Gracias!"
-            : `…y ${wall.anonymousCount} personas más que donan de forma anónima. ¡Gracias!`}
-        </p>
-      )}
-    </section>
-  );
-}
-
-/* Inline icons (Heroicons paths) — server-safe, no icon dependency. */
-
-/** Solid check-badge, the FB-style verified mark. */
-function VerifiedIcon({
-  className,
-  title,
-}: {
-  className?: string;
-  title?: string;
-}) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
-      {title && <title>{title}</title>}
-      <path
-        fillRule="evenodd"
-        d="M8.603 3.799A4.49 4.49 0 0 1 12 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 0 1 3.498 1.307 4.491 4.491 0 0 1 1.307 3.497A4.49 4.49 0 0 1 21.75 12a4.49 4.49 0 0 1-1.549 3.397 4.491 4.491 0 0 1-1.307 3.497 4.491 4.491 0 0 1-3.497 1.307A4.49 4.49 0 0 1 12 21.75a4.49 4.49 0 0 1-3.397-1.549 4.49 4.49 0 0 1-3.498-1.306 4.491 4.491 0 0 1-1.307-3.498A4.49 4.49 0 0 1 2.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 0 1 1.307-3.497 4.49 4.49 0 0 1 3.497-1.307Zm7.007 6.387a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.137-.089l3.75-5.25Z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function HeartIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"
-      />
-    </svg>
-  );
-}
-
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      />
-    </svg>
-  );
-}
-
-function FlagIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"
-      />
-    </svg>
-  );
-}
-
-function MapPinIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-      />
-    </svg>
-  );
-}
-
-function UsersIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"
-      />
-    </svg>
-  );
-}
-
-function WarningIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
-      />
-    </svg>
   );
 }

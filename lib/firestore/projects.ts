@@ -1,27 +1,45 @@
 /**
- * Typed reads of school projects (`schools/{schoolId}/projects/{projectId}`) and their
- * one-off contributions (top-level `projectContributions`). Public read, so these run from
- * server components (SSR — the project section and detail page) and from the panel.
+ * Typed reads AND writes of school projects (`schools/{schoolId}/projects/{projectId}`)
+ * and their one-off contributions (top-level `projectContributions`). Public read, so
+ * reads run from server components (SSR — the project section and detail page) and the
+ * panel; writes (board project CRUD + donor contributions) run client-side from the panel.
+ *
+ * A school lists concrete projects (e.g. "buy a water tank") with cost-justified stages.
+ * Anyone managing the school drafts/edits them; `raised`/`contributorsCount` are
+ * function-maintained from CONFIRMED contributions (the rules reject client writes to
+ * them). The platform never touches the money — contributions record a relationship the
+ * school confirms, exactly like subscriptions.
  *
  * Like subscriptions, contribution status is filtered in JS (not in the query) to avoid
  * composite-index requirements; per-school/per-project result sets are small.
  */
 import {
+  addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
   query,
+  serverTimestamp,
+  updateDoc,
   where,
 } from "firebase/firestore";
-import { getDownloadURL, ref as storageRef } from "firebase/storage";
+import {
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
+} from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type {
   Project,
   ProjectContribution,
   ProjectContributionDoc,
+  ProjectContributionType,
+  ProjectCurrency,
   ProjectDoc,
   ProjectStage,
+  ProjectStatus,
 } from "@/types";
 import { docToTyped, snapToList } from "./converters";
 
@@ -144,4 +162,198 @@ export async function getContributionProofUrl(
   } catch {
     return null;
   }
+}
+
+// ── Writes (board project CRUD) ──────────────────────────────────────────────
+
+export interface CreateProjectInput {
+  title: string;
+  description: string;
+  currency: ProjectCurrency;
+  /** Ordered stages (cost-justified). The goal is the sum of their costs. */
+  stages: ProjectStage[];
+}
+
+/**
+ * Create an `active` project under a school. Must be called by the school owner/editor (the
+ * rules enforce it). `raised`/`contributorsCount` start at 0 and are maintained by the
+ * Cloud Function; `ownerId`/`schoolName` are denormalized from the school. Returns the id.
+ */
+export async function createProject(
+  schoolId: string,
+  schoolName: string,
+  ownerId: string,
+  input: CreateProjectInput,
+): Promise<string> {
+  const created = await addDoc(collection(db, SCHOOLS, schoolId, PROJECTS), {
+    schoolId,
+    schoolName,
+    title: input.title,
+    description: input.description,
+    currency: input.currency,
+    status: "active",
+    stages: input.stages,
+    raised: 0,
+    contributorsCount: 0,
+    ownerId,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return created.id;
+}
+
+/** Fields of a project the board may edit. `raised`/`contributorsCount`/`status` are
+ * handled elsewhere (function-maintained / setProjectStatus). */
+export type ProjectPatch = Partial<{
+  title: string;
+  description: string;
+  currency: ProjectCurrency;
+  stages: ProjectStage[];
+  coverUrl: string;
+}>;
+
+/** Update a project's editable fields. Must be called by the school owner/editor. */
+export async function updateProject(
+  schoolId: string,
+  projectId: string,
+  patch: ProjectPatch,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, PROJECTS, projectId), {
+    ...patch,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Open/close a project. Reaching the money goal never auto-closes it (buying the tank
+ * still has to happen), so `completed` is always a manual board action — also the way an
+ * accepted in-kind donation fulfils a project.
+ */
+export async function setProjectStatus(
+  schoolId: string,
+  projectId: string,
+  status: ProjectStatus,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, PROJECTS, projectId), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Delete a project. Must be called by the school owner/editor. Past contributions are
+ * left as-is (history); the function simply stops recomputing a missing project. */
+export async function deleteProject(
+  schoolId: string,
+  projectId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, SCHOOLS, schoolId, PROJECTS, projectId));
+}
+
+/**
+ * Upload a project asset (the cover, a stage photo or a stage quote) to the public school
+ * Storage namespace and return its URL. Unique timestamped path so files never overwrite.
+ * The caller persists the URL via updateProject (cover) or by writing it into the stages
+ * array. `kind` only shapes the path for readability.
+ */
+export async function uploadProjectAsset(
+  schoolId: string,
+  projectId: string,
+  kind: "cover" | "photo" | "quote",
+  file: Blob,
+): Promise<string> {
+  const ref = storageRef(
+    storage,
+    `schools/${schoolId}/projects/${projectId}/${kind}-${Date.now()}`,
+  );
+  await uploadBytes(ref, file);
+  return getDownloadURL(ref);
+}
+
+// ── Writes (donor contributions) ─────────────────────────────────────────────
+
+export interface CreateContributionInput {
+  schoolId: string;
+  schoolName: string; // denormalized
+  projectId: string;
+  projectTitle: string; // denormalized
+  currency: ProjectCurrency; // copied from the project
+  donorId: string;
+  donorName: string; // denormalized
+  type: ProjectContributionType;
+  /** Money: amount paid. In-kind: assessed value (cost of the stage covered, or a
+   * fraction). Both feed the progress bar once confirmed. */
+  amount: number;
+  /** What is being donated, for in-kind contributions. */
+  description?: string;
+  /** Stage this contribution covers (index into the project's stages), if tied to one. */
+  stageIndex?: number;
+  /** Snapshot of that stage's title, for the confirmation queue. */
+  stageTitle?: string;
+}
+
+/**
+ * Create a `pending` contribution to a project. Must be called by the signed-in donor
+ * (the rules enforce `donorId == auth.uid` and that the school is verified). The payment
+ * proof / evidence is uploaded separately. Returns the new id.
+ */
+export async function createContribution(
+  input: CreateContributionInput,
+): Promise<string> {
+  const created = await addDoc(collection(db, PROJECT_CONTRIBUTIONS), {
+    schoolId: input.schoolId,
+    schoolName: input.schoolName,
+    projectId: input.projectId,
+    projectTitle: input.projectTitle,
+    type: input.type,
+    donorId: input.donorId,
+    donorName: input.donorName,
+    amount: input.amount,
+    currency: input.currency,
+    // Conditional spread: Firestore rejects explicit `undefined`.
+    ...(input.description ? { description: input.description } : {}),
+    ...(input.stageIndex != null ? { stageIndex: input.stageIndex } : {}),
+    ...(input.stageTitle ? { stageTitle: input.stageTitle } : {}),
+    status: "pending",
+    confirmedAt: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return created.id;
+}
+
+/**
+ * Upload (or replace) the payment proof for a contribution. The file goes to the private
+ * Storage path (gated by storage.rules to the contributor / school / admin); only the
+ * non-sensitive `proofUploaded` flag is written to the public doc.
+ */
+export async function uploadContributionProof(
+  contributionId: string,
+  file: Blob,
+): Promise<void> {
+  await uploadBytes(
+    storageRef(storage, contributionProofPath(contributionId)),
+    file,
+  );
+  await updateDoc(doc(db, PROJECT_CONTRIBUTIONS, contributionId), {
+    proofUploaded: true,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Confirm a contribution. Must be called by the school's board (owner/editors) or admin.
+ * Stamps `confirmedAt`/`confirmedBy`; a Cloud Function then recomputes the project's
+ * `raised`/`contributorsCount`. One-off, so there is no expiry to set (unlike a
+ * subscription renewal).
+ */
+export async function confirmContribution(
+  id: string,
+  confirmedBy: string,
+): Promise<void> {
+  await updateDoc(doc(db, PROJECT_CONTRIBUTIONS, id), {
+    status: "confirmed",
+    confirmedAt: serverTimestamp(),
+    confirmedBy,
+    updatedAt: serverTimestamp(),
+  });
 }

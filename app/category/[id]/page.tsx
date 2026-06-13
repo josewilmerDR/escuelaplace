@@ -11,7 +11,7 @@ import {
 
 /**
  * Public listing by category: /category/[id]
- * SSR for SEO, same feed pattern as home and /buscar: baseline order (stored
+ * SSR for SEO, same feed pattern as home and /search: baseline order (stored
  * ranking.score) server-side, re-ranked client-side per the buyer's community.
  */
 

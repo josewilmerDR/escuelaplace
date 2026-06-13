@@ -12,7 +12,7 @@ import { relevanceScore } from "@/lib/search";
 import type { BusinessCardData } from "@/types";
 
 /**
- * Search results: /buscar?q=...
+ * Search results: /search?q=...
  *
  * SSR, like the catalog, but dynamic per query. Relevance R is computed in memory over the
  * active set and gates the results (R = 0 dropped); among the relevant, the mission-general

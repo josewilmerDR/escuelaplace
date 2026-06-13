@@ -6,7 +6,7 @@
  * results are ranked server-side (businesses donating to the buyer's school
  * first, then donors to other schools, then relevant non-donors).
  *
- * On submit it navigates to /buscar?q=<query>; the results page owns the ranking.
+ * On submit it navigates to /search?q=<query>; the results page owns the ranking.
  */
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -31,7 +31,7 @@ export function SearchBar({
       inputRef.current?.focus();
       return;
     }
-    router.push(`/buscar?q=${encodeURIComponent(term)}`);
+    router.push(`/search?q=${encodeURIComponent(term)}`);
   };
 
   return (

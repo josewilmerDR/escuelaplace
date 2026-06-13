@@ -90,7 +90,7 @@ provisioned automatically. Then add the final domain to Auth **Authorized domain
 ## 4. Smoke test (production)
 
 - Home `/` renders the explore feed (SSR) and re-ranks after picking a school.
-- `/buscar?q=...` returns relevant results.
+- `/search?q=...` returns relevant results.
 - Sign in with Google; create a business and a school page.
 - Subscribe a business to a school (pending) + upload a proof; confirm it as the school;
   verify the proof opens only for the business/school (not anonymous).
