@@ -16,7 +16,13 @@ import type { SchoolDoc } from "@/types";
 
 type SchoolsState = "loading" | "error" | "loaded";
 
-export function CommunityPicker() {
+export function CommunityPicker({
+  description = "Elegí tu escuela o activá tu ubicación para ver primero los comercios que la apoyan.",
+}: {
+  /** Lead copy — override it on surfaces that order something other than businesses
+   * (e.g. the /schools directory orders schools by proximity). */
+  description?: string;
+} = {}) {
   const { prefs, ready, update } = useBuyerPreferences();
   const [schools, setSchools] = useState<SchoolDoc[]>([]);
   const [schoolsState, setSchoolsState] = useState<SchoolsState>("loading");
@@ -93,10 +99,7 @@ export function CommunityPicker() {
 
   return (
     <div className="mb-8 rounded-2xl border border-border bg-surface p-5">
-      <p className="text-sm text-muted">
-        Elegí tu escuela o activá tu ubicación para ver primero los comercios que la
-        apoyan.
-      </p>
+      <p className="text-sm text-muted">{description}</p>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         {/* Deliberate: the list includes UNVERIFIED schools (getSchools filters by

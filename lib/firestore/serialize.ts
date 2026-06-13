@@ -3,7 +3,14 @@
  * values) to plain, JSON-serializable DTOs that server components can pass to client
  * components.
  */
-import type { Business, BusinessCardData, BusinessDoc } from "@/types";
+import type {
+  Business,
+  BusinessCardData,
+  BusinessDoc,
+  SchoolCardData,
+  SchoolDoc,
+} from "@/types";
+import { localityLabel } from "@/lib/location";
 
 /**
  * Split a business's images into the explicit cover and the gallery. Docs created
@@ -39,5 +46,28 @@ export function toBusinessCardData(b: BusinessDoc): BusinessCardData {
     discount: b.discount,
     ranking: { score: b.ranking?.score ?? 0 },
     reviewStats: b.reviewStats ?? { count: 0, average: 0 },
+  };
+}
+
+/**
+ * Render-ready, serializable card data for a school (the public /schools directory and the
+ * donation picker). Drops the non-serializable Timestamp/GeoPoint values and precomputes the
+ * locality label and cover thumbnail. `lat`/`lng` are kept so the client can re-order the
+ * cards by proximity. Cover fallback ladder matches the public school page: cover → first
+ * gallery photo → profile photo.
+ */
+export function toSchoolCardData(s: SchoolDoc): SchoolCardData {
+  const gp = s.location?.geopoint;
+  return {
+    id: s.id,
+    name: s.name,
+    locality: localityLabel(s.location),
+    photoUrl: s.photoUrl,
+    photo: s.coverUrl ?? s.photos?.[0] ?? s.photoUrl,
+    verified: s.verified ?? false,
+    supportingBusinesses: s.metrics?.supportingBusinesses ?? 0,
+    uniqueSupporters: s.metrics?.uniqueSupporters ?? 0,
+    lat: gp ? gp.latitude : null,
+    lng: gp ? gp.longitude : null,
   };
 }
