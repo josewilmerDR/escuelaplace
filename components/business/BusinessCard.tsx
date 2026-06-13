@@ -63,7 +63,7 @@ export function BusinessCard({
       {/* Cover (YouTube-thumbnail style): the photo sells the business, so it gets the
           top of the card. Fallback ladder keeps the grid scannable while most businesses
           haven't uploaded images: photo → logo centered on tint → big initial. */}
-      <div className="relative aspect-video w-full overflow-hidden bg-brand-tint">
+      <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-brand-tint to-white">
         {business.photo ? (
           <Image
             src={business.photo}
@@ -84,7 +84,7 @@ export function BusinessCard({
         ) : (
           <span
             aria-hidden
-            className="flex h-full items-center justify-center text-5xl font-bold text-brand-darker/40"
+            className="flex h-full items-center justify-center text-5xl font-bold text-brand-darker/50"
           >
             {initial}
           </span>

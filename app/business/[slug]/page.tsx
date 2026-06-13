@@ -189,7 +189,7 @@ export default async function BusinessPage({ params }: Props) {
                 downgrade. The viewTransitionName pairs with the one the card declares.
                 Wider than 16:9 on desktop — FB covers are short bands. */}
             <div
-              className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]"
+              className="relative aspect-video w-full bg-gradient-to-br from-brand-tint to-white sm:aspect-[5/2]"
               style={{ viewTransitionName: `business-${business.id}` }}
             >
               {coverImage ? (
@@ -213,7 +213,7 @@ export default async function BusinessPage({ params }: Props) {
               ) : (
                 <span
                   aria-hidden
-                  className="flex h-full items-center justify-center text-7xl font-bold text-brand-darker/40"
+                  className="flex h-full items-center justify-center text-7xl font-bold text-brand-darker/50"
                 >
                   {initial}
                 </span>

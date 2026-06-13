@@ -351,10 +351,11 @@ function PageCard({
         </p>
       )}
 
-      {/* Primary action gets the button treatment; the rest stay as text links
-          with their own tap spacing so the row isn't a flat wall of underlines. */}
+      {/* The primary action is a solid button; the rest stay as text links with their own
+          tap spacing so the row reads as one lead action + secondary links, not a flat wall
+          of underlines. */}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <Link href={`/panel/${page.type}/${page.doc.id}/edit`} className="btn btn-outline">
+        <Link href={`/panel/${page.type}/${page.doc.id}/edit`} className="btn btn-primary">
           Editar página
         </Link>
         {/* A non-active business profile 404s (public reads filter by status), so the
