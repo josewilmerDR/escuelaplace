@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { HeartIcon, VerifiedIcon } from "@/components/ui/icons";
 import { schoolSupportersCount } from "@/lib/firestore";
+import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
 import type { SchoolCardData } from "@/types";
 
 /**
@@ -15,18 +16,16 @@ import type { SchoolCardData } from "@/types";
  *
  * The card fills its container; callers (grid cell or carousel slide) own the width.
  */
-const COVER_SIZES = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
-
 function CardMedia({ school }: { school: SchoolCardData }) {
   const initial = school.name.charAt(0).toUpperCase();
   return (
-    <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-brand-tint to-white">
+    <div className={`relative ${CARD_COVER_ASPECT} w-full overflow-hidden bg-gradient-to-br from-brand-tint to-white`}>
       {school.photo ? (
         <Image
           src={school.photo}
           alt=""
           fill
-          sizes={COVER_SIZES}
+          sizes={CARD_COVER_SIZES}
           className="object-cover"
         />
       ) : school.photoUrl ? (
@@ -34,7 +33,7 @@ function CardMedia({ school }: { school: SchoolCardData }) {
           src={school.photoUrl}
           alt=""
           fill
-          sizes={COVER_SIZES}
+          sizes={CARD_COVER_SIZES}
           className="object-contain p-8"
         />
       ) : (
@@ -102,7 +101,7 @@ function CardBody({
             <HeartIcon className="h-4 w-4 shrink-0 text-brand" />
             {supporters === 1
               ? "1 persona o comercio la apoya"
-              : `${supporters} personas y comercios la apoyan`}
+              : `${supporters} personas o comercios la apoyan`}
           </p>
         )}
       </div>

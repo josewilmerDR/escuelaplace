@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { AcademicCapIcon, WarningIcon } from "@/components/ui/icons";
 import { SchoolDirectoryFeed } from "@/components/school/SchoolDirectoryFeed";
 import {
   getSchools,
@@ -19,10 +21,18 @@ import type { SchoolCardData } from "@/types";
  */
 export const revalidate = 300;
 
+// Directory render cap. Keeps the SSR payload and the client-side proximity re-rank bounded;
+// getSchools' own 500 cap is just a runaway backstop. Make this pagination if the directory ever
+// outgrows it (same note as getSchools in lib/firestore/schools.ts).
+const DIRECTORY_LIMIT = 60;
+
+const DESCRIPTION =
+  "Encontrá la escuela de tu comunidad, conocé sus proyectos y apoyala directamente. La plataforma nunca toca el dinero.";
+
 export const metadata: Metadata = {
   title: "Escuelas",
-  description:
-    "Directorio de escuelas en escuelaplace. Encontrá la escuela de tu comunidad, conocé sus proyectos y apoyala directamente.",
+  description: DESCRIPTION,
+  openGraph: { title: "Escuelas", description: DESCRIPTION },
 };
 
 export default async function SchoolsPage() {
@@ -31,7 +41,7 @@ export default async function SchoolsPage() {
   let cards: SchoolCardData[] = [];
   let loadFailed = false;
   try {
-    const schools = await getSchools();
+    const schools = await getSchools(DIRECTORY_LIMIT);
     // No location server-side → activity baseline order (deterministic for SEO/first paint).
     cards = rankSchoolsByRelevance(schools.map(toSchoolCardData), {}).map(
       (r) => r.school,
@@ -40,37 +50,73 @@ export default async function SchoolsPage() {
     loadFailed = true;
   }
 
+  // Breadcrumb + item list so search engines understand where this page sits and what it
+  // lists. "<" escaped so school names can't close the script tag. Mirrors the JSON-LD on
+  // /categories so the directory and its listings describe the same shape to crawlers.
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Inicio", item: "/" },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Escuelas",
+        item: "/schools",
+      },
+    ],
+  };
+  const itemListLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: cards.map((card, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: card.name,
+      url: `/school/${card.id}`,
+    })),
+  };
+
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">Escuelas</h1>
-      <p className="mt-1 max-w-2xl text-sm text-muted">
-        Encontrá la escuela de tu comunidad, conocé sus proyectos y apoyala
-        directamente. La plataforma nunca toca el dinero.
-      </p>
+    <PageContainer variant="listing">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbLd).replace(/</g, "\\u003c"),
+        }}
+      />
+      {cards.length > 0 && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(itemListLd).replace(/</g, "\\u003c"),
+          }}
+        />
+      )}
 
-      <div className="mt-6">
-        <CommunityPicker description="Elegí tu escuela o activá tu ubicación para ver primero las escuelas más cercanas a tu comunidad." />
+      <header className="mb-8">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Escuelas</h1>
+        <p className="mt-1 text-sm text-muted">{DESCRIPTION}</p>
+      </header>
 
-        {loadFailed ? (
-          <p className="text-muted">
-            No pudimos cargar las escuelas. Recargá la página para intentarlo de
-            nuevo.
-          </p>
-        ) : cards.length === 0 ? (
-          <p className="text-muted">
-            Todavía no hay escuelas publicadas.{" "}
-            <Link
-              href="/create"
-              className="font-medium text-brand-darker hover:underline"
-            >
-              Creá la de tu comunidad
-            </Link>
-            .
-          </p>
-        ) : (
-          <SchoolDirectoryFeed initial={cards} />
-        )}
-      </div>
-    </main>
+      <CommunityPicker description="Elegí tu escuela o activá tu ubicación para ver primero las escuelas más cercanas a tu comunidad." />
+
+      {loadFailed ? (
+        <EmptyState
+          icon={<WarningIcon className="h-7 w-7" />}
+          title="No pudimos cargar las escuelas"
+          description="Recargá la página para intentarlo de nuevo."
+        />
+      ) : cards.length === 0 ? (
+        <EmptyState
+          icon={<AcademicCapIcon className="h-7 w-7" />}
+          title="Todavía no hay escuelas publicadas"
+          description="Creá la de tu comunidad y aparecé en el directorio."
+          cta={{ label: "Creá la de tu comunidad", href: "/create" }}
+        />
+      ) : (
+        <SchoolDirectoryFeed initial={cards} />
+      )}
+    </PageContainer>
   );
 }

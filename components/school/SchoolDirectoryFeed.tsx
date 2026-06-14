@@ -45,11 +45,16 @@ export function SchoolDirectoryFeed({ initial }: { initial: SchoolCardData[] }) 
       <p aria-live="polite" className="sr-only">
         {ready && location ? "Escuelas ordenadas por cercanía a tu comunidad." : ""}
       </p>
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Semantic list: the directory is a list of schools, so assistive tech should
+          hear "list, N items" — role="list" survives the `list-style:none` reset Tailwind
+          applies to <ul>. */}
+      <ul role="list" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((school) => (
-          <SchoolCard key={school.id} school={school} />
+          <li key={school.id}>
+            <SchoolCard school={school} />
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
