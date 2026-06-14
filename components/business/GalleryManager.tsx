@@ -93,7 +93,9 @@ export function GalleryManager({
                 type="button"
                 onClick={() => onRemove(url)}
                 disabled={busy}
-                className="text-xs font-medium text-muted transition-colors hover:text-error disabled:opacity-50"
+                // min-h-10 for a comfortable tap target; the inline-flex + items-center
+                // keeps the small label visually where it was under the thumb.
+                className="inline-flex min-h-10 items-center self-start text-xs font-medium text-muted transition-colors hover:text-error disabled:opacity-50"
               >
                 Quitar
               </button>
