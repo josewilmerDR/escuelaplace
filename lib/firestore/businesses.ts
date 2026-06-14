@@ -187,7 +187,13 @@ function businessImagePath(
   return `businesses/${businessId}/${kind}`;
 }
 
-async function uploadBusinessImage(
+/**
+ * Upload (or replace) the business's profile logo or cover and return its URL. Used by
+ * the create form (before the doc commit) and the edit page (the caller persists the URL
+ * via updateBusinessProfile as logoUrl/coverUrl). Mirrors uploadSchoolImage; image
+ * changes are not sensitive, so — unlike schools — businesses have no re-verification.
+ */
+export async function uploadBusinessImage(
   businessId: string,
   kind: "logo" | "cover",
   file: Blob,
@@ -327,6 +333,10 @@ export interface UpdateBusinessInput {
   contact: BusinessContact;
   discount: Discount;
   hours?: string;
+  /** New profile logo URL (already uploaded). Omit to keep the stored one. */
+  logoUrl?: string;
+  /** New cover URL (already uploaded). Omit to keep the stored one. */
+  coverUrl?: string;
 }
 
 /**
@@ -351,6 +361,10 @@ export async function updateBusinessProfile(
     contact: input.contact,
     discount: input.discount,
     hours: input.hours ?? "",
+    // Only written when a new image was uploaded this save; otherwise the stored URL
+    // stands (the patch must never blank out an unchanged logo/cover).
+    ...(input.logoUrl ? { logoUrl: input.logoUrl } : {}),
+    ...(input.coverUrl ? { coverUrl: input.coverUrl } : {}),
     updatedAt: serverTimestamp(),
   });
 }
