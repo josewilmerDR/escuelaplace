@@ -599,6 +599,9 @@ export interface DonorProfile {
 
 export type DonorProfileDoc = DonorProfile & { id: string };
 
+/** Max length of a donor's public display name (recognition form). */
+export const DISPLAY_NAME_MAX = 60;
+
 // ── schools/{schoolId}/projects/{projectId} ─────────────────────────────────
 
 /** UI caps for the project crowdfunding form. Enforced by the panel inputs, not rules. */
