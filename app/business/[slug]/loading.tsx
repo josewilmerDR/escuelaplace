@@ -1,18 +1,25 @@
+import { PageContainer } from "@/components/layout/PageContainer";
+import { Card } from "@/components/ui/Card";
+import { PROFILE_COVER_ASPECT } from "@/lib/layout";
+
 /**
  * Route-level skeleton: without it, clicking a card freezes the current page until the
  * profile's SSR Firestore reads finish. Mirrors the page's calm-depth layout (gray
  * canvas, header card with cover + overlapping avatar + title, then section cards) so
- * the real content replaces it without jumping ("parpadeo").
+ * the real content replaces it without jumping ("parpadeo"). It shares the page's layout
+ * primitives (PageContainer, Card, PROFILE_COVER_ASPECT) so the skeleton cannot drift
+ * from the real page when those recipes change.
  */
 export default function LoadingBusinessPage() {
   return (
-    // Gray canvas + max-w-4xl column to match the loaded page exactly.
-    <div className="min-h-screen bg-surface">
-      <main aria-busy className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+    <PageContainer variant="detail">
+      <div aria-busy>
         {/* Header card: elevated surface (ring + shadow), cover band, overlapping
             avatar circle, then title/meta placeholders. */}
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
-          <div className="aspect-video w-full animate-pulse bg-brand-tint sm:aspect-[5/2]" />
+        <Card padded={false} className="overflow-hidden">
+          <div
+            className={`w-full animate-pulse bg-brand-tint ${PROFILE_COVER_ASPECT}`}
+          />
           <div className="px-5 pb-5 sm:px-8">
             <div className="flex flex-col items-center sm:flex-row sm:items-end sm:gap-5">
               {/* Avatar overlapping the cover's lower edge, same offsets as the page. */}
@@ -28,17 +35,17 @@ export default function LoadingBusinessPage() {
               <div className="h-10 w-28 animate-pulse rounded-lg bg-slate-100" />
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Información section card. */}
-        <div className="mt-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6">
+        <Card className="mt-4">
           <div className="h-6 w-32 animate-pulse rounded bg-slate-200" />
           <div className="mt-4 space-y-2">
             <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
             <div className="h-4 w-5/6 animate-pulse rounded bg-slate-100" />
           </div>
-        </div>
-      </main>
-    </div>
+        </Card>
+      </div>
+    </PageContainer>
   );
 }
