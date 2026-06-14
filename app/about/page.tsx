@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { cardClass } from "@/components/ui/Card";
+import { Section } from "@/components/ui/Section";
 import {
   AcademicCapIcon,
   HeartIcon,
@@ -8,6 +11,7 @@ import {
   UsersIcon,
   VerifiedIcon,
 } from "@/components/ui/icons";
+import { SITE_URL, absoluteUrl } from "@/lib/site";
 
 /**
  * Static "how this works" page: /about
@@ -24,10 +28,19 @@ import {
  * No data layer: pure server component, no Firestore reads. Fully static.
  */
 
+const DESCRIPTION =
+  "escuelaplace es un directorio comunitario que conecta comercios locales con escuelas de Costa Rica. La plataforma nunca procesa pagos: solo da visibilidad. Así funciona para compradores, comercios y escuelas.";
+
 export const metadata: Metadata = {
   title: "Cómo funciona",
-  description:
-    "escuelaplace es un directorio comunitario que conecta comercios locales con escuelas de Costa Rica. La plataforma nunca procesa pagos: solo da visibilidad. Así funciona para compradores, comercios y escuelas.",
+  description: DESCRIPTION,
+  alternates: { canonical: "/about" },
+  openGraph: {
+    title: "Cómo funciona | escuelaplace",
+    description: DESCRIPTION,
+    url: absoluteUrl("/about"),
+    type: "website",
+  },
 };
 
 /** A numbered "how it works" step. */
@@ -44,7 +57,7 @@ function Step({
     <li className="flex gap-4">
       <span
         aria-hidden
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-tint text-sm font-semibold text-brand-darker ring-1 ring-inset ring-brand-dark/10"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-tint to-brand-tint/30 text-sm font-semibold text-brand-darker ring-1 ring-inset ring-brand-dark/10"
       >
         {n}
       </span>
@@ -69,15 +82,15 @@ function RoleCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
+    <section className={cardClass("elevated")}>
       <header className="flex items-center gap-3">
         <span
           aria-hidden
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10"
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10"
         >
           {icon}
         </span>
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
           {title}
         </h2>
       </header>
@@ -88,8 +101,58 @@ function RoleCard({
 }
 
 export default function AboutPage() {
+  // FAQ structured data: this is a public, indexable explainer — every sibling public
+  // page emits structured data. The questions/answers are derived from the Spanish copy
+  // already on the page (no new claims), so the rich result matches what visitors read.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "¿escuelaplace procesa los pagos?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "No. El aporte va directo del comercio a la escuela por los métodos de pago que la propia escuela publica. La plataforma nunca procesa, cobra comisión ni certifica pagos: solo da visibilidad.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿Necesito una cuenta para comprar?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "No. Navegás todo el catálogo sin registrarte; tu preferencia de comunidad se guarda solo en tu navegador, no creamos ninguna cuenta a tu nombre.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿Cómo se ordena el directorio?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Por el apoyo confirmado por las escuelas. Solo cuenta el apoyo a escuelas verificadas y confirmado por la propia escuela; el auto-apoyo no suma y no vendemos posiciones.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿Qué significa la insignia de verificada?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Que nuestro equipo revisó la escuela. Mientras una escuela no esté verificada, sus métodos de pago permanecen ocultos y mostramos un aviso de datos sin verificar.",
+        },
+      },
+    ],
+  };
+
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
+    <PageContainer variant="narrow">
+      {/* "<" escaped so text can't close the script tag. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+
       <header className="text-center">
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-darker">
           Cómo funciona
@@ -108,12 +171,15 @@ export default function AboutPage() {
 
       {/* The single most important clarification — stated up front, not buried.
           It protects the visitor's trust and the platform alike. */}
-      <aside className="mt-10 rounded-2xl border border-brand-dark/15 bg-brand-tint/40 p-6">
+      <section
+        aria-label="La plataforma nunca toca el dinero"
+        className="mt-10 rounded-2xl ring-1 ring-brand-dark/10 bg-brand-tint/40 p-6"
+      >
         <h2 className="flex items-center gap-2 font-semibold tracking-tight text-brand-darkest">
           <HeartIcon className="h-5 w-5" />
           La plataforma nunca toca el dinero
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-brand-darkest/90">
+        <p className="mt-2 text-sm leading-relaxed text-brand-darkest">
           El aporte va <strong>directo del comercio a la escuela</strong> (a su
           junta, comité o asociación), por los métodos de pago que la propia
           escuela publica: cuenta bancaria, SINPE Móvil, PayPal, etc. Nosotros no
@@ -121,7 +187,7 @@ export default function AboutPage() {
           la información y damos visibilidad a quienes apoyan. La escuela confirma
           cada aporte; la plataforma nunca media el dinero.
         </p>
-      </aside>
+      </section>
 
       <div className="mt-12 space-y-6">
         <RoleCard
@@ -186,11 +252,16 @@ export default function AboutPage() {
 
       {/* The ranking, in principle. We explain the anti-fraud stance with pride
           but deliberately do NOT publish weights or thresholds. */}
-      <section className="mt-12 rounded-2xl bg-surface p-6 ring-1 ring-black/5 sm:p-8">
-        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-          <UsersIcon className="h-6 w-6 text-brand-darker" />
-          Cómo se ordena el directorio
-        </h2>
+      <Section
+        variant="inset"
+        className="mt-8"
+        title={
+          <span className="flex items-center gap-2">
+            <UsersIcon className="h-6 w-6 text-brand-darker" />
+            Cómo se ordena el directorio
+          </span>
+        }
+      >
         <p className="mt-3 text-sm leading-relaxed text-muted">
           El orden de los comercios refleja su{" "}
           <strong className="text-foreground">apoyo confirmado por las
@@ -226,14 +297,18 @@ export default function AboutPage() {
           pero el principio no cambia: la visibilidad se gana apoyando de verdad a
           la comunidad.
         </p>
-      </section>
+      </Section>
 
       {/* Trust note: what the verified badge means and why some data hides. */}
-      <section className="mt-6 rounded-2xl bg-surface p-6 ring-1 ring-black/5 sm:p-8">
-        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-          <VerifiedIcon className="h-6 w-6 text-brand-darker" />
-          Verificación y confianza
-        </h2>
+      <Section
+        variant="inset"
+        title={
+          <span className="flex items-center gap-2">
+            <VerifiedIcon className="h-6 w-6 text-brand-darker" />
+            Verificación y confianza
+          </span>
+        }
+      >
         <p className="mt-3 text-sm leading-relaxed text-muted">
           La insignia de verificada significa que nuestro equipo revisó la
           escuela. Mientras una escuela no esté verificada, sus métodos de pago
@@ -242,7 +317,7 @@ export default function AboutPage() {
           verificada edita información sensible, vuelve a revisión hasta que la
           aprobemos de nuevo.
         </p>
-      </section>
+      </Section>
 
       <div className="mt-12 flex flex-col items-center gap-4 text-center">
         <h2 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -259,7 +334,7 @@ export default function AboutPage() {
       </div>
 
       <ShareRow />
-    </main>
+    </PageContainer>
   );
 }
 
@@ -270,8 +345,8 @@ export default function AboutPage() {
  * the platform itself. The message is the same wherever it lands.
  */
 function ShareRow() {
-  // metadataBase in the root layout — the canonical public origin.
-  const url = "https://escuelaplace.com";
+  // Mirrors SITE_URL (lib/site) — the canonical public origin used across the app.
+  const url = SITE_URL;
   const text =
     "Descubrí los comercios que apoyan a las escuelas de tu comunidad en escuelaplace";
   const u = encodeURIComponent(url);

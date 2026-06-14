@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTypeChoice } from "@/components/onboarding/PageTypeChoice";
 import { HeartIcon, MapPinIcon, VerifiedIcon } from "@/components/ui/icons";
 
@@ -38,7 +39,7 @@ const BENEFITS = [
 
 export default function CreatePage() {
   return (
-    <main>
+    <>
       {/* Hero band — same brand language as the home hero, but copy aimed at owners. */}
       <section className="bg-brand">
         <div className="mx-auto max-w-3xl px-6 py-16 text-center sm:py-20">
@@ -53,7 +54,7 @@ export default function CreatePage() {
         </div>
       </section>
 
-      <div className="mx-auto max-w-3xl px-6 py-12">
+      <PageContainer variant="narrow">
         {/* What you get — three beats before asking for anything. Each lead glyph sits in
             an app-icon tile (soft brand wash + inset ring), matching the calm-depth
             surfaces used across the panel. */}
@@ -85,7 +86,7 @@ export default function CreatePage() {
             <PageTypeChoice />
           </div>
         </section>
-      </div>
-    </main>
+      </PageContainer>
+    </>
   );
 }
