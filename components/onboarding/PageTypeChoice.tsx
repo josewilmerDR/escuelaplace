@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cardClass } from "@/components/ui/Card";
 import { IconTile } from "@/components/ui/IconTile";
 import { AcademicCapIcon, ArrowRightIcon, TagIcon } from "@/components/ui/icons";
 
@@ -28,7 +29,7 @@ export function PageTypeChoice({
     <div className="grid gap-4 sm:grid-cols-2">
       <Link
         href="/panel/new/business"
-        className="group rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 transition-all hover:shadow-md hover:ring-brand/30"
+        className={`group ${cardClass("elevated")} transition-all hover:shadow-md hover:ring-brand/30`}
       >
         <IconTile size="md">
           <TagIcon className="h-6 w-6" />
@@ -46,7 +47,7 @@ export function PageTypeChoice({
 
       <Link
         href="/panel/new/school"
-        className="group rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 transition-all hover:shadow-md hover:ring-brand/30"
+        className={`group ${cardClass("elevated")} transition-all hover:shadow-md hover:ring-brand/30`}
       >
         <IconTile size="md">
           <AcademicCapIcon className="h-6 w-6" />
