@@ -27,11 +27,61 @@ accessibility to follow it.
 - Semantic: `error`/`error-tint`, `success`/`success-tint`, `warning`/`warning-tint`
   (foreground token for text/icons, `-tint` for soft fills)
 
+## Prefer the component over the class string
+
+Most recipes below are now backed by a component. **Reach for the component first** — a
+hand-copied class string drifts (the category chip silently became `py-2.5` while this doc
+still said `py-2`); a component cannot. Use a raw recipe only where no component fits.
+
+| Pattern | Component | Recipe it replaces |
+|---|---|---|
+| Page canvas + content column | `PageContainer` (`components/layout/PageContainer.tsx`) | the per-page `<main className="mx-auto max-w-…">` |
+| Brand band (hero / search header) | `BrandBand` (`components/layout/BrandBand.tsx`) | the home/search brand sections |
+| Profile header (cover + avatar + identity) | `ProfileHeader` (`components/layout/ProfileHeader.tsx`) | the business/school header block |
+| Elevated surface | `Card` / `cardClass()` (`components/ui/Card.tsx`) | `rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5` |
+| Titled section on a detail page | `Section` (`components/ui/Section.tsx`) | `mt-4 scroll-mt-6` + card + `<h2>` |
+| Status / label pill (`text-xs`) | `Badge` (`components/ui/Badge.tsx`) | per-status pill palette |
+| Metric / trust pill with icon (`text-sm`) | `StatChip` (`components/ui/StatChip.tsx`) | `rounded-full … px-3 py-1 text-sm ring-inset` |
+| Pill nav chip (categories, filters) | `Chip` (`components/ui/Chip.tsx`) | `rounded-full border … px-4 py-2.5` |
+| Empty state | `EmptyState` (`components/ui/EmptyState.tsx`) | centered icon-tile + title + line |
+| Form field / titled form group | `Field` / `FormSection` (`components/ui/`) | label-wrapped control / `<fieldset>` |
+
+## Layout — page widths & vertical rhythm
+
+The catalog of content columns. **Use `PageContainer`**; don't hand-pick widths.
+
+- **detail** — profile / detail pages (business, school, public project): gray canvas
+  (`bg-surface min-h-screen`) behind elevated cards, reading column `max-w-4xl px-4 py-6
+  sm:px-6`.
+- **listing** — grids and result pages (home feed, search, category, schools): wide column
+  `max-w-6xl px-6 py-10` on the white body.
+- **narrow** — long-form text / single-column flows (about, create): `max-w-3xl px-6 py-12`.
+- **panel** — the private route group owns its own shell (`app/(panel)/layout.tsx`): a
+  fixed, left-aligned `max-w-2xl` box. Panel pages must **not** add `mx-auto`.
+
+**Vertical rhythm on detail pages:** sibling sections are separated by `mt-4` and carry
+`scroll-mt-6` (so a tab anchor clears the sticky header). `Section` bakes both in — don't
+re-add them.
+
+## Pills — two official sizes
+
+There are exactly two pill sizes; don't invent a third.
+
+- **`Badge`** — small status/label pill, `text-xs`, per-status fill. Verification, business
+  /subscription/project status, donor tier. Its palette is shared and intentional.
+- **`StatChip`** — larger metric/trust pill, `text-sm`, soft `-tint` fill + leading icon +
+  inset ring. Inline signals like "N personas la apoyaron" or "confirma en ~X".
+
 ## Recipes — copy these class strings verbatim
 
-- **Card (elevated):** `rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5`
-- **Selected/active card:** swap the ring → `ring-2 ring-brand shadow-md`
-- **Muted/inset panel:** `rounded-2xl bg-surface p-5 ring-1 ring-black/5`
+(Where a component exists above, prefer it; these are for the gaps.)
+
+- **Card (elevated):** `rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5` — or
+  `Card` / `cardClass("elevated")`.
+- **Selected/active card:** swap the ring → `ring-2 ring-brand shadow-md` —
+  or `cardClass("selected")`.
+- **Muted/inset panel:** `rounded-2xl bg-surface p-5 ring-1 ring-black/5` —
+  or `cardClass("inset")`.
 - **Icon tile (app-icon look):**
   `grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10`
   with a sized icon child (`h-6 w-6`). Smaller variants: `h-9 w-9` + `h-5 w-5`.
@@ -43,7 +93,8 @@ accessibility to follow it.
 - **Quiet chip action:** `inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground`
 - **Semantic note/banner:** `rounded-xl bg-<sem>-tint p-3 text-xs text-<sem> ring-1 ring-<sem>/10`
   (sem = success | warning | error). Larger banners: `rounded-2xl ... p-4 text-sm`.
-- **Pill nav chip (categories, filters):** `rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-muted hover:border-brand-dark hover:text-brand-darker`
+- **Pill nav chip (categories, filters):** prefer `Chip`. Raw:
+  `rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-muted hover:border-brand-dark hover:text-brand-darker`
 
 ## Buttons & inputs
 
@@ -52,11 +103,15 @@ accessibility to follow it.
   softened globally in `globals.css` — do not hand-roll button/input colors or radius.
 - One primary per surface. Secondaries are `.btn-outline` / `.btn-secondary` or quiet chips.
 
-## Reference implementation
+## Reference implementations
 
-`app/(panel)/panel/page.tsx` — **read it first.** It is the canonical example: shared
-heading, elevated cards, icon tiles, one primary + quiet chip actions, semantic notes,
-matching skeleton. Match its patterns and comment style.
+- `app/(panel)/panel/page.tsx` — **read it first** for the panel: shared heading, elevated
+  cards, icon tiles, one primary + quiet chip actions, semantic notes, matching skeleton.
+- `app/business/[slug]/page.tsx` and `app/school/[id]/page.tsx` — the canonical **detail
+  pages**: `PageContainer variant="detail"`, `ProfileHeader`, `Section`, `Chip`, `StatChip`.
+  When refactoring another detail/profile page, mirror these.
+
+Match their patterns and comment style.
 
 ## Hard rules (do not break these)
 
