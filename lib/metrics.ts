@@ -72,12 +72,23 @@ export function summarizeDailyMetrics(
   return summary;
 }
 
-/** Spanish label of a month key ("2026-06" → "junio de 2026"). */
+/** Capitalize only the first character, leaving the rest untouched. */
+export function capitalizeFirst(s: string): string {
+  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
+}
+
+/**
+ * Spanish label of a month key ("2026-06" → "Junio de 2026"). The first letter is
+ * capitalized at the source (not via CSS `capitalize`, which would also upper-case the
+ * "De" in "junio de 2026").
+ */
 export function monthLabel(month: string): string {
   const [y, m] = month.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("es-CR", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return capitalizeFirst(
+    new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("es-CR", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }),
+  );
 }
