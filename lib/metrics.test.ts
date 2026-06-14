@@ -65,7 +65,8 @@ describe("summarizeDailyMetrics", () => {
 describe("monthLabel", () => {
   it("renders the Spanish month name and year", () => {
     const label = monthLabel("2026-06");
-    expect(label).toContain("junio");
+    // First letter capitalized at the source (see capitalizeFirst).
+    expect(label).toContain("Junio");
     expect(label).toContain("2026");
   });
 });
