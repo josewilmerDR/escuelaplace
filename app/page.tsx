@@ -1,8 +1,8 @@
 import Image from "next/image";
-import Link from "next/link";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SearchBar } from "@/components/search/SearchBar";
+import { Chip } from "@/components/ui/Chip";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TagIcon, WarningIcon } from "@/components/ui/icons";
 import {
@@ -108,22 +108,15 @@ export default async function HomePage() {
             <ul className="flex max-h-[42px] min-w-0 flex-1 flex-wrap gap-2 overflow-hidden">
               {categories.map((c) => (
                 <li key={c.id}>
-                  <Link
-                    href={`/category/${c.id}`}
-                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-muted hover:border-brand-dark hover:text-brand-darker"
-                  >
-                    <span aria-hidden>{c.icon}</span>
+                  <Chip href={`/category/${c.id}`} icon={c.icon}>
                     {c.name}
-                  </Link>
+                  </Chip>
                 </li>
               ))}
             </ul>
-            <Link
-              href="/categories"
-              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-brand-darker hover:border-brand-dark"
-            >
+            <Chip href="/categories" emphasis="brand" className="shrink-0">
               Todas las categorías
-            </Link>
+            </Chip>
           </nav>
         )}
 

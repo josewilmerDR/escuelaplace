@@ -159,7 +159,7 @@ Campos marcados **(fn)** los mantiene una Cloud Function; el cliente no los escr
   **lastConfirmedAt (fn)**, createdAt, updatedAt
 - `users/{uid}`: name, email, phone, role('user'|'admin'),
   managedPages[{type('business'|'school'), id, role('owner'|'editor')}], createdAt
-- `categories/{id}`: name, icon, order, businessCount
+- `categories/{id}`: name, icon, order, **businessCount (fn)**
 - `auditEvents/{id}` **(fn, append-only, lectura solo admin)**: rastro no sensible de cada
   confirmación (de suscripción **o** de aporte a proyecto) para revisión de fraude + feature
   store de la futura IA. type('subscription_confirmed'|'project_contribution_confirmed'),
@@ -276,6 +276,11 @@ Paquete aparte (Gen 2, Admin SDK) que mantiene las señales que el cliente no pu
   `projectsSupported` del donante; en cada confirmación anexa un evento a `auditEvents`
   (igual que las suscripciones).
 - `onReviewWritten` — recalcula `reviewStats` del comercio (y su ranking).
+- `onBusinessWritten` — recalcula el `businessCount` (comercios activos) de cada categoría a
+  la que pertenece el comercio, al crear/editar/borrar/cambiar status. El cliente escribe el
+  `categories[]` del comercio pero no puede mantener el agregado de la categoría; usa una
+  count-query del lado servidor y omite la escritura si ya está al día. `categories` no tiene
+  trigger, así que no cascada.
 - `expireSubscriptionsDaily` — job programado (03:00): vence las suscripciones lapsas
   (`expired`) y marca las próximas a vencer (`expiring`); esas escrituras vuelven a
   disparar `onSubscriptionWritten`.
