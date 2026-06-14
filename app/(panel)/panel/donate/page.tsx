@@ -15,6 +15,7 @@ import { CheckIcon } from "@/components/ui/icons";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
+import { RecognitionToggle } from "@/components/donors/RecognitionToggle";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { SchoolPicker } from "@/components/school/SchoolPicker";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
@@ -34,7 +35,6 @@ import {
   getSubscriptionsByDonor,
   getSubscriptionsBySchool,
   getVerifiedSchoolPaymentMethods,
-  updateDonorRecognition,
   uploadSubscriptionProof,
 } from "@/lib/firestore";
 import { formatColones } from "@/lib/format";
@@ -106,12 +106,6 @@ function DonateContent() {
   const [error, setError] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
-  // Recognition preferences state
-  const [prefName, setPrefName] = useState("");
-  const [prefPublic, setPrefPublic] = useState(false);
-  const [prefSaving, setPrefSaving] = useState(false);
-  const [prefSaved, setPrefSaved] = useState(false);
-
   const reloadDonations = useCallback(() => {
     if (!user) return Promise.resolve();
     return getSubscriptionsByDonor(user.id).then(setDonations);
@@ -136,8 +130,6 @@ function DonateContent() {
         }
         setDonations(d);
         setProfile(p);
-        setPrefName(p?.displayName ?? user.name);
-        setPrefPublic(p?.isPublic ?? false);
       })
       .finally(() => setLoaded(true));
   }, [user, preselectedSchoolId]);
@@ -206,27 +198,6 @@ function DonateContent() {
       setError(userErrorMessage(err, "No se pudo subir el comprobante."));
     } finally {
       setUploadingId(null);
-    }
-  };
-
-  const onSavePrefs = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPrefSaving(true);
-    setPrefSaved(false);
-    setError(null);
-    try {
-      const displayName = prefName.trim() || user.name;
-      await ensureDonorProfile(user.id, displayName);
-      await updateDonorRecognition(user.id, {
-        displayName,
-        isPublic: prefPublic,
-      });
-      setProfile(await getDonorProfile(user.id));
-      setPrefSaved(true);
-    } catch (err) {
-      setError(userErrorMessage(err, "No se pudieron guardar las preferencias."));
-    } finally {
-      setPrefSaving(false);
     }
   };
 
@@ -306,6 +277,10 @@ function DonateContent() {
           onChange={setProofFile}
         />
 
+        {/* Account-wide recognition preference (not per-donation): autosaves on toggle, with
+            the display name editable on the settings page it links to. */}
+        <RecognitionToggle compact />
+
         <FormError message={error} />
 
         <button
@@ -316,56 +291,6 @@ function DonateContent() {
           {saving ? "Registrando…" : "Registrar donación"}
         </button>
       </form>
-
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Reconocimiento público
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          Por defecto tu donación es anónima: contás en los totales de la escuela,
-          pero tu nombre no se publica. Si querés, podés aparecer en el muro de
-          agradecimiento con tu nivel de donante.
-        </p>
-        <form onSubmit={onSavePrefs} className="mt-3 flex flex-col gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={prefPublic}
-              onChange={(e) => {
-                setPrefPublic(e.target.checked);
-                setPrefSaved(false);
-              }}
-            />
-            <span>Mostrar mi nombre en el muro de agradecimiento</span>
-          </label>
-          {prefPublic && (
-            <Field label="Nombre a mostrar">
-              <input
-                type="text"
-                value={prefName}
-                onChange={(e) => {
-                  setPrefName(e.target.value);
-                  setPrefSaved(false);
-                }}
-                maxLength={60}
-                className="input"
-              />
-            </Field>
-          )}
-          <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={prefSaving}
-              className="btn btn-outline self-start"
-            >
-              {prefSaving ? "Guardando…" : "Guardar preferencias"}
-            </button>
-            {prefSaved && (
-              <span className="text-xs text-success">Preferencias guardadas.</span>
-            )}
-          </div>
-        </form>
-      </section>
 
       <section className="mt-10">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">

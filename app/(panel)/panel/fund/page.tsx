@@ -15,6 +15,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { CheckIcon } from "@/components/ui/icons";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { RecognitionToggle } from "@/components/donors/RecognitionToggle";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { Field } from "@/components/ui/Field";
@@ -328,6 +329,10 @@ function FundContent() {
             onChange={setProofFile}
             disabled={!canFund}
           />
+
+          {/* Account-wide recognition preference (not per-contribution): autosaves on toggle,
+              with the display name editable on the settings page it links to. */}
+          <RecognitionToggle compact />
 
           <FormError message={error} />
           {done && (
