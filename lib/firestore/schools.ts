@@ -34,6 +34,7 @@ import {
   ref as storageRef,
   uploadBytes,
 } from "firebase/storage";
+import { cache } from "react";
 import { db, storage } from "@/lib/firebase";
 import type { PaymentMethod, School, SchoolDoc, SchoolPrivate } from "@/types";
 import { docToTyped, snapToList } from "./converters";
@@ -42,9 +43,24 @@ import { linkPageToUser } from "./users";
 
 const SCHOOLS = "schools";
 
-/** A school by document id. Returns null if it does not exist. */
-export async function getSchoolById(id: string): Promise<SchoolDoc | null> {
-  return docToTyped<School>(await getDoc(doc(db, SCHOOLS, id)));
+/**
+ * A school by document id. Returns null if it does not exist.
+ *
+ * Wrapped in React cache(): the public school page's generateMetadata and the page
+ * component both read the same school during one request — the cache dedupes that into a
+ * single Firestore read (the Firestore SDK, unlike fetch, gets no deduping from Next).
+ */
+export const getSchoolById = cache(
+  async (id: string): Promise<SchoolDoc | null> => {
+    return docToTyped<School>(await getDoc(doc(db, SCHOOLS, id)));
+  },
+);
+
+/** Whether a school has been verified by an admin. */
+export function isSchoolVerified(
+  school: Pick<SchoolDoc, "verificationStatus">,
+): boolean {
+  return school.verificationStatus === "verified";
 }
 
 /**
