@@ -10,6 +10,7 @@ import { useCallback, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
+import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { FormSection } from "@/components/ui/FormSection";
@@ -227,6 +228,10 @@ export default function NewSchoolPage() {
           {saving ? "Creando…" : "Crear escuela"}
         </button>
       </form>
+
+      <p className="mt-8 text-sm">
+        <BackLink href="/panel">Volver al panel</BackLink>
+      </p>
     </main>
   );
 }

@@ -8,18 +8,20 @@
  * completes the profile (contact channels, hours, discount) and publishes it from
  * /panel/business/[id]/edit.
  */
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { readBuyerPreferences } from "@/lib/buyer/preferences";
-import { Combobox } from "@/components/ui/Combobox";
+import { BackLink } from "@/components/ui/BackLink";
+import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { FormSection } from "@/components/ui/FormSection";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PhoneField } from "@/components/ui/PhoneField";
+import { validateBusinessProfile } from "@/lib/business-profile";
 import { normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -65,6 +67,10 @@ export default function NewBusinessPage() {
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<LatLng | null>(null);
   const [whatsapp, setWhatsapp] = useState("");
+  // Whether the schoolId was auto-filled from the buyer's community (localStorage) on
+  // load — distinguishes "we preselected it" from "the user chose it", so the hint only
+  // shows for an actual preselection. Cleared as soon as the user touches the combobox.
+  const [preselectedFromBuyer, setPreselectedFromBuyer] = useState(false);
   // Profile images (both optional): they fill the avatar and cover slots of the
   // public FB-style header. Held locally and uploaded inside createBusinessPage.
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -110,6 +116,7 @@ export default function NewBusinessPage() {
         const preferredSchoolId = readBuyerPreferences().schoolId;
         if (preferredSchoolId && s.some((x) => x.id === preferredSchoolId)) {
           setSchoolId(preferredSchoolId);
+          setPreselectedFromBuyer(true);
         }
         setLoadState("loaded");
       })
@@ -122,6 +129,19 @@ export default function NewBusinessPage() {
     setLoadState("loading");
     load();
   };
+
+  // Type-to-filter options with a locality hint (school names repeat across localities).
+  // No current-school prepend like the edit form — this is create, so there's never a
+  // delisted school to preserve.
+  const schoolOptions = useMemo<ComboboxOption[]>(
+    () =>
+      schools.map((s) => ({
+        id: s.id,
+        label: s.name,
+        hint: localityLabel(s.location) || undefined,
+      })),
+    [schools],
+  );
 
   const toggleCategory = (id: string) =>
     setSelectedCategories((prev) =>
@@ -140,13 +160,23 @@ export default function NewBusinessPage() {
       setError("Ingresá el nombre del comercio.");
       return;
     }
-    // Without a category the business never appears in the /category/* listings —
-    // one of the main discovery paths — so it can't be skipped silently.
-    if (selectedCategories.length === 0) {
-      setError("Elegí al menos una categoría: sin categoría tu comercio no aparece en los listados.");
+    // Same as the name: the textarea is `required`, but whitespace-only passes it.
+    if (!description.trim()) {
+      setError("Escribí una descripción del comercio.");
+      return;
+    }
+    // Same minimums the edit form enforces — category for the /category/* listings,
+    // a map pin for the location.
+    const invalid = validateBusinessProfile({
+      categories: selectedCategories,
+      hasCoords: coords != null,
+    });
+    if (invalid) {
+      setError(invalid);
       return;
     }
     if (!coords) {
+      // validateBusinessProfile already guarantees this; the guard narrows the type.
       setError("Elegí la ubicación en el mapa.");
       return;
     }
@@ -189,7 +219,24 @@ export default function NewBusinessPage() {
   };
 
   if (loadState === "loading") {
-    return <p className="text-sm text-muted">Cargando…</p>;
+    // Skeleton that keeps the heading in its final position so navigating here doesn't
+    // flash a bare line then jump the layout when the data arrives (mirrors the edit form
+    // and the panel home skeleton). The card placeholders stand in for the form sections.
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Crear comercio
+        </h1>
+        <div className="mt-8 flex flex-col gap-6" aria-hidden="true">
+          <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <div className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        </div>
+        <p className="sr-only" role="status">
+          Cargando…
+        </p>
+      </main>
+    );
   }
 
   if (loadState === "error") {
@@ -258,26 +305,42 @@ export default function NewBusinessPage() {
               onChange={(e) => setDescription(e.target.value)}
               className="input min-h-24"
             />
-            <span className="text-xs text-muted">
+            {/* Turn amber as the count nears the limit so the cap doesn't surprise
+                mid-sentence; muted the rest of the time. */}
+            <span
+              className={`text-xs ${
+                description.length >= PAGE_DESCRIPTION_MAX * 0.9
+                  ? "text-warning"
+                  : "text-muted"
+              }`}
+            >
               {description.length}/{PAGE_DESCRIPTION_MAX}
             </span>
           </Field>
 
           <div>
-            <Field label="Escuela que apoyás (opcional)">
+            <Field label="Escuela vinculada (opcional)">
               {/* Type-to-filter with a locality hint: school names repeat a lot across
                   localities, and a native select gives no way to tell homonyms apart —
-                  picking the wrong school misdirects the support publicly. */}
-              <Combobox
-                options={schools.map((s) => ({
-                  id: s.id,
-                  label: s.name,
-                  hint: localityLabel(s.location) || undefined,
-                }))}
-                value={schoolId}
-                onChange={setSchoolId}
-                placeholder="Buscá tu escuela por nombre o lugar…"
-              />
+                  picking the wrong school misdirects the link publicly. Hidden when there
+                  are no schools: a search box over zero options is dead, so only the
+                  helper line below (which links to create one) shows in that case. */}
+              {schools.length > 0 && (
+                <Combobox
+                  options={schoolOptions}
+                  value={schoolId}
+                  // The dropdown is a portal outside the form, so its selection doesn't
+                  // bubble to the form's onChange — mark dirty here. Also clears the
+                  // preselection hint, since touching the field counts as user input.
+                  onChange={(id) => {
+                    setSchoolId(id);
+                    setDirty(true);
+                    setPreselectedFromBuyer(false);
+                  }}
+                  placeholder="Buscá tu escuela por nombre o lugar…"
+                  emptyMessage="Ninguna escuela coincide — probá otro nombre o lugar."
+                />
+              )}
             </Field>
             {/* Outside the Field: links must not nest inside its <label>. */}
             {schools.length === 0 ? (
@@ -290,14 +353,28 @@ export default function NewBusinessPage() {
                 primero.
               </p>
             ) : (
-              <p className="mt-1 text-xs text-muted">
-                Podés dejarla en blanco y vincularla después desde la edición. ¿Tu
-                escuela no está en la lista?{" "}
-                <Link href="/panel/new/school" className="font-medium underline">
-                  Creá su página
-                </Link>
-                .
-              </p>
+              <>
+                {/* Non-accional copy: this field only denormalizes the association on the
+                    doc — it does NOT create a subscription or count for ranking (that's
+                    the /subscribe flow). */}
+                <p className="mt-1 text-xs text-muted">
+                  Asocia tu comercio a una escuela en tu perfil. Para apoyarla con una
+                  suscripción, andá a “Apoyar una escuela” desde el panel. Podés dejarla
+                  en blanco y vincularla después. ¿Tu escuela no está en la lista?{" "}
+                  <Link href="/panel/new/school" className="font-medium underline">
+                    Creá su página
+                  </Link>
+                  .
+                </p>
+                {/* Only after an actual preselection from the buyer's community, so the
+                    user knows we filled it (and can change it). */}
+                {preselectedFromBuyer && (
+                  <p className="mt-1 text-xs text-muted">
+                    Preseleccionamos la escuela de tu comunidad — cambiala si no
+                    corresponde.
+                  </p>
+                )}
+              </>
             )}
           </div>
 
@@ -306,29 +383,39 @@ export default function NewBusinessPage() {
               Categorías (elegí al menos una)
             </legend>
             {categories.length === 0 ? (
-              <p className="mt-2 text-xs text-muted">
-                No hay categorías disponibles por ahora.
+              // System failure (the fetch returned nothing), not "you didn't choose":
+              // say so instead of rendering an empty fieldset that reads as no options.
+              // The category is required, so a silent empty leaves the form unsubmittable.
+              <p role="alert" className="mt-2 text-sm text-error">
+                No pudimos cargar las categorías. Recargá la página.
               </p>
             ) : (
               <div className="mt-2 flex flex-wrap gap-2">
-                {categories.map((c) => (
-                  <label
-                    key={c.id}
-                    className={`inline-flex min-h-10 cursor-pointer items-center rounded-full px-4 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
-                      selectedCategories.includes(c.id)
-                        ? "bg-brand-darker text-white"
-                        : "bg-surface text-muted ring-1 ring-black/5 hover:text-foreground"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      className="sr-only"
-                      checked={selectedCategories.includes(c.id)}
-                      onChange={() => toggleCategory(c.id)}
-                    />
-                    {c.name}
-                  </label>
-                ))}
+                {categories.map((c) => {
+                  const selected = selectedCategories.includes(c.id);
+                  return (
+                    // Multi-select toggle with an sr-only checkbox — Chip is a single
+                    // link/button, so this can't use it directly; it replicates Chip's
+                    // exact geometry (rounded-full px-4 py-2.5, hairline border + brand
+                    // hover) so it reads as the same control as the browse chips.
+                    <label
+                      key={c.id}
+                      className={`inline-flex min-h-10 cursor-pointer items-center rounded-full border px-4 py-2.5 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
+                        selected
+                          ? "border-brand-darker bg-brand-darker text-white"
+                          : "border-border bg-surface text-muted hover:border-brand-dark hover:text-brand-darker"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={selected}
+                        onChange={() => toggleCategory(c.id)}
+                      />
+                      {c.name}
+                    </label>
+                  );
+                })}
               </div>
             )}
           </fieldset>
@@ -363,7 +450,7 @@ export default function NewBusinessPage() {
 
         <FormSection
           legend="Ubicación"
-          description="Se completan solos al marcar el punto en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
+          description="Se completan solos al mover el pin en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
           boxed
         >
           <div
@@ -420,7 +507,12 @@ export default function NewBusinessPage() {
 
         <FormError message={error} />
 
-        <button type="submit" disabled={saving} className="btn btn-primary">
+        <button
+          type="submit"
+          disabled={saving}
+          aria-busy={saving}
+          className="btn btn-primary"
+        >
           {/* Uploads can take a few seconds on mobile data — say what's happening. */}
           {saving
             ? logoFile || coverFile
@@ -429,6 +521,10 @@ export default function NewBusinessPage() {
             : "Crear comercio"}
         </button>
       </form>
+
+      <p className="mt-8 text-sm">
+        <BackLink href="/panel">Volver al panel</BackLink>
+      </p>
     </main>
   );
 }
