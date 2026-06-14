@@ -15,6 +15,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { CheckIcon } from "@/components/ui/icons";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { BusinessPanelNav } from "@/components/business/BusinessPanelNav";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { RemindSchoolButton } from "@/components/subscriptions/RemindSchoolButton";
@@ -162,6 +163,12 @@ export default function BusinessSubscribePage() {
         Apoyar una escuela
       </h1>
       <p className="mt-1 text-sm text-muted">{business.name}</p>
+
+      <BusinessPanelNav
+        businessId={id}
+        active={business.status === "active"}
+        current="subscribe"
+      />
 
       {/* The support form on one elevated surface — the school choice, units math and
           optional proof upload. The platform never touches the money; this only records a
