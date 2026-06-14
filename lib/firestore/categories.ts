@@ -1,6 +1,7 @@
 /**
  * Typed reads of the `categories` collection.
  */
+import { cache } from "react";
 import {
   collection,
   doc,
@@ -21,9 +22,15 @@ export async function getCategories(): Promise<CategoryDoc[]> {
   return snapToList<Category>(await getDocs(q));
 }
 
-/** A category by id. */
-export async function getCategoryById(
-  id: string,
-): Promise<CategoryDoc | null> {
-  return docToTyped<Category>(await getDoc(doc(db, CATEGORIES, id)));
-}
+/**
+ * A category by id.
+ *
+ * Wrapped in React cache(): on /category/[id], generateMetadata and the page component
+ * both call it with the same id during one request — the cache dedupes that into a single
+ * Firestore read (the Firestore SDK, unlike fetch, gets no deduping from Next).
+ */
+export const getCategoryById = cache(
+  async (id: string): Promise<CategoryDoc | null> => {
+    return docToTyped<Category>(await getDoc(doc(db, CATEGORIES, id)));
+  },
+);
