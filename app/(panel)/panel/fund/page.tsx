@@ -112,7 +112,7 @@ function FundContent() {
   }
   if (!project || !school) {
     return (
-      <main className="max-w-xl">
+      <main>
         <p className="text-sm text-muted">Proyecto no encontrado.</p>
         <p className="mt-4 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -176,7 +176,7 @@ function FundContent() {
   };
 
   return (
-    <main className="max-w-xl">
+    <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Financiar un proyecto
       </h1>

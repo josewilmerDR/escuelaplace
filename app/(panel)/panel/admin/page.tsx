@@ -126,7 +126,7 @@ export default function AdminVerificationPage() {
   };
 
   return (
-    <main className="max-w-2xl">
+    <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Verificación de escuelas
       </h1>

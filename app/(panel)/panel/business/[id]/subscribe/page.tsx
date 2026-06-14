@@ -157,7 +157,7 @@ export default function BusinessSubscribePage() {
   };
 
   return (
-    <main className="max-w-xl">
+    <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Apoyar una escuela
       </h1>

@@ -150,7 +150,7 @@ export default function BusinessMetricsPage() {
     activeSupport > 0 && cur.contacts > 0 ? activeSupport / cur.contacts : null;
 
   return (
-    <main className="max-w-xl">
+    <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Métricas
       </h1>
