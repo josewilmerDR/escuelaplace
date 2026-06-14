@@ -10,14 +10,16 @@
  * the proof. The proof file goes to private Storage (not the public doc). The school's
  * payment methods are shown only when verified.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { BusinessPanelNav } from "@/components/business/BusinessPanelNav";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { SchoolPicker } from "@/components/school/SchoolPicker";
+import { UNVERIFIED_SUBSCRIPTION_TEXT } from "@/components/school/UnverifiedSchoolNotice";
 import { SupporterContributionItem } from "@/components/subscriptions/SupporterContributionItem";
+import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
@@ -72,6 +74,8 @@ function SubscribeSkeleton({ business }: { business: BusinessDoc | null }) {
 export default function BusinessSubscribePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  // Ties the visible "Escuela" group label to the picker (which is not a single <label>).
+  const schoolLabelId = useId();
 
   const [business, setBusiness] = useState<BusinessDoc | null>(null);
   const [schools, setSchools] = useState<SchoolDoc[]>([]);
@@ -291,17 +295,23 @@ export default function BusinessSubscribePage() {
         {/* Not a <Field>: the picker holds several controls (carousel buttons, a link and a
             search input), which can't live inside a single wrapping <label>. The submit
             button stays disabled until a school is chosen, so no native `required` is needed. */}
-        <div className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Escuela</span>
+        <div
+          role="group"
+          aria-labelledby={schoolLabelId}
+          className="flex flex-col gap-1 text-sm"
+        >
+          <span id={schoolLabelId} className="font-medium">
+            Escuela
+          </span>
           <SchoolPicker schools={schools} value={schoolId} onChange={setSchoolId} />
         </div>
 
         {schoolId && (
-          <div className="rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
+          <div className={`text-sm ${cardClass("inset")}`}>
             <PaymentMethodsInfo
               methods={methods}
               confirmationTimeMs={confirmMs}
-              unverifiedText="Esta escuela aún no está verificada, así que sus métodos de pago no están disponibles. Podés registrar el apoyo igual; la escuela lo confirmará al verificarse."
+              unverifiedText={UNVERIFIED_SUBSCRIPTION_TEXT}
             />
           </div>
         )}
@@ -341,7 +351,8 @@ export default function BusinessSubscribePage() {
 
         <button
           type="submit"
-          disabled={saving || !schoolId}
+          disabled={saving || !schoolId || uploadingId !== null}
+          aria-busy={saving}
           className="btn btn-primary"
         >
           {saving ? "Registrando…" : "Registrar apoyo"}

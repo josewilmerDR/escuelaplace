@@ -141,13 +141,18 @@ function FundContent() {
     if (type === "in_kind" && !description.trim()) return;
     setSaving(true);
     setError(null);
+    setDone(false);
+
+    // Phase 1 — record the contribution. A failure here means nothing was created, so it's
+    // the only failure that invalidates the whole action.
+    let newId: string;
     try {
       // Create the recognition profile (private by default) so the Cloud Function has a
       // doc to bump `projectsSupported` the moment the school confirms.
       await ensureDonorProfile(user.id, user.name);
       const stageTitle =
         stageIndex === "" ? undefined : project.stages[stageIndex]?.title;
-      const newId = await createContribution({
+      newId = await createContribution({
         schoolId,
         schoolName: school.name,
         projectId,
@@ -161,18 +166,33 @@ function FundContent() {
         ...(stageIndex === "" ? {} : { stageIndex }),
         ...(stageTitle ? { stageTitle } : {}),
       });
-      if (proofFile) await uploadContributionProof(newId, proofFile);
-      setProofFile(null);
-      setAmount(0);
-      setDescription("");
-      setStageIndex("");
-      setDone(true);
-      await reloadContribs();
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo registrar el aporte."));
-    } finally {
       setSaving(false);
+      return;
     }
+
+    // Phase 2 — the contribution now exists (pending). The optional proof upload is
+    // best-effort: a failure must NOT claim the contribution failed (that led to duplicates
+    // on retry). Surface a proof-specific note instead and keep the recorded contribution.
+    const file = proofFile;
+    setProofFile(null);
+    setAmount(0);
+    setDescription("");
+    setStageIndex("");
+    try {
+      if (file) await uploadContributionProof(newId, file);
+      setDone(true);
+    } catch (err) {
+      setError(
+        userErrorMessage(
+          err,
+          "El aporte se registró, pero no se pudo subir el comprobante. Volvé a intentarlo más tarde.",
+        ),
+      );
+    }
+    await reloadContribs();
+    setSaving(false);
   };
 
   return (
@@ -327,8 +347,8 @@ function FundContent() {
             disabled={!canFund}
           />
 
-          {/* Account-wide recognition preference (not per-contribution): autosaves on toggle,
-              with the display name editable on the settings page it links to. */}
+          {/* Account-wide recognition preference (not per-contribution): autosaves on toggle;
+              the display name is edited inline (no jump to settings that would discard the form). */}
           <RecognitionToggle compact />
 
           <FormError message={error} />
@@ -347,6 +367,7 @@ function FundContent() {
               amount <= 0 ||
               (type === "in_kind" && !description.trim())
             }
+            aria-busy={saving}
             className="btn btn-primary"
           >
             {saving
@@ -358,11 +379,15 @@ function FundContent() {
         </form>
       )}
 
-      {myContribs.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            Tus aportes a este proyecto
-          </h2>
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Tus aportes a este proyecto
+        </h2>
+        {myContribs.length === 0 ? (
+          <p className="mt-2 text-sm text-muted">
+            Todavía no aportaste a este proyecto.
+          </p>
+        ) : (
           <ul className="mt-4 flex flex-col gap-3">
             {myContribs.map((c) => (
               <li
@@ -393,8 +418,8 @@ function FundContent() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
       <p className="mt-8 text-sm">
         <BackLink href="/panel">Volver al panel</BackLink>

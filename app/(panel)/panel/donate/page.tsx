@@ -9,21 +9,21 @@
  * confirms the proof. Confirmed donations feed the donor's recognition tier
  * (donorProfiles), which is shown publicly only if the donor opts in.
  */
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useId, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
-import { CheckIcon } from "@/components/ui/icons";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
 import { RecognitionToggle } from "@/components/donors/RecognitionToggle";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { SchoolPicker } from "@/components/school/SchoolPicker";
-import { PendingAge } from "@/components/subscriptions/PendingAge";
-import { RemindSchoolButton } from "@/components/subscriptions/RemindSchoolButton";
-import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
+import { UNVERIFIED_DONATION_TEXT } from "@/components/school/UnverifiedSchoolNotice";
+import { SupporterContributionItem } from "@/components/subscriptions/SupporterContributionItem";
+import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
+import { StatChip } from "@/components/ui/StatChip";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
@@ -88,6 +88,8 @@ function DonateContent() {
   const { user } = useAuth();
   // The school page's "Donar" button lands here with the school preselected.
   const preselectedSchoolId = useSearchParams().get("schoolId") ?? "";
+  // Ties the visible "Escuela" group label to the picker (which is not a single <label>).
+  const schoolLabelId = useId();
 
   const [schools, setSchools] = useState<SchoolDoc[]>([]);
   const [donations, setDonations] = useState<SubscriptionDoc[]>([]);
@@ -104,21 +106,34 @@ function DonateContent() {
   const [confirmMs, setConfirmMs] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  // Error of a per-row proof upload — shown next to the list, not in the form's FormError.
+  const [listError, setListError] = useState<string | null>(null);
 
   const reloadDonations = useCallback(() => {
     if (!user) return Promise.resolve();
     return getSubscriptionsByDonor(user.id).then(setDonations);
   }, [user]);
 
+  // Index schools by id so each list row resolves its boardContact without a per-row scan.
+  const schoolById = useMemo(
+    () => new Map(schools.map((s) => [s.id, s])),
+    [schools],
+  );
+
   useEffect(() => {
     if (!user) return;
+    // Drop a stale result if the account switches (or the component unmounts) before the
+    // reads resolve, so the previous user's donations never flash into the new session.
+    let cancelled = false;
     Promise.all([
       getSchoolsCached(),
       getSubscriptionsByDonor(user.id),
       getDonorProfile(user.id),
     ])
       .then(([s, d, p]) => {
+        if (cancelled) return;
         setSchools(s);
         // A stale/foreign ?schoolId must not leave the form pointing at a school
         // that isn't in the list (the select would render blank but "valid").
@@ -131,7 +146,12 @@ function DonateContent() {
         setDonations(d);
         setProfile(p);
       })
-      .finally(() => setLoaded(true));
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [user, preselectedSchoolId]);
 
   // Reveal the chosen school's payment methods (only when the school is verified)
@@ -160,42 +180,67 @@ function DonateContent() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!schoolId) return;
+    if (!schoolId) return; // the submit button is disabled without a school
     const school = schools.find((s) => s.id === schoolId);
     if (!school) return;
+    const safeUnits = Math.max(1, Math.floor(units) || 1);
     setSaving(true);
     setError(null);
+    setDone(false);
+
+    // Phase 1 — record the donation. A failure here means nothing was created, so it's the
+    // only failure that invalidates the whole action.
+    let newId: string;
     try {
       // Profile first (private by default) so the Cloud Function has a doc to update
       // the moment the school confirms.
       await ensureDonorProfile(user.id, user.name);
-      const newId = await createDonation({
+      newId = await createDonation({
         donorId: user.id,
         donorName: user.name,
         schoolId,
         schoolName: school.name,
-        units,
+        units: safeUnits,
       });
-      if (proofFile) await uploadSubscriptionProof(newId, proofFile);
-      setProofFile(null);
-      setUnits(1);
-      await reloadDonations();
-      if (!profile) setProfile(await getDonorProfile(user.id));
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo registrar la donación."));
-    } finally {
       setSaving(false);
+      return;
     }
+
+    // Phase 2 — the donation now exists (pending). The optional proof upload is best-effort:
+    // if it fails we must NOT claim the donation failed (that led to duplicate donations on
+    // retry). We surface a proof-specific note and leave the row's "Subir comprobante" to
+    // recover it.
+    const file = proofFile;
+    setProofFile(null);
+    setUnits(1);
+    try {
+      if (file) await uploadSubscriptionProof(newId, file);
+      setDone(true);
+    } catch (err) {
+      setError(
+        userErrorMessage(
+          err,
+          "La donación se registró, pero no se pudo subir el comprobante. Podés subirlo desde la lista.",
+        ),
+      );
+    }
+    await reloadDonations();
+    // Prime the recognition profile state for a brand-new donor so a later confirmation can
+    // light up the tier band without a reload (the freshly created profile is still zeroed).
+    if (!profile) setProfile(await getDonorProfile(user.id));
+    setSaving(false);
   };
 
   const onUploadProof = async (subId: string, file: File) => {
     setUploadingId(subId);
-    setError(null);
+    setListError(null);
     try {
       await uploadSubscriptionProof(subId, file);
       await reloadDonations();
     } catch (err) {
-      setError(userErrorMessage(err, "No se pudo subir el comprobante."));
+      setListError(userErrorMessage(err, "No se pudo subir el comprobante."));
     } finally {
       setUploadingId(null);
     }
@@ -213,14 +258,14 @@ function DonateContent() {
       </p>
 
       {(profile?.tier || (profile?.projectsSupported ?? 0) > 0) && (
-        <div className="mt-6 flex flex-wrap items-center gap-2 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
+        <div className={`mt-6 flex flex-wrap items-center gap-2 text-sm ${cardClass("inset")}`}>
           {profile?.tier && <DonorTierBadge tier={profile.tier} />}
           {(profile?.projectsSupported ?? 0) > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-medium text-brand-darker">
+            <StatChip tone="brand">
               {profile?.projectsSupported === 1
                 ? "Participaste en 1 proyecto"
                 : `Participaste en ${profile?.projectsSupported} proyectos`}
-            </span>
+            </StatChip>
           )}
           {profile?.firstConfirmedAt && (
             <span className="text-muted">
@@ -239,17 +284,23 @@ function DonateContent() {
         {/* Not a <Field>: the picker holds several controls (carousel buttons, a link and
             a search input), which can't live inside a single wrapping <label>. The submit
             button stays disabled until a school is chosen, so no native `required` is needed. */}
-        <div className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Escuela</span>
+        <div
+          role="group"
+          aria-labelledby={schoolLabelId}
+          className="flex flex-col gap-1 text-sm"
+        >
+          <span id={schoolLabelId} className="font-medium">
+            Escuela
+          </span>
           <SchoolPicker schools={schools} value={schoolId} onChange={setSchoolId} />
         </div>
 
         {schoolId && (
-          <div className="rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
+          <div className={`text-sm ${cardClass("inset")}`}>
             <PaymentMethodsInfo
               methods={methods}
               confirmationTimeMs={confirmMs}
-              unverifiedText="Esta escuela aún no está verificada, así que sus métodos de pago no están disponibles. Podés registrar la donación igual; la escuela la confirmará al verificarse."
+              unverifiedText={UNVERIFIED_DONATION_TEXT}
             />
           </div>
         )}
@@ -261,12 +312,15 @@ function DonateContent() {
             type="number"
             min={1}
             required
-            value={units}
-            onChange={(e) => setUnits(Math.max(1, Number(e.target.value) || 1))}
+            // Allow an empty display while editing (don't snap to 1 on backspace); the value
+            // is normalized to ≥1 on blur and again on submit.
+            value={units || ""}
+            onChange={(e) => setUnits(Math.max(0, Number(e.target.value) || 0))}
+            onBlur={() => setUnits((u) => Math.max(1, Math.floor(u) || 1))}
             className="input"
           />
           <span className="text-muted">
-            Total: {formatColones(units * SUBSCRIPTION_UNIT_CRC)}
+            Total: {formatColones(Math.max(1, units) * SUBSCRIPTION_UNIT_CRC)}
           </span>
         </Field>
 
@@ -277,15 +331,25 @@ function DonateContent() {
           onChange={setProofFile}
         />
 
-        {/* Account-wide recognition preference (not per-donation): autosaves on toggle, with
-            the display name editable on the settings page it links to. */}
+        {/* Account-wide recognition preference (not per-donation): autosaves on toggle; the
+            display name is edited inline (no jump to settings that would discard the form). */}
         <RecognitionToggle compact />
 
         <FormError message={error} />
+        {done && (
+          <p
+            role="status"
+            className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10"
+          >
+            ¡Donación registrada! La escuela la confirmará por su cuenta; mientras
+            tanto la ves abajo como pendiente.
+          </p>
+        )}
 
         <button
           type="submit"
-          disabled={saving || !schoolId}
+          disabled={saving || !schoolId || uploadingId !== null}
+          aria-busy={saving}
           className="btn btn-primary"
         >
           {saving ? "Registrando…" : "Registrar donación"}
@@ -296,64 +360,27 @@ function DonateContent() {
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
           Tus donaciones
         </h2>
+        {listError && (
+          <p role="alert" className="mt-2 text-sm text-error">
+            {listError}
+          </p>
+        )}
         {donations.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
             Todavía no registraste ninguna donación.
           </p>
         ) : (
           <ul className="mt-4 flex flex-col gap-3">
-            {donations.map((d) => {
-              const isPending = d.status === "pending";
-              const school = schools.find((x) => x.id === d.schoolId);
-              return (
-                <li
-                  key={d.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5"
-                >
-                  <div>
-                    <p className="font-semibold tracking-tight text-foreground">
-                      {d.schoolName}
-                    </p>
-                    <p className="text-muted">
-                      {d.units}× · {formatColones(d.amount)} ·{" "}
-                      {d.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3.5 w-3.5" />Comprobante</span>) : "Sin comprobante"}
-                    </p>
-                    {/* Waiting on the school: how long, plus a nudge through the school's
-                        own channel. The platform never confirms the money. */}
-                    {isPending && (
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <PendingAge since={d.createdAt} />
-                        <RemindSchoolButton
-                          boardContact={school?.boardContact}
-                          supporterName={user.name}
-                          schoolName={d.schoolName}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <label className="cursor-pointer text-xs font-medium text-brand-darker hover:underline">
-                      {uploadingId === d.id
-                        ? "Subiendo…"
-                        : d.proofUploaded
-                          ? "Reemplazar"
-                          : "Subir comprobante"}
-                      <input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        className="sr-only"
-                        disabled={uploadingId !== null}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) onUploadProof(d.id, f);
-                        }}
-                      />
-                    </label>
-                    <SubscriptionStatusBadge status={d.status} />
-                  </div>
-                </li>
-              );
-            })}
+            {donations.map((d) => (
+              <SupporterContributionItem
+                key={d.id}
+                subscription={d}
+                supporterName={user.name}
+                boardContact={schoolById.get(d.schoolId)?.boardContact}
+                uploadingId={uploadingId}
+                onUploadProof={onUploadProof}
+              />
+            ))}
           </ul>
         )}
       </section>
