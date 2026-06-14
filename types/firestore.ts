@@ -615,6 +615,8 @@ export const PROJECT_STAGE_JUSTIFICATION_MAX = 500;
 export const PROJECT_STAGE_COST_MAX = 100_000_000;
 export const PROJECT_STAGE_PHOTO_MAX = 4;
 export const PROJECT_STAGE_QUOTE_MAX = 3;
+/** UI cap for a contribution's in-kind description ("¿qué donás?"). */
+export const CONTRIBUTION_DESCRIPTION_MAX = 500;
 
 /**
  * Currencies a project goal can be denominated in. The platform is country-agnostic, so

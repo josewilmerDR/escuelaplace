@@ -168,6 +168,23 @@ export async function getContributionsByDonor(
   return snapToList<ProjectContribution>(await getDocs(q)).sort(byCreatedAtDesc);
 }
 
+/**
+ * A donor's contributions to ONE project (any status), newest first. Two equality filters
+ * need no composite index (sorting stays in JS, like the siblings above), so the funding
+ * flow fetches only this project's history instead of the donor's whole record.
+ */
+export async function getContributionsByDonorForProject(
+  donorId: string,
+  projectId: string,
+): Promise<ProjectContributionDoc[]> {
+  const q = query(
+    collection(db, PROJECT_CONTRIBUTIONS),
+    where("donorId", "==", donorId),
+    where("projectId", "==", projectId),
+  );
+  return snapToList<ProjectContribution>(await getDocs(q)).sort(byCreatedAtDesc);
+}
+
 /** Private Storage path of a contribution's payment proof (gated by storage.rules). */
 export function contributionProofPath(contributionId: string): string {
   return `project-contribution-proofs/${contributionId}/proof`;
