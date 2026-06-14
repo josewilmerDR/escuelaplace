@@ -9,6 +9,7 @@ import { SupportBadge } from "@/components/business/SupportBadge";
 import { TrackPageView } from "@/components/business/TrackPageView";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { ReviewList } from "@/components/reviews/ReviewList";
+import { Stars } from "@/components/reviews/Stars";
 import { TrackedLink } from "@/components/business/TrackedLink";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { ProfileHeader } from "@/components/layout/ProfileHeader";
@@ -22,6 +23,7 @@ import {
   TagIcon,
 } from "@/components/ui/icons";
 import {
+  buildDirectionsUrl,
   buildPhoneUrl,
   buildWebsiteUrl,
   formatPhoneDisplay,
@@ -32,6 +34,7 @@ import {
   getReviewsByBusiness,
   splitBusinessPhotos,
 } from "@/lib/firestore";
+import { formatRating } from "@/lib/format";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
 import { locationParts } from "@/lib/location";
 
@@ -86,6 +89,9 @@ export default async function BusinessPage({ params }: Props) {
   // does the same) is never a visual downgrade.
   const { cover, gallery } = splitBusinessPhotos(business);
   const coverImage = cover ?? gallery[0];
+  // One resolved share/structured-data image so the JSON-LD and the OG card never drift:
+  // cover → first gallery photo → logo.
+  const shareImage = coverImage ?? business.logoUrl;
   const initial = business.name.charAt(0).toUpperCase();
   // Cover fallback ladder for the profile header: photo → logo contained on tint → big
   // initial. A logo stretched to a cover looks broken, so it renders `contain`.
@@ -106,10 +112,7 @@ export default async function BusinessPage({ params }: Props) {
   // Linking a school is optional ("" = none); both denormalized fields must be set
   // for the "Vinculado a" link to render something clickable.
   const hasSchool = Boolean(business.schoolId && business.schoolName);
-  const averageLabel = stats.average.toLocaleString("es-CR", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
+  const averageLabel = formatRating(stats.average);
 
   // Phone/website for the Información list — same normalization as the action
   // buttons, so both render (or hide) together.
@@ -121,6 +124,14 @@ export default async function BusinessPage({ params }: Props) {
     : null;
   const websiteUrl = business.contact?.web
     ? buildWebsiteUrl(business.contact.web)
+    : null;
+  // Same directions link the action buttons build, surfaced in the Información list too
+  // (the sibling school page does this) so the locality there is actionable, not dead text.
+  const directionsUrl = business.location?.geopoint
+    ? buildDirectionsUrl(
+        business.location.geopoint.latitude,
+        business.location.geopoint.longitude,
+      )
     : null;
 
   // LocalBusiness structured data: the profile is the catalog's canonical SEO entity,
@@ -134,9 +145,7 @@ export default async function BusinessPage({ params }: Props) {
     name: business.name,
     description: business.description,
     url: `https://escuelaplace.com/business/${business.slug}`,
-    ...(coverImage || business.logoUrl
-      ? { image: coverImage ?? business.logoUrl }
-      : {}),
+    ...(shareImage ? { image: shareImage } : {}),
     ...(phone ? { telephone: `+${phone}` } : {}),
     ...(business.location
       ? {
@@ -213,9 +222,12 @@ export default async function BusinessPage({ params }: Props) {
               <p className="mt-1 text-sm text-muted">
                 {stats.count > 0 && (
                   <>
-                    <span aria-hidden className="text-amber-500">
-                      ★
-                    </span>{" "}
+                    <Stars
+                      value={stats.average}
+                      decorative
+                      className="align-[-0.125em] text-sm"
+                    />{" "}
+                    <span className="sr-only">Calificación promedio:</span>
                     <span className="font-medium text-foreground">
                       {averageLabel}
                     </span>{" "}
@@ -242,6 +254,11 @@ export default async function BusinessPage({ params }: Props) {
               <p className="mt-1 text-sm text-muted">
                 {categoryChips.map((c) => c.name).join(" · ")}
               </p>
+            )}
+            {placeParts.length > 0 && (
+              // The locality in the header, like the sibling school page — the buyer
+              // shouldn't have to scroll to Información to learn where the business is.
+              <p className="mt-1 text-sm text-muted">{placeParts.join(", ")}</p>
             )}
           </>
         }
@@ -306,9 +323,11 @@ export default async function BusinessPage({ params }: Props) {
       <Section id="informacion" title="Información">
         {/* pre-line: the description is captured in a textarea — keep its line
             breaks. */}
-        <p className="mt-3 whitespace-pre-line text-muted">
-          {business.description}
-        </p>
+        {business.description && (
+          <p className="mt-3 whitespace-pre-line text-muted">
+            {business.description}
+          </p>
+        )}
 
         {/* Category chips right after the description (not a trailing block of
             their own): with sparse data the card otherwise reads half-empty. */}
@@ -330,7 +349,22 @@ export default async function BusinessPage({ params }: Props) {
             {placeParts.length > 0 && (
               <li className="flex items-start gap-3">
                 <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
-                {placeParts.join(", ")}
+                <span>
+                  {placeParts.join(", ")}
+                  {directionsUrl && (
+                    <>
+                      {" · "}
+                      <a
+                        href={directionsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-brand-darker hover:underline"
+                      >
+                        Cómo llegar
+                      </a>
+                    </>
+                  )}
+                </span>
               </li>
             )}
             {business.hours && (
@@ -385,7 +419,7 @@ export default async function BusinessPage({ params }: Props) {
         </Section>
       )}
 
-      <Section id="resenas">
+      <Section id="resenas" ariaLabel="Reseñas">
         <ReviewList reviews={reviews} stats={stats} />
 
         {/* The form goes AFTER the list: buyers come to read (social proof);

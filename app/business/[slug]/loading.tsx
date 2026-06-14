@@ -22,21 +22,23 @@ export default function LoadingBusinessPage() {
 
         <div aria-hidden="true">
           <ProfileHeaderSkeleton>
-            {/* SupportBadge pill (page.tsx lines 249-251). */}
-            <div className="mt-5 flex justify-center sm:justify-start">
+            {/* SupportBadge row — mirrors the real SupportBadge root margin (mt-3). */}
+            <div className="mt-3 flex justify-center sm:justify-start">
               <div className="h-7 w-44 animate-pulse rounded-full bg-surface ring-1 ring-black/5" />
             </div>
 
             {/* ContactButtons row — rounded-xl to match the .btn radius. */}
-            <div className="mt-5 flex flex-wrap justify-center gap-3 sm:justify-start">
+            <div className="mt-4 flex flex-wrap justify-center gap-3 sm:justify-start">
               <div className="h-10 w-56 animate-pulse rounded-xl bg-brand-tint" />
               <div className="h-10 w-28 animate-pulse rounded-xl bg-surface ring-1 ring-black/5" />
             </div>
 
-            {/* SectionTabs row: a rounded-full chip per anchored section. */}
-            <div className="mt-5 flex flex-wrap justify-center gap-2 sm:justify-start">
-              <div className="h-8 w-24 animate-pulse rounded-full bg-surface ring-1 ring-black/5" />
-              <div className="h-8 w-20 animate-pulse rounded-full bg-surface ring-1 ring-black/5" />
+            {/* SectionTabs row: the real strip is a bordered tab bar (border-t + rounded-lg
+                tabs), not rounded-full chips — mirror it so the swap doesn't flash. */}
+            <div className="-mx-2 mt-5 flex justify-center gap-1 border-t border-border pt-1 sm:justify-start">
+              <div className="h-9 w-24 animate-pulse rounded-lg bg-surface" />
+              <div className="h-9 w-20 animate-pulse rounded-lg bg-surface" />
+              <div className="h-9 w-20 animate-pulse rounded-lg bg-surface" />
             </div>
           </ProfileHeaderSkeleton>
 
@@ -49,8 +51,8 @@ export default function LoadingBusinessPage() {
             </div>
           </Section>
 
-          {/* Reseñas section: the page ALWAYS renders this too (page.tsx 388-401), so a
-              second card placeholder keeps loading→loaded from jumping. */}
+          {/* Reseñas section: the page always mounts the Reseñas Section too, so a second
+              card placeholder keeps loading→loaded from jumping. */}
           <Section ariaLabel="Cargando reseñas">
             <div className="h-6 w-28 animate-pulse rounded bg-brand-tint" />
             <div className="mt-4 space-y-2">
