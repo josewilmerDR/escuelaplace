@@ -24,6 +24,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { BusinessStatusBadge } from "@/components/business/BusinessStatusBadge";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { IconTile } from "@/components/ui/IconTile";
 import {
   AcademicCapIcon,
   ArrowRightIcon,
@@ -331,13 +332,13 @@ function DonateCallout() {
  */
 function PageIconTile({ type }: { type: ResolvedPage["type"] }) {
   return (
-    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10">
+    <IconTile size="md">
       {type === "school" ? (
         <AcademicCapIcon className="h-6 w-6" />
       ) : (
         <TagIcon className="h-6 w-6" />
       )}
-    </span>
+    </IconTile>
   );
 }
 

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { BrandBand } from "@/components/layout/BrandBand";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTypeChoice } from "@/components/onboarding/PageTypeChoice";
-import { HeartIcon, MapPinIcon, VerifiedIcon } from "@/components/ui/icons";
+import { IconTile } from "@/components/ui/IconTile";
+import { FlagIcon, HeartIcon, MapPinIcon } from "@/components/ui/icons";
 
 /**
  * Public onboarding / explainer: /create — the front door for would-be page owners.
@@ -26,7 +28,7 @@ const BENEFITS = [
     body: "Aparecés en el directorio de la escuela de tu zona, donde los vecinos buscan a quién comprarle.",
   },
   {
-    Icon: VerifiedIcon,
+    Icon: FlagIcon,
     title: "Insignia y mejor ranking",
     body: "Apoyar a la escuela te da una insignia y mejor posición frente a los demás comercios de la zona.",
   },
@@ -40,33 +42,36 @@ const BENEFITS = [
 export default function CreatePage() {
   return (
     <>
-      {/* Hero band — same brand language as the home hero, but copy aimed at owners. */}
-      <section className="bg-brand">
-        <div className="mx-auto max-w-3xl px-6 py-16 text-center sm:py-20">
-          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Sumá tu comercio o escuela a escuelaplace
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-white/90">
-            Es un directorio comunitario: te conecta con las escuelas de tu zona
-            y con los vecinos que quieren comprarle a quien las apoya. Gratis y
-            sin intermediar pagos.
-          </p>
-        </div>
-      </section>
+      {/* Hero band — same brand language as the home hero (BrandBand), copy aimed at owners.
+          BrandBand without an image uses the from-brand to-brand-dark gradient; the h1 is
+          large/bold enough to clear AA on it and the paragraph is solid white (not /90). */}
+      <BrandBand size="hero" contentClassName="text-center">
+        <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+          Sumá tu comercio o escuela a escuelaplace
+        </h1>
+        <p className="mx-auto mt-4 max-w-xl text-white">
+          Es un directorio comunitario: te conecta con las escuelas de tu zona y
+          con los vecinos que quieren comprarle a quien las apoya. Gratis y sin
+          intermediar pagos.
+        </p>
+      </BrandBand>
 
       <PageContainer variant="narrow">
         {/* What you get — three beats before asking for anything. Each lead glyph sits in
             an app-icon tile (soft brand wash + inset ring), matching the calm-depth
             surfaces used across the panel. */}
-        <ul className="grid gap-6 sm:grid-cols-3">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Por qué sumarte
+        </h2>
+        <ul className="mt-6 grid gap-6 sm:grid-cols-3">
           {BENEFITS.map(({ Icon, title, body }) => (
             <li key={title}>
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10">
+              <IconTile size="md">
                 <Icon className="h-6 w-6" />
-              </span>
-              <h2 className="mt-4 font-semibold tracking-tight text-foreground">
+              </IconTile>
+              <h3 className="mt-4 text-base font-semibold tracking-tight text-foreground">
                 {title}
-              </h2>
+              </h3>
               <p className="mt-1 text-sm text-muted">{body}</p>
             </li>
           ))}
@@ -75,7 +80,7 @@ export default function CreatePage() {
         {/* The choice. Picking either kind sends you to its form; creating requires a
             Google sign-in (the panel asks for it). */}
         <section className="mt-12">
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
             ¿Qué querés crear?
           </h2>
           <p className="mt-1 text-sm text-muted">
@@ -83,7 +88,7 @@ export default function CreatePage() {
             Google para empezar.
           </p>
           <div className="mt-6">
-            <PageTypeChoice />
+            <PageTypeChoice headingLevel="h3" />
           </div>
         </section>
       </PageContainer>

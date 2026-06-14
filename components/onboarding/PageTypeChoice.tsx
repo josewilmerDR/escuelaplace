@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconTile } from "@/components/ui/IconTile";
 import { AcademicCapIcon, ArrowRightIcon, TagIcon } from "@/components/ui/icons";
 
 /**
@@ -12,20 +13,29 @@ import { AcademicCapIcon, ArrowRightIcon, TagIcon } from "@/components/ui/icons"
  * A classic Apple "choose your path" screen: two big tappable calm-depth cards, each led by
  * a rounded app-icon tile (the same glyphs the panel home uses for each page type — tag for
  * comercios, mortarboard for escuelas), lifting on hover.
+ *
+ * `headingLevel` sets the card title tag so each host keeps a correct heading hierarchy:
+ * default "h2" on /panel/new (where the page h1 is "¿Qué querés crear?"), "h3" on /create
+ * (where a section "¿Qué querés crear?" h2 precedes the cards).
  */
-export function PageTypeChoice() {
+export function PageTypeChoice({
+  headingLevel = "h2",
+}: {
+  headingLevel?: "h2" | "h3";
+}) {
+  const Heading = headingLevel;
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Link
         href="/panel/new/business"
         className="group rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 transition-all hover:shadow-md hover:ring-brand/30"
       >
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10">
+        <IconTile size="md">
           <TagIcon className="h-6 w-6" />
-        </span>
-        <h2 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
+        </IconTile>
+        <Heading className="mt-4 text-lg font-semibold tracking-tight text-foreground">
           Comercio
-        </h2>
+        </Heading>
         <p className="mt-1 text-sm text-muted">
           Mostrá tu negocio, tus ofertas y la escuela que apoyás.
         </p>
@@ -38,12 +48,12 @@ export function PageTypeChoice() {
         href="/panel/new/school"
         className="group rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 transition-all hover:shadow-md hover:ring-brand/30"
       >
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10">
+        <IconTile size="md">
           <AcademicCapIcon className="h-6 w-6" />
-        </span>
-        <h2 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
+        </IconTile>
+        <Heading className="mt-4 text-lg font-semibold tracking-tight text-foreground">
           Escuela
-        </h2>
+        </Heading>
         <p className="mt-1 text-sm text-muted">
           Creá la página de tu escuela. Se publica como “sin verificar” hasta que
           el equipo la apruebe.

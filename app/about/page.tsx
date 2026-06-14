@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { cardClass } from "@/components/ui/Card";
+import { IconTile } from "@/components/ui/IconTile";
 import { Section } from "@/components/ui/Section";
 import {
   AcademicCapIcon,
@@ -84,12 +85,7 @@ function RoleCard({
   return (
     <section className={cardClass("elevated")}>
       <header className="flex items-center gap-3">
-        <span
-          aria-hidden
-          className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10"
-        >
-          {icon}
-        </span>
+        <IconTile size="md">{icon}</IconTile>
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
           {title}
         </h2>
