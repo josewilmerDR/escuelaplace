@@ -31,6 +31,7 @@ export function PanelSidebar() {
         />
         <PanelNavLink href="/panel/new" label="Crear página" />
         <PanelNavLink href="/panel/donate" label="Donar a una escuela" />
+        <PanelNavLink href="/panel/settings" label="Configuración" />
         {/* Admin-only; renders nothing for regular users (see AdminNavLink). */}
         <AdminNavLink />
       </nav>
