@@ -56,3 +56,12 @@ export function formatDaysAgo(ms: number): string {
   if (days === 1) return "ayer";
   return `hace ${days} días`;
 }
+
+/**
+ * Business count label for a category: "1 comercio" vs "N comercios". Treats a missing
+ * count (legacy docs without the denormalized field) as 0, which reads "0 comercios".
+ */
+export function pluralizeBusinesses(count: number | undefined): string {
+  const n = count ?? 0;
+  return n === 1 ? "1 comercio" : `${n} comercios`;
+}
