@@ -62,13 +62,19 @@ export function donorTierForUnits(totalUnits: number): DonorTier | null {
 /**
  * A donor's public recognition profile, or null if it does not exist or the read is
  * denied (rules hide non-public profiles from other users — treat both as "anonymous").
+ *
+ * `surfaceErrors` opts OUT of that swallowing: when a donor reads their OWN profile (the
+ * settings/recognition toggle), a denied/network read is a real error worth showing, not
+ * "you are anonymous". The donor-wall and tier reads keep the default (null on error).
  */
 export async function getDonorProfile(
   uid: string,
+  { surfaceErrors = false }: { surfaceErrors?: boolean } = {},
 ): Promise<DonorProfileDoc | null> {
   try {
     return docToTyped<DonorProfile>(await getDoc(doc(db, DONOR_PROFILES, uid)));
-  } catch {
+  } catch (err) {
+    if (surfaceErrors) throw err;
     return null;
   }
 }
@@ -110,7 +116,9 @@ export async function getSchoolDonorWall(
     ]),
   ];
 
-  const profiles = await Promise.all(donorIds.map(getDonorProfile));
+  const profiles = await Promise.all(
+    donorIds.map((id) => getDonorProfile(id)),
+  );
   const recognized = profiles
     .filter((p): p is DonorProfileDoc => p != null && p.isPublic)
     .sort(
