@@ -12,6 +12,7 @@
  * OwnReviewMark) render their public state — so what's left on screen is exactly what
  * a visitor gets.
  */
+import { useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useViewAsVisitor } from "@/lib/view-as";
@@ -33,6 +34,16 @@ export function ManageBar({
 }) {
   const { user } = useAuth();
   const [asVisitor, setAsVisitor] = useViewAsVisitor();
+  // Escape exits "ver como visitante", mirroring the lightbox overlay — the floating pill
+  // shouldn't be the only way out of the mode.
+  useEffect(() => {
+    if (!asVisitor) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAsVisitor(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [asVisitor, setAsVisitor]);
   const canManage =
     user &&
     (user.id === ownerId ||

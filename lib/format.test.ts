@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDaysAgo, pluralizeBusinesses } from "./format";
+import { formatDaysAgo, formatRating, pluralizeBusinesses } from "./format";
 
 const DAY_MS = 86_400_000;
 
@@ -18,6 +18,14 @@ describe("formatDaysAgo", () => {
   it("floors to whole days beyond that", () => {
     expect(formatDaysAgo(2 * DAY_MS)).toBe("hace 2 días");
     expect(formatDaysAgo(9 * DAY_MS + 1)).toBe("hace 9 días");
+  });
+});
+
+describe("formatRating", () => {
+  it("always shows exactly one decimal (Costa Rica comma)", () => {
+    expect(formatRating(4.5)).toContain("4,5");
+    expect(formatRating(5)).toBe("5,0");
+    expect(formatRating(0)).toBe("0,0");
   });
 });
 

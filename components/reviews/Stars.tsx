@@ -1,3 +1,5 @@
+import { formatRating } from "@/lib/format";
+
 /**
  * Read-only star display for a rating in [0,5]. Fractional fill: the brand overlay is
  * clipped to value/5 of the row's width, so 4.5 reads as four and a half stars instead
@@ -15,10 +17,7 @@ export function Stars({
   decorative?: boolean;
 }) {
   const pct = (Math.min(5, Math.max(0, value)) / 5) * 100;
-  const label = `${value.toLocaleString("es-CR", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })} de 5`;
+  const label = `${formatRating(value)} de 5`;
   return (
     <span
       role={decorative ? undefined : "img"}

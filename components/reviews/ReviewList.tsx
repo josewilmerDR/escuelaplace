@@ -1,5 +1,6 @@
 import { OwnReviewMark } from "@/components/reviews/OwnReviewMark";
 import { Stars } from "@/components/reviews/Stars";
+import { formatRating } from "@/lib/format";
 import type { ReviewDoc, ReviewStats } from "@/types";
 
 /**
@@ -16,10 +17,7 @@ export function ReviewList({
   reviews: ReviewDoc[];
   stats: ReviewStats;
 }) {
-  const averageLabel = stats.average.toLocaleString("es-CR", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
+  const averageLabel = formatRating(stats.average);
 
   return (
     <>

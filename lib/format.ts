@@ -28,6 +28,17 @@ export function formatMoney(amount: number, currency: string): string {
   }
 }
 
+/**
+ * Format a 0–5 rating to one decimal, Costa Rica locale (e.g. 4.5 -> "4,5"). One place
+ * for the rule so the profile header, the review list and the Stars label can't drift.
+ */
+export function formatRating(value: number): string {
+  return value.toLocaleString("es-CR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+}
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
