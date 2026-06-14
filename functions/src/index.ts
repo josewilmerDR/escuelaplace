@@ -11,7 +11,8 @@
  *   the affected school's supportingBusinesses/uniqueSupporters, and — for personal
  *   donations — the donor's recognition profile, on any subscription create/update/delete.
  *   The business ranking applies an anti-fraud eligibility gate (verified school + no
- *   self-dealing) — see recomputeBusinessRanking.
+ *   self-dealing) — see recomputeBusinessRanking. On a confirmation it also appends a
+ *   non-sensitive audit event (auditEvents) for fraud review / the risk-scoring feature store.
  * - onSchoolWritten: when a school's verification status or its administrators change (both
  *   feed that eligibility gate), recompute every business supporting it — those changes
  *   don't touch any subscription, so the trigger above wouldn't fire on its own.
@@ -51,6 +52,7 @@ const DONOR_PROFILES = "donorProfiles";
 const USERS = "users";
 const PROJECTS = "projects";
 const PROJECT_CONTRIBUTIONS = "projectContributions";
+const AUDIT_EVENTS = "auditEvents";
 
 /** The uids that administer a page (owner + editors) as a set — the self-dealing key. */
 function principalsOf(
@@ -76,6 +78,59 @@ function sameSet(a: Set<string>, b: Set<string>): boolean {
   if (a.size !== b.size) return false;
   for (const id of a) if (!b.has(id)) return false;
   return true;
+}
+
+/** Millis of a possibly-null/absent Firestore Timestamp, or null. */
+function tsMillis(t: unknown): number | null {
+  return t && typeof (t as Timestamp).toMillis === "function"
+    ? (t as Timestamp).toMillis()
+    : null;
+}
+
+/**
+ * Append a non-sensitive audit event for a confirmation — the admin's fraud pattern-review
+ * trail AND the feature store for the planned risk-scoring layer. Records WHO confirmed,
+ * WHEN, the support magnitude (a COUNT), and the deterministic collusion signals
+ * (self-dealing, self-confirmation) — NEVER the payment proof or any money figure. The
+ * `auditEvents` collection has no trigger, so this write never cascades; firestore.rules
+ * deny all client access (admin-only read, Cloud-Function-only write).
+ */
+async function recordConfirmationAudit(
+  subscriptionId: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const schoolId = data.schoolId as string | undefined;
+  if (!schoolId) return;
+  const supporterType = (data.supporterType as string | undefined) ?? "business";
+  const businessId = data.businessId as string | undefined;
+  const donorId = data.donorId as string | undefined;
+  const confirmedBy = (data.confirmedBy as string | undefined) ?? null;
+
+  const school = await db.collection(SCHOOLS).doc(schoolId).get();
+  // Who controls the supporter side: a business's administrators, or the donating user.
+  const supporterPrincipals =
+    supporterType === "user"
+      ? new Set(donorId ? [donorId] : [])
+      : businessId
+        ? principalsOf((await db.collection(BUSINESSES).doc(businessId).get()).data())
+        : new Set<string>();
+  const schoolPrincipals = principalsOf(school.data());
+
+  await db.collection(AUDIT_EVENTS).add({
+    type: "subscription_confirmed",
+    subscriptionId,
+    supporterType,
+    ...(businessId ? { businessId } : {}),
+    ...(donorId ? { donorId } : {}),
+    schoolId,
+    units: (data.units as number) ?? 0,
+    confirmedBy,
+    confirmedAt: (data.confirmedAt as Timestamp | null) ?? null,
+    schoolVerified: school.get("verificationStatus") === "verified",
+    selfDealt: intersects(supporterPrincipals, schoolPrincipals),
+    confirmerIsSupporter: confirmedBy ? supporterPrincipals.has(confirmedBy) : false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
 }
 
 /**
@@ -286,7 +341,17 @@ export const onSubscriptionWritten = onDocumentWritten(
       if (d.donorId) donorIds.add(d.donorId as string);
     }
 
+    // Audit a confirmation: `confirmedAt` newly set (first confirm) or advanced (renewal).
+    // Flag-only writes (countsForRanking) and expiry status flips leave confirmedAt
+    // untouched, so they record nothing — no duplicate events from the recompute cascade.
+    const audit =
+      after?.confirmedAt != null &&
+      tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt)
+        ? recordConfirmationAudit(event.params.id, after)
+        : Promise.resolve();
+
     await Promise.all([
+      audit,
       ...[...businessIds].map(recomputeBusinessRanking),
       ...[...schoolIds].map(recomputeSchool),
       ...[...donorIds].map(recomputeDonorProfile),

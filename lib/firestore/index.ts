@@ -13,6 +13,7 @@ export * from "./subscriptions";
 export * from "./projects";
 export * from "./donors";
 export * from "./reviews";
+export * from "./audit";
 export * from "./metrics";
 export * from "./ranking";
 export * from "./feed";

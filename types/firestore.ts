@@ -497,6 +497,43 @@ export interface Subscription {
 
 export type SubscriptionDoc = Subscription & { id: string };
 
+// ── auditEvents/{id} ──────────────────────────────────────────────────────────
+/**
+ * Append-only, non-sensitive audit trail written ONLY by the Cloud Function on each
+ * confirmation (see firestore.rules: admin-only read, no client write). It records WHO
+ * confirmed WHAT WHEN plus the deterministic collusion signals — never the payment proof
+ * or any money figure. Two jobs: an admin's fraud pattern-review trail, and the feature
+ * store for the planned risk-scoring layer, which needs this event stream to catch the
+ * two-identity collusion the deterministic ranking gate can't, without touching sensitive
+ * data. Keep it cheap: store COUNTS and booleans, never amounts or proof.
+ */
+export interface AuditEvent {
+  /** Extensible discriminator; only confirmations are recorded today. */
+  type: "subscription_confirmed";
+  subscriptionId: string;
+  supporterType: SupporterType;
+  /** Present iff a business support confirmation. */
+  businessId?: string;
+  /** Present iff a personal-donation confirmation. */
+  donorId?: string;
+  schoolId: string;
+  /** Support magnitude (integer n in n × SUBSCRIPTION_UNIT_CRC) — never a money figure. */
+  units: number;
+  /** uid that confirmed (the school side); null on legacy/unknown. */
+  confirmedBy: string | null;
+  confirmedAt: Timestamp | null;
+  /** Whether the target school was `verified` at confirm time. */
+  schoolVerified: boolean;
+  /** The supporter side shares an administrator with the confirming school. */
+  selfDealt: boolean;
+  /** The very uid that confirmed also controls the supporter side — the sharpest
+   * same-identity self-confirmation signal. */
+  confirmerIsSupporter: boolean;
+  createdAt: Timestamp;
+}
+
+export type AuditEventDoc = AuditEvent & { id: string };
+
 // ── donorProfiles/{uid} ──────────────────────────────────────────────────────
 
 /**

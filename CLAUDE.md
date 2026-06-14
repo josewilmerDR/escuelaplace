@@ -160,6 +160,11 @@ Campos marcados **(fn)** los mantiene una Cloud Function; el cliente no los escr
 - `users/{uid}`: name, email, phone, role('user'|'admin'),
   managedPages[{type('business'|'school'), id, role('owner'|'editor')}], createdAt
 - `categories/{id}`: name, icon, order, businessCount
+- `auditEvents/{id}` **(fn, append-only, lectura solo admin)**: rastro no sensible de cada
+  confirmación para revisión de fraude + feature store de la futura IA. type, subscriptionId,
+  supporterType, businessId/donorId, schoolId, units (conteo, **nunca** monto), confirmedBy,
+  confirmedAt, schoolVerified, selfDealt, confirmerIsSupporter, createdAt. Sin comprobante ni
+  cifras de dinero.
 
 Tipos (y los `*_MAX`/`SUBSCRIPTION_*` constantes) en
 [`/types/firestore.ts`](types/firestore.ts).
@@ -238,6 +243,8 @@ helpers de escritura compartidos viven en `geo.ts` (`toLocation`, `LocationInput
 - **donors.ts** — tiers (`donorTierForUnits`), `getDonorProfile`, `getSchoolDonorWall`;
   writes: `createDonation`, `ensureDonorProfile`, `updateDonorRecognition`.
 - **reviews.ts** — `getReviewsByBusiness`, `getMyReview`, `upsertReview`, `deleteReview`.
+- **audit.ts** — `getRecentAuditEvents`, `getAuditEventsBySchool` (solo lectura, solo admin;
+  el rastro de auditoría lo escribe la Cloud Function).
 - **categories.ts** — `getCategories` / `getCategoryById`.
 - **geo.ts** — `getNearbyBusinesses` / `getNearbySchoolIds` (proximidad por geohash) +
   `toLocation`/`LocationInput`.
@@ -256,7 +263,8 @@ Paquete aparte (Gen 2, Admin SDK) que mantiene las señales que el cliente no pu
   donación personal— el `donorProfiles` del donante. El ranking del comercio aplica un
   **gate anti-fraude**: una suscripción solo cuenta si la escuela está `verified` **y** no
   comparte dueño/editor con el comercio (auto-trato) — así nadie se autoconfirma soporte
-  para ganar visibilidad gratis.
+  para ganar visibilidad gratis. En cada confirmación además anexa un evento no sensible a
+  `auditEvents` (quién/cuándo + señales de colusión) para revisión de fraude y la IA futura.
 - `onSchoolWritten` — cuando cambia `verificationStatus` o los administradores de una
   escuela (ambos alimentan ese gate), recalcula el ranking de **todos** los comercios que la
   apoyan; esos cambios no tocan ninguna suscripción, así que `onSubscriptionWritten` no se
@@ -299,6 +307,7 @@ mantenerlos en sync con `lib/firestore/ranking.ts` y `donors.ts`.
 - `businesses/{id}/reviews/{userId}`: escritura del propio usuario (rating 1–5, texto ≤600),
   **no** puede reseñar su propio comercio; admin puede borrar (moderación).
 - `businesses/{id}/metricsDaily/*`: lectura dueño/admin; escritura **solo** vía función.
+- `auditEvents/*`: lectura **solo admin**; escritura **prohibida** al cliente (solo la fn).
 - `users/{uid}`: solo el **propio** usuario (o admin).
 
 ## Comandos

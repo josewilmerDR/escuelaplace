@@ -322,6 +322,16 @@ service cloud.firestore {
         request.resource.data.confirmedAt != resource.data.confirmedAt;
     }
 
+    // ── auditEvents/{id} ──────────────────────────────────────────────────────
+    // Append-only, non-sensitive audit trail of confirmations (who/when + collusion
+    // signals; never the proof or a money figure). Written ONLY by the Cloud Function
+    // (Admin SDK bypasses these rules). Admin-only read — it backs fraud review and the
+    // future risk-scoring feature store; no client may read or write it.
+    match /auditEvents/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // ── donorProfiles/{uid} ───────────────────────────────────────────────────
     // Public recognition surface for personal donors (doc id = uid). The donor owns the
     // recognition preferences (displayName, isPublic); totals and tier are derived from
