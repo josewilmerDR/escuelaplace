@@ -6,6 +6,7 @@ import { BusinessCard } from "@/components/business/BusinessCard";
 import { PhotoGallery } from "@/components/business/PhotoGallery";
 import { SectionTabs } from "@/components/business/SectionTabs";
 import { DonorWall } from "@/components/donors/DonorWall";
+import { DonorWallManagerHint } from "@/components/donors/DonorWallManagerHint";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { SchoolManageBar } from "@/components/school/SchoolManageBar";
 import {
@@ -454,7 +455,15 @@ export default async function SchoolPage({ params }: Props) {
             )}
           </section>
 
-          {hasWall && <DonorWall school={school} wall={wall} />}
+          {hasWall ? (
+            <DonorWall school={school} wall={wall} />
+          ) : (
+            <DonorWallManagerHint
+              schoolId={id}
+              ownerId={school.ownerId}
+              editorIds={school.editorIds}
+            />
+          )}
         </main>
       </div>
     </>

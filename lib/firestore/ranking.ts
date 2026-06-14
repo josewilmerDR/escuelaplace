@@ -78,6 +78,21 @@ export function isCountingSubscription(
   return expMs == null || expMs > nowMs;
 }
 
+/**
+ * Whether a subscription is eligible to feed BUSINESS ranking. The Cloud Function clears
+ * `countsForRanking` for support that must not count — a school that isn't `verified`, or
+ * self-dealing (the supporting business and the confirming school share an administrator).
+ * Absent (legacy / not yet evaluated) is treated as eligible so existing confirmed support
+ * keeps counting until the next recompute backfills the flag. This is the CLIENT mirror of
+ * the live gate the Cloud Function applies server-side (recomputeBusinessRanking); it lets
+ * the per-buyer feed re-rank apply the same exclusion without reading school docs.
+ */
+export function isRankingEligible(
+  sub: Pick<SubscriptionDoc, "countsForRanking">,
+): boolean {
+  return sub.countsForRanking !== false;
+}
+
 /** Window (days) of the public "recent support" chip on the school page. */
 export const RECENT_SUPPORT_WINDOW_DAYS = 30;
 
@@ -191,7 +206,9 @@ export function computeSupportSignals(
   let generalUnits = 0;
 
   for (const sub of subscriptions) {
-    if (!isCountingSubscription(sub, nowMs)) continue;
+    // Temporal gate (confirmed & not lapsed) AND the anti-fraud eligibility gate
+    // (verified school, no self-dealing) — both must hold for support to count.
+    if (!isCountingSubscription(sub, nowMs) || !isRankingEligible(sub)) continue;
     const weighted = sub.units * decayFactor(sub, weights, nowMs);
     if (community.has(sub.schoolId)) communityUnits += weighted;
     else generalUnits += weighted;

@@ -10,6 +10,11 @@
  * - onSubscriptionWritten: recompute the affected business's baseline score + totalDonated,
  *   the affected school's supportingBusinesses/uniqueSupporters, and — for personal
  *   donations — the donor's recognition profile, on any subscription create/update/delete.
+ *   The business ranking applies an anti-fraud eligibility gate (verified school + no
+ *   self-dealing) — see recomputeBusinessRanking.
+ * - onSchoolWritten: when a school's verification status or its administrators change (both
+ *   feed that eligibility gate), recompute every business supporting it — those changes
+ *   don't touch any subscription, so the trigger above wouldn't fire on its own.
  * - expireSubscriptionsDaily: time-decay the lifecycle — flip lapsed subscriptions to
  *   `expired` and near-expiry ones to `expiring`. The status writes re-fire the trigger
  *   above, which recomputes the affected docs.
@@ -47,9 +52,42 @@ const USERS = "users";
 const PROJECTS = "projects";
 const PROJECT_CONTRIBUTIONS = "projectContributions";
 
+/** The uids that administer a page (owner + editors) as a set — the self-dealing key. */
+function principalsOf(
+  data: { ownerId?: unknown; editorIds?: unknown } | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!data) return ids;
+  if (typeof data.ownerId === "string") ids.add(data.ownerId);
+  if (Array.isArray(data.editorIds)) {
+    for (const e of data.editorIds) if (typeof e === "string") ids.add(e);
+  }
+  return ids;
+}
+
+/** Whether two principal sets share at least one uid (a self-dealing relationship). */
+function intersects(a: Set<string>, b: Set<string>): boolean {
+  for (const id of a) if (b.has(id)) return true;
+  return false;
+}
+
+/** Whether two principal sets are identical (no administrator added/removed). */
+function sameSet(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const id of a) if (!b.has(id)) return false;
+  return true;
+}
+
 /**
  * Recompute a business's stored baseline score and cumulative donations. Uses the review
  * aggregate already stored on the doc (recomputeReviewStats keeps it current).
+ *
+ * Anti-fraud eligibility gate (decision #5): a subscription feeds the ranking ONLY if its
+ * target school is `verified` AND does not share an administrator with the business.
+ * Without the gate, a school admin who also runs a business could confirm their own
+ * "support" — or stand up an unverified school — to buy free catalog visibility. Resolved
+ * once per distinct school (each school doc read a single time). Ineligible support is
+ * dropped from BOTH the score and totalDonated.
  */
 async function recomputeBusinessRanking(businessId: string): Promise<void> {
   const ref = db.collection(BUSINESSES).doc(businessId);
@@ -61,13 +99,34 @@ async function recomputeBusinessRanking(businessId: string): Promise<void> {
     .where("businessId", "==", businessId)
     .get();
 
+  const businessPrincipals = principalsOf(doc.data());
+  const schoolIds = new Set(
+    snap.docs
+      .map((d) => d.get("schoolId") as string | undefined)
+      .filter((id): id is string => !!id),
+  );
+  const eligibleSchoolIds = new Set<string>();
+  await Promise.all(
+    [...schoolIds].map(async (schoolId) => {
+      const school = await db.collection(SCHOOLS).doc(schoolId).get();
+      if (!school.exists) return; // school deleted → its support stops counting
+      if (school.get("verificationStatus") !== "verified") return; // verified-only gate
+      // Self-dealing: business and confirming school share an owner/editor.
+      if (intersects(businessPrincipals, principalsOf(school.data()))) return;
+      eligibleSchoolIds.add(schoolId);
+    }),
+  );
+  const eligibleDocs = snap.docs.filter((d) =>
+    eligibleSchoolIds.has(d.get("schoolId") as string),
+  );
+
   const nowMs = Date.now();
-  const subs = snap.docs.map((d) => d.data() as ScorableSubscription);
+  const subs = eligibleDocs.map((d) => d.data() as ScorableSubscription);
   const reviewStats = doc.get("reviewStats") as ReviewStatsLike | undefined;
   const score = baselineScore(subs, reviewStats, nowMs);
 
   let totalDonated = 0;
-  for (const d of snap.docs) {
+  for (const d of eligibleDocs) {
     const data = d.data();
     if (data.confirmedAt) totalDonated += (data.amount as number) ?? 0;
   }
@@ -77,6 +136,23 @@ async function recomputeBusinessRanking(businessId: string): Promise<void> {
     "ranking.totalDonated": totalDonated,
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  // Denormalize the per-subscription eligibility onto each sub so the CLIENT feed re-rank
+  // (which has no school data) applies the same gate — see isRankingEligible. The score
+  // above stays authoritative regardless of flag freshness; this only mirrors the decision.
+  // Each changed flag re-fires this trigger, which recomputes and finds the flags already
+  // correct → no write → converges. Flags only flip on genuine eligibility changes (a
+  // school's verification or administrators), so the steady state writes nothing.
+  const flagBatch = db.batch();
+  let flagWrites = 0;
+  for (const d of snap.docs) {
+    const eligible = eligibleSchoolIds.has(d.get("schoolId") as string);
+    if (d.get("countsForRanking") !== eligible) {
+      flagBatch.update(d.ref, { countsForRanking: eligible });
+      flagWrites++;
+    }
+  }
+  if (flagWrites > 0) await flagBatch.commit();
 }
 
 /**
@@ -338,6 +414,41 @@ export const onReviewWritten = onDocumentWritten(
   `${BUSINESSES}/{businessId}/${REVIEWS}/{userId}`,
   async (event) => {
     await recomputeReviewStats(event.params.businessId);
+  },
+);
+
+/**
+ * A school's verification status and its administrators feed the anti-fraud eligibility
+ * gate in recomputeBusinessRanking (verified-only + no self-dealing). Both can change with
+ * no subscription being written — admin approves the school, or an owner adds/removes an
+ * editor — so onSubscriptionWritten wouldn't fire. When they do, recompute every business
+ * supporting this school. Every other school write (name, photos, and the
+ * metrics.* fields recomputeSchool itself writes) is ignored, so this never fans out on its
+ * own metric updates.
+ */
+export const onSchoolWritten = onDocumentWritten(
+  `${SCHOOLS}/{id}`,
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    const verificationChanged =
+      before?.verificationStatus !== after?.verificationStatus;
+    const principalsChanged = !sameSet(
+      principalsOf(before),
+      principalsOf(after),
+    );
+    if (!verificationChanged && !principalsChanged) return;
+
+    const snap = await db
+      .collection(SUBSCRIPTIONS)
+      .where("schoolId", "==", event.params.id)
+      .get();
+    const businessIds = new Set<string>();
+    for (const d of snap.docs) {
+      const businessId = d.get("businessId") as string | undefined;
+      if (businessId) businessIds.add(businessId);
+    }
+    await Promise.all([...businessIds].map(recomputeBusinessRanking));
   },
 );
 

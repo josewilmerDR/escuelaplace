@@ -4,9 +4,12 @@ import {
   buildDirectionsUrl,
   buildFacebookUrl,
   buildInstagramUrl,
+  buildMailtoLink,
   buildPhoneUrl,
   buildWebsiteUrl,
+  buildWhatsAppLink,
   buildWhatsAppUrl,
+  confirmationReminderMessage,
   formatPhoneDisplay,
   normalizePhoneInternational,
   whatsAppMessage,
@@ -185,5 +188,37 @@ describe("buildFacebookUrl", () => {
 
   it("rejects input that is neither slug nor URL", () => {
     expect(buildFacebookUrl("librería alfa")).toBeNull();
+  });
+});
+
+describe("buildWhatsAppLink", () => {
+  it("normalizes the number and url-encodes the message", () => {
+    const url = buildWhatsAppLink("8888-8888", "Hola, ¿confirmás?");
+    expect(url).toBe(
+      `https://wa.me/50688888888?text=${encodeURIComponent("Hola, ¿confirmás?")}`,
+    );
+  });
+
+  it("returns null for unusable numbers", () => {
+    expect(buildWhatsAppLink("no tengo", "Hola")).toBeNull();
+  });
+});
+
+describe("buildMailtoLink", () => {
+  it("encodes subject and body (spaces stay %20, not '+')", () => {
+    expect(
+      buildMailtoLink("junta@escuela.cr", "Aporte pendiente", "Hola escuela"),
+    ).toBe(
+      "mailto:junta@escuela.cr?subject=Aporte%20pendiente&body=Hola%20escuela",
+    );
+  });
+});
+
+describe("confirmationReminderMessage", () => {
+  it("names the supporter and school and mentions escuelaplace", () => {
+    const msg = confirmationReminderMessage("Librería Alfa", "Escuela Central");
+    expect(msg).toContain("Librería Alfa");
+    expect(msg).toContain("Escuela Central");
+    expect(msg).toContain("escuelaplace");
   });
 });

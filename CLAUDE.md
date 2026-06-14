@@ -147,7 +147,8 @@ Campos marcados **(fn)** los mantiene una Cloud Function; el cliente no los escr
   supporterType('business'|'user'), businessId/businessName **o** donorId/donorName,
   schoolId, schoolName, units (entero × `SUBSCRIPTION_UNIT_CRC`), amount, status
   ('pending'|'confirmed'|'expiring'|'expired'), confirmedAt, firstConfirmedAt, expiresAt,
-  confirmedBy, proofUploaded, createdAt, updatedAt
+  confirmedBy, proofUploaded, **countsForRanking (fn)** (elegibilidad anti-fraude: escuela
+  verificada y sin auto-trato; el cliente filtra por él), createdAt, updatedAt
 - `projectContributions/{id}`: aporte único a un proyecto. schoolId, schoolName, projectId,
   projectTitle, type('money'|'in_kind'), donorId, donorName, amount (in-kind = valor
   asignado), currency, description?, stageIndex?, stageTitle?,
@@ -252,7 +253,14 @@ Paquete aparte (Gen 2, Admin SDK) que mantiene las señales que el cliente no pu
 
 - `onSubscriptionWritten` — al crear/editar/borrar una suscripción recalcula el
   `ranking.score`/`totalDonated` del comercio, los contadores de la escuela y —si es
-  donación personal— el `donorProfiles` del donante.
+  donación personal— el `donorProfiles` del donante. El ranking del comercio aplica un
+  **gate anti-fraude**: una suscripción solo cuenta si la escuela está `verified` **y** no
+  comparte dueño/editor con el comercio (auto-trato) — así nadie se autoconfirma soporte
+  para ganar visibilidad gratis.
+- `onSchoolWritten` — cuando cambia `verificationStatus` o los administradores de una
+  escuela (ambos alimentan ese gate), recalcula el ranking de **todos** los comercios que la
+  apoyan; esos cambios no tocan ninguna suscripción, así que `onSubscriptionWritten` no se
+  dispararía. Ignora el resto de las ediciones de la escuela (no hace fan-out solo).
 - `onProjectContributionWritten` — recalcula `raised`/`contributorsCount` del proyecto y
   `projectsSupported` del donante.
 - `onReviewWritten` — recalcula `reviewStats` del comercio (y su ranking).
@@ -281,7 +289,8 @@ mantenerlos en sync con `lib/firestore/ranking.ts` y `donors.ts`.
   debe dejar `raised`/`contributorsCount` intactos.
 - `subscriptions`: crea el **lado que apoya** (comercio o el propio donante), forzado a
   `pending`; **solo la escuela destino** (o admin) confirma/vence; nadie puede reescribir
-  quién apoya a quién ni subir `units`/`amount` tras confirmar.
+  quién apoya a quién ni subir `units`/`amount` tras confirmar, ni tocar `countsForRanking`
+  (lo mantiene la fn).
 - `projectContributions`: crea el **contribuyente**, forzado a `pending` y **solo si la
   escuela está `verified`**; solo la escuela/admin confirma.
 - `donorProfiles/{uid}`: lectura del propio donante/admin, o de cualquiera si `isPublic`;

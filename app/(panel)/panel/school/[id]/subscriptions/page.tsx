@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
 import {
   confirmSubscription,
@@ -159,6 +160,9 @@ export default function SchoolSubscriptionsPage() {
                       Sin comprobante
                     </span>
                   )}
+                  {/* How long this support has waited — amber once it's stale, so an old
+                      queue is visible at a glance. */}
+                  <PendingAge since={s.createdAt} />
                 </div>
                 <button
                   type="button"

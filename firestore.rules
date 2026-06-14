@@ -199,13 +199,14 @@ service cloud.firestore {
         request.resource.data.status == 'pending' &&
         request.resource.data.confirmedAt == null &&
         request.resource.data.get('firstConfirmedAt', null) == null &&
+        request.resource.data.get('countsForRanking', false) == false &&
         request.resource.data.units is int &&
         request.resource.data.units >= 1 &&
         isSupporterSide(request.resource.data)
       );
 
       allow update: if isAdmin() || (
-        keepsSupporterIdentity() && (
+        keepsSupporterIdentity() && preservesRankingEligibility() && (
           isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
           (isSupporterSide(resource.data) &&
             !changesConfirmation() &&
@@ -250,6 +251,14 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
         ['supporterType', 'businessId', 'donorId', 'schoolId']
       );
+    }
+
+    // The anti-fraud ranking eligibility flag is Cloud-Function-maintained (Admin SDK
+    // bypasses these rules). No client write — neither the supporter nor the confirming
+    // school — may touch it, or a self-dealer could re-enable their own excluded support.
+    function preservesRankingEligibility() {
+      return request.resource.data.get('countsForRanking', null) ==
+        resource.data.get('countsForRanking', null);
     }
 
     // Once the school confirmed, the supporter may no longer change the committed
