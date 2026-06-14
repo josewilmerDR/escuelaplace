@@ -2,10 +2,11 @@
 
 /**
  * Business edit form (/panel/business/[id]/edit). The create form captures only the
- * essentials; here the owner completes the public profile (contact channels, hours,
- * discount) and controls publication. Businesses are created as a hidden `draft` —
+ * essentials; here the owner completes the public profile (logo, cover, contact channels,
+ * hours, discount, gallery) and controls publication. Businesses are created as a hidden
+ * `draft` —
  * public reads filter by status == 'active' — so publishing from this page is what
- * actually puts the profile on the catalog. Photos/logo still need an upload UI.
+ * actually puts the profile on the catalog.
  */
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
@@ -14,12 +15,17 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { GalleryManager } from "@/components/business/GalleryManager";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
+import { cardClass } from "@/components/ui/Card";
 import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { FormSection } from "@/components/ui/FormSection";
+import { ImagePicker } from "@/components/ui/ImagePicker";
+import { PagesIcon } from "@/components/ui/icons";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
+import { validateBusinessProfile } from "@/lib/business-profile";
 import { buildCatalogUrl, normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -39,6 +45,7 @@ import {
   setBusinessStatus,
   splitBusinessPhotos,
   updateBusinessProfile,
+  uploadBusinessImage,
   type BusinessPublishStatus,
 } from "@/lib/firestore";
 import {
@@ -87,11 +94,17 @@ export default function BusinessEditPage() {
   const [hours, setHours] = useState("");
   const [discountActive, setDiscountActive] = useState(false);
   const [discountText, setDiscountText] = useState("");
+  // New images picked this session; null = keep the stored logoUrl/coverUrl.
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Publish/unpublish errors render next to the publish button (top of the page),
+  // separate from the form `error` banner that sits above the save button (bottom).
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   // Any field change marks the form dirty (form-level onChange + the map handler);
   // a successful save clears it. The guard warns before close/refresh would throw
@@ -190,15 +203,52 @@ export default function BusinessEditPage() {
     return options;
   }, [schools, business]);
 
+  // Split once per business change: the stored cover (for the header preview fallback)
+  // and the gallery (excluding any legacy cover at photos[0], which must not show as a
+  // removable gallery item). Both were computed twice inline before.
+  const { cover: storedCover, gallery: storedGallery } = useMemo(
+    () =>
+      business
+        ? splitBusinessPhotos(business)
+        : { cover: undefined, gallery: [] as string[] },
+    [business],
+  );
+
   const onToggleStatus = async (status: BusinessPublishStatus) => {
     if (!business) return;
+    setStatusError(null);
+    if (status === "active") {
+      // Don't publish a stale (unsaved) profile, and never publish one that fails the
+      // same minimums "Guardar" enforces — otherwise the just-edited form silently
+      // publishes the OLD doc, or a profile with no category / no map pin.
+      if (dirty) {
+        setStatusError(
+          "Tenés cambios sin guardar. Guardá el perfil antes de publicarlo.",
+        );
+        return;
+      }
+      const invalid = validateBusinessProfile({
+        categories: selectedCategories,
+        hasCoords: coords != null,
+      });
+      if (invalid) {
+        setStatusError(invalid);
+        return;
+      }
+    } else if (
+      // Concrete impact before taking the page off the catalog.
+      !window.confirm(
+        "Tu página dejará de aparecer en el catálogo y su URL pública dejará de abrir. ¿Continuar?",
+      )
+    ) {
+      return;
+    }
     setPublishing(true);
-    setError(null);
     try {
       await setBusinessStatus(business.id, status);
       setBusiness((b) => (b ? { ...b, status } : b));
     } catch (err) {
-      setError(userErrorMessage(err, "No se pudo cambiar el estado."));
+      setStatusError(userErrorMessage(err, "No se pudo cambiar el estado."));
     } finally {
       setPublishing(false);
     }
@@ -207,14 +257,23 @@ export default function BusinessEditPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!business) return;
-    // Without a category the business never appears in the /category/* listings —
-    // one of the main discovery paths — so it can't be emptied silently.
-    if (selectedCategories.length === 0) {
-      setError("Elegí al menos una categoría: sin categoría tu comercio no aparece en los listados.");
+    // Same minimums publishing enforces (see onToggleStatus) — category for the
+    // /category/* listings, a map pin for the location.
+    const invalid = validateBusinessProfile({
+      categories: selectedCategories,
+      hasCoords: coords != null,
+    });
+    if (invalid) {
+      setError(invalid);
       return;
     }
     if (!coords) {
+      // validateBusinessProfile already guarantees this; the guard narrows the type.
       setError("Elegí la ubicación en el mapa.");
+      return;
+    }
+    if (discountActive && !discountText.trim()) {
+      setError("Escribí la descripción del descuento o desactivá la opción.");
       return;
     }
     if (whatsapp.trim() && !normalizePhoneInternational(whatsapp)) {
@@ -235,6 +294,17 @@ export default function BusinessEditPage() {
     setSaved(false);
     setSaving(true);
     try {
+      // Images go up first so the patch carries their final URLs in the same write
+      // (mirrors the school edit form). null = no new file → keep the stored URL.
+      const [logoUrl, coverUrl] = await Promise.all([
+        photoFile
+          ? uploadBusinessImage(business.id, "logo", photoFile)
+          : Promise.resolve(null),
+        coverFile
+          ? uploadBusinessImage(business.id, "cover", coverFile)
+          : Promise.resolve(null),
+      ]);
+
       const school = schools.find((s) => s.id === schoolId);
       const contact: BusinessContact = {};
       const channels: Array<[keyof BusinessContact, string]> = [
@@ -251,45 +321,82 @@ export default function BusinessEditPage() {
         if (value) contact[channel] = value;
       }
       const trimmedName = name.trim();
+      const categoryNames = categories
+        .filter((c) => selectedCategories.includes(c.id))
+        .map((c) => c.name);
+      // The selected school may be the business's current one even when it is missing
+      // from the list (delisted, or beyond the list cap) — fall back to the
+      // denormalized name.
+      const schoolName =
+        school?.name ??
+        (schoolId === business.schoolId ? business.schoolName : "");
+      const location = {
+        lat: coords.lat,
+        lng: coords.lng,
+        admin1: admin1.trim(),
+        admin2: admin2.trim(),
+        admin3: admin3.trim(),
+        country: country.trim() || undefined,
+        address: address.trim() || undefined,
+      };
+      const discount = {
+        active: discountActive,
+        text: discountActive ? discountText.trim() : "",
+        // Not editable here; carried through so saving never drops it.
+        ...(business.discount?.percentage != null
+          ? { percentage: business.discount.percentage }
+          : {}),
+      };
+      const trimmedHours = hours.trim();
       await updateBusinessProfile(business.id, {
         name: trimmedName,
         description: description.trim(),
         categories: selectedCategories,
-        categoryNames: categories
-          .filter((c) => selectedCategories.includes(c.id))
-          .map((c) => c.name),
+        categoryNames,
         schoolId,
-        // The selected school may be the business's current one even when it is missing
-        // from the list (delisted, or beyond the list cap) — fall back to the
-        // denormalized name.
-        schoolName:
-          school?.name ??
-          (schoolId === business.schoolId ? business.schoolName : ""),
-        location: {
-          lat: coords.lat,
-          lng: coords.lng,
-          admin1: admin1.trim(),
-          admin2: admin2.trim(),
-          admin3: admin3.trim(),
-          country: country.trim() || undefined,
-          address: address.trim() || undefined,
-        },
+        schoolName,
+        location,
         contact,
-        discount: {
-          active: discountActive,
-          text: discountActive ? discountText.trim() : "",
-          // Not editable here; carried through so saving never drops it.
-          ...(business.discount?.percentage != null
-            ? { percentage: business.discount.percentage }
-            : {}),
-        },
-        hours: hours.trim(),
+        discount,
+        hours: trimmedHours,
+        ...(logoUrl ? { logoUrl } : {}),
+        ...(coverUrl ? { coverUrl } : {}),
       });
-      setBusiness((b) => (b ? { ...b, name: trimmedName } : b));
+      // Refresh the WHOLE local snapshot, not just `name`: schoolId/schoolName feed
+      // schoolOptions and the schoolName fallback, and the header preview / gallery read
+      // logoUrl/coverUrl — a partial update would leave subsequent saves operating on
+      // stale denormalized data. `location` here is the raw input shape; the stored
+      // geopoint/geohash are recomputed server-side but aren't read back on this page.
+      setBusiness((b) =>
+        b
+          ? {
+              ...b,
+              name: trimmedName,
+              description: description.trim(),
+              categories: selectedCategories,
+              categoryNames,
+              schoolId,
+              schoolName,
+              location: {
+                ...b.location,
+                admin1: location.admin1,
+                admin2: location.admin2,
+                admin3: location.admin3,
+                country: location.country,
+                address: location.address,
+              },
+              contact,
+              discount,
+              hours: trimmedHours,
+              ...(logoUrl ? { logoUrl } : {}),
+              ...(coverUrl ? { coverUrl } : {}),
+            }
+          : b,
+      );
+      setPhotoFile(null);
+      setCoverFile(null);
       setSaved(true);
       setDirty(false);
-      // Auto-clear so the confirmation reads as a transient toast, not a permanent label.
-      window.setTimeout(() => setSaved(false), 4000);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudieron guardar los cambios."));
     } finally {
@@ -298,7 +405,24 @@ export default function BusinessEditPage() {
   };
 
   if (loadState === "loading") {
-    return <p className="text-sm text-muted">Cargando…</p>;
+    // Skeleton that keeps the heading in its final position so navigating here doesn't
+    // flash a bare line then jump the layout when the doc arrives (mirrors the panel home
+    // skeleton). The card placeholders stand in for the status banner + form sections.
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Editar comercio
+        </h1>
+        <div className="mt-8 flex flex-col gap-6" aria-hidden="true">
+          <div className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        </div>
+        <p className="sr-only" role="status">
+          Cargando…
+        </p>
+      </main>
+    );
   }
 
   if (loadState === "error") {
@@ -318,8 +442,23 @@ export default function BusinessEditPage() {
     );
   }
 
-  if (!business)
-    return <p className="text-sm text-muted">Comercio no encontrado.</p>;
+  if (!business) {
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Editar comercio
+        </h1>
+        <EmptyState
+          icon={<PagesIcon className="h-7 w-7" />}
+          title="No encontramos este comercio"
+          description="La página pudo haberse eliminado, o el enlace no es correcto."
+        />
+        <p className="mt-4 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
+  }
 
   const isManager =
     user != null &&
@@ -328,7 +467,19 @@ export default function BusinessEditPage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-error">No administrás este comercio.</p>;
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Editar comercio
+        </h1>
+        <p role="alert" className="mt-4 text-sm text-error">
+          No administrás este comercio.
+        </p>
+        <p className="mt-4 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
   }
 
   return (
@@ -344,8 +495,8 @@ export default function BusinessEditPage() {
       <section
         className={`mt-6 rounded-2xl p-4 text-sm ring-1 ${
           business.status === "active"
-            ? "bg-success-tint text-success ring-success/10"
-            : "bg-warning-tint text-warning ring-warning/10"
+            ? "bg-success-tint text-success ring-success/15"
+            : "bg-warning-tint text-warning ring-warning/15"
         }`}
       >
         {business.status === "active" ? (
@@ -364,7 +515,8 @@ export default function BusinessEditPage() {
             <button
               type="button"
               onClick={() => onToggleStatus("draft")}
-              disabled={publishing}
+              disabled={saving || publishing}
+              aria-busy={publishing}
               className="btn btn-outline mt-3"
             >
               {publishing ? "Guardando…" : "Pasar a borrador"}
@@ -380,7 +532,8 @@ export default function BusinessEditPage() {
             <button
               type="button"
               onClick={() => onToggleStatus("active")}
-              disabled={publishing}
+              disabled={saving || publishing}
+              aria-busy={publishing}
               className="btn btn-primary mt-3"
             >
               {publishing ? "Publicando…" : "Publicar página"}
@@ -391,6 +544,13 @@ export default function BusinessEditPage() {
             {business.status === "pending"
               ? "Tu página está en revisión por el equipo; todavía no es visible al público."
               : "Tu página fue suspendida por el equipo y no es visible. Escribinos si creés que es un error."}
+          </p>
+        )}
+        {/* Publish/unpublish error next to its button (not at the far-bottom form
+            banner), so the reason a publish didn't happen is right where the user looked. */}
+        {statusError && (
+          <p role="alert" className="mt-3 font-medium text-error">
+            {statusError}
           </p>
         )}
       </section>
@@ -421,22 +581,36 @@ export default function BusinessEditPage() {
               onChange={(e) => setDescription(e.target.value)}
               className="input min-h-24"
             />
-            <span className="text-xs text-muted">
+            {/* Turn amber as the count nears the limit so the cap doesn't surprise
+                mid-sentence; muted the rest of the time. */}
+            <span
+              className={`text-xs ${
+                description.length >= PAGE_DESCRIPTION_MAX * 0.9
+                  ? "text-warning"
+                  : "text-muted"
+              }`}
+            >
               {description.length}/{PAGE_DESCRIPTION_MAX}
             </span>
           </Field>
 
           <div>
-            <Field label="Escuela que apoyás (opcional)">
+            <Field label="Escuela vinculada (opcional)">
               <Combobox
                 options={schoolOptions}
                 value={schoolId}
                 onChange={setSchoolId}
                 placeholder="Buscá tu escuela por nombre o lugar…"
+                emptyMessage="Ninguna escuela coincide — probá otro nombre o lugar."
               />
             </Field>
+            {/* Non-accional copy: this field only denormalizes the association on the
+                doc — it does NOT create a subscription or count for ranking (that's the
+                /subscribe flow). */}
             <p className="mt-1 text-xs text-muted">
-              Borrá el texto para quitar la escuela vinculada.
+              Asocia tu comercio a una escuela en tu perfil. Para apoyarla con una
+              suscripción, andá a “Apoyar una escuela” desde el panel. Borrá el texto
+              para quitar la escuela vinculada.
             </p>
           </div>
 
@@ -444,26 +618,41 @@ export default function BusinessEditPage() {
             <legend className="text-sm font-medium">
               Categorías (elegí al menos una)
             </legend>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {categories.map((c) => (
-                <label
-                  key={c.id}
-                  className={`inline-flex min-h-10 cursor-pointer items-center rounded-full px-4 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
-                    selectedCategories.includes(c.id)
-                      ? "bg-brand-darker text-white"
-                      : "bg-surface text-muted ring-1 ring-black/5 hover:text-foreground"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={selectedCategories.includes(c.id)}
-                    onChange={() => toggleCategory(c.id)}
-                  />
-                  {c.name}
-                </label>
-              ))}
-            </div>
+            {categories.length === 0 ? (
+              // System failure (the fetch returned nothing), not "you didn't choose":
+              // say so instead of rendering an empty fieldset that reads as no options.
+              <p role="alert" className="mt-2 text-sm text-error">
+                No pudimos cargar las categorías. Recargá la página.
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {categories.map((c) => {
+                  const selected = selectedCategories.includes(c.id);
+                  return (
+                    // Multi-select toggle with an sr-only checkbox — Chip is a single
+                    // link/button, so this can't use it directly; it replicates Chip's
+                    // exact geometry (rounded-full px-4 py-2.5, hairline border + brand
+                    // hover) so it reads as the same control as the browse chips.
+                    <label
+                      key={c.id}
+                      className={`inline-flex min-h-10 cursor-pointer items-center rounded-full border px-4 py-2.5 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand ${
+                        selected
+                          ? "border-brand-darker bg-brand-darker text-white"
+                          : "border-border bg-surface text-muted hover:border-brand-dark hover:text-brand-darker"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={selected}
+                        onChange={() => toggleCategory(c.id)}
+                      />
+                      {c.name}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </fieldset>
         </FormSection>
 
@@ -582,6 +771,36 @@ export default function BusinessEditPage() {
         </FormSection>
 
         <FormSection legend="Presentación" boxed>
+          <ImagePicker
+            label="Logo"
+            hint="Se muestra como círculo sobre la portada (tu marca o fachada)."
+            value={photoFile}
+            onChange={(file) => {
+              setPhotoFile(file);
+              setDirty(true);
+            }}
+            variant="avatar"
+          />
+
+          <ImagePicker
+            label="Portada"
+            hint="Banda ancha arriba de la página (tu local, productos, equipo)."
+            value={coverFile}
+            onChange={(file) => {
+              setCoverFile(file);
+              setDirty(true);
+            }}
+            variant="cover"
+          />
+
+          {/* Mini header so the owner can check the avatar/cover overlap without opening
+              the public page. Newly picked files win over the stored URLs. */}
+          <HeaderPreview
+            cover={coverFile ?? storedCover}
+            logo={photoFile ?? business.logoUrl}
+            businessName={business.name}
+          />
+
           <Field label="Horario (opcional)">
             <input
               value={hours}
@@ -593,11 +812,11 @@ export default function BusinessEditPage() {
 
           {/* Inset (muted) panel rather than another elevated card: it's a sub-group
               nested inside the already-elevated "Presentación" section. */}
-          <fieldset className="rounded-xl bg-surface p-4 ring-1 ring-black/5">
+          <fieldset className={cardClass("inset")}>
             <legend className="px-1 text-sm font-medium text-foreground">
               Descuento para la comunidad
             </legend>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex min-h-10 items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={discountActive}
@@ -622,41 +841,32 @@ export default function BusinessEditPage() {
           </fieldset>
         </FormSection>
 
-        <div className="flex flex-col gap-2">
-          {/* Read-only mini header (cover + overlapping avatar) so the owner can
-              check the overlap without opening the public page. */}
-          <HeaderPreview
-            cover={splitBusinessPhotos(business).cover}
-            logo={business.logoUrl}
-            businessName={business.name}
-          />
-          <p className="text-xs text-muted">
-            El logo y la portada se eligen al crear la página; todavía no se
-            pueden cambiar desde acá.
-          </p>
-        </div>
-
         <FormError message={error} />
 
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={saving} className="btn btn-primary">
+          <button
+            type="submit"
+            disabled={saving || publishing}
+            aria-busy={saving}
+            className="btn btn-primary"
+          >
             {saving ? "Guardando…" : "Guardar cambios"}
           </button>
-          <SavedIndicator show={saved} />
+          <SavedIndicator show={saved} onHide={() => setSaved(false)} />
         </div>
       </form>
 
       {/* Outside the form: gallery changes publish immediately (upload/remove mutate
           the doc on the spot), they don't wait for "Guardar cambios". */}
-      <section className="mt-10 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+      <section className={`mt-10 ${cardClass("elevated")}`}>
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
           Galería
         </h2>
         <div className="mt-3">
           <GalleryManager
-            // splitBusinessPhotos excludes a legacy cover stored as photos[0], which
-            // must not show up as a removable gallery item.
-            initialPhotos={splitBusinessPhotos(business).gallery}
+            // storedGallery already excludes a legacy cover at photos[0], which must
+            // not show up as a removable gallery item.
+            initialPhotos={storedGallery}
             addPhoto={(file) => addBusinessGalleryPhoto(business.id, file)}
             removePhoto={(url) => removeBusinessGalleryPhoto(business.id, url)}
           />
