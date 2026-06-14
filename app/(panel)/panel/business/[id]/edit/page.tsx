@@ -303,7 +303,7 @@ export default function BusinessEditPage() {
 
   if (loadState === "error") {
     return (
-      <main className="max-w-xl">
+      <main>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Editar comercio
         </h1>
@@ -332,7 +332,7 @@ export default function BusinessEditPage() {
   }
 
   return (
-    <main className="max-w-xl">
+    <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Editar comercio
       </h1>

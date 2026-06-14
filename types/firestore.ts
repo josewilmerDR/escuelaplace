@@ -611,6 +611,8 @@ export const PROJECT_DESCRIPTION_MAX = 600;
 export const PROJECT_STAGE_MAX = 12;
 export const PROJECT_STAGE_TITLE_MAX = 120;
 export const PROJECT_STAGE_JUSTIFICATION_MAX = 500;
+// Defensive cap: stops one extra zero from inflating the goal and the progress bar.
+export const PROJECT_STAGE_COST_MAX = 100_000_000;
 export const PROJECT_STAGE_PHOTO_MAX = 4;
 export const PROJECT_STAGE_QUOTE_MAX = 3;
 

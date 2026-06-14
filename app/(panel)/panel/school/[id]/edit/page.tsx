@@ -251,7 +251,7 @@ export default function SchoolEditPage() {
 
   if (loadState === "error") {
     return (
-      <main className="max-w-xl">
+      <main>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Editar escuela
         </h1>
@@ -282,7 +282,7 @@ export default function SchoolEditPage() {
   const verified = school.verificationStatus === "verified";
 
   return (
-    <main className="max-w-xl">
+    <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Editar escuela
       </h1>

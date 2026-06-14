@@ -185,7 +185,7 @@ export default function NewBusinessPage() {
 
   if (loadState === "error") {
     return (
-      <main className="max-w-xl">
+      <main>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Crear comercio
         </h1>
@@ -201,7 +201,7 @@ export default function NewBusinessPage() {
   }
 
   return (
-    <main className="max-w-xl">
+    <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Crear comercio
       </h1>

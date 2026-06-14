@@ -6,14 +6,9 @@
  * persist immediately. Controlled — the parent owns the array. Shows the running total so
  * the board sees the goal it's building as it types.
  */
-import { Field } from "@/components/ui/Field";
+import { StageFields } from "@/components/projects/StageFields";
 import { formatMoney } from "@/lib/format";
-import {
-  PROJECT_STAGE_JUSTIFICATION_MAX,
-  PROJECT_STAGE_MAX,
-  PROJECT_STAGE_TITLE_MAX,
-  type ProjectCurrency,
-} from "@/types";
+import { PROJECT_STAGE_MAX, type ProjectCurrency } from "@/types";
 
 export interface StageDraft {
   title: string;
@@ -64,39 +59,15 @@ export function StagesEditor({
               </button>
             )}
           </div>
-          <div className="mt-3 flex flex-col gap-3">
-            <Field label="Título de la etapa">
-              <input
-                type="text"
-                required
-                maxLength={PROJECT_STAGE_TITLE_MAX}
-                value={stage.title}
-                onChange={(e) => update(i, { title: e.target.value })}
-                className="input"
-                placeholder="Ej.: Acondicionar el terreno"
-              />
-            </Field>
-            <Field label="Justificación (por qué existe y qué cubre el costo)">
-              <textarea
-                rows={3}
-                maxLength={PROJECT_STAGE_JUSTIFICATION_MAX}
-                value={stage.justification}
-                onChange={(e) => update(i, { justification: e.target.value })}
-                className="input"
-              />
-            </Field>
-            <Field label={`Costo (${currency})`}>
-              <input
-                type="number"
-                min={0}
-                required
-                value={stage.cost || ""}
-                onChange={(e) =>
-                  update(i, { cost: Math.max(0, Number(e.target.value) || 0) })
-                }
-                className="input"
-              />
-            </Field>
+          <div className="mt-3">
+            <StageFields
+              title={stage.title}
+              justification={stage.justification}
+              cost={stage.cost}
+              currency={currency}
+              onChange={(patch) => update(i, patch)}
+              required
+            />
           </div>
         </fieldset>
       ))}

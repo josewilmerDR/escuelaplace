@@ -24,13 +24,16 @@ import {
 import { formatColones } from "@/lib/format";
 import type { SchoolDoc, SubscriptionDoc } from "@/types";
 
+/** Lifecycle of the initial school + subscriptions fetch. */
+type LoadState = "loading" | "error" | "loaded";
+
 export default function SchoolSubscriptionsPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
 
   const [school, setSchool] = useState<SchoolDoc | null>(null);
   const [subscriptions, setSubscriptions] = useState<SubscriptionDoc[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,16 +41,44 @@ export default function SchoolSubscriptionsPage() {
     return getSubscriptionsBySchool(id).then(setSubscriptions);
   }, [id]);
 
-  useEffect(() => {
+  // Initial load: on a Firestore failure land on "error" (Reintentar) instead of
+  // a null school, so a transient network blip doesn't read as "Escuela no encontrada".
+  const load = useCallback(() => {
     Promise.all([getSchoolById(id), getSubscriptionsBySchool(id)])
       .then(([s, subs]) => {
         setSchool(s);
         setSubscriptions(subs);
+        setLoadState("loaded");
       })
-      .finally(() => setLoaded(true));
+      .catch(() => setLoadState("error"));
   }, [id]);
 
-  if (!loaded) return <p className="text-sm text-muted">Cargando…</p>;
+  useEffect(load, [load]);
+
+  const retry = () => {
+    setLoadState("loading");
+    load();
+  };
+
+  if (loadState === "loading")
+    return <p className="text-sm text-muted">Cargando…</p>;
+
+  if (loadState === "error") {
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Confirmar apoyos
+        </h1>
+        <p role="alert" className="mt-4 text-sm text-error">
+          No pudimos cargar los apoyos. Revisá tu conexión e intentá de nuevo.
+        </p>
+        <button type="button" onClick={retry} className="btn btn-outline mt-3">
+          Reintentar
+        </button>
+      </main>
+    );
+  }
+
   if (!school) return <p className="text-sm text-muted">Escuela no encontrada.</p>;
 
   const isManager =
@@ -99,7 +130,7 @@ export default function SchoolSubscriptionsPage() {
   };
 
   return (
-    <main className="max-w-2xl">
+    <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Confirmar apoyos
       </h1>

@@ -115,7 +115,7 @@ export default function NewSchoolPage() {
   };
 
   return (
-    <main className="max-w-xl">
+    <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Crear escuela
       </h1>
