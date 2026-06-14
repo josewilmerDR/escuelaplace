@@ -497,6 +497,58 @@ export interface Subscription {
 
 export type SubscriptionDoc = Subscription & { id: string };
 
+// ── auditEvents/{id} ──────────────────────────────────────────────────────────
+/**
+ * Append-only, non-sensitive audit trail written ONLY by the Cloud Function on each
+ * confirmation (see firestore.rules: admin-only read, no client write). It records WHO
+ * confirmed WHAT WHEN plus the deterministic collusion signals — never the payment proof
+ * or any money figure. Two jobs: an admin's fraud pattern-review trail, and the feature
+ * store for the planned risk-scoring layer, which needs this event stream to catch the
+ * two-identity collusion the deterministic ranking gate can't, without touching sensitive
+ * data. Keep it cheap: store COUNTS and booleans, never amounts or proof.
+ */
+export interface AuditEvent {
+  /** Which confirmation this records (extensible). */
+  type: "subscription_confirmed" | "project_contribution_confirmed";
+  /** Source doc id of a subscription confirmation. */
+  subscriptionId?: string;
+  /** Source doc id of a project-contribution confirmation. */
+  contributionId?: string;
+  /** Project funded (project_contribution_confirmed only). */
+  projectId?: string;
+  /** Denormalized project title (project_contribution_confirmed only). */
+  projectTitle?: string;
+  /** Money vs in-kind (project_contribution_confirmed only). */
+  contributionType?: ProjectContributionType;
+  supporterType: SupporterType;
+  /** Present iff a business support confirmation. */
+  businessId?: string;
+  /** Present iff a personal-donation / project-contribution confirmation. */
+  donorId?: string;
+  schoolId: string;
+  /** Denormalized so the admin review UI renders without N+1 reads. */
+  schoolName: string;
+  /** Business page name or donor account name. Fine here — `auditEvents` is an admin-only
+   * surface (unlike public surfaces, which must not render a donor name). */
+  supporterName: string;
+  /** Support magnitude (integer n in n × SUBSCRIPTION_UNIT_CRC; subscriptions only) — a
+   * COUNT, never a money figure. Absent on project contributions (no units). */
+  units?: number;
+  /** uid that confirmed (the school side); null on legacy/unknown. */
+  confirmedBy: string | null;
+  confirmedAt: Timestamp | null;
+  /** Whether the target school was `verified` at confirm time. */
+  schoolVerified: boolean;
+  /** The supporter side shares an administrator with the confirming school. */
+  selfDealt: boolean;
+  /** The very uid that confirmed also controls the supporter side — the sharpest
+   * same-identity self-confirmation signal. */
+  confirmerIsSupporter: boolean;
+  createdAt: Timestamp;
+}
+
+export type AuditEventDoc = AuditEvent & { id: string };
+
 // ── donorProfiles/{uid} ──────────────────────────────────────────────────────
 
 /**

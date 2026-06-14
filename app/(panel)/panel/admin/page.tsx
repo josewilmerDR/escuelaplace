@@ -21,13 +21,15 @@ import { VerificationBadge } from "@/components/school/VerificationBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { VerifiedIcon } from "@/components/ui/icons";
 import {
+  auditCollusionFlag,
+  getRecentAuditEvents,
   getSchoolPrivate,
   getSchoolsAwaitingVerification,
   paymentMethodsOf,
   verifySchool,
 } from "@/lib/firestore";
 import { locationParts } from "@/lib/location";
-import type { PaymentMethod, SchoolDoc } from "@/types";
+import type { AuditEventDoc, PaymentMethod, SchoolDoc } from "@/types";
 
 /** A queued school plus the private payment methods the admin reviews before approving. */
 interface ReviewItem {
@@ -38,6 +40,7 @@ interface ReviewItem {
 export default function AdminVerificationPage() {
   const { user, loading } = useAuth();
   const [items, setItems] = useState<ReviewItem[] | null>(null);
+  const [auditEvents, setAuditEvents] = useState<AuditEventDoc[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +81,22 @@ export default function AdminVerificationPage() {
       cancelled = true;
     };
   }, [isAdmin, fetchQueue]);
+
+  // Recent confirmation audit trail (admin-only; the rules reject it for everyone else).
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    getRecentAuditEvents(50)
+      .then((evs) => {
+        if (!cancelled) setAuditEvents(evs);
+      })
+      .catch(() => {
+        if (!cancelled) setAuditEvents([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
 
   if (loading) return <p className="text-sm text-muted">Cargando…</p>;
 
@@ -141,10 +160,125 @@ export default function AdminVerificationPage() {
         </ul>
       )}
 
+      <AuditSection events={auditEvents} />
+
       <p className="mt-8 text-sm">
         <BackLink href="/panel">Volver al panel</BackLink>
       </p>
     </main>
+  );
+}
+
+/** Friendly label for an audit event by kind. */
+function eventLabel(ev: AuditEventDoc): string {
+  if (ev.type === "project_contribution_confirmed") {
+    return ev.contributionType === "in_kind"
+      ? "Donación en especie a proyecto"
+      : "Aporte a proyecto";
+  }
+  return ev.supporterType === "user" ? "Donación personal" : "Apoyo de comercio";
+}
+
+/** Confirmed-at (or recorded-at) of an event, in the CR locale. */
+function formatWhen(ev: AuditEventDoc): string {
+  const d = (ev.confirmedAt ?? ev.createdAt)?.toDate?.();
+  return d
+    ? d.toLocaleString("es-CR", { dateStyle: "short", timeStyle: "short" })
+    : "—";
+}
+
+/**
+ * Recent confirmation audit trail. Each row surfaces WHO confirmed support for WHOM and
+ * highlights the collusion signals: a red row + "Autoconfirmación" when the confirming admin
+ * also runs the supporter side, amber + "Auto-trato" when they merely share an administrator.
+ * COUNTS and relationships only — never proof or money. The future risk-scoring layer consumes
+ * the same `auditEvents` stream.
+ */
+function AuditSection({ events }: { events: AuditEventDoc[] | null }) {
+  const flaggedCount = events?.filter((e) => auditCollusionFlag(e) !== null).length ?? 0;
+
+  return (
+    <section className="mt-12">
+      <h2 className="text-xl font-semibold tracking-tight text-foreground">
+        Auditoría de confirmaciones
+      </h2>
+      <p className="mt-1 text-sm text-muted">
+        Rastro de las últimas confirmaciones para detectar patrones de fraude. Resaltamos los
+        casos de auto-trato (la escuela y quien apoya comparten administrador) y
+        autoconfirmación (la misma cuenta confirma su propio aporte).
+        {flaggedCount > 0 && (
+          <>
+            {" "}
+            <span className="font-medium text-warning">
+              {flaggedCount === 1
+                ? "1 caso marcado para revisar."
+                : `${flaggedCount} casos marcados para revisar.`}
+            </span>
+          </>
+        )}
+      </p>
+
+      {events === null ? (
+        <p className="mt-4 text-sm text-muted">Cargando auditoría…</p>
+      ) : events.length === 0 ? (
+        <p className="mt-4 text-sm text-muted">
+          Todavía no hay confirmaciones registradas.
+        </p>
+      ) : (
+        <ul className="mt-4 flex flex-col gap-2">
+          {events.map((ev) => (
+            <AuditEventItem key={ev.id} ev={ev} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function AuditEventItem({ ev }: { ev: AuditEventDoc }) {
+  const flag = auditCollusionFlag(ev);
+  // Highlight the row by severity: self-confirmation (red) outranks self-dealing (amber).
+  const surface =
+    flag === "self_confirm"
+      ? "bg-error-tint ring-error/20"
+      : flag === "self_deal"
+        ? "bg-warning-tint ring-warning/20"
+        : "bg-white ring-black/5";
+
+  return (
+    <li className={`rounded-xl p-4 text-sm shadow-sm ring-1 ${surface}`}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 font-medium text-foreground">
+          {ev.supporterName || "—"}
+          <span className="font-normal text-muted"> → </span>
+          {ev.schoolName || ev.schoolId}
+        </p>
+        <span className="shrink-0 text-xs text-muted">{formatWhen(ev)}</span>
+      </div>
+      <p className="mt-0.5 text-xs text-muted">
+        {eventLabel(ev)}
+        {ev.projectTitle ? ` · ${ev.projectTitle}` : ""}
+      </p>
+      {(flag || !ev.schoolVerified) && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {flag === "self_confirm" && (
+            <span className="rounded-full bg-error px-2 py-0.5 text-xs font-medium text-white">
+              Autoconfirmación
+            </span>
+          )}
+          {flag === "self_deal" && (
+            <span className="rounded-full bg-warning-tint px-2 py-0.5 text-xs font-medium text-warning ring-1 ring-warning/15">
+              Auto-trato
+            </span>
+          )}
+          {!ev.schoolVerified && (
+            <span className="rounded-full bg-warning-tint px-2 py-0.5 text-xs font-medium text-warning ring-1 ring-warning/15">
+              Escuela sin verificar
+            </span>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 

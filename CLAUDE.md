@@ -160,6 +160,14 @@ Campos marcados **(fn)** los mantiene una Cloud Function; el cliente no los escr
 - `users/{uid}`: name, email, phone, role('user'|'admin'),
   managedPages[{type('business'|'school'), id, role('owner'|'editor')}], createdAt
 - `categories/{id}`: name, icon, order, businessCount
+- `auditEvents/{id}` **(fn, append-only, lectura solo admin)**: rastro no sensible de cada
+  confirmación (de suscripción **o** de aporte a proyecto) para revisión de fraude + feature
+  store de la futura IA. type('subscription_confirmed'|'project_contribution_confirmed'),
+  subscriptionId/contributionId, projectId/projectTitle/contributionType (aportes),
+  supporterType, businessId/donorId, schoolId, schoolName, supporterName (denormalizados para
+  la UI de admin), units (conteo, **nunca** monto; solo suscripciones), confirmedBy,
+  confirmedAt, schoolVerified, selfDealt, confirmerIsSupporter, createdAt. Sin comprobante ni
+  cifras de dinero. Lo revisa el admin en `/panel/admin`.
 
 Tipos (y los `*_MAX`/`SUBSCRIPTION_*` constantes) en
 [`/types/firestore.ts`](types/firestore.ts).
@@ -238,6 +246,8 @@ helpers de escritura compartidos viven en `geo.ts` (`toLocation`, `LocationInput
 - **donors.ts** — tiers (`donorTierForUnits`), `getDonorProfile`, `getSchoolDonorWall`;
   writes: `createDonation`, `ensureDonorProfile`, `updateDonorRecognition`.
 - **reviews.ts** — `getReviewsByBusiness`, `getMyReview`, `upsertReview`, `deleteReview`.
+- **audit.ts** — `getRecentAuditEvents`, `getAuditEventsBySchool` (solo lectura, solo admin;
+  el rastro de auditoría lo escribe la Cloud Function).
 - **categories.ts** — `getCategories` / `getCategoryById`.
 - **geo.ts** — `getNearbyBusinesses` / `getNearbySchoolIds` (proximidad por geohash) +
   `toLocation`/`LocationInput`.
@@ -256,13 +266,15 @@ Paquete aparte (Gen 2, Admin SDK) que mantiene las señales que el cliente no pu
   donación personal— el `donorProfiles` del donante. El ranking del comercio aplica un
   **gate anti-fraude**: una suscripción solo cuenta si la escuela está `verified` **y** no
   comparte dueño/editor con el comercio (auto-trato) — así nadie se autoconfirma soporte
-  para ganar visibilidad gratis.
+  para ganar visibilidad gratis. En cada confirmación además anexa un evento no sensible a
+  `auditEvents` (quién/cuándo + señales de colusión) para revisión de fraude y la IA futura.
 - `onSchoolWritten` — cuando cambia `verificationStatus` o los administradores de una
   escuela (ambos alimentan ese gate), recalcula el ranking de **todos** los comercios que la
   apoyan; esos cambios no tocan ninguna suscripción, así que `onSubscriptionWritten` no se
   dispararía. Ignora el resto de las ediciones de la escuela (no hace fan-out solo).
 - `onProjectContributionWritten` — recalcula `raised`/`contributorsCount` del proyecto y
-  `projectsSupported` del donante.
+  `projectsSupported` del donante; en cada confirmación anexa un evento a `auditEvents`
+  (igual que las suscripciones).
 - `onReviewWritten` — recalcula `reviewStats` del comercio (y su ranking).
 - `expireSubscriptionsDaily` — job programado (03:00): vence las suscripciones lapsas
   (`expired`) y marca las próximas a vencer (`expiring`); esas escrituras vuelven a
@@ -299,6 +311,7 @@ mantenerlos en sync con `lib/firestore/ranking.ts` y `donors.ts`.
 - `businesses/{id}/reviews/{userId}`: escritura del propio usuario (rating 1–5, texto ≤600),
   **no** puede reseñar su propio comercio; admin puede borrar (moderación).
 - `businesses/{id}/metricsDaily/*`: lectura dueño/admin; escritura **solo** vía función.
+- `auditEvents/*`: lectura **solo admin**; escritura **prohibida** al cliente (solo la fn).
 - `users/{uid}`: solo el **propio** usuario (o admin).
 
 ## Comandos
