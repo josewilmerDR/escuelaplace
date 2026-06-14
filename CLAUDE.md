@@ -161,10 +161,13 @@ Campos marcados **(fn)** los mantiene una Cloud Function; el cliente no los escr
   managedPages[{type('business'|'school'), id, role('owner'|'editor')}], createdAt
 - `categories/{id}`: name, icon, order, businessCount
 - `auditEvents/{id}` **(fn, append-only, lectura solo admin)**: rastro no sensible de cada
-  confirmación para revisión de fraude + feature store de la futura IA. type, subscriptionId,
-  supporterType, businessId/donorId, schoolId, units (conteo, **nunca** monto), confirmedBy,
+  confirmación (de suscripción **o** de aporte a proyecto) para revisión de fraude + feature
+  store de la futura IA. type('subscription_confirmed'|'project_contribution_confirmed'),
+  subscriptionId/contributionId, projectId/projectTitle/contributionType (aportes),
+  supporterType, businessId/donorId, schoolId, schoolName, supporterName (denormalizados para
+  la UI de admin), units (conteo, **nunca** monto; solo suscripciones), confirmedBy,
   confirmedAt, schoolVerified, selfDealt, confirmerIsSupporter, createdAt. Sin comprobante ni
-  cifras de dinero.
+  cifras de dinero. Lo revisa el admin en `/panel/admin`.
 
 Tipos (y los `*_MAX`/`SUBSCRIPTION_*` constantes) en
 [`/types/firestore.ts`](types/firestore.ts).
@@ -270,7 +273,8 @@ Paquete aparte (Gen 2, Admin SDK) que mantiene las señales que el cliente no pu
   apoyan; esos cambios no tocan ninguna suscripción, así que `onSubscriptionWritten` no se
   dispararía. Ignora el resto de las ediciones de la escuela (no hace fan-out solo).
 - `onProjectContributionWritten` — recalcula `raised`/`contributorsCount` del proyecto y
-  `projectsSupported` del donante.
+  `projectsSupported` del donante; en cada confirmación anexa un evento a `auditEvents`
+  (igual que las suscripciones).
 - `onReviewWritten` — recalcula `reviewStats` del comercio (y su ranking).
 - `expireSubscriptionsDaily` — job programado (03:00): vence las suscripciones lapsas
   (`expired`) y marca las próximas a vencer (`expiring`); esas escrituras vuelven a

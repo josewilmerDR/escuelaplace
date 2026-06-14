@@ -508,17 +508,32 @@ export type SubscriptionDoc = Subscription & { id: string };
  * data. Keep it cheap: store COUNTS and booleans, never amounts or proof.
  */
 export interface AuditEvent {
-  /** Extensible discriminator; only confirmations are recorded today. */
-  type: "subscription_confirmed";
-  subscriptionId: string;
+  /** Which confirmation this records (extensible). */
+  type: "subscription_confirmed" | "project_contribution_confirmed";
+  /** Source doc id of a subscription confirmation. */
+  subscriptionId?: string;
+  /** Source doc id of a project-contribution confirmation. */
+  contributionId?: string;
+  /** Project funded (project_contribution_confirmed only). */
+  projectId?: string;
+  /** Denormalized project title (project_contribution_confirmed only). */
+  projectTitle?: string;
+  /** Money vs in-kind (project_contribution_confirmed only). */
+  contributionType?: ProjectContributionType;
   supporterType: SupporterType;
   /** Present iff a business support confirmation. */
   businessId?: string;
-  /** Present iff a personal-donation confirmation. */
+  /** Present iff a personal-donation / project-contribution confirmation. */
   donorId?: string;
   schoolId: string;
-  /** Support magnitude (integer n in n × SUBSCRIPTION_UNIT_CRC) — never a money figure. */
-  units: number;
+  /** Denormalized so the admin review UI renders without N+1 reads. */
+  schoolName: string;
+  /** Business page name or donor account name. Fine here — `auditEvents` is an admin-only
+   * surface (unlike public surfaces, which must not render a donor name). */
+  supporterName: string;
+  /** Support magnitude (integer n in n × SUBSCRIPTION_UNIT_CRC; subscriptions only) — a
+   * COUNT, never a money figure. Absent on project contributions (no units). */
+  units?: number;
   /** uid that confirmed (the school side); null on legacy/unknown. */
   confirmedBy: string | null;
   confirmedAt: Timestamp | null;
