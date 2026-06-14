@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { HeaderCreateCta } from "@/components/layout/HeaderCreateCta";
-import { AcademicCapIcon } from "@/components/ui/icons";
+import { AcademicCapIcon, TagIcon } from "@/components/ui/icons";
 
 /**
  * Top brand bar (encuentra24 style): solid brand-colored band with the wordmark
@@ -21,11 +21,19 @@ export function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Directory entry. Ghost chip (vs the solid white Crear CTA) so it reads as
+          {/* Browse entries. Ghost chips (vs the solid white Crear CTA) so they read as
               secondary nav, not the primary action. Always shown — buyers and owners alike
-              browse schools — icon-only below sm to save room. White-on-brand ghost chip:
+              browse the catalog — icon-only below sm to save room. White-on-brand ghost chip:
               the band is dark enough for AA, so a soft inset ring + translucent hover keep
               it crisp without the light-card recipe. */}
+          <Link
+            href="/categories"
+            aria-label="Categorías"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/15 hover:ring-white/50"
+          >
+            <TagIcon className="h-5 w-5" />
+            <span className="hidden sm:inline">Categorías</span>
+          </Link>
           <Link
             href="/schools"
             aria-label="Escuelas"
