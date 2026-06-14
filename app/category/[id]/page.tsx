@@ -11,6 +11,7 @@ import {
   getBusinessesByCategory,
   toBusinessCardData,
 } from "@/lib/firestore";
+import { absoluteUrl } from "@/lib/site";
 import type { BusinessCardData } from "@/types";
 
 /**
@@ -65,23 +66,25 @@ export default async function CategoryPage({ params }: Props) {
   }
 
   // Breadcrumb + item list so search engines understand where this page sits and what it
-  // lists. "<" escaped so category/business names can't close the script tag.
+  // lists. URLs are ABSOLUTE (absoluteUrl): Google ignores relative item/url in these
+  // schemas, so a relative breadcrumb yields no rich result. "<" escaped so category/
+  // business names can't close the script tag.
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Inicio", item: "/" },
+      { "@type": "ListItem", position: 1, name: "Inicio", item: absoluteUrl("/") },
       {
         "@type": "ListItem",
         position: 2,
         name: "Categorías",
-        item: "/categories",
+        item: absoluteUrl("/categories"),
       },
       {
         "@type": "ListItem",
         position: 3,
         name: category.name,
-        item: `/category/${id}`,
+        item: absoluteUrl(`/category/${id}`),
       },
     ],
   };
@@ -92,7 +95,7 @@ export default async function CategoryPage({ params }: Props) {
       "@type": "ListItem",
       position: i + 1,
       name: c.name,
-      url: `/business/${c.slug}`,
+      url: absoluteUrl(`/business/${c.slug}`),
     })),
   };
 
