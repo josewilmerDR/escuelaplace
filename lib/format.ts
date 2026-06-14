@@ -43,3 +43,16 @@ export function formatApproxDuration(ms: number): string {
   const days = Math.max(1, Math.round(ms / DAY_MS));
   return days === 1 ? "1 día" : `${days} días`;
 }
+
+/**
+ * Coarse "how long ago" label for a past instant — how long a support has waited for
+ * confirmation: "hoy", "ayer", "hace 5 días". Day-granular and floored on purpose: the
+ * pending nudge cares about staleness, not precision. Negative inputs (clock skew) read
+ * as "hoy".
+ */
+export function formatDaysAgo(ms: number): string {
+  const days = Math.floor(ms / DAY_MS);
+  if (days <= 0) return "hoy";
+  if (days === 1) return "ayer";
+  return `hace ${days} días`;
+}

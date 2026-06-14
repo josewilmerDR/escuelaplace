@@ -18,6 +18,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { Field } from "@/components/ui/Field";
+import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -316,24 +317,17 @@ function FundContent() {
             )}
           </Field>
 
-          <Field
+          <FilePicker
             label={
               type === "money"
                 ? "Comprobante de pago (opcional)"
                 : "Foto o acuerdo (opcional)"
             }
-          >
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              disabled={!canFund}
-              onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
-              className="text-sm"
-            />
-            <span className="text-muted">
-              Solo lo ven la escuela y vos. No se publica.
-            </span>
-          </Field>
+            hint="No se publica en tu perfil ni en el catálogo; la escuela lo usa para confirmar tu aporte."
+            value={proofFile}
+            onChange={setProofFile}
+            disabled={!canFund}
+          />
 
           <FormError message={error} />
           {done && (

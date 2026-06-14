@@ -392,6 +392,14 @@ export const SUBSCRIPTION_CONFIRMATION_DAYS = 90;
 export const SUBSCRIPTION_EXPIRING_WINDOW_DAYS = 14;
 
 /**
+ * Days a `pending` support can wait before the UI flags it as stale (waiting too long for
+ * the school to confirm). Drives the amber emphasis on the aging chip and lets a supporter
+ * know it's reasonable to nudge — never a platform judgment about the money, only elapsed
+ * time. See PendingAge / the dispute-handling nudge (capa 1).
+ */
+export const SUBSCRIPTION_STALE_PENDING_DAYS = 7;
+
+/**
  * Subscription lifecycle. A subscription is recurring but the platform never sees the
  * money, so confirmation is time-boxed and decays if not renewed (see `expiresAt`):
  * - `pending`: the supporter committed/uploaded a proof; the school has not confirmed
@@ -465,6 +473,16 @@ export interface Subscription {
   expiresAt: Timestamp | null;
   /** uid of the school owner/editor or admin who confirmed. */
   confirmedBy?: string;
+  /**
+   * (fn) Anti-fraud ranking eligibility, maintained by the Cloud Function (clients can
+   * never write it — see firestore.rules). False when this support must NOT feed business
+   * ranking: the target school isn't `verified`, or it's self-dealing (the supporting
+   * business and the confirming school share an administrator). Absent = not yet evaluated
+   * → readers treat it as eligible until the next recompute backfills it. The server score
+   * recomputes eligibility live; this flag lets the client feed re-rank apply the same gate
+   * without reading school docs. Only meaningful for business-backed support.
+   */
+  countsForRanking?: boolean;
   /**
    * Whether a payment proof file has been uploaded. The file itself is sensitive (it shows
    * amounts, names, phone numbers) so it lives in Firebase Storage at the private path

@@ -16,8 +16,11 @@ import { CheckIcon } from "@/components/ui/icons";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
+import { PendingAge } from "@/components/subscriptions/PendingAge";
+import { RemindSchoolButton } from "@/components/subscriptions/RemindSchoolButton";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
 import { Field } from "@/components/ui/Field";
+import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -211,17 +214,12 @@ export default function BusinessSubscribePage() {
           </span>
         </Field>
 
-        <Field label="Comprobante de pago (opcional)">
-          <input
-            type="file"
-            accept="image/*,application/pdf"
-            onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
-            className="text-sm"
-          />
-          <span className="text-muted">
-            Solo lo ven la escuela y vos. No se publica.
-          </span>
-        </Field>
+        <FilePicker
+          label="Comprobante de pago (opcional)"
+          hint="No se publica en tu perfil ni en el catálogo; la escuela lo usa para confirmar tu apoyo."
+          value={proofFile}
+          onChange={setProofFile}
+        />
 
         <FormError message={error} />
 
@@ -244,40 +242,56 @@ export default function BusinessSubscribePage() {
           </p>
         ) : (
           <ul className="mt-4 flex flex-col gap-3">
-            {subscriptions.map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5"
-              >
-                <div>
-                  <p className="font-medium">{s.schoolName}</p>
-                  <p className="text-muted">
-                    {s.units}× · {formatColones(s.amount)} ·{" "}
-                    {s.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3.5 w-3.5" />Comprobante</span>) : "Sin comprobante"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <label className="cursor-pointer text-xs font-medium text-brand-darker hover:underline">
-                    {uploadingId === s.id
-                      ? "Subiendo…"
-                      : s.proofUploaded
-                        ? "Reemplazar"
-                        : "Subir comprobante"}
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="sr-only"
-                      disabled={uploadingId !== null}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) onUploadProof(s.id, f);
-                      }}
-                    />
-                  </label>
-                  <SubscriptionStatusBadge status={s.status} />
-                </div>
-              </li>
-            ))}
+            {subscriptions.map((s) => {
+              const isPending = s.status === "pending";
+              const school = schools.find((x) => x.id === s.schoolId);
+              return (
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5"
+                >
+                  <div>
+                    <p className="font-medium">{s.schoolName}</p>
+                    <p className="text-muted">
+                      {s.units}× · {formatColones(s.amount)} ·{" "}
+                      {s.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3.5 w-3.5" />Comprobante</span>) : "Sin comprobante"}
+                    </p>
+                    {/* Waiting on the school: show how long, and offer a nudge through the
+                        school's own channel. The platform never confirms the money. */}
+                    {isPending && (
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <PendingAge since={s.createdAt} />
+                        <RemindSchoolButton
+                          boardContact={school?.boardContact}
+                          supporterName={business.name}
+                          schoolName={s.schoolName}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="cursor-pointer text-xs font-medium text-brand-darker hover:underline">
+                      {uploadingId === s.id
+                        ? "Subiendo…"
+                        : s.proofUploaded
+                          ? "Reemplazar"
+                          : "Subir comprobante"}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="sr-only"
+                        disabled={uploadingId !== null}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) onUploadProof(s.id, f);
+                        }}
+                      />
+                    </label>
+                    <SubscriptionStatusBadge status={s.status} />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

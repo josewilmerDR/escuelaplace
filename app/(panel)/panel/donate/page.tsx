@@ -17,8 +17,11 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { SchoolPicker } from "@/components/school/SchoolPicker";
+import { PendingAge } from "@/components/subscriptions/PendingAge";
+import { RemindSchoolButton } from "@/components/subscriptions/RemindSchoolButton";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
 import { Field } from "@/components/ui/Field";
+import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -296,17 +299,12 @@ function DonateContent() {
           </span>
         </Field>
 
-        <Field label="Comprobante de pago (opcional)">
-          <input
-            type="file"
-            accept="image/*,application/pdf"
-            onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
-            className="text-sm"
-          />
-          <span className="text-muted">
-            Solo lo ven la escuela y vos. No se publica.
-          </span>
-        </Field>
+        <FilePicker
+          label="Comprobante de pago (opcional)"
+          hint="No se publica en tu perfil ni en el catálogo; la escuela lo usa para confirmar tu aporte."
+          value={proofFile}
+          onChange={setProofFile}
+        />
 
         <FormError message={error} />
 
@@ -379,42 +377,58 @@ function DonateContent() {
           </p>
         ) : (
           <ul className="mt-4 flex flex-col gap-3">
-            {donations.map((d) => (
-              <li
-                key={d.id}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5"
-              >
-                <div>
-                  <p className="font-semibold tracking-tight text-foreground">
-                    {d.schoolName}
-                  </p>
-                  <p className="text-muted">
-                    {d.units}× · {formatColones(d.amount)} ·{" "}
-                    {d.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3.5 w-3.5" />Comprobante</span>) : "Sin comprobante"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <label className="cursor-pointer text-xs font-medium text-brand-darker hover:underline">
-                    {uploadingId === d.id
-                      ? "Subiendo…"
-                      : d.proofUploaded
-                        ? "Reemplazar"
-                        : "Subir comprobante"}
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="sr-only"
-                      disabled={uploadingId !== null}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) onUploadProof(d.id, f);
-                      }}
-                    />
-                  </label>
-                  <SubscriptionStatusBadge status={d.status} />
-                </div>
-              </li>
-            ))}
+            {donations.map((d) => {
+              const isPending = d.status === "pending";
+              const school = schools.find((x) => x.id === d.schoolId);
+              return (
+                <li
+                  key={d.id}
+                  className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5"
+                >
+                  <div>
+                    <p className="font-semibold tracking-tight text-foreground">
+                      {d.schoolName}
+                    </p>
+                    <p className="text-muted">
+                      {d.units}× · {formatColones(d.amount)} ·{" "}
+                      {d.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3.5 w-3.5" />Comprobante</span>) : "Sin comprobante"}
+                    </p>
+                    {/* Waiting on the school: how long, plus a nudge through the school's
+                        own channel. The platform never confirms the money. */}
+                    {isPending && (
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <PendingAge since={d.createdAt} />
+                        <RemindSchoolButton
+                          boardContact={school?.boardContact}
+                          supporterName={user.name}
+                          schoolName={d.schoolName}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="cursor-pointer text-xs font-medium text-brand-darker hover:underline">
+                      {uploadingId === d.id
+                        ? "Subiendo…"
+                        : d.proofUploaded
+                          ? "Reemplazar"
+                          : "Subir comprobante"}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="sr-only"
+                        disabled={uploadingId !== null}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) onUploadProof(d.id, f);
+                        }}
+                      />
+                    </label>
+                    <SubscriptionStatusBadge status={d.status} />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

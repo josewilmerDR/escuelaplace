@@ -9,6 +9,7 @@ import {
   computeSupportSignals,
   countRecentUniqueSupporters,
   isCountingSubscription,
+  isRankingEligible,
   qualityScore,
   scoreBusiness,
 } from "./ranking";
@@ -216,6 +217,30 @@ describe("computeSupportSignals", () => {
   it("returns zero signals when there is no community and no support", () => {
     const signals = computeSupportSignals([], [], DEFAULT_RANKING_WEIGHTS, NOW);
     expect(signals).toMatchObject({ community: 0, general: 0 });
+  });
+
+  it("excludes ranking-ineligible support (countsForRanking === false)", () => {
+    // A confirmed, non-lapsed subscription the Cloud Function flagged ineligible
+    // (unverified school or self-dealing) must not feed the community boost.
+    const subs = [sub({ schoolId: "school-a", units: 5, countsForRanking: false })];
+    const signals = computeSupportSignals(subs, ["school-a"], DEFAULT_RANKING_WEIGHTS, NOW);
+    expect(signals.community).toBe(0);
+    expect(signals.raw.community).toBe(0);
+  });
+
+  it("still counts support with the flag absent (legacy / not yet evaluated)", () => {
+    const subs = [sub({ schoolId: "school-a", units: 2, countsForRanking: undefined })];
+    const signals = computeSupportSignals(subs, ["school-a"], DEFAULT_RANKING_WEIGHTS, NOW);
+    expect(signals.raw.community).toBeCloseTo(2);
+  });
+});
+
+describe("isRankingEligible", () => {
+  it("is false only when the flag is explicitly false", () => {
+    expect(isRankingEligible(sub({ countsForRanking: false }))).toBe(false);
+    expect(isRankingEligible(sub({ countsForRanking: true }))).toBe(true);
+    // Absent flag (legacy docs / not yet evaluated) counts as eligible.
+    expect(isRankingEligible(sub({ countsForRanking: undefined }))).toBe(true);
   });
 });
 

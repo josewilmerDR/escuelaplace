@@ -69,6 +69,38 @@ export function buildPhoneUrl(rawPhone: string): string | null {
   return phone ? `tel:+${phone}` : null;
 }
 
+/** wa.me deep link carrying an arbitrary prefilled message, or null if the number is
+ * unusable. Generic counterpart to buildWhatsAppUrl (which prefills the business opener). */
+export function buildWhatsAppLink(rawPhone: string, message: string): string | null {
+  const phone = normalizePhoneInternational(rawPhone);
+  if (!phone) return null;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+/** mailto: link with a prefilled subject and body (manual encoding so spaces don't become
+ * "+", which some mail clients render literally in the body). */
+export function buildMailtoLink(
+  email: string,
+  subject: string,
+  body: string,
+): string {
+  return `mailto:${email}?subject=${encodeURIComponent(
+    subject,
+  )}&body=${encodeURIComponent(body)}`;
+}
+
+/**
+ * Prefilled reminder a supporter sends a school's board to nudge a still-pending
+ * confirmation. The school confirms against its OWN records; the platform never asserts the
+ * money moved — this is just a courtesy poke through the channel the school published.
+ */
+export function confirmationReminderMessage(
+  supporterName: string,
+  schoolName: string,
+): string {
+  return `¡Hola! Soy ${supporterName}. Registré un aporte para ${schoolName} en escuelaplace y todavía figura como pendiente. ¿Lo podrían confirmar cuando puedan? ¡Muchas gracias!`;
+}
+
 /**
  * Human-readable form of the number for the call button's label: desktop browsers
  * often do nothing useful with tel:, so showing the number lets the user dial (or jot

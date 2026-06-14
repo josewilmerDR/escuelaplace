@@ -22,6 +22,7 @@ import {
   computeSupportSignals,
   decayFactor,
   isCountingSubscription,
+  isRankingEligible,
   qualityScore,
   scoreBusiness,
 } from "./ranking";
@@ -117,7 +118,9 @@ export function supportedSchoolsOf(
   // collapse to a single entry ranked by total support.
   const byId = new Map<string, { name: string; weight: number; inCommunity: boolean }>();
   for (const sub of subscriptions) {
-    if (!isCountingSubscription(sub, nowMs)) continue;
+    // Same dual gate as computeSupportSignals: a business must not advertise "supports
+    // school X" for support that doesn't count (lapsed, unverified school, or self-dealing).
+    if (!isCountingSubscription(sub, nowMs) || !isRankingEligible(sub)) continue;
     const weight = sub.units * decayFactor(sub, DEFAULT_RANKING_WEIGHTS, nowMs);
     const existing = byId.get(sub.schoolId);
     if (existing) existing.weight += weight;
