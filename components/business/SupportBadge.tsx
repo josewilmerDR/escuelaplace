@@ -15,6 +15,7 @@
  * the merchant's own profile — the page they share on WhatsApp — reads as a public
  * warning. The nudge to subscribe lives in ManageBar, where only the owner sees it.
  */
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { TIER_BADGE } from "@/components/business/BusinessCard";
@@ -22,12 +23,16 @@ import { useBuyerPreferences } from "@/lib/buyer/preferences";
 import {
   rankBusinessFeed,
   resolveCommunitySchoolIds,
+  type SupportedSchool,
   type SupportTier,
 } from "@/lib/firestore";
 
 export function SupportBadge({ businessId }: { businessId: string }) {
   const { prefs, ready } = useBuyerPreferences();
   const [tier, setTier] = useState<SupportTier | null>(null);
+  // Schools the business genuinely supports (counting subscriptions only), most
+  // buyer-relevant first — same source the card's "Apoya a" line uses.
+  const [supportedSchools, setSupportedSchools] = useState<SupportedSchool[]>([]);
 
   useEffect(() => {
     if (!ready) return;
@@ -42,9 +47,15 @@ export function SupportBadge({ businessId }: { businessId: string }) {
         const [ranked] = await rankBusinessFeed([{ id: businessId }], {
           communitySchoolIds,
         });
-        if (!cancelled && ranked) setTier(ranked.tier);
+        if (!cancelled && ranked) {
+          setTier(ranked.tier);
+          setSupportedSchools(ranked.supportedSchools);
+        }
       } catch {
-        if (!cancelled) setTier(null);
+        if (!cancelled) {
+          setTier(null);
+          setSupportedSchools([]);
+        }
       }
     })();
 
@@ -56,8 +67,28 @@ export function SupportBadge({ businessId }: { businessId: string }) {
   const badge = tier && tier !== "none" ? TIER_BADGE[tier] : null;
 
   return (
-    <div className="mt-3 flex min-h-7 items-center">
+    // text-center/sm:text-left follows the header's center→left switch (the page wraps
+    // this in a centered flex on mobile, left on desktop).
+    <div className="mt-3 min-h-7 text-center sm:text-left">
       {badge && <Badge tone={badge.tone}>{badge.label}</Badge>}
+      {supportedSchools.length > 0 && (
+        // Name the supported school(s) here too, mirroring the card's "Apoya a {school}"
+        // line — a buyer who tapped that on the card finds it confirmed on the profile,
+        // not just the abstract tier. Distinct from the doc's *linked* school ("Vinculado
+        // a" in the header meta), which the business may not actually support.
+        <p className="mt-2 text-sm text-muted">
+          Apoya a{" "}
+          <Link
+            href={`/school/${supportedSchools[0].id}`}
+            className="font-medium text-brand-darker hover:underline"
+          >
+            {supportedSchools[0].name}
+          </Link>
+          {supportedSchools.length > 1 && (
+            <> y {supportedSchools.length - 1} más</>
+          )}
+        </p>
+      )}
     </div>
   );
 }
