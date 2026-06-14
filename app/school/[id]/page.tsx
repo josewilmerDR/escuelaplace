@@ -19,6 +19,7 @@ import {
   WarningIcon,
 } from "@/components/ui/icons";
 import { buildDirectionsUrl } from "@/lib/contact";
+import { PAGE_COVER_SIZES } from "@/lib/layout";
 import {
   averageConfirmationTimeMs,
   countRecentUniqueSupporters,
@@ -47,9 +48,6 @@ import type { SchoolDoc } from "@/types";
 interface Props {
   params: Promise<{ id: string }>;
 }
-
-/** The page column is max-w-4xl (896px) minus px-6 — lets next/image pick the size. */
-const COVER_SIZES = "(min-width: 896px) 848px, 100vw";
 
 /** Cover slot priority: explicit cover, first gallery photo, profile photo. */
 function coverOf(school: SchoolDoc): string | undefined {
@@ -180,7 +178,7 @@ export default async function SchoolPage({ params }: Props) {
                   alt=""
                   fill
                   priority
-                  sizes={COVER_SIZES}
+                  sizes={PAGE_COVER_SIZES}
                   className="object-cover"
                 />
               ) : school.photoUrl ? (
@@ -189,7 +187,7 @@ export default async function SchoolPage({ params }: Props) {
                   alt=""
                   fill
                   priority
-                  sizes={COVER_SIZES}
+                  sizes={PAGE_COVER_SIZES}
                   className="object-contain p-8"
                 />
               ) : (

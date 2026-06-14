@@ -17,6 +17,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { RecognitionToggle } from "@/components/donors/RecognitionToggle";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
+import { UNVERIFIED_FUNDING_TEXT } from "@/components/school/UnverifiedSchoolNotice";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
@@ -24,6 +25,7 @@ import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
+  canFundProject,
   createContribution,
   ensureDonorProfile,
   getContributionsByDonor,
@@ -119,9 +121,8 @@ function FundContent() {
     );
   }
 
-  const verified = school.verificationStatus === "verified";
   const isActive = project.status === "active";
-  const canFund = verified && isActive;
+  const canFund = canFundProject(school, project);
 
   /** Picking a stage prefills the value with its full cost (editable for fractions). */
   const onSelectStage = (val: string) => {
@@ -235,7 +236,7 @@ function FundContent() {
             <div className="rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
               <PaymentMethodsInfo
                 methods={methods}
-                unverifiedText="Esta escuela aún no está verificada, así que todavía no podés financiar este proyecto. Vas a poder hacerlo en cuanto el equipo la verifique."
+                unverifiedText={UNVERIFIED_FUNDING_TEXT}
               />
             </div>
           ) : (
@@ -248,11 +249,7 @@ function FundContent() {
                   que un aporte en dinero.
                 </p>
               ) : (
-                <p className="text-warning">
-                  Esta escuela aún no está verificada, así que todavía no podés
-                  aportar a este proyecto. Vas a poder hacerlo en cuanto el equipo
-                  la verifique.
-                </p>
+                <p className="text-warning">{UNVERIFIED_FUNDING_TEXT}</p>
               )}
             </div>
           )}

@@ -4,9 +4,20 @@ import Link from "next/link";
 import { BackLink } from "@/components/ui/BackLink";
 import { notFound } from "next/navigation";
 import { PhotoGallery } from "@/components/business/PhotoGallery";
+import { ProjectCard } from "@/components/projects/ProjectCard";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { ProjectStatusBadge } from "@/components/projects/ProjectStatusBadge";
-import { getProjectById, getSchoolById, projectGoal } from "@/lib/firestore";
+import { UnverifiedSchoolNotice } from "@/components/school/UnverifiedSchoolNotice";
+import { FlagIcon, PaperClipIcon } from "@/components/ui/icons";
+import {
+  canFundProject,
+  getProjectById,
+  getProjectsBySchool,
+  getSchoolById,
+  isGoalReached,
+  projectGoal,
+} from "@/lib/firestore";
+import { PAGE_COVER_SIZES } from "@/lib/layout";
 import { formatMoney } from "@/lib/format";
 import type { ProjectStage } from "@/types";
 
@@ -22,8 +33,6 @@ interface Props {
   params: Promise<{ id: string; pid: string }>;
 }
 
-const COVER_SIZES = "(min-width: 896px) 848px, 100vw";
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id, pid } = await params;
   const project = await getProjectById(id, pid);
@@ -31,6 +40,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${project.title} · ${project.schoolName}`,
     description: project.description,
+    // A cancelled project stays reachable by direct URL but should not be indexed.
+    ...(project.status === "cancelled" ? { robots: { index: false } } : {}),
     openGraph: {
       title: project.title,
       description: project.description,
@@ -43,38 +54,71 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProjectPage({ params }: Props) {
   const { id, pid } = await params;
-  const [project, school] = await Promise.all([
+  const [project, school, siblings] = await Promise.all([
     getProjectById(id, pid),
     getSchoolById(id),
+    getProjectsBySchool(id),
   ]);
   if (!project || !school) notFound();
 
   const goal = projectGoal(project.stages);
-  const reached = goal > 0 && project.raised >= goal;
-  const verified = school.verificationStatus === "verified";
-  const canFund = verified && project.status === "active";
+  const reached = isGoalReached(project.raised, goal);
+  const canFund = canFundProject(school, project);
+
+  // Sibling projects to navigate to: drop the current one and cancelled ones, cap at 3.
+  const otherProjects = siblings
+    .filter((p) => p.id !== pid && p.status !== "cancelled")
+    .slice(0, 3);
+
+  // Structured data: the project is a fundraising goal of the school. "<" escaped so
+  // owner-controlled text can't close the script tag.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Project",
+    name: project.title,
+    description: project.description,
+    url: `https://escuelaplace.com/school/${id}/project/${pid}`,
+    ...(project.coverUrl ? { image: project.coverUrl } : {}),
+  };
 
   return (
     <>
       <div className="min-h-screen bg-surface">
         <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+            }}
+          />
+
           <p className="text-sm text-muted">
-            <BackLink href={`/school/${id}`}>{project.schoolName}</BackLink>
+            {/* Roomier tap target without changing the link's visible size. */}
+            <span className="inline-flex py-2 -my-2">
+              <BackLink href={`/school/${id}`}>{project.schoolName}</BackLink>
+            </span>
           </p>
 
           <article className="mt-3 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
-            {project.coverUrl && (
-              <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
+            <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
+              {project.coverUrl ? (
                 <Image
                   src={project.coverUrl}
                   alt=""
                   fill
                   priority
-                  sizes={COVER_SIZES}
+                  sizes={PAGE_COVER_SIZES}
                   className="object-cover"
                 />
-              </div>
-            )}
+              ) : (
+                <span
+                  aria-hidden
+                  className="flex h-full items-center justify-center text-7xl font-bold text-brand-darker/30"
+                >
+                  {project.title.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
 
             <div className="p-5 sm:p-8">
               <div className="flex flex-wrap items-center gap-3">
@@ -110,12 +154,18 @@ export default async function ProjectPage({ params }: Props) {
                         href={`/panel/fund?schoolId=${id}&projectId=${pid}`}
                         className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
                       >
-                        Financiar este proyecto
+                        <FlagIcon className="mr-2 h-5 w-5" />
+                        {reached ? "Seguir aportando" : "Financiar este proyecto"}
                       </Link>
                       <p className="mt-2 text-sm text-muted">
-                        Podés aportar en dinero o donar en especie (bienes o
-                        trabajo, como una etapa completa); su valor estimado
-                        suma al avance.
+                        {reached
+                          ? "La escuela sigue recibiendo aportes (en dinero o en especie) por encima de la meta."
+                          : "Podés aportar en dinero o donar en especie (bienes o trabajo, como una etapa completa); su valor estimado suma al avance."}
+                      </p>
+                      <p className="mt-2 text-xs text-muted">
+                        Tu aporte va directo a la escuela por los medios de pago
+                        que ella publica; la plataforma nunca toca el dinero y la
+                        escuela confirma cada colaboración.
                       </p>
                     </div>
                   ) : project.status !== "active" ? (
@@ -127,17 +177,15 @@ export default async function ProjectPage({ params }: Props) {
                       y ya no recibe aportes.
                     </p>
                   ) : (
-                    <p className="rounded-xl bg-warning-tint p-3 text-sm text-warning ring-1 ring-warning/10">
-                      Esta escuela todavía no fue verificada por el equipo de
-                      escuelaplace. Vas a poder financiar este proyecto en cuanto
-                      se verifique.
-                    </p>
+                    <div>
+                      <UnverifiedSchoolNotice />
+                      <p className="mt-2 text-xs text-muted">
+                        Tu aporte va directo a la escuela por los medios de pago
+                        que ella publica; la plataforma nunca toca el dinero y la
+                        escuela confirma cada colaboración.
+                      </p>
+                    </div>
                   )}
-                  <p className="mt-2 text-xs text-muted">
-                    Tu aporte va directo a la escuela por los medios de pago que
-                    ella publica; la plataforma nunca toca el dinero y la escuela
-                    confirma cada colaboración.
-                  </p>
                 </div>
               </div>
 
@@ -162,6 +210,19 @@ export default async function ProjectPage({ params }: Props) {
                   ))}
                 </ol>
               </section>
+
+              {otherProjects.length > 0 && (
+                <section className="mt-8">
+                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                    Otros proyectos de esta escuela
+                  </h2>
+                  <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {otherProjects.map((p) => (
+                      <ProjectCard key={p.id} project={p} />
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           </article>
         </main>
@@ -187,11 +248,22 @@ function StageItem({
     <li className="rounded-xl bg-surface p-4 ring-1 ring-black/5 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-semibold text-foreground">
-          <span className="text-muted">Etapa {index + 1}.</span> {stage.title}
+          {stage.title ? (
+            <>
+              <span className="text-muted">Etapa {index + 1}.</span>{" "}
+              {stage.title}
+            </>
+          ) : (
+            <span className="text-muted">Etapa {index + 1}</span>
+          )}
         </h3>
-        <span className="font-semibold text-brand-darker">
-          {formatMoney(stage.cost, currency)}
-        </span>
+        {stage.cost > 0 ? (
+          <span className="font-semibold text-brand-darker">
+            {formatMoney(stage.cost, currency)}
+          </span>
+        ) : (
+          <span className="text-sm text-muted">Sin costo monetario</span>
+        )}
       </div>
       {stage.justification && (
         <p className="mt-2 whitespace-pre-line text-sm text-muted">
@@ -216,9 +288,12 @@ function StageItem({
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-medium text-brand-darker hover:underline"
+                aria-label={`Ver cotización ${qi + 1} de la etapa ${index + 1} (abre en pestaña nueva)`}
+                className="btn btn-outline inline-flex items-center gap-1.5 px-3 py-2 text-sm"
               >
-                Ver cotización {stage.quoteUrls!.length > 1 ? qi + 1 : ""}
+                <PaperClipIcon className="h-4 w-4" />
+                Ver cotización
+                {stage.quoteUrls!.length > 1 ? ` ${qi + 1}` : ""}
               </a>
             </li>
           ))}

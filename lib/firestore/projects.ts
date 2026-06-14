@@ -13,6 +13,7 @@
  * Like subscriptions, contribution status is filtered in JS (not in the query) to avoid
  * composite-index requirements; per-school/per-project result sets are small.
  */
+import { cache } from "react";
 import {
   addDoc,
   collection,
@@ -40,8 +41,10 @@ import type {
   ProjectDoc,
   ProjectStage,
   ProjectStatus,
+  SchoolDoc,
 } from "@/types";
 import { docToTyped, snapToList } from "./converters";
+import { isSchoolVerified } from "./schools";
 
 const SCHOOLS = "schools";
 const PROJECTS = "projects";
@@ -71,6 +74,20 @@ export function projectProgress(
   return Math.min(1, Math.max(0, raised / goal));
 }
 
+/** Whether the funded amount has met or exceeded the goal (false when the goal is 0). */
+export function isGoalReached(raised: number, goal: number): boolean {
+  return goal > 0 && raised >= goal;
+}
+
+/** Whether a project can currently accept contributions: its school is verified and the
+ * project is still open. */
+export function canFundProject(
+  school: Pick<SchoolDoc, "verificationStatus">,
+  project: Pick<ProjectDoc, "status">,
+): boolean {
+  return isSchoolVerified(school) && project.status === "active";
+}
+
 /** Sort by createdAt (desc) in JS to avoid a composite index with a where clause. */
 function byCreatedAtDesc(
   a: { createdAt?: { toMillis?: () => number } },
@@ -87,15 +104,24 @@ export async function getProjectsBySchool(
   return snapToList<Project>(snap).sort(byCreatedAtDesc);
 }
 
-/** A single project by ids. Returns null if it does not exist. */
-export async function getProjectById(
-  schoolId: string,
-  projectId: string,
-): Promise<ProjectDoc | null> {
-  return docToTyped<Project>(
-    await getDoc(doc(db, SCHOOLS, schoolId, PROJECTS, projectId)),
-  );
-}
+/**
+ * A single project by ids. Returns null if it does not exist.
+ *
+ * Wrapped in React cache(): the public project detail page's generateMetadata and the
+ * page component both read the same project during one request — the cache dedupes that
+ * into a single Firestore read (the Firestore SDK, unlike fetch, gets no deduping from
+ * Next).
+ */
+export const getProjectById = cache(
+  async (
+    schoolId: string,
+    projectId: string,
+  ): Promise<ProjectDoc | null> => {
+    return docToTyped<Project>(
+      await getDoc(doc(db, SCHOOLS, schoolId, PROJECTS, projectId)),
+    );
+  },
+);
 
 /** All contributions to a project (any status), newest first. */
 export async function getContributionsByProject(

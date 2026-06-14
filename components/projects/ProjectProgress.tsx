@@ -7,7 +7,7 @@
  * contributor's amount never is (same stance as subscriptions). Amounts are in the
  * school-chosen currency — the platform is country-agnostic and never assumes colones.
  */
-import { projectProgress } from "@/lib/firestore";
+import { isGoalReached, projectProgress } from "@/lib/firestore";
 import { formatMoney } from "@/lib/format";
 import type { ProjectCurrency } from "@/types";
 
@@ -27,7 +27,10 @@ export function ProjectProgress({
 }) {
   const fraction = projectProgress(raised, goal);
   const percent = Math.round(fraction * 100);
-  const reached = goal > 0 && raised >= goal;
+  const reached = isGoalReached(raised, goal);
+  // Actionable "how much is left" figure: only meaningful for an in-progress, funded goal.
+  const remaining = !reached && goal > 0 && raised < goal ? goal - raised : 0;
+  const showRemaining = remaining > 0;
 
   return (
     <div>
@@ -58,11 +61,20 @@ export function ProjectProgress({
             de {formatMoney(goal, currency)} ({percent}%)
           </span>
         </span>
-        {contributorsCount > 0 && (
+        {(showRemaining || contributorsCount > 0) && (
           <span className="text-muted">
-            {contributorsCount === 1
-              ? "1 persona aportó"
-              : `${contributorsCount} personas aportaron`}
+            {[
+              showRemaining
+                ? `Faltan ${formatMoney(remaining, currency)}`
+                : null,
+              contributorsCount > 0
+                ? contributorsCount === 1
+                  ? "1 persona aportó"
+                  : `${contributorsCount} personas aportaron`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </span>
         )}
       </div>
