@@ -10,16 +10,14 @@
  * the proof. The proof file goes to private Storage (not the public doc). The school's
  * payment methods are shown only when verified.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
-import { CheckIcon } from "@/components/ui/icons";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { BusinessPanelNav } from "@/components/business/BusinessPanelNav";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
-import { PendingAge } from "@/components/subscriptions/PendingAge";
-import { RemindSchoolButton } from "@/components/subscriptions/RemindSchoolButton";
-import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
+import { SchoolPicker } from "@/components/school/SchoolPicker";
+import { SupporterContributionItem } from "@/components/subscriptions/SupporterContributionItem";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
@@ -44,6 +42,33 @@ import type {
   SubscriptionDoc,
 } from "@/types";
 
+/** Lifecycle of the initial business + schools + subscriptions fetch. */
+type LoadState = "loading" | "error" | "loaded";
+
+/**
+ * Loading shell. Renders the SAME static header (title + business name) the loaded page
+ * does, so navigating here paints the heading instantly in its final position and only the
+ * form below fades in — no blank flash ("parpadeo") during the Firestore reads.
+ */
+function SubscribeSkeleton({ business }: { business: BusinessDoc | null }) {
+  return (
+    <main>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Apoyar una escuela
+      </h1>
+      <p className="mt-1 text-sm text-muted">{business?.name ?? " "}</p>
+      <div className="mt-8 space-y-3" aria-hidden="true">
+        <div className="h-10 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        <div className="h-10 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        <div className="h-28 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+      </div>
+      <p className="sr-only" role="status">
+        Cargando…
+      </p>
+    </main>
+  );
+}
+
 export default function BusinessSubscribePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -51,7 +76,7 @@ export default function BusinessSubscribePage() {
   const [business, setBusiness] = useState<BusinessDoc | null>(null);
   const [schools, setSchools] = useState<SchoolDoc[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionDoc[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
 
   // Form state
   const [schoolId, setSchoolId] = useState("");
@@ -63,21 +88,34 @@ export default function BusinessSubscribePage() {
   const [confirmMs, setConfirmMs] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  // Error of a per-row proof upload — shown next to the list, not in the form's FormError.
+  const [listError, setListError] = useState<string | null>(null);
 
   const reloadSubscriptions = useCallback(() => {
-    getSubscriptionsByBusiness(id).then(setSubscriptions);
+    return getSubscriptionsByBusiness(id).then(setSubscriptions);
   }, [id]);
 
-  useEffect(() => {
+  // Initial load: on a Firestore failure land on "error" (Reintentar) instead of a null
+  // business, so a transient network blip doesn't read as "Comercio no encontrado".
+  const load = useCallback(() => {
     Promise.all([getBusinessById(id), getSchoolsCached(), getSubscriptionsByBusiness(id)])
       .then(([b, s, subs]) => {
         setBusiness(b);
         setSchools(s);
         setSubscriptions(subs);
+        setLoadState("loaded");
       })
-      .finally(() => setLoaded(true));
+      .catch(() => setLoadState("error"));
   }, [id]);
+
+  useEffect(load, [load]);
+
+  const retry = () => {
+    setLoadState("loading");
+    load();
+  };
 
   // Reveal the chosen school's payment methods (only when the school is verified)
   // and its typical confirmation time (public data — shown in any state). Routed
@@ -101,8 +139,47 @@ export default function BusinessSubscribePage() {
     };
   }, [schoolId]);
 
-  if (!loaded) return <p className="text-sm text-muted">Cargando…</p>;
-  if (!business) return <p className="text-sm text-muted">Comercio no encontrado.</p>;
+  // Index schools by id so each list row resolves its boardContact without a per-row scan.
+  const schoolById = useMemo(
+    () => new Map(schools.map((s) => [s.id, s])),
+    [schools],
+  );
+
+  if (loadState === "loading") {
+    return <SubscribeSkeleton business={business} />;
+  }
+
+  if (loadState === "error") {
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Apoyar una escuela
+        </h1>
+        <p role="alert" className="mt-4 text-sm text-error">
+          No pudimos cargar los datos. Revisá tu conexión e intentá de nuevo.
+        </p>
+        <button type="button" onClick={retry} className="btn btn-outline mt-3">
+          Reintentar
+        </button>
+      </main>
+    );
+  }
+
+  if (!business) {
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Apoyar una escuela
+        </h1>
+        <p role="alert" className="mt-4 text-sm text-muted">
+          Comercio no encontrado.
+        </p>
+        <p className="mt-4 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
+  }
 
   const isManager =
     user != null &&
@@ -111,7 +188,19 @@ export default function BusinessSubscribePage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-error">No administrás este comercio.</p>;
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Apoyar una escuela
+        </h1>
+        <p role="alert" className="mt-4 text-sm text-error">
+          No administrás este comercio.
+        </p>
+        <p className="mt-4 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
   }
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -123,20 +212,40 @@ export default function BusinessSubscribePage() {
     if (!schoolId) return; // the submit button is disabled without a school
     const school = schools.find((s) => s.id === schoolId);
     if (!school) return;
+    const safeUnits = Math.max(1, Math.floor(units) || 1);
     setSaving(true);
     setError(null);
+    setDone(false);
     try {
+      // The subscription is created first and exists from this point on; a later proof
+      // upload failure must NOT read as "couldn't register the support". So we reload the
+      // list and reset the form regardless, and only surface a distinct, softer message if
+      // it was specifically the proof upload that failed.
       const newId = await createSubscription({
         businessId: business.id,
         businessName: business.name,
         schoolId,
         schoolName: school.name,
-        units,
+        units: safeUnits,
       });
-      if (proofFile) await uploadSubscriptionProof(newId, proofFile);
+      let proofFailed = false;
+      if (proofFile) {
+        try {
+          await uploadSubscriptionProof(newId, proofFile);
+        } catch {
+          proofFailed = true;
+        }
+      }
       setProofFile(null);
       setUnits(1);
-      reloadSubscriptions();
+      await reloadSubscriptions();
+      if (proofFailed) {
+        setError(
+          "Apoyo registrado, pero no se pudo subir el comprobante. Podés subirlo desde la lista.",
+        );
+      } else {
+        setDone(true);
+      }
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo registrar el apoyo."));
     } finally {
@@ -146,12 +255,12 @@ export default function BusinessSubscribePage() {
 
   const onUploadProof = async (subId: string, file: File) => {
     setUploadingId(subId);
-    setError(null);
+    setListError(null);
     try {
       await uploadSubscriptionProof(subId, file);
-      reloadSubscriptions();
+      await reloadSubscriptions();
     } catch (err) {
-      setError(userErrorMessage(err, "No se pudo subir el comprobante."));
+      setListError(userErrorMessage(err, "No se pudo subir el comprobante."));
     } finally {
       setUploadingId(null);
     }
@@ -170,33 +279,25 @@ export default function BusinessSubscribePage() {
         current="subscribe"
       />
 
-      {/* The support form on one elevated surface — the school choice, units math and
-          optional proof upload. The platform never touches the money; this only records a
-          `pending` subscription the school later confirms. */}
+      {/* No card around the form: the controls sit directly on the page (matching the donate
+          flow). The platform never touches the money; this only records a `pending`
+          subscription the school later confirms. */}
       <form
         onSubmit={onSubmit}
         onInvalidCapture={spanishRequiredMessage}
         onInputCapture={clearValidationMessage}
-        className="mt-8 flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5"
+        className="mt-6 flex flex-col gap-4"
       >
-        <Field label="Escuela">
-          <select
-            required
-            value={schoolId}
-            onChange={(e) => setSchoolId(e.target.value)}
-            className="input"
-          >
-            <option value="">Elegí una escuela…</option>
-            {schools.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {/* Not a <Field>: the picker holds several controls (carousel buttons, a link and a
+            search input), which can't live inside a single wrapping <label>. The submit
+            button stays disabled until a school is chosen, so no native `required` is needed. */}
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Escuela</span>
+          <SchoolPicker schools={schools} value={schoolId} onChange={setSchoolId} />
+        </div>
 
         {schoolId && (
-          <div className="rounded-xl bg-surface p-3 text-sm ring-1 ring-black/5">
+          <div className="rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
             <PaymentMethodsInfo
               methods={methods}
               confirmationTimeMs={confirmMs}
@@ -212,12 +313,15 @@ export default function BusinessSubscribePage() {
             type="number"
             min={1}
             required
-            value={units}
-            onChange={(e) => setUnits(Math.max(1, Number(e.target.value) || 1))}
+            // Allow an empty display while editing (don't snap to 1 on backspace); the value
+            // is normalized to ≥1 on blur and again on submit.
+            value={units || ""}
+            onChange={(e) => setUnits(Math.max(0, Number(e.target.value) || 0))}
+            onBlur={() => setUnits((u) => Math.max(1, Math.floor(u) || 1))}
             className="input"
           />
           <span className="text-muted">
-            Total: {formatColones(units * SUBSCRIPTION_UNIT_CRC)}
+            Total: {formatColones(Math.max(1, units) * SUBSCRIPTION_UNIT_CRC)}
           </span>
         </Field>
 
@@ -229,6 +333,11 @@ export default function BusinessSubscribePage() {
         />
 
         <FormError message={error} />
+        {done && (
+          <p className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10">
+            ¡Apoyo registrado! La escuela lo confirmará.
+          </p>
+        )}
 
         <button
           type="submit"
@@ -243,62 +352,27 @@ export default function BusinessSubscribePage() {
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
           Tus apoyos
         </h2>
+        {listError && (
+          <p role="alert" className="mt-2 text-sm text-error">
+            {listError}
+          </p>
+        )}
         {subscriptions.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
             Todavía no registraste ningún apoyo.
           </p>
         ) : (
           <ul className="mt-4 flex flex-col gap-3">
-            {subscriptions.map((s) => {
-              const isPending = s.status === "pending";
-              const school = schools.find((x) => x.id === s.schoolId);
-              return (
-                <li
-                  key={s.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5"
-                >
-                  <div>
-                    <p className="font-medium">{s.schoolName}</p>
-                    <p className="text-muted">
-                      {s.units}× · {formatColones(s.amount)} ·{" "}
-                      {s.proofUploaded ? (<span className="inline-flex items-center gap-1 text-success"><CheckIcon className="h-3.5 w-3.5" />Comprobante</span>) : "Sin comprobante"}
-                    </p>
-                    {/* Waiting on the school: show how long, and offer a nudge through the
-                        school's own channel. The platform never confirms the money. */}
-                    {isPending && (
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <PendingAge since={s.createdAt} />
-                        <RemindSchoolButton
-                          boardContact={school?.boardContact}
-                          supporterName={business.name}
-                          schoolName={s.schoolName}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <label className="cursor-pointer text-xs font-medium text-brand-darker hover:underline">
-                      {uploadingId === s.id
-                        ? "Subiendo…"
-                        : s.proofUploaded
-                          ? "Reemplazar"
-                          : "Subir comprobante"}
-                      <input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        className="sr-only"
-                        disabled={uploadingId !== null}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) onUploadProof(s.id, f);
-                        }}
-                      />
-                    </label>
-                    <SubscriptionStatusBadge status={s.status} />
-                  </div>
-                </li>
-              );
-            })}
+            {subscriptions.map((s) => (
+              <SupporterContributionItem
+                key={s.id}
+                subscription={s}
+                supporterName={business.name}
+                boardContact={schoolById.get(s.schoolId)?.boardContact}
+                uploadingId={uploadingId}
+                onUploadProof={onUploadProof}
+              />
+            ))}
           </ul>
         )}
       </section>
