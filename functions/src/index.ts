@@ -16,6 +16,10 @@
  * - onSchoolWritten: when a school's verification status or its administrators change (both
  *   feed that eligibility gate), recompute every business supporting it — those changes
  *   don't touch any subscription, so the trigger above wouldn't fire on its own.
+ * - onBusinessWritten: recompute the `businessCount` of every category the business belongs
+ *   to (active businesses only) on any business create/update/delete. The client writes a
+ *   business's `categories` but can't keep a category's aggregate current, so — like every
+ *   other denormalized signal (decision #5) — it's maintained here with Admin privileges.
  * - expireSubscriptionsDaily: time-decay the lifecycle — flip lapsed subscriptions to
  *   `expired` and near-expiry ones to `expiring`. The status writes re-fire the trigger
  *   above, which recomputes the affected docs.
@@ -53,6 +57,7 @@ const USERS = "users";
 const PROJECTS = "projects";
 const PROJECT_CONTRIBUTIONS = "projectContributions";
 const AUDIT_EVENTS = "auditEvents";
+const CATEGORIES = "categories";
 
 /** The uids that administer a page (owner + editors) as a set — the self-dealing key. */
 function principalsOf(
@@ -545,6 +550,55 @@ export const onReviewWritten = onDocumentWritten(
   `${BUSINESSES}/{businessId}/${REVIEWS}/{userId}`,
   async (event) => {
     await recomputeReviewStats(event.params.businessId);
+  },
+);
+
+/**
+ * Recompute a category's `businessCount`: the number of ACTIVE businesses listing it. Backs
+ * the count shown on /categories and the `businessCount > 0` filter that decides which
+ * category chips the home row surfaces — both go stale the moment a business is created,
+ * recategorized, or changes status, which the client can't fix (rules limit `categories`
+ * writes to a category to admins). Uses a server-side count() aggregation (no per-business
+ * read) and skips the write when already current. `categories` has no trigger, so this never
+ * cascades.
+ */
+async function recomputeCategoryCount(categoryId: string): Promise<void> {
+  const ref = db.collection(CATEGORIES).doc(categoryId);
+  const doc = await ref.get();
+  if (!doc.exists) return; // category deleted — nothing to update
+
+  const agg = await db
+    .collection(BUSINESSES)
+    .where("categories", "array-contains", categoryId)
+    .where("status", "==", "active")
+    .count()
+    .get();
+  const businessCount = agg.data().count;
+
+  if (doc.get("businessCount") === businessCount) return; // already current — no write
+  await ref.update({ businessCount });
+}
+
+export const onBusinessWritten = onDocumentWritten(
+  `${BUSINESSES}/{id}`,
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+
+    // Affected categories = union of the business's categories on both sides, so adding a
+    // category, removing one, deleting the business, or flipping its status (active ⇄ draft/
+    // pending/suspended) all recount the right categories. The count query filters to active,
+    // so a business leaving the active set correctly drops out of the total.
+    const categoryIds = new Set<string>();
+    for (const d of [before, after]) {
+      const cats = d?.categories;
+      if (Array.isArray(cats)) {
+        for (const c of cats) if (typeof c === "string") categoryIds.add(c);
+      }
+    }
+    if (categoryIds.size === 0) return;
+
+    await Promise.all([...categoryIds].map(recomputeCategoryCount));
   },
 );
 

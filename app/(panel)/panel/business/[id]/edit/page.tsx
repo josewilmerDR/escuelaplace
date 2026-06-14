@@ -13,6 +13,7 @@ import Link from "next/link";
 import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { BusinessPanelNav } from "@/components/business/BusinessPanelNav";
 import { GalleryManager } from "@/components/business/GalleryManager";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { cardClass } from "@/components/ui/Card";
@@ -488,6 +489,12 @@ export default function BusinessEditPage() {
         Editar comercio
       </h1>
       <p className="mt-1 text-sm text-muted">{business.name}</p>
+
+      <BusinessPanelNav
+        businessId={id}
+        active={business.status === "active"}
+        current="edit"
+      />
 
       {/* Publication state + its one action, as a semantic note: green when live,
           amber while a draft / pending / suspended. Depth-not-borders (soft ring),

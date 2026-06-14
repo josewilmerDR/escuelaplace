@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { BusinessPanelNav } from "@/components/business/BusinessPanelNav";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { SchoolPicker } from "@/components/school/SchoolPicker";
 import { SupporterContributionItem } from "@/components/subscriptions/SupporterContributionItem";
@@ -271,6 +272,12 @@ export default function BusinessSubscribePage() {
         Apoyar una escuela
       </h1>
       <p className="mt-1 text-sm text-muted">{business.name}</p>
+
+      <BusinessPanelNav
+        businessId={id}
+        active={business.status === "active"}
+        current="subscribe"
+      />
 
       {/* No card around the form: the controls sit directly on the page (matching the donate
           flow). The platform never touches the money; this only records a `pending`

@@ -11,6 +11,7 @@
  * owner's own chats, which is what makes the report credible.
  */
 import { useCallback, useEffect, useState } from "react";
+import { BusinessPanelNav } from "@/components/business/BusinessPanelNav";
 import { BackLink } from "@/components/ui/BackLink";
 import { Section } from "@/components/ui/Section";
 import { PlusIcon } from "@/components/ui/icons";
@@ -194,6 +195,12 @@ export default function BusinessMetricsPage() {
         Métricas
       </h1>
       <p className="mt-1 text-sm text-muted">{business.name}</p>
+
+      <BusinessPanelNav
+        businessId={id}
+        active={business.status === "active"}
+        current="metrics"
+      />
 
       {!process.env.NEXT_PUBLIC_TRACK_INTERACTION_URL && (
         <p className="mt-4 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
