@@ -20,6 +20,7 @@ import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { RemindSchoolButton } from "@/components/subscriptions/RemindSchoolButton";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
+import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
@@ -125,23 +126,40 @@ export default function BusinessSubscribePage() {
     if (!school) return;
     setSaving(true);
     setError(null);
+    let newId: string;
     try {
-      const newId = await createSubscription({
+      newId = await createSubscription({
         businessId: business.id,
         businessName: business.name,
         schoolId,
         schoolName: school.name,
         units,
       });
-      if (proofFile) await uploadSubscriptionProof(newId, proofFile);
-      setProofFile(null);
-      setUnits(1);
-      reloadSubscriptions();
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo registrar el apoyo."));
-    } finally {
       setSaving(false);
+      return;
     }
+    // The subscription exists now — surface it immediately. A proof upload that fails
+    // below must NOT read as "the support didn't register": it did, and the proof can be
+    // re-attached from the list, so the two failures get distinct messages.
+    setUnits(1);
+    reloadSubscriptions();
+    if (proofFile) {
+      try {
+        await uploadSubscriptionProof(newId, proofFile);
+      } catch {
+        // Keep the "your support DID register" framing — a raw upload/storage error here
+        // would wrongly read as the whole action failing.
+        setError(
+          "Registramos tu apoyo, pero no se pudo subir el comprobante. Podés subirlo desde “Tus apoyos”, más abajo.",
+        );
+        setSaving(false);
+        return;
+      }
+    }
+    setProofFile(null);
+    setSaving(false);
   };
 
   const onUploadProof = async (subId: string, file: File) => {
@@ -177,7 +195,7 @@ export default function BusinessSubscribePage() {
         onSubmit={onSubmit}
         onInvalidCapture={spanishRequiredMessage}
         onInputCapture={clearValidationMessage}
-        className="mt-8 flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5"
+        className={`mt-8 flex flex-col gap-4 ${cardClass()}`}
       >
         <Field label="Escuela">
           <select
@@ -255,7 +273,7 @@ export default function BusinessSubscribePage() {
               return (
                 <li
                   key={s.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-black/5"
+                  className={`flex items-center justify-between gap-3 p-4 text-sm ${cardClass("elevated", false)}`}
                 >
                   <div>
                     <p className="font-medium">{s.schoolName}</p>

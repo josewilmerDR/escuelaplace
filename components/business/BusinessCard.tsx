@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import type { BusinessCardData } from "@/types";
 import type { SupportedSchool, SupportTier } from "@/lib/firestore";
+import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
 
 /**
  * Support badge copy + style per tier. `null` = not yet known (baseline SSR render before
@@ -36,9 +37,6 @@ export const TIER_BADGE: Record<SupportTier, { label: string; tone: BadgeTone }>
   },
 };
 
-/** Grid is 1 / 2 / 3 columns (see RankedFeed) — lets next/image pick the right size. */
-const COVER_SIZES = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
-
 export function BusinessCard({
   business,
   tier = null,
@@ -65,13 +63,15 @@ export function BusinessCard({
       {/* Cover (YouTube-thumbnail style): the photo sells the business, so it gets the
           top of the card. Fallback ladder keeps the grid scannable while most businesses
           haven't uploaded images: photo → logo centered on tint → big initial. */}
-      <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-brand-tint to-white">
+      <div
+        className={`relative ${CARD_COVER_ASPECT} w-full overflow-hidden bg-gradient-to-br from-brand-tint to-white`}
+      >
         {business.photo ? (
           <Image
             src={business.photo}
             alt=""
             fill
-            sizes={COVER_SIZES}
+            sizes={CARD_COVER_SIZES}
             className="object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : business.logoUrl ? (
@@ -80,7 +80,7 @@ export function BusinessCard({
             src={business.logoUrl}
             alt=""
             fill
-            sizes={COVER_SIZES}
+            sizes={CARD_COVER_SIZES}
             className="object-contain p-8"
           />
         ) : (

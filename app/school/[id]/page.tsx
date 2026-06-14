@@ -10,6 +10,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { ProfileHeader } from "@/components/layout/ProfileHeader";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { SchoolManageBar } from "@/components/school/SchoolManageBar";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Section } from "@/components/ui/Section";
 import { StatChip } from "@/components/ui/StatChip";
 import {
@@ -17,6 +18,7 @@ import {
   FlagIcon,
   HeartIcon,
   MapPinIcon,
+  TagIcon,
   UsersIcon,
   WarningIcon,
 } from "@/components/ui/icons";
@@ -348,9 +350,13 @@ export default async function SchoolPage({ params }: Props) {
         title={`Comercios de su comunidad (${cards.length})`}
       >
         {cards.length === 0 ? (
-          <p className="mt-4 text-sm text-muted">
-            Todavía no hay comercios vinculados a esta escuela.
-          </p>
+          // Same EmptyState the catalog listings use for "no comercios", instead of a bare
+          // line, so the empty-state treatment is identical across the app.
+          <EmptyState
+            icon={<TagIcon className="h-7 w-7" />}
+            title="Todavía no hay comercios vinculados"
+            description="Cuando un comercio de la zona se vincule a esta escuela, aparecerá acá."
+          />
         ) : (
           <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {cards.map((business) => (
