@@ -8,7 +8,9 @@
  * awaiting a decision (`pending` or `needs_reverification`), surfaces the data the admin
  * needs to vet — name, location, board contact, and the private payment methods — and lets
  * them approve it. Approving sets verificationStatus to 'verified' (admin-only by rules),
- * which reveals the payment methods to supporters and clears the banner.
+ * which reveals the payment methods to supporters and clears the banner. Because that makes
+ * private data public and is awkward to undo, the approve action asks for confirmation with
+ * the concrete impact (how many payment methods go public, or that none exist).
  *
  * Access is admin-only: the panel layout's <RequireAuth> only gates sign-in, so this page
  * checks `role === 'admin'` itself (and firestore.rules reject the write regardless).
@@ -17,11 +19,15 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { BackLink } from "@/components/ui/BackLink";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { Badge } from "@/components/ui/Badge";
+import { cardClass } from "@/components/ui/Card";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { VerifiedIcon } from "@/components/ui/icons";
 import {
   auditCollusionFlag,
+  auditEventLabel,
+  formatAuditWhen,
   getRecentAuditEvents,
   getSchoolPrivate,
   getSchoolsAwaitingVerification,
@@ -37,12 +43,59 @@ interface ReviewItem {
   paymentMethods: PaymentMethod[];
 }
 
+/**
+ * The page heading, rendered identically in every state (skeleton, empty, loaded) so
+ * navigating here paints the title in its final position and size — only the content below
+ * it changes. No layout shift ("parpadeo") during the Firestore read.
+ */
+function PageHeading() {
+  return (
+    <header>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Verificación de escuelas
+      </h1>
+      <p className="mt-1 text-sm text-muted">
+        Revisá los datos de cada escuela y aprobá las que correspondan. Al verificar, sus
+        métodos de pago quedan visibles para quienes quieran apoyarla.
+      </p>
+    </header>
+  );
+}
+
+/**
+ * Loading shell. Renders the SAME heading + a couple of card placeholders the loaded list
+ * does, so navigating here paints the heading instantly in its final position and only the
+ * cards fade in. Used by BOTH the auth-loading state and the `items === null` queue-loading
+ * state so the two are identical.
+ */
+function AdminPageSkeleton() {
+  return (
+    <main>
+      <PageHeading />
+      <ul className="mt-6 flex flex-col gap-4" aria-hidden="true">
+        <li className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        <li className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+      </ul>
+      <p className="sr-only" role="status">
+        Cargando cola de verificación…
+      </p>
+    </main>
+  );
+}
+
 export default function AdminVerificationPage() {
   const { user, loading } = useAuth();
   const [items, setItems] = useState<ReviewItem[] | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEventDoc[] | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  // One id per approval in flight, so verifying one school doesn't lock the rest of the queue.
+  const [busyIds, setBusyIds] = useState<string[]>([]);
+  // Queue-load failure (top of page) vs a per-school approve failure (shown on its own card).
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(
+    null,
+  );
+  // Announced to screen readers after a successful approval (the card silently vanishes).
+  const [notice, setNotice] = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
 
@@ -98,7 +151,29 @@ export default function AdminVerificationPage() {
     };
   }, [isAdmin]);
 
-  if (loading) return <p className="text-sm text-muted">Cargando…</p>;
+  // Revalidate on return to the tab: another admin (or this admin elsewhere) may have
+  // verified a school, so refresh the queue + audit trail in the background. A failed
+  // background refresh keeps what's already on screen (no error flash).
+  useEffect(() => {
+    if (!isAdmin) return;
+    const onFocus = () => {
+      if (document.visibilityState !== "visible") return;
+      fetchQueue()
+        .then(setItems)
+        .catch(() => {});
+      getRecentAuditEvents(50)
+        .then(setAuditEvents)
+        .catch(() => {});
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [isAdmin, fetchQueue]);
+
+  if (loading) return <AdminPageSkeleton />;
 
   if (!isAdmin) {
     return (
@@ -106,39 +181,48 @@ export default function AdminVerificationPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Verificación de escuelas
         </h1>
-        <p className="mt-2 text-error">No tenés acceso a esta sección.</p>
+        <p role="alert" className="mt-2 text-error">
+          No tenés acceso a esta sección.
+        </p>
+        <p className="mt-6 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
       </main>
     );
   }
 
   const approve = async (id: string) => {
-    setBusyId(id);
-    setError(null);
+    setBusyIds((prev) => [...prev, id]);
+    setActionError(null);
     try {
       await verifySchool(id);
       // Drop the approved school from the queue without a full reload.
       setItems((prev) => prev?.filter((it) => it.school.id !== id) ?? null);
+      setNotice("Escuela verificada. Sus métodos de pago ya son visibles para el público.");
     } catch {
-      setError("No se pudo verificar la escuela.");
+      setActionError({ id, message: "No se pudo verificar la escuela." });
     } finally {
-      setBusyId(null);
+      setBusyIds((prev) => prev.filter((x) => x !== id));
     }
   };
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Verificación de escuelas
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        Revisá los datos de cada escuela y aprobá las que correspondan. Al verificar, sus
-        métodos de pago quedan visibles para quienes quieran apoyarla.
+      <PageHeading />
+
+      {/* Polite live region: the approved card vanishes silently otherwise. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {notice}
       </p>
 
-      {error && <p className="mt-4 text-sm text-error">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-4 text-sm text-error">
+          {error}
+        </p>
+      )}
 
       {items === null ? (
-        <p className="mt-6 text-sm text-muted">Cargando cola de verificación…</p>
+        <AdminPageSkeleton />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<VerifiedIcon className="h-7 w-7" />}
@@ -146,18 +230,23 @@ export default function AdminVerificationPage() {
           description="Ya revisaste toda la cola: cuando una escuela nueva pida verificación, aparecerá acá."
         />
       ) : (
-        <ul className="mt-6 flex flex-col gap-4">
-          {items.map(({ school, paymentMethods }) => (
-            <SchoolReviewCard
-              key={school.id}
-              school={school}
-              paymentMethods={paymentMethods}
-              busy={busyId === school.id}
-              disabled={busyId !== null}
-              onApprove={() => approve(school.id)}
-            />
-          ))}
-        </ul>
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Escuelas pendientes ({items.length})
+          </h2>
+          <ul className="mt-4 flex flex-col gap-4">
+            {items.map(({ school, paymentMethods }) => (
+              <SchoolReviewCard
+                key={school.id}
+                school={school}
+                paymentMethods={paymentMethods}
+                busy={busyIds.includes(school.id)}
+                error={actionError?.id === school.id ? actionError.message : null}
+                onApprove={() => approve(school.id)}
+              />
+            ))}
+          </ul>
+        </section>
       )}
 
       <AuditSection events={auditEvents} />
@@ -169,24 +258,6 @@ export default function AdminVerificationPage() {
   );
 }
 
-/** Friendly label for an audit event by kind. */
-function eventLabel(ev: AuditEventDoc): string {
-  if (ev.type === "project_contribution_confirmed") {
-    return ev.contributionType === "in_kind"
-      ? "Donación en especie a proyecto"
-      : "Aporte a proyecto";
-  }
-  return ev.supporterType === "user" ? "Donación personal" : "Apoyo de comercio";
-}
-
-/** Confirmed-at (or recorded-at) of an event, in the CR locale. */
-function formatWhen(ev: AuditEventDoc): string {
-  const d = (ev.confirmedAt ?? ev.createdAt)?.toDate?.();
-  return d
-    ? d.toLocaleString("es-CR", { dateStyle: "short", timeStyle: "short" })
-    : "—";
-}
-
 /**
  * Recent confirmation audit trail. Each row surfaces WHO confirmed support for WHOM and
  * highlights the collusion signals: a red row + "Autoconfirmación" when the confirming admin
@@ -195,10 +266,13 @@ function formatWhen(ev: AuditEventDoc): string {
  * the same `auditEvents` stream.
  */
 function AuditSection({ events }: { events: AuditEventDoc[] | null }) {
-  const flaggedCount = events?.filter((e) => auditCollusionFlag(e) !== null).length ?? 0;
+  const flagged = events?.filter((e) => auditCollusionFlag(e) !== null) ?? [];
+  const flaggedCount = flagged.length;
+  // A self-confirmation is the sharpest signal: surface the summary in red when any exist.
+  const hasSevere = flagged.some((e) => auditCollusionFlag(e) === "self_confirm");
 
   return (
-    <section className="mt-12">
+    <section className="mt-10">
       <h2 className="text-xl font-semibold tracking-tight text-foreground">
         Auditoría de confirmaciones
       </h2>
@@ -209,7 +283,7 @@ function AuditSection({ events }: { events: AuditEventDoc[] | null }) {
         {flaggedCount > 0 && (
           <>
             {" "}
-            <span className="font-medium text-warning">
+            <span className={`font-medium ${hasSevere ? "text-error" : "text-warning"}`}>
               {flaggedCount === 1
                 ? "1 caso marcado para revisar."
                 : `${flaggedCount} casos marcados para revisar.`}
@@ -253,29 +327,17 @@ function AuditEventItem({ ev }: { ev: AuditEventDoc }) {
           <span className="font-normal text-muted"> → </span>
           {ev.schoolName || ev.schoolId}
         </p>
-        <span className="shrink-0 text-xs text-muted">{formatWhen(ev)}</span>
+        <span className="shrink-0 text-xs text-muted">{formatAuditWhen(ev)}</span>
       </div>
       <p className="mt-0.5 text-xs text-muted">
-        {eventLabel(ev)}
+        {auditEventLabel(ev)}
         {ev.projectTitle ? ` · ${ev.projectTitle}` : ""}
       </p>
       {(flag || !ev.schoolVerified) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {flag === "self_confirm" && (
-            <span className="rounded-full bg-error px-2 py-0.5 text-xs font-medium text-white">
-              Autoconfirmación
-            </span>
-          )}
-          {flag === "self_deal" && (
-            <span className="rounded-full bg-warning-tint px-2 py-0.5 text-xs font-medium text-warning ring-1 ring-warning/15">
-              Auto-trato
-            </span>
-          )}
-          {!ev.schoolVerified && (
-            <span className="rounded-full bg-warning-tint px-2 py-0.5 text-xs font-medium text-warning ring-1 ring-warning/15">
-              Escuela sin verificar
-            </span>
-          )}
+          {flag === "self_confirm" && <Badge tone="danger">Autoconfirmación</Badge>}
+          {flag === "self_deal" && <Badge tone="warning">Auto-trato</Badge>}
+          {!ev.schoolVerified && <Badge tone="warning">Escuela sin verificar</Badge>}
         </div>
       )}
     </li>
@@ -286,26 +348,44 @@ function SchoolReviewCard({
   school,
   paymentMethods,
   busy,
-  disabled,
+  error,
   onApprove,
 }: {
   school: SchoolDoc;
   paymentMethods: PaymentMethod[];
   busy: boolean;
-  disabled: boolean;
+  /** Per-card approve failure, shown on the action shelf next to the button. */
+  error: string | null;
   onApprove: () => void;
 }) {
   const where = locationParts(school.location).join(", ");
   const contact = school.boardContact;
+  const hasContact = Boolean(contact?.name || contact?.phone || contact?.email);
+
+  // Verifying makes the private payment methods public and is awkward to undo, so confirm
+  // with the concrete impact first — and warn loudly when there's nothing to publish.
+  const handleApprove = () => {
+    const count = paymentMethods.length;
+    const message =
+      count === 0
+        ? `${school.name} no tiene métodos de pago cargados. Si la verificás igual, no habrá ` +
+          `datos para que los donantes la apoyen.\n\n¿Verificar de todas formas?`
+        : `Al verificar ${school.name}, ${
+            count === 1
+              ? "su método de pago quedará visible"
+              : `sus ${count} métodos de pago quedarán visibles`
+          } para el público.\n\n¿Verificar la escuela?`;
+    if (window.confirm(message)) onApprove();
+  };
 
   return (
     // Elevated calm-depth card per queued school (ring + soft shadow, no hard border).
-    <li className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+    <li className={cardClass("elevated")}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold tracking-tight text-foreground">
+          <h3 className="truncate text-lg font-semibold tracking-tight text-foreground">
             {school.name}
-          </h2>
+          </h3>
           {where && <p className="text-sm text-muted">{where}</p>}
         </div>
         <VerificationBadge status={school.verificationStatus} />
@@ -314,7 +394,8 @@ function SchoolReviewCard({
       {school.verificationStatus === "needs_reverification" && (
         <p className="mt-3 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
           Ya estuvo verificada: editó un dato sensible (nombre o métodos de pago) y quedó
-          pendiente de re-aprobación. Revisá los cambios antes de confirmar.
+          pendiente de re-aprobación. Verificá el nombre y los métodos de pago antes de
+          confirmar.
         </p>
       )}
 
@@ -322,26 +403,35 @@ function SchoolReviewCard({
         <p className="mt-3 text-sm text-muted">{school.description}</p>
       )}
 
-      <dl className="mt-3 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-        {contact?.name && (
-          <>
-            <dt className="text-muted">Contacto</dt>
-            <dd>{contact.name}</dd>
-          </>
-        )}
-        {contact?.phone && (
-          <>
-            <dt className="text-muted">Teléfono</dt>
-            <dd>{contact.phone}</dd>
-          </>
-        )}
-        {contact?.email && (
-          <>
-            <dt className="text-muted">Email</dt>
-            <dd className="truncate">{contact.email}</dd>
-          </>
-        )}
-      </dl>
+      {hasContact ? (
+        <dl className="mt-3 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+          {contact?.name && (
+            <>
+              <dt className="text-muted">Contacto</dt>
+              <dd>{contact.name}</dd>
+            </>
+          )}
+          {contact?.phone && (
+            <>
+              <dt className="text-muted">Teléfono</dt>
+              <dd>{contact.phone}</dd>
+            </>
+          )}
+          {contact?.email && (
+            <>
+              <dt className="text-muted">Email</dt>
+              {/* Full address must stay readable — it's the admin's identity check. */}
+              <dd className="break-all" title={contact.email}>
+                {contact.email}
+              </dd>
+            </>
+          )}
+        </dl>
+      ) : (
+        <p className="mt-3 text-sm text-warning">
+          Sin contacto de junta cargado.
+        </p>
+      )}
 
       <div className="mt-3">
         <p className="text-xs font-medium uppercase tracking-wide text-muted">
@@ -368,8 +458,8 @@ function SchoolReviewCard({
       <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-4 text-sm">
         <button
           type="button"
-          onClick={onApprove}
-          disabled={disabled}
+          onClick={handleApprove}
+          disabled={busy}
           className="btn btn-primary mr-1"
         >
           {busy ? "Verificando…" : "Verificar escuela"}
@@ -377,10 +467,17 @@ function SchoolReviewCard({
         <Link
           href={`/school/${school.id}`}
           target="_blank"
+          rel="noopener noreferrer"
           className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground"
         >
           Ver página pública
+          <span className="sr-only"> (abre en una pestaña nueva)</span>
         </Link>
+        {error && (
+          <p role="alert" className="ml-1 w-full text-sm text-error">
+            {error}
+          </p>
+        )}
       </div>
     </li>
   );
