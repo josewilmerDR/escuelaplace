@@ -83,7 +83,7 @@ body {
    min-h-10 keeps tap targets ≥40px. Variants follow the AA contrast rules of the brand
    scale (see :root): white text needs at least --brand-darker behind it. */
 .btn {
-  @apply inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50;
+  @apply inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50;
 }
 .btn-primary {
   @apply bg-brand-darker text-white hover:bg-brand-darkest;
