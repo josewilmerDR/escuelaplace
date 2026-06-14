@@ -12,6 +12,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { readBuyerPreferences } from "@/lib/buyer/preferences";
 import { Combobox } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -102,6 +103,14 @@ export default function NewBusinessPage() {
       .then(([s, c]) => {
         setSchools(s);
         setCategories(c);
+        // The owner is usually a neighbor who browsed as a buyer first: preselect the
+        // school they already chose as their community (localStorage), but only if it
+        // exists in the list. It's a default, not user input — no setDirty here, so the
+        // unsaved-changes guard stays quiet and the field remains freely editable.
+        const preferredSchoolId = readBuyerPreferences().schoolId;
+        if (preferredSchoolId && s.some((x) => x.id === preferredSchoolId)) {
+          setSchoolId(preferredSchoolId);
+        }
         setLoadState("loaded");
       })
       .catch(() => setLoadState("error"));
