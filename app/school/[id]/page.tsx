@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BusinessCard } from "@/components/business/BusinessCard";
+import { RankedFeed } from "@/components/feed/RankedFeed";
 import { PhotoGallery } from "@/components/business/PhotoGallery";
 import { SectionTabs } from "@/components/business/SectionTabs";
 import { DonorWall } from "@/components/donors/DonorWall";
@@ -358,10 +358,12 @@ export default async function SchoolPage({ params }: Props) {
             description="Cuando un comercio de la zona se vincule a esta escuela, aparecerá acá."
           />
         ) : (
-          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {cards.map((business) => (
-              <BusinessCard key={business.id} business={business} />
-            ))}
+          // RankedFeed (a client island) re-ranks per the buyer's community and shows the
+          // same tier + "Apoya a {escuela}" badges the catalog listings do — so a business
+          // reads identically here and in the feed instead of staying at the SSR baseline.
+          // It owns the grid (same 1/2/3 breakpoints).
+          <div className="mt-5">
+            <RankedFeed initial={cards} />
           </div>
         )}
       </Section>

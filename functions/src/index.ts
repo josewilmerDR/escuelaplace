@@ -549,21 +549,68 @@ export const onReviewWritten = onDocumentWritten(
 );
 
 /**
+ * Fan a school's new name out to the docs that denormalized it: businesses linked to it
+ * ("Vinculado a {schoolName}") and subscriptions targeting it ("Apoya a {schoolName}" on
+ * the card and the supporter's panel list). Without this a rename leaves the catalog
+ * showing the old name everywhere except the school's own page.
+ *
+ * Chunked: a Firestore batch caps at 500 writes and a popular school can have more linked
+ * businesses + subscriptions than that combined. Only docs whose copy actually differs are
+ * written.
+ *
+ * Note: updating a subscription re-fires onSubscriptionWritten (recompute ranking/school/
+ * donor). Those recomputes are idempotent and independent of the name, and a rename is
+ * rare, so the redundant work is accepted rather than guarding every recompute path.
+ */
+async function propagateSchoolName(
+  schoolId: string,
+  name: string,
+): Promise<void> {
+  const [businesses, subscriptions] = await Promise.all([
+    db.collection(BUSINESSES).where("schoolId", "==", schoolId).get(),
+    db.collection(SUBSCRIPTIONS).where("schoolId", "==", schoolId).get(),
+  ]);
+  const refs = [...businesses.docs, ...subscriptions.docs]
+    .filter((d) => d.get("schoolName") !== name)
+    .map((d) => d.ref);
+
+  const CHUNK = 450; // under the 500-write batch cap, with headroom
+  for (let i = 0; i < refs.length; i += CHUNK) {
+    const batch = db.batch();
+    for (const ref of refs.slice(i, i + CHUNK)) {
+      batch.update(ref, {
+        schoolName: name,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+}
+
+/**
  * A school's verification status and its administrators feed the anti-fraud eligibility
  * gate in recomputeBusinessRanking (verified-only + no self-dealing). Both can change with
  * no subscription being written — admin approves the school, or an owner adds/removes an
  * editor — so onSubscriptionWritten wouldn't fire. When they do, recompute every business
- * supporting this school. Every other school write (name, photos, and the
- * metrics.* fields recomputeSchool itself writes) is ignored, so this never fans out on its
- * own metric updates.
+ * supporting this school. A rename is handled separately (see propagateSchoolName); photos
+ * and the metrics.* fields recomputeSchool itself writes change nothing here, so this never
+ * fans out on its own metric updates.
  */
 export const onSchoolWritten = onDocumentWritten(
   `${SCHOOLS}/{id}`,
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
+    if (!after) return; // school deleted — nothing to propagate or recompute
+
+    // Rename: push the new name to the denormalized copies. `before` undefined is a create
+    // (no previous name to differ from), so this never fires on the initial write.
+    if (before && before.name !== after.name) {
+      await propagateSchoolName(event.params.id, after.name as string);
+    }
+
     const verificationChanged =
-      before?.verificationStatus !== after?.verificationStatus;
+      before?.verificationStatus !== after.verificationStatus;
     const principalsChanged = !sameSet(
       principalsOf(before),
       principalsOf(after),
