@@ -14,28 +14,32 @@ const PLACEHOLDER_COUNT = 6;
 export default function LoadingCategoriesPage() {
   return (
     <PageContainer variant="listing">
-      <div aria-busy>
-        {/* Header skeleton: title line + supporting line. */}
-        <header className="mb-8">
-          <div className="h-8 w-64 animate-pulse rounded bg-border" />
-          <div className="mt-2 h-4 w-80 max-w-full animate-pulse rounded bg-border" />
-        </header>
+      <div role="status">
+        <span className="sr-only">Cargando categorías…</span>
 
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: PLACEHOLDER_COUNT }, (_, i) => (
-            <li key={i}>
-              <div className={`flex items-center gap-4 ${cardClass("elevated")}`}>
-                {/* Icon-tile placeholder + two text lines, matching the real card.
-                    bg-border (not bg-surface) so the bars read against the white card. */}
-                <div className="h-12 w-12 shrink-0 animate-pulse rounded-2xl bg-border" />
-                <div className="min-w-0 flex-1">
-                  <div className="h-4 w-2/3 animate-pulse rounded bg-border" />
-                  <div className="mt-2 h-3 w-1/3 animate-pulse rounded bg-border" />
+        <div aria-hidden="true">
+          {/* Header skeleton: title line + supporting line. */}
+          <header className="mb-8">
+            <div className="h-9 w-64 animate-pulse rounded bg-border" />
+            <div className="mt-1 h-4 w-80 max-w-full animate-pulse rounded bg-border" />
+          </header>
+
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: PLACEHOLDER_COUNT }, (_, i) => (
+              <li key={i}>
+                <div className={`flex items-center gap-4 ${cardClass("elevated")}`}>
+                  {/* Icon-tile placeholder + two text lines, matching the real card.
+                      bg-border (not bg-surface) so the bars read against the white card. */}
+                  <div className="h-12 w-12 shrink-0 animate-pulse rounded-2xl bg-border" />
+                  <div className="min-w-0 flex-1">
+                    <div className="h-4 w-2/3 animate-pulse rounded bg-border" />
+                    <div className="mt-1 h-3 w-1/3 animate-pulse rounded bg-border" />
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </PageContainer>
   );
