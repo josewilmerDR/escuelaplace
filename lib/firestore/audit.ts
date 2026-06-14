@@ -34,6 +34,28 @@ export function auditCollusionFlag(
   return null;
 }
 
+/** Friendly label for an audit event by kind, for the admin review UI. Pure. */
+export function auditEventLabel(
+  ev: Pick<AuditEvent, "type" | "contributionType" | "supporterType">,
+): string {
+  if (ev.type === "project_contribution_confirmed") {
+    return ev.contributionType === "in_kind"
+      ? "Donación en especie a proyecto"
+      : "Aporte a proyecto";
+  }
+  return ev.supporterType === "user" ? "Donación personal" : "Apoyo de comercio";
+}
+
+/** Confirmed-at (or recorded-at, as a fallback) of an event, in the CR locale. Pure. */
+export function formatAuditWhen(
+  ev: Pick<AuditEvent, "confirmedAt" | "createdAt">,
+): string {
+  const d = (ev.confirmedAt ?? ev.createdAt)?.toDate?.();
+  return d
+    ? d.toLocaleString("es-CR", { dateStyle: "short", timeStyle: "short" })
+    : "—";
+}
+
 /** Most recent audit events across the platform (admin overview), newest first. */
 export async function getRecentAuditEvents(max = 50): Promise<AuditEventDoc[]> {
   const q = query(
