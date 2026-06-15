@@ -14,8 +14,9 @@ export default function Error(props: {
   return (
     <RouteError
       {...props}
-      title="No pudimos cargar el proyecto"
-      description="Ocurrió un problema al cargar el proyecto. Volvé a intentar en un momento."
+      entityLabel="el proyecto"
+      backHref="/schools"
+      backLabel="Ver escuelas"
     />
   );
 }

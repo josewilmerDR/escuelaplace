@@ -12,7 +12,7 @@ import { WarningIcon } from "@/components/ui/icons";
  * the brand header — instead of bubbling up to Next's English, unstyled global error page.
  *
  * Each route's own `error.tsx` is a thin client wrapper that forwards Next's `{ error, reset }`
- * props and supplies its title/description, so copy and behavior stay identical across the
+ * props and supplies its entityLabel, so copy and behavior stay identical across the
  * project, school and business detail pages instead of being hand-copied per route.
  *
  * Behavior the bare boundary was missing:
@@ -26,17 +26,18 @@ import { WarningIcon } from "@/components/ui/icons";
 export function RouteError({
   error,
   reset,
-  title,
-  description,
+  entityLabel,
   backHref = "/",
   backLabel = "Volver al catálogo",
 }: {
   error: Error & { digest?: string };
   reset: () => void;
-  /** Short headline (Spanish copy). */
-  title: string;
-  /** One muted line. Stays neutral about the cause: in production we can't know it. */
-  description: string;
+  /**
+   * Spanish noun phrase for the failed entity, e.g. "la escuela" / "el comercio" /
+   * "el proyecto". The headline and description are built from it so copy stays
+   * identical across boundaries.
+   */
+  entityLabel: string;
   /** Stable escape destination — error.tsx has no access to route params. */
   backHref?: string;
   backLabel?: string;
@@ -75,9 +76,16 @@ export function RouteError({
             tabIndex={-1}
             className="text-3xl font-semibold tracking-tight text-foreground focus:outline-none"
           >
-            {title}
+            {`No pudimos cargar ${entityLabel}`}
           </h1>
-          <p className="mt-3 text-sm text-muted">{description}</p>
+          <p className="mt-3 text-sm text-muted">
+            {`Ocurrió un problema al cargar ${entityLabel}. Volvé a intentar en un momento.`}
+          </p>
+          {error.digest && (
+            <p className="mt-2 text-xs text-muted">
+              Código de referencia: {error.digest}
+            </p>
+          )}
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -93,12 +101,6 @@ export function RouteError({
             {backLabel}
           </Link>
         </div>
-
-        {error.digest && (
-          <p className="mt-4 text-xs text-muted">
-            Código de referencia: {error.digest}
-          </p>
-        )}
       </div>
     </PageContainer>
   );
