@@ -8,10 +8,15 @@
  * contribution fires a Cloud Function that advances the project's progress bar. The board
  * can confirm one at a time or all pending at once.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { Badge } from "@/components/ui/Badge";
+import { cardClass } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { HeartIcon } from "@/components/ui/icons";
+import { PendingAge } from "@/components/subscriptions/PendingAge";
 import {
   confirmContribution,
   getContributionProofUrl,
@@ -24,6 +29,25 @@ import type { ProjectContributionDoc, SchoolDoc } from "@/types";
 /** Lifecycle of the initial school + contributions fetch. */
 type LoadState = "loading" | "error" | "loaded";
 
+const LOADING_TEXT = "Cargando aportes…";
+
+/**
+ * The page heading, rendered identically in every state (loading, error, loaded) so the
+ * title never shifts as content swaps in. The subtitle takes the school name; during loading
+ * the school isn't known yet, so the subtitle renders blank (a non-breaking space keeps the
+ * line height reserved) and the h1 stays fixed.
+ */
+function Heading({ subtitle }: { subtitle?: string }) {
+  return (
+    <header>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Confirmar aportes a proyectos
+      </h1>
+      <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
+    </header>
+  );
+}
+
 export default function ProjectContributionsPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -33,6 +57,8 @@ export default function ProjectContributionsPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Accessible-only success feedback, announced via an aria-live region (no visual banner).
+  const [status, setStatus] = useState<string | null>(null);
 
   const reload = useCallback(
     () => getContributionsBySchool(id).then(setContribs),
@@ -53,20 +79,41 @@ export default function ProjectContributionsPage() {
 
   useEffect(load, [load]);
 
+  // Split the queue once per data change instead of on every render.
+  const pending = useMemo(
+    () => contribs.filter((c) => c.status === "pending"),
+    [contribs],
+  );
+  const others = useMemo(
+    () => contribs.filter((c) => c.status !== "pending"),
+    [contribs],
+  );
+
   const retry = () => {
     setLoadState("loading");
     load();
   };
 
-  if (loadState === "loading")
-    return <p className="text-sm text-muted">Cargando…</p>;
+  if (loadState === "loading") {
+    return (
+      <main>
+        {/* School not loaded yet → blank subtitle, but the h1 sits in its final position. */}
+        <Heading />
+        <ul className="mt-8 flex flex-col gap-4" aria-hidden="true">
+          <li className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <li className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        </ul>
+        <p className="sr-only" role="status">
+          {LOADING_TEXT}
+        </p>
+      </main>
+    );
+  }
 
   if (loadState === "error") {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Confirmar aportes a proyectos
-        </h1>
+        <Heading />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar los aportes. Revisá tu conexión e intentá de nuevo.
         </p>
@@ -89,16 +136,15 @@ export default function ProjectContributionsPage() {
     return <p className="text-sm text-error">No administrás esta escuela.</p>;
   }
 
-  const pending = contribs.filter((c) => c.status === "pending");
-  const others = contribs.filter((c) => c.status !== "pending");
-
   const confirmOne = async (cid: string) => {
     if (!user) return;
     setBusyId(cid);
     setError(null);
+    setStatus(null);
     try {
       await confirmContribution(cid, user.id);
       await reload();
+      setStatus("Aporte confirmado.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo confirmar.");
     } finally {
@@ -108,12 +154,33 @@ export default function ProjectContributionsPage() {
 
   const confirmAll = async () => {
     if (!user || pending.length === 0) return;
+    // Bulk confirm is irreversible: guard with an explicit count before proceeding.
+    if (
+      !window.confirm(
+        `¿Confirmar los ${pending.length} aportes pendientes? Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
     setBusyId("all");
     setError(null);
+    setStatus(null);
+    const total = pending.length;
     try {
-      await Promise.all(pending.map((c) => confirmContribution(c.id, user.id)));
+      // allSettled (not all): one failed confirm must not block the others, and we always
+      // reload so successfully-confirmed rows disappear even on a partial failure.
+      const results = await Promise.allSettled(
+        pending.map((c) => confirmContribution(c.id, user.id)),
+      );
       await reload();
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        setError(`No se pudieron confirmar ${failed} de ${total} aportes.`);
+      } else {
+        setStatus(`${total} aportes confirmados.`);
+      }
     } catch (err) {
+      // reload() itself failed — the confirms may still have gone through.
       setError(err instanceof Error ? err.message : "No se pudieron confirmar.");
     } finally {
       setBusyId(null);
@@ -123,16 +190,42 @@ export default function ProjectContributionsPage() {
   const viewProof = async (cid: string) => {
     setError(null);
     const url = await getContributionProofUrl(cid);
-    if (url) window.open(url, "_blank", "noopener");
-    else setError("No se pudo abrir el comprobante.");
+    if (!url) {
+      setError("No se pudo abrir el comprobante.");
+      return;
+    }
+    // A blocked popup returns null too — surface the same error so the click isn't silent.
+    const win = window.open(url, "_blank", "noopener");
+    if (!win) setError("No se pudo abrir el comprobante.");
   };
+
+  // Nothing at all: pending AND history both empty.
+  if (contribs.length === 0) {
+    return (
+      <main>
+        <Heading subtitle={school.name} />
+        <div className="mt-8">
+          <EmptyState
+            icon={<HeartIcon className="h-7 w-7" />}
+            title="Todavía no hay aportes a tus proyectos"
+            description="Cuando alguien aporte a uno de tus proyectos, su contribución aparecerá acá para que la confirmes."
+          />
+        </div>
+        <p className="mt-8 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Confirmar aportes a proyectos
-      </h1>
-      <p className="mt-1 text-sm text-muted">{school.name}</p>
+      <Heading subtitle={school.name} />
+
+      {/* Accessible-only success announcement; no visual banner is needed. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {status}
+      </p>
 
       <section className="mt-8">
         <div className="flex items-center justify-between gap-3">
@@ -152,7 +245,11 @@ export default function ProjectContributionsPage() {
           )}
         </div>
 
-        {error && <p className="mt-3 text-sm text-error">{error}</p>}
+        {error && (
+          <p role="alert" className="mt-3 text-sm text-error">
+            {error}
+          </p>
+        )}
 
         {pending.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No hay aportes pendientes.</p>
@@ -162,15 +259,15 @@ export default function ProjectContributionsPage() {
               // Elevated calm-depth row per pending contribution, with its own primary confirm.
               <li
                 key={c.id}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-black/5"
+                className={`${cardClass("elevated")} flex items-center justify-between gap-3 text-sm`}
               >
                 <div className="min-w-0">
                   <p className="font-semibold tracking-tight text-foreground">
                     {c.donorName}
                     {c.type === "in_kind" && (
-                      <span className="ml-2 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-normal text-brand-darker">
+                      <Badge tone="info" className="ml-2">
                         En especie
-                      </span>
+                      </Badge>
                     )}
                   </p>
                   <p className="text-muted">
@@ -179,7 +276,7 @@ export default function ProjectContributionsPage() {
                     {formatMoney(c.amount, c.currency)}
                   </p>
                   {c.type === "in_kind" && (
-                    <p className="text-xs text-warning">
+                    <p className="text-xs text-muted">
                       {c.stageTitle ? `Cubre: ${c.stageTitle}. ` : ""}
                       {c.description}
                     </p>
@@ -188,7 +285,8 @@ export default function ProjectContributionsPage() {
                     <button
                       type="button"
                       onClick={() => viewProof(c.id)}
-                      className="mt-1 text-xs font-medium text-brand-darker hover:underline"
+                      // Always-underlined + min tap height: hover:underline is invisible on touch.
+                      className="mt-1 inline-flex min-h-10 items-center gap-1 text-xs font-medium text-brand-darker underline"
                     >
                       Ver {c.type === "in_kind" ? "evidencia" : "comprobante"}
                     </button>
@@ -197,11 +295,16 @@ export default function ProjectContributionsPage() {
                       Sin {c.type === "in_kind" ? "evidencia" : "comprobante"}
                     </span>
                   )}
+                  {/* How long this contribution has waited — amber once it's stale, so an old
+                      queue is visible at a glance. */}
+                  <PendingAge since={c.createdAt} />
                 </div>
                 <button
                   type="button"
                   onClick={() => confirmOne(c.id)}
-                  disabled={busyId !== null}
+                  // Only this row (or a bulk run) disables it — confirming one row must not
+                  // freeze the others.
+                  disabled={busyId === c.id || busyId === "all"}
                   className="btn btn-primary shrink-0"
                 >
                   {busyId === c.id ? "Confirmando…" : "Confirmar"}
@@ -222,24 +325,25 @@ export default function ProjectContributionsPage() {
               // History is settled: a quieter inset panel, no primary action.
               <li
                 key={c.id}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5"
+                className={`${cardClass("inset")} flex items-center justify-between gap-3 text-sm`}
               >
                 <div className="min-w-0">
                   <p className="font-semibold tracking-tight text-foreground">
                     {c.donorName}
                     {c.type === "in_kind" && (
-                      <span className="ml-2 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-normal text-brand-darker">
+                      <Badge tone="info" className="ml-2">
                         En especie
-                      </span>
+                      </Badge>
                     )}
                   </p>
                   <p className="text-muted">
-                    {c.projectTitle} · {formatMoney(c.amount, c.currency)}
+                    {c.projectTitle} ·{" "}
+                    {c.type === "in_kind" ? "valor estimado " : ""}
+                    {formatMoney(c.amount, c.currency)}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-success-tint px-2.5 py-0.5 text-xs font-medium text-success ring-1 ring-success/15">
-                  Confirmado
-                </span>
+                {/* Contributions are only pending|confirmed, so history is always confirmed. */}
+                <Badge tone="success">Confirmado</Badge>
               </li>
             ))}
           </ul>
