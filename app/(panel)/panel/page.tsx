@@ -17,12 +17,14 @@
  * tile, one solid primary action and the rest as quiet chip links. All of it composes the
  * existing design tokens (--brand/--surface) and .btn primitives — no new palette.
  */
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { BusinessStatusBadge } from "@/components/business/BusinessStatusBadge";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
+import { Badge } from "@/components/ui/Badge";
+import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { IconTile } from "@/components/ui/IconTile";
 import {
@@ -32,6 +34,7 @@ import {
   PagesIcon,
   PlusIcon,
   TagIcon,
+  WarningIcon,
   XMarkIcon,
 } from "@/components/ui/icons";
 import {
@@ -45,7 +48,7 @@ const LOADING_TEXT = "Cargando tus páginas…";
 
 /** Quiet, low-emphasis card action (everything except the lead "Editar página"). */
 const CHIP_ACTION =
-  "inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground";
+  "inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40";
 
 export default function PanelHome() {
   // useSearchParams needs a Suspense boundary to keep the route statically
@@ -60,7 +63,7 @@ export default function PanelHome() {
 /**
  * The page heading, rendered identically in every state (skeleton, error, empty, loaded)
  * so navigating here paints the title in its final position and size — only the content
- * below it changes. The count and the top-right "Nueva página" action appear only once the
+ * below it changes. The count and the top-right "Crear página" action appear only once the
  * list is known (count !== undefined), which adds nothing to the LEFT of the title, so the
  * title never shifts. The subtitle copy is constant for the same reason.
  */
@@ -86,7 +89,7 @@ function PanelHeading({ count }: { count?: number }) {
           className="btn btn-primary hidden shrink-0 gap-1.5 sm:inline-flex"
         >
           <PlusIcon className="h-4 w-4" />
-          Nueva página
+          Crear página
         </Link>
       )}
     </header>
@@ -104,8 +107,8 @@ function PanelHomeSkeleton() {
     <main>
       <PanelHeading />
       <ul className="mt-8 flex flex-col gap-4" aria-hidden="true">
-        <li className="h-32 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
-        <li className="h-32 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        <li className={`h-32 animate-pulse ${cardClass("inset", false)}`} />
+        <li className={`h-32 animate-pulse ${cardClass("inset", false)}`} />
       </ul>
       <p className="sr-only" role="status">
         {LOADING_TEXT}
@@ -181,10 +184,12 @@ function PanelHomeInner() {
     return (
       <main>
         <PanelHeading />
-        <p className="mt-6 text-muted">{error}</p>
-        <button type="button" onClick={() => void load()} className="btn btn-outline mt-4">
-          Reintentar
-        </button>
+        <EmptyState
+          icon={<WarningIcon className="h-7 w-7" />}
+          title="No pudimos cargar tus páginas"
+          description={error}
+          cta={<RetryButton onRetry={load} />}
+        />
       </main>
     );
   }
@@ -227,21 +232,45 @@ function PanelHomeInner() {
             key={`${page.type}-${page.id}`}
             page={page}
             highlight={page.doc?.id === createdId}
-            onRemove={() => {
+            // Resolves after the entry is removed and the list reloaded; rejects on a write
+            // failure so the card can surface a remove-specific error inline (instead of
+            // nuking the whole list with the page-level error screen).
+            onRemove={async () => {
               if (!user) return;
-              void removeManagedPage(user.id, {
+              await removeManagedPage(user.id, {
                 type: page.type,
                 id: page.id,
                 role: page.role,
-              })
-                .then(() => load())
-                .catch(() => setError("No se pudieron cargar tus páginas."));
+              });
+              await load();
             }}
           />
         ))}
       </ul>
       <DonateCallout />
     </main>
+  );
+}
+
+/**
+ * "Reintentar" action for the error state, with an in-flight disabled guard so a slow
+ * retry can't be fired twice. `onRetry` clears the error on success (re-rendering this
+ * away), so we only need to track the busy window here.
+ */
+function RetryButton({ onRetry }: { onRetry: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setBusy(true);
+        void onRetry().finally(() => setBusy(false));
+      }}
+      disabled={busy}
+      className="btn btn-outline"
+    >
+      Reintentar
+    </button>
   );
 }
 
@@ -301,10 +330,10 @@ function CreatedBanner({
 
 function DonateCallout() {
   return (
-    <section className="mt-10 flex items-start gap-4 rounded-2xl bg-surface p-5 ring-1 ring-black/5">
-      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-brand-darker ring-1 ring-black/5">
+    <section className={`mt-10 flex items-start gap-4 ${cardClass("inset")}`}>
+      <IconTile size="md">
         <HeartIcon className="h-6 w-6" />
-      </span>
+      </IconTile>
       <div className="min-w-0">
         <h2 className="font-semibold tracking-tight text-foreground">
           Apoyá como persona
@@ -315,7 +344,7 @@ function DonateCallout() {
         </p>
         <Link
           href="/panel/donate"
-          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-darker transition-colors hover:text-brand-darkest"
+          className="mt-3 inline-flex min-h-10 items-center gap-1 py-1 text-sm font-medium text-brand-darker transition-colors hover:text-brand-darkest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
           Donar a una escuela
           <ArrowRightIcon className="h-4 w-4" />
@@ -350,9 +379,48 @@ function PageCard({
   page: ResolvedPage;
   /** Visually singles out the just-created page (see CreatedBanner). */
   highlight?: boolean;
-  /** Removes this (stale) entry from the user's managedPages and reloads the list. */
-  onRemove: () => void;
+  /**
+   * Removes this (stale) entry from the user's managedPages and reloads the list. Resolves
+   * on success; rejects on a write failure so the card can show an inline error instead of
+   * collapsing the whole list.
+   */
+  onRemove: () => Promise<void>;
 }) {
+  // Scroll the just-created card into view exactly once. Inline refs run on every render, so
+  // the focus/visibility revalidation used to re-scroll repeatedly; a guard ref pins it to
+  // the first time this card is highlighted.
+  const liRef = useRef<HTMLLIElement>(null);
+  const scrolledForRef = useRef(false);
+  useEffect(() => {
+    if (highlight && !scrolledForRef.current && liRef.current) {
+      scrolledForRef.current = true;
+      // Mirror FormError: scroll the just-created card into view, since arrayUnion appends it
+      // last (below the fold) while the CreatedBanner sits at the top.
+      liRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [highlight]);
+
+  // Removal is async (write + reload): track the in-flight window to block a double-submit
+  // and surface a remove-specific failure inline on this card.
+  const [busy, setBusy] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const handleRemove = () => {
+    if (
+      !window.confirm(
+        "¿Quitar esta página de tu lista? Ya no existe y no se puede recuperar desde acá.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setRemoveError(null);
+    void onRemove()
+      .catch(() => {
+        setRemoveError("No se pudo quitar la página de tu lista. Intentá de nuevo.");
+      })
+      .finally(() => setBusy(false));
+  };
+
   if (!page.doc) {
     return (
       <li className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted">
@@ -362,19 +430,17 @@ function PageCard({
         </p>
         <button
           type="button"
-          onClick={() => {
-            if (
-              window.confirm(
-                "¿Quitar esta página de tu lista? Ya no existe y no se puede recuperar desde acá.",
-              )
-            ) {
-              onRemove();
-            }
-          }}
-          className="btn btn-outline mt-3"
+          onClick={handleRemove}
+          disabled={busy}
+          className="btn btn-destructive mt-3"
         >
           Quitar de mi lista
         </button>
+        {removeError && (
+          <p className="mt-3 rounded-xl bg-error-tint p-3 text-xs text-error ring-1 ring-error/10">
+            {removeError}
+          </p>
+        )}
       </li>
     );
   }
@@ -387,27 +453,17 @@ function PageCard({
 
   return (
     <li
-      // Mirror FormError: scroll the just-created card into view, since arrayUnion
-      // appends it last (below the fold) while the CreatedBanner sits at the top.
-      ref={(el) => {
-        if (highlight) el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      }}
+      ref={liRef}
       // Depth, not a hard border: a soft hairline ring + small shadow reads as an elevated
       // surface. The just-created card swaps the hairline for a brand ring + lift.
-      className={`rounded-2xl bg-white p-5 shadow-sm transition-shadow ${
-        highlight ? "ring-2 ring-brand shadow-md" : "ring-1 ring-black/5"
-      }`}
+      className={`${cardClass(highlight ? "selected" : "elevated")} transition-shadow`}
     >
       <div className="flex items-center gap-4">
         <PageIconTile type={page.type} />
         <div className="min-w-0 flex-1">
           <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted">
             {typeLabel}
-            {page.role === "editor" && (
-              <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-muted">
-                Editor
-              </span>
-            )}
+            {page.role === "editor" && <Badge tone="outline">Editor</Badge>}
           </span>
           <h2 className="truncate text-lg font-semibold tracking-tight text-foreground">
             {page.doc.name}
