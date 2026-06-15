@@ -15,10 +15,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    // Calm, centered loading line — settles into the same vertical rhythm as the
-    // sign-in prompt below so the gate doesn't jump when auth resolves.
+    // Calm, LEFT-aligned loading line — sits near the top in the same horizontal rhythm
+    // as the panel page's own skeleton, so when auth resolves the loader doesn't jump
+    // from center to left as the page's left-aligned content paints in.
     return (
-      <p className="py-16 text-center text-sm text-muted" role="status">
+      <p className="py-8 text-sm text-muted" role="status">
         Cargando…
       </p>
     );
