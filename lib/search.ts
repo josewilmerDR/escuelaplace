@@ -28,6 +28,11 @@ const STOPWORDS = new Set([
   "que",
 ]);
 
+/** Normalize a raw query string param into the canonical query: missing → "", trimmed. */
+export function searchQuery(q: string | undefined): string {
+  return (q ?? "").trim();
+}
+
 /** Lowercase and strip accents so "Inglés" matches "ingles". */
 export function normalize(text: string): string {
   return text
