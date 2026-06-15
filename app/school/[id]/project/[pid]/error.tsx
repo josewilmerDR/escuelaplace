@@ -1,33 +1,21 @@
 "use client";
 
 /**
- * Route-level error boundary for the public project detail page. An SSR Firestore read
- * failure here should read as a recoverable error (with a "Reintentar" action) rendered in
- * the same detail shell, instead of bubbling up to the generic global error page.
+ * Route-level error boundary for the public project detail page. Delegates to the shared
+ * RouteError so the treatment (logging, focus, retry + escape, digest, icon) matches the
+ * school and business detail boundaries instead of being re-rolled here.
  */
-import { PageContainer } from "@/components/layout/PageContainer";
-import { cardClass } from "@/components/ui/Card";
+import { RouteError } from "@/components/ui/RouteError";
 
-export default function Error({
-  error,
-  reset,
-}: {
+export default function Error(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   return (
-    <PageContainer variant="detail">
-      <div role="alert" className={cardClass("elevated")}>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          No pudimos cargar el proyecto
-        </h1>
-        <p className="mt-3 text-sm text-muted">
-          Revisá tu conexión e intentá de nuevo.
-        </p>
-        <button type="button" onClick={reset} className="btn btn-primary mt-4">
-          Reintentar
-        </button>
-      </div>
-    </PageContainer>
+    <RouteError
+      {...props}
+      title="No pudimos cargar el proyecto"
+      description="Ocurrió un problema al cargar el proyecto. Volvé a intentar en un momento."
+    />
   );
 }
