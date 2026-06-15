@@ -43,9 +43,9 @@ export default function LoadingBusinessPage() {
           </ProfileHeaderSkeleton>
 
           {/* Información section: the page always renders it. */}
-          <Section ariaLabel="Cargando información">
-            <div className="h-6 w-32 animate-pulse rounded bg-brand-tint" />
-            <div className="mt-4 space-y-2">
+          <Section>
+            <div className="h-7 w-32 animate-pulse rounded bg-brand-tint" />
+            <div className="mt-3 space-y-2">
               <div className="h-4 w-full animate-pulse rounded bg-surface ring-1 ring-black/5" />
               <div className="h-4 w-5/6 animate-pulse rounded bg-surface ring-1 ring-black/5" />
             </div>
@@ -53,8 +53,8 @@ export default function LoadingBusinessPage() {
 
           {/* Reseñas section: the page always mounts the Reseñas Section too, so a second
               card placeholder keeps loading→loaded from jumping. */}
-          <Section ariaLabel="Cargando reseñas">
-            <div className="h-6 w-28 animate-pulse rounded bg-brand-tint" />
+          <Section>
+            <div className="h-7 w-28 animate-pulse rounded bg-brand-tint" />
             <div className="mt-4 space-y-2">
               <div className="h-4 w-full animate-pulse rounded bg-surface ring-1 ring-black/5" />
               <div className="h-4 w-2/3 animate-pulse rounded bg-surface ring-1 ring-black/5" />

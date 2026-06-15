@@ -12,6 +12,13 @@ import { Section } from "@/components/ui/Section";
  * sync with the real ProfileHeader; the section cards render through the same Section
  * primitive the page uses.
  *
+ * It models only the sections the page ALWAYS renders (header + "Información" + "Comercios").
+ * It deliberately does NOT reserve space for the page's conditional pieces — the unverified
+ * banner, the Proyectos section, the Fotos gallery, and the Comercios empty-state — because
+ * their presence depends on SSR data unknown at skeleton time, so a fixed placeholder would
+ * more often mislead than match; the trust chips are likewise only a best-effort guess (the
+ * page hides them entirely when there are no supporters yet).
+ *
  * Server component. The whole tree is a live region (`role="status"` + sr-only text) so
  * assistive tech announces the load; the decorative placeholders are `aria-hidden`.
  */
@@ -22,42 +29,53 @@ export default function LoadingSchoolPage() {
         <span className="sr-only">Cargando escuela…</span>
 
         <div aria-hidden="true">
-          <ProfileHeaderSkeleton>
-            {/* Trust chips (recent supporters / confirmation time) — rounded-full pills. */}
+          <ProfileHeaderSkeleton metaLines={1}>
+            {/* Trust chips (recent supporters / confirmation time) — rounded-full pills.
+                The page can render up to two StatChips, so reserve two. */}
             <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
               <div className="h-7 w-56 animate-pulse rounded-full bg-surface ring-1 ring-black/5" />
+              <div className="h-7 w-44 animate-pulse rounded-full bg-surface ring-1 ring-black/5" />
             </div>
 
-            {/* "Donar" CTA + outline actions — rounded-xl to match the .btn radius. */}
+            {/* "Donar" CTA + outline actions — rounded-xl to match the .btn radius. The
+                primary CTA is px-8 py-3 text-base (~48px); the outline is the default .btn
+                (min-h-10, i.e. 40px). */}
             <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
               <div className="h-12 w-60 animate-pulse rounded-xl bg-brand-tint" />
-              <div className="h-12 w-40 animate-pulse rounded-xl bg-surface ring-1 ring-black/5" />
+              <div className="h-10 w-40 animate-pulse rounded-xl bg-surface ring-1 ring-black/5" />
             </div>
 
-            {/* SectionTabs row: a rounded-full chip per anchored section. */}
-            <div className="mt-5 flex flex-wrap justify-center gap-2 sm:justify-start">
-              <div className="h-8 w-24 animate-pulse rounded-full bg-surface ring-1 ring-black/5" />
-              <div className="h-8 w-24 animate-pulse rounded-full bg-surface ring-1 ring-black/5" />
+            {/* Disclaimer line the page always renders under the CTA (page.tsx). */}
+            <div className="mt-2 space-y-1">
+              <div className="h-3 w-full animate-pulse rounded bg-surface ring-1 ring-black/5" />
+              <div className="h-3 w-2/3 animate-pulse rounded bg-surface ring-1 ring-black/5" />
+            </div>
+
+            {/* SectionTabs row: the real strip is a bordered tab bar (border-t + rounded-lg
+                tabs), not rounded-full chips — mirror it so the swap doesn't flash. */}
+            <div className="-mx-2 mt-5 flex justify-center gap-1 border-t border-border pt-1 sm:justify-start">
+              <div className="h-9 w-24 animate-pulse rounded-lg bg-surface" />
+              <div className="h-9 w-20 animate-pulse rounded-lg bg-surface" />
             </div>
           </ProfileHeaderSkeleton>
 
           {/* Información section: the page always renders it. */}
-          <Section ariaLabel="Cargando información">
-            <div className="h-6 w-32 animate-pulse rounded bg-brand-tint" />
-            <div className="mt-4 space-y-2">
+          <Section>
+            <div className="h-7 w-32 animate-pulse rounded bg-brand-tint" />
+            <div className="mt-3 space-y-2">
               <div className="h-4 w-full animate-pulse rounded bg-surface ring-1 ring-black/5" />
               <div className="h-4 w-5/6 animate-pulse rounded bg-surface ring-1 ring-black/5" />
             </div>
           </Section>
 
-          {/* Comercios section: the page ALWAYS renders this too (school/page.tsx 346-361),
+          {/* Comercios section: the page always renders the Comercios section too,
               so a second card placeholder keeps loading→loaded from jumping. */}
-          <Section ariaLabel="Cargando comercios">
-            <div className="h-6 w-48 animate-pulse rounded bg-brand-tint" />
+          <Section>
+            <div className="h-7 w-64 animate-pulse rounded bg-brand-tint" />
             <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
-              <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
-              <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+              <div className="h-72 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+              <div className="h-72 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+              <div className="h-72 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
             </div>
           </Section>
         </div>
