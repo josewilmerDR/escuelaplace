@@ -24,12 +24,13 @@ export default function PanelLayout({
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:flex-row md:gap-8 md:px-6 md:py-8">
       <PanelSidebar />
-      {/* The content box is a single, fixed, LEFT-aligned rectangle owned here in the
-          persistent layout: capped width + no mx-auto means every panel page renders in
-          the exact same place. Pages must not re-introduce mx-auto (that would re-center
-          and shift the box horizontally between navigations). min-h reserves vertical
-          space so the global footer doesn't bounce while the loader/skeleton is short. */}
-      <div className="min-h-[60vh] min-w-0 max-w-2xl flex-1">
+      {/* The content box fills the remaining canvas width beside the sidebar (flex-1, no
+          max-w cap) so the panel matches the home column. No mx-auto keeps it LEFT-aligned
+          and in the exact same place across navigations — pages must not re-introduce
+          mx-auto or a max-w cap (either would re-center/shrink the box and shift it
+          horizontally between navigations). min-h reserves vertical space so the global
+          footer doesn't bounce while the loader/skeleton is short. */}
+      <div className="min-h-[60vh] min-w-0 flex-1">
         <RequireAuth>{children}</RequireAuth>
       </div>
     </div>

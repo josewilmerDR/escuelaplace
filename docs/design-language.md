@@ -48,16 +48,19 @@ still said `py-2`); a component cannot. Use a raw recipe only where no component
 
 ## Layout — page widths & vertical rhythm
 
-The catalog of content columns. **Use `PageContainer`**; don't hand-pick widths.
+Every page shares ONE canvas width — `max-w-6xl`, the home column — so content edges line up
+across the whole app. **Use `PageContainer`**; don't hand-pick widths. The variants no longer
+differ in width, only in backdrop and vertical rhythm:
 
 - **detail** — profile / detail pages (business, school, public project): gray canvas
-  (`bg-surface min-h-screen`) behind elevated cards, reading column `max-w-4xl px-4 py-6
-  sm:px-6`.
-- **listing** — grids and result pages (home feed, search, category, schools): wide column
-  `max-w-6xl px-6 py-10` on the white body.
-- **narrow** — long-form text / single-column flows (about, create): `max-w-3xl px-6 py-12`.
-- **panel** — the private route group owns its own shell (`app/(panel)/layout.tsx`): a
-  fixed, left-aligned `max-w-2xl` box. Panel pages must **not** add `mx-auto`.
+  (`bg-surface min-h-screen`) behind elevated cards. `max-w-6xl px-4 py-6 sm:px-6`.
+- **listing** — grids and result pages (home feed, search, category, schools): plain white
+  body. `max-w-6xl px-6 py-10`.
+- **narrow** — long-form text / single-column flows (about, create): `max-w-6xl px-6 py-12`
+  (same width, just more vertical breathing room).
+- **panel** — the private route group owns its own shell (`app/(panel)/layout.tsx`): the
+  content box fills the canvas width beside the account sidebar (`flex-1`, no max-w cap),
+  left-aligned. Panel pages must **not** add `mx-auto` or a max-w cap.
 
 **Vertical rhythm on detail pages:** sibling sections are separated by `mt-4` and carry
 `scroll-mt-6` (so a tab anchor clears the sticky header). `Section` bakes both in — don't

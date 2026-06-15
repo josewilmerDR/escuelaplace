@@ -6,20 +6,23 @@ import type { ReactNode } from "react";
  * padding, so columns drifted (max-w-4xl here, max-w-6xl there, py-6 vs py-10). Routing
  * pages through this fixes the catalog of widths in one place.
  *
- * Variants (see docs/design-language.md → "Layout de página"):
- *  - detail: a profile / detail page — gray canvas behind elevated cards, narrow reading
- *    column (max-w-4xl). Renders the `bg-surface` backdrop the FB-style pages need.
- *  - listing: grids and result pages — wide column (max-w-6xl) on the plain white body.
- *  - narrow: long-form text / single-column flows — max-w-3xl.
+ * Every variant now shares ONE width — `max-w-6xl`, the home column — so content edges line
+ * up across the whole app. The variants differ only in backdrop and vertical rhythm
+ * (see docs/design-language.md → "Layout — page widths"):
+ *  - detail: a profile / detail page — renders the `bg-surface` gray backdrop the FB-style
+ *    pages need behind their elevated cards.
+ *  - listing: grids and result pages on the plain white body.
+ *  - narrow: long-form text / single-column flows — same width, just more vertical breathing
+ *    room (py-12).
  *
  * The panel route group owns its own shell (app/(panel)/layout.tsx) and does NOT use this.
  */
 export type PageVariant = "detail" | "listing" | "narrow";
 
 const COLUMN: Record<PageVariant, string> = {
-  detail: "mx-auto max-w-4xl px-4 py-6 sm:px-6",
+  detail: "mx-auto max-w-6xl px-4 py-6 sm:px-6",
   listing: "mx-auto max-w-6xl px-6 py-10",
-  narrow: "mx-auto max-w-3xl px-6 py-12",
+  narrow: "mx-auto max-w-6xl px-6 py-12",
 };
 
 export function PageContainer({
