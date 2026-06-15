@@ -12,10 +12,6 @@ export default function Error(props: {
   reset: () => void;
 }) {
   return (
-    <RouteError
-      {...props}
-      title="No pudimos cargar el comercio"
-      description="Ocurrió un problema al cargar la página del comercio. Volvé a intentar en un momento."
-    />
+    <RouteError {...props} entityLabel="el comercio" />
   );
 }

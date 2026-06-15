@@ -82,11 +82,29 @@ export default async function SchoolPage({ params }: Props) {
   const school = await getSchoolById(id);
   if (!school) notFound();
 
+  // getSchoolById is the page's core identity: if it throws, the error boundary is the
+  // right outcome (we cannot render a school without it). The four SECONDARY reads below
+  // feed independent side sections — each degrades to a safe empty fallback on a transient
+  // failure so e.g. a flaky donor-wall read doesn't take down the whole profile. The page
+  // already renders each section conditionally for empty data (cards.length === 0,
+  // hasProjects, hasWall), so empty fallbacks render gracefully.
   const [businesses, wall, subscriptions, allProjects] = await Promise.all([
-    getBusinessesBySchool(id),
-    getSchoolDonorWall(id),
-    getSubscriptionsBySchool(id),
-    getProjectsBySchool(id),
+    getBusinessesBySchool(id).catch((err) => {
+      console.error("school page: getBusinessesBySchool failed", err);
+      return [];
+    }),
+    getSchoolDonorWall(id).catch((err) => {
+      console.error("school page: getSchoolDonorWall failed", err);
+      return { recognized: [], anonymousCount: 0 };
+    }),
+    getSubscriptionsBySchool(id).catch((err) => {
+      console.error("school page: getSubscriptionsBySchool failed", err);
+      return [];
+    }),
+    getProjectsBySchool(id).catch((err) => {
+      console.error("school page: getProjectsBySchool failed", err);
+      return [];
+    }),
   ]);
   const cards = businesses.map(toBusinessCardData);
   // Cancelled projects are dropped from the public profile; active ones lead and
