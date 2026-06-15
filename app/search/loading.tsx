@@ -9,9 +9,11 @@ import { PageContainer } from "@/components/layout/PageContainer";
  * real content replaces it without jumping ("parpadeo").
  *
  * Server component. The whole tree is a live region (`role="status"` + sr-only text) so
- * assistive tech announces the load; the decorative placeholders are `aria-hidden`.
- * Placeholder tones/classes match app/business/[slug]/loading.tsx so all skeletons read as
- * one family (animate-pulse, rounded shapes, bg-surface placeholders, ring/shadow).
+ * assistive tech announces the load; the decorative placeholders are `aria-hidden`. It shares
+ * the role="status" live-region a11y pattern with app/business/[slug]/loading.tsx, but its
+ * palette+structure mirror the sibling LISTING skeletons app/category/[id]/loading.tsx and
+ * app/schools/loading.tsx — bg-border (not bg-surface) placeholders so the bars read against
+ * the white listing canvas (PageContainer variant="listing"). These siblings should not drift.
  */
 export default function SearchLoading() {
   return (
@@ -22,31 +24,42 @@ export default function SearchLoading() {
         {/* Brand band echoing the real one, with the floating search field standing in as a
             rounded-2xl white pulse bar lifted off the gradient. */}
         <BrandBand size="band">
-          <div className="h-12 w-full animate-pulse rounded-2xl bg-white shadow-sm ring-1 ring-black/5" />
+          {/* The real SearchBar is a ~56px floating field with a deep shadow-xl; match its
+              height (h-14) and shadow so the field doesn't resize/lift on swap-in. */}
+          <div className="h-14 w-full animate-pulse rounded-2xl bg-white shadow-xl ring-1 ring-black/5" />
         </BrandBand>
 
         <PageContainer variant="listing">
-          {/* Header placeholder: a wide title bar + a thin subline. */}
+          {/* Header placeholder: a wide title bar + a thin subline. The subline approximates
+              the with-results header (the page only renders it when there are matches); the
+              happy path is the common case for a query, so reserve it. */}
           <header className="mb-8">
-            <div className="h-8 w-72 max-w-full animate-pulse rounded bg-surface ring-1 ring-black/5" />
-            <div className="mt-2 h-4 w-96 max-w-full animate-pulse rounded bg-surface ring-1 ring-black/5" />
+            <div className="h-8 w-2/3 max-w-xs animate-pulse rounded bg-border ring-1 ring-black/5" />
+            <div className="mt-2 h-4 w-1/2 max-w-sm animate-pulse rounded bg-border ring-1 ring-black/5" />
           </header>
+
+          {/* Community picker strip placeholder: the page renders <CommunityPicker /> here
+              before the grid, so reserve its height to keep loading→loaded from jumping.
+              Its real height varies (collapsed chip vs full card); this approximates the
+              expanded card, the first-paint default when the buyer has no saved community. */}
+          <div className="mb-8 h-24 animate-pulse rounded-2xl bg-border" />
 
           {/* Results grid: same columns as RankedFeed (grid gap-5 sm:grid-cols-2
               lg:grid-cols-3). Each card mirrors a real BusinessCard silhouette: an
-              aspect-video cover + a row with a 40px avatar circle and two text lines. */}
+              aspect-video cover + a row with a 40px avatar circle, a title line and a meta
+              line (rating · categories). */}
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
                 className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5"
               >
-                <div className="aspect-video w-full animate-pulse bg-surface" />
+                <div className="aspect-video w-full animate-pulse bg-border" />
                 <div className="flex flex-1 gap-3 p-4">
-                  <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-surface ring-1 ring-black/5" />
+                  <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-border ring-1 ring-black/5" />
                   <div className="flex min-w-0 flex-1 flex-col gap-2">
-                    <div className="h-4 w-5/6 animate-pulse rounded bg-surface ring-1 ring-black/5" />
-                    <div className="h-4 w-2/3 animate-pulse rounded bg-surface ring-1 ring-black/5" />
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-border ring-1 ring-black/5" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-border ring-1 ring-black/5" />
                   </div>
                 </div>
               </div>
