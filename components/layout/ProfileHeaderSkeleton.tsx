@@ -13,8 +13,19 @@ import { PROFILE_COVER_ASPECT } from "@/lib/layout";
  * `loading.tsx` owns the `role="status"`/`sr-only` live region and marks this region
  * `aria-hidden`. Each domain passes its own rows (actions, badges, tabs) as `children`,
  * rendered inside the padded body just like the real header.
+ *
+ * `metaLines` controls how many meta-line placeholders render under the title (default 2):
+ * the business header can show two lines (rating / "Vinculado a" + categories), but the
+ * school header shows only one (locality, often none), so school passes `metaLines={1}` to
+ * avoid over-reserving vertical space the real header never fills.
  */
-export function ProfileHeaderSkeleton({ children }: { children?: ReactNode }) {
+export function ProfileHeaderSkeleton({
+  children,
+  metaLines = 2,
+}: {
+  children?: ReactNode;
+  metaLines?: 1 | 2;
+}) {
   return (
     // Same surface as ProfileHeader's <header>: depth via ring + shadow, never a hard border.
     <header className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
@@ -34,10 +45,13 @@ export function ProfileHeaderSkeleton({ children }: { children?: ReactNode }) {
           <div className="mt-3 w-full min-w-0 text-center sm:mt-0 sm:flex-1 sm:pb-1 sm:text-left">
             {/* Title placeholder. */}
             <div className="mx-auto h-8 w-2/3 animate-pulse rounded bg-brand-tint sm:mx-0" />
-            {/* Two meta lines: the real header shows up to two (rating / "Vinculado a" +
-                categories). Two placeholders keep the swap jump-free even when both render. */}
+            {/* Meta lines: the real header shows up to two (rating / "Vinculado a" +
+                categories). `metaLines` placeholders keep the swap jump-free; school passes
+                1 because its header only ever shows the locality line. */}
             <div className="mx-auto mt-2 h-4 w-1/3 animate-pulse rounded bg-surface ring-1 ring-black/5 sm:mx-0" />
-            <div className="mx-auto mt-2 h-4 w-1/4 animate-pulse rounded bg-surface ring-1 ring-black/5 sm:mx-0" />
+            {metaLines === 2 && (
+              <div className="mx-auto mt-2 h-4 w-1/4 animate-pulse rounded bg-surface ring-1 ring-black/5 sm:mx-0" />
+            )}
           </div>
         </div>
 
