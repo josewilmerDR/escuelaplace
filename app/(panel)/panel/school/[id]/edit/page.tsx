@@ -10,16 +10,20 @@
  * until admin re-approves — so `name` goes in the patch only when it actually changed,
  * and the payment methods are only rewritten when they changed.
  */
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { GalleryManager } from "@/components/business/GalleryManager";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
+import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
+import { cardClass } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { FormSection } from "@/components/ui/FormSection";
+import { PagesIcon } from "@/components/ui/icons";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { userErrorMessage } from "@/lib/errors";
@@ -154,6 +158,20 @@ export default function SchoolEditPage() {
     load();
   };
 
+  // Split the stored photos into the cover (for the header preview fallback) and the
+  // gallery. A legacy school with no `coverUrl` keeps its cover at photos[0]; that one
+  // must NOT show up as a removable gallery thumb, so it's peeled off here.
+  const { cover: storedCover, gallery: storedGallery } = useMemo(() => {
+    if (!school) return { cover: undefined as string | undefined, gallery: [] as string[] };
+    if (school.coverUrl) {
+      return { cover: school.coverUrl, gallery: school.photos ?? [] };
+    }
+    if (school.photos?.length) {
+      return { cover: school.photos[0], gallery: school.photos.slice(1) };
+    }
+    return { cover: undefined as string | undefined, gallery: [] as string[] };
+  }, [school]);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!school) return;
@@ -165,6 +183,11 @@ export default function SchoolEditPage() {
     }
     if (!coords) {
       setError("Elegí la ubicación en el mapa.");
+      return;
+    }
+    // Whitespace-only passes the native `required` on the board name too.
+    if (!boardName.trim()) {
+      setError("Ingresá el nombre del comité escolar.");
       return;
     }
     setError(null);
@@ -214,19 +237,41 @@ export default function SchoolEditPage() {
       const methodsChanged =
         JSON.stringify(completeMethods) !== JSON.stringify(loadedMethods);
       if (methodsChanged) {
-        await updateSchoolPaymentMethods(
-          school.id,
-          completeMethods,
-          school.verificationStatus,
-        );
-        setLoadedMethods(completeMethods);
+        // Separate try/catch: the profile write already succeeded, so a methods
+        // failure must say so specifically (and leave the form dirty to retry) rather
+        // than hide behind the generic "no se pudieron guardar" of a single catch.
+        try {
+          await updateSchoolPaymentMethods(
+            school.id,
+            completeMethods,
+            school.verificationStatus,
+          );
+          setLoadedMethods(completeMethods);
+        } catch (err) {
+          setError(
+            userErrorMessage(
+              err,
+              "Guardamos el perfil, pero no los métodos de pago. Reintentá.",
+            ),
+          );
+          return;
+        }
       }
 
+      // Editing the `name` or the payment methods of a verified school drops it to
+      // needs_reverification server-side; mirror that locally so the banner flips
+      // immediately (and `verified` recomputes) without a refetch.
+      const dropsToReverification =
+        school.verificationStatus === "verified" &&
+        (trimmedName !== school.name || methodsChanged);
       setSchool((s) =>
         s
           ? {
               ...s,
               name: trimmedName,
+              ...(dropsToReverification
+                ? { verificationStatus: "needs_reverification" as const }
+                : {}),
               ...(photoUrl ? { photoUrl } : {}),
               ...(coverUrl ? { coverUrl } : {}),
             }
@@ -236,8 +281,6 @@ export default function SchoolEditPage() {
       setCoverFile(null);
       setSaved(true);
       setDirty(false);
-      // Auto-clear so the confirmation reads as a transient toast, not a permanent label.
-      window.setTimeout(() => setSaved(false), 4000);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudieron guardar los cambios."));
     } finally {
@@ -246,7 +289,24 @@ export default function SchoolEditPage() {
   };
 
   if (loadState === "loading") {
-    return <p className="text-sm text-muted">Cargando…</p>;
+    // Skeleton that keeps the heading in its final position so navigating here doesn't
+    // flash a bare line then jump the layout when the doc arrives (mirrors the business
+    // edit skeleton). The card placeholders stand in for the status banner + form sections.
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Editar escuela
+        </h1>
+        <div className="mt-8 flex flex-col gap-6" aria-hidden="true">
+          <div className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        </div>
+        <p className="sr-only" role="status">
+          Cargando…
+        </p>
+      </main>
+    );
   }
 
   if (loadState === "error") {
@@ -266,8 +326,23 @@ export default function SchoolEditPage() {
     );
   }
 
-  if (!school)
-    return <p className="text-sm text-muted">Escuela no encontrada.</p>;
+  if (!school) {
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Editar escuela
+        </h1>
+        <EmptyState
+          icon={<PagesIcon className="h-7 w-7" />}
+          title="No encontramos esta escuela"
+          description="La página pudo haberse eliminado, o el enlace no es correcto."
+        />
+        <p className="mt-4 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
+  }
 
   const isManager =
     user != null &&
@@ -276,7 +351,19 @@ export default function SchoolEditPage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-error">No administrás esta escuela.</p>;
+    return (
+      <main>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Editar escuela
+        </h1>
+        <p role="alert" className="mt-4 text-sm text-error">
+          No administrás esta escuela.
+        </p>
+        <p className="mt-4 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
   }
 
   const verified = school.verificationStatus === "verified";
@@ -288,9 +375,14 @@ export default function SchoolEditPage() {
       </h1>
       <p className="mt-1 text-sm text-muted">{school.name}</p>
 
+      <SchoolPanelNav schoolId={id} current="edit" />
+
       {/* Verification state: a calm-depth semantic banner (success when verified,
-          warning while pending/needs_reverification) — soft tint + hairline ring. */}
+          warning while pending/needs_reverification) — soft tint + hairline ring.
+          aria-live so the verified→needs_reverification flip after a sensitive edit
+          is announced to screen readers. */}
       <section
+        aria-live="polite"
         className={`mt-6 rounded-2xl p-4 text-sm ring-1 ${
           verified
             ? "bg-success-tint text-success ring-success/15"
@@ -318,9 +410,9 @@ export default function SchoolEditPage() {
         onChange={() => setDirty(true)}
         onInvalidCapture={spanishRequiredMessage}
         onInputCapture={clearValidationMessage}
-        className="mt-6 flex flex-col gap-4"
+        className="mt-8 flex flex-col gap-6"
       >
-        <FormSection legend="Información básica">
+        <FormSection legend="Información básica" boxed>
           <Field label="Nombre de la escuela">
             <input
               required
@@ -338,7 +430,15 @@ export default function SchoolEditPage() {
               onChange={(e) => setDescription(e.target.value)}
               className="input min-h-24"
             />
-            <span className="text-xs text-muted">
+            {/* Turn amber as the count nears the limit so the cap doesn't surprise
+                mid-sentence; muted the rest of the time. */}
+            <span
+              className={`text-xs ${
+                description.length >= PAGE_DESCRIPTION_MAX * 0.9
+                  ? "text-warning"
+                  : "text-muted"
+              }`}
+            >
               {description.length}/{PAGE_DESCRIPTION_MAX}
             </span>
           </Field>
@@ -351,10 +451,19 @@ export default function SchoolEditPage() {
               placeholder="Se muestra en el muro de agradecimiento de tu página pública."
               className="input min-h-24"
             />
+            <span
+              className={`text-xs ${
+                thankYouMessage.length >= PAGE_DESCRIPTION_MAX * 0.9
+                  ? "text-warning"
+                  : "text-muted"
+              }`}
+            >
+              {thankYouMessage.length}/{PAGE_DESCRIPTION_MAX}
+            </span>
           </Field>
         </FormSection>
 
-        <FormSection legend="Presentación">
+        <FormSection legend="Presentación" boxed>
           <ImagePicker
             label="Foto de perfil"
             hint="Se muestra como círculo sobre la portada (escudo o fachada)."
@@ -380,7 +489,7 @@ export default function SchoolEditPage() {
           {/* Mini header so the board can check the avatar/cover overlap without
               opening the public page. Newly picked files win over the stored URLs. */}
           <HeaderPreview
-            cover={coverFile ?? school.coverUrl ?? school.photos?.[0]}
+            cover={coverFile ?? storedCover}
             logo={photoFile ?? school.photoUrl}
             businessName={school.name}
           />
@@ -389,6 +498,7 @@ export default function SchoolEditPage() {
         <FormSection
           legend="Ubicación"
           description="Se completan solos al mover el pin en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
+          boxed
         >
           <div
             role="group"
@@ -444,6 +554,7 @@ export default function SchoolEditPage() {
         <FormSection
           legend="Contacto del comité escolar"
           description="La junta, asociación o consejo que administra los fondos de la escuela."
+          boxed
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Nombre">
@@ -472,18 +583,18 @@ export default function SchoolEditPage() {
           </div>
         </FormSection>
 
-        {/* Boxed calm-depth sub-group (ring + soft shadow, no hard border), matching the
-            FormSection `boxed` treatment used for self-contained blocks like this one. */}
-        <fieldset className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
-          <legend className="px-1 text-base font-semibold tracking-tight text-foreground">
-            Métodos de pago (se ocultan hasta verificar)
-          </legend>
-          <p className="mb-4 mt-1 text-sm text-muted">
-            Cómo puede aportar quien quiera ayudar: cuenta bancaria, método
-            local (SINPE Móvil, Modo, Bizum…), PayPal, etc. Es solo informativo
-            — escuelaplace nunca procesa ni certifica pagos. Cambiarlos en una
-            escuela verificada la devuelve a revisión.
-          </p>
+        {/* The parenthetical depends on verification: a verified school's methods are
+            already visible (editing them re-triggers review), so "se ocultan hasta
+            verificar" would be factually wrong for it. */}
+        <FormSection
+          boxed
+          legend={`Métodos de pago ${
+            verified
+              ? "(visibles; editarlos pide re-verificación)"
+              : "(se ocultan hasta verificar)"
+          }`}
+          description="Cómo puede aportar quien quiera ayudar: cuenta bancaria, método local (SINPE Móvil, Modo, Bizum…), PayPal, etc. Es solo informativo — escuelaplace nunca procesa ni certifica pagos. Cambiarlos en una escuela verificada la devuelve a revisión."
+        >
           <PaymentMethodsEditor
             value={paymentMethods}
             onChange={(rows) => {
@@ -491,27 +602,34 @@ export default function SchoolEditPage() {
               setDirty(true);
             }}
           />
-        </fieldset>
+        </FormSection>
 
         <FormError message={error} />
 
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={saving} className="btn btn-primary">
+          <button
+            type="submit"
+            disabled={saving}
+            aria-busy={saving}
+            className="btn btn-primary"
+          >
             {saving ? "Guardando…" : "Guardar cambios"}
           </button>
-          <SavedIndicator show={saved} />
+          <SavedIndicator show={saved} onHide={() => setSaved(false)} />
         </div>
       </form>
 
       {/* Outside the form: gallery changes publish immediately (upload/remove mutate
           the doc on the spot), they don't wait for "Guardar cambios". */}
-      <section className="mt-10">
+      <section className={`mt-10 ${cardClass("elevated")}`}>
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
           Galería
         </h2>
         <div className="mt-3">
           <GalleryManager
-            initialPhotos={school.photos ?? []}
+            // storedGallery already excludes a legacy cover at photos[0], which must
+            // not show up as a removable gallery item.
+            initialPhotos={storedGallery}
             addPhoto={(file) => addSchoolGalleryPhoto(school.id, file)}
             removePhoto={(url) => removeSchoolGalleryPhoto(school.id, url)}
           />
