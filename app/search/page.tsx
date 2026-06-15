@@ -29,7 +29,14 @@ import type { BusinessCardData } from "@/types";
 const SEARCH_CANDIDATE_MAX = 200;
 
 interface Props {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; from?: string }>;
+}
+
+// Clearing the filter returns the user to where the search was launched from (the `from`
+// param). Only accept same-origin app paths ("/...") so the param can't be turned into an
+// open redirect to an external site.
+function safeOrigin(from?: string): string {
+  return from && from.startsWith("/") && !from.startsWith("//") ? from : "";
 }
 
 export async function generateMetadata({
@@ -44,8 +51,9 @@ export async function generateMetadata({
 }
 
 export default async function SearchPage({ searchParams }: Props) {
-  const { q } = await searchParams;
+  const { q, from } = await searchParams;
   const query = searchQuery(q);
+  const originPath = safeOrigin(from);
 
   let cards: BusinessCardData[] = [];
   let relevanceById: Record<string, number> = {};
@@ -97,7 +105,11 @@ export default async function SearchPage({ searchParams }: Props) {
         {/* autoFocus only when arriving without a query: the user came to search and
             the empty state below asks them to type — focusing is the next action. With
             results on screen, stealing focus would just pop the mobile keyboard. */}
-        <SearchBar initialQuery={query} autoFocus={!query} />
+        <SearchBar
+          initialQuery={query}
+          autoFocus={!query}
+          originPath={originPath}
+        />
       </BrandBand>
 
       <PageContainer variant="listing">
