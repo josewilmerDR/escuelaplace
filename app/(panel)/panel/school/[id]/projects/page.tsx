@@ -9,7 +9,8 @@
  * does NOT require verification — but its public "Financiar" button stays off until the
  * school is verified (see the contribution rule), so the board can prepare projects ahead.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { BackLink } from "@/components/ui/BackLink";
 import { useParams, useRouter } from "next/navigation";
@@ -21,10 +22,15 @@ import {
   emptyStage,
   type StageDraft,
 } from "@/components/projects/StagesEditor";
+import { cardClass } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { FlagIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
+import { formatMoney } from "@/lib/format";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
+import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
 import {
   createProject,
   getProjectsBySchool,
@@ -42,6 +48,102 @@ import {
 
 /** Lifecycle of the school + projects fetch the page depends on. */
 type LoadState = "loading" | "error" | "loaded";
+
+const LOADING_TEXT = "Cargando proyectos…";
+
+/** Quiet, low-emphasis card action (the public link beside the lead "Editar"). */
+const CHIP_ACTION =
+  "inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground";
+
+/**
+ * The page heading, rendered identically in every state (loading, error, missing school,
+ * not-a-manager, loaded) so the title never shifts as content swaps in. The subtitle takes
+ * the school name; during loading the school isn't known yet, so the subtitle renders blank
+ * (a non-breaking space keeps the line height reserved) and the h1 stays fixed.
+ */
+function Heading({ subtitle }: { subtitle?: string }) {
+  return (
+    <header>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Proyectos
+      </h1>
+      <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
+    </header>
+  );
+}
+
+/**
+ * One project row, used by both the Active and History sections so the look stays
+ * consistent. Extracted as a component (rather than a render fn closing over `id`) so its
+ * identity is stable and there's no hook-ordering hazard. Active projects show the live
+ * progress bar; settled ones (completed/cancelled) show only the total raised — a partial
+ * bar next to a "Completado" badge would read as contradictory.
+ */
+function ProjectRow({ schoolId, p }: { schoolId: string; p: ProjectDoc }) {
+  const isActive = p.status === "active";
+  return (
+    // Elevated calm-depth card per project (ring + soft shadow, no hard border). Padding
+    // is opted out so an optional cover can run edge-to-edge across the top.
+    <li className={`${cardClass("elevated", false)} overflow-hidden`}>
+      {p.coverUrl && (
+        // Discreet cover band atop the card; decorative since the title sits right below.
+        <span
+          className={`relative block w-full bg-surface ${CARD_COVER_ASPECT}`}
+        >
+          <Image
+            src={p.coverUrl}
+            alt=""
+            fill
+            sizes={CARD_COVER_SIZES}
+            className="object-cover"
+          />
+        </span>
+      )}
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold tracking-tight text-foreground">
+              {p.title}
+            </p>
+            <p className="text-xs text-muted">
+              {p.stages.length} {p.stages.length === 1 ? "etapa" : "etapas"}
+            </p>
+          </div>
+          <ProjectStatusBadge status={p.status} />
+        </div>
+        <div className="mt-3">
+          {isActive ? (
+            <ProjectProgress
+              raised={p.raised}
+              goal={projectGoal(p.stages)}
+              currency={p.currency}
+              contributorsCount={p.contributorsCount}
+              compact
+            />
+          ) : (
+            // Settled project: show only what it raised, no partial bar beside the badge.
+            <p className="text-xs text-muted">
+              Recaudó {formatMoney(p.raised, p.currency)}
+            </p>
+          )}
+        </div>
+        {/* One solid lead action; the public link is a quiet chip. A thin divider
+            sets the action shelf apart from the card body. */}
+        <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-4 text-sm">
+          <Link
+            href={`/panel/school/${schoolId}/projects/${p.id}`}
+            className="btn btn-primary mr-1"
+          >
+            Editar
+          </Link>
+          <Link href={`/school/${schoolId}/project/${p.id}`} className={CHIP_ACTION}>
+            Ver público
+          </Link>
+        </div>
+      </div>
+    </li>
+  );
+}
 
 export default function SchoolProjectsPage() {
   const { id } = useParams<{ id: string }>();
@@ -74,20 +176,42 @@ export default function SchoolProjectsPage() {
 
   useEffect(load, [load]);
 
+  // Split the list once per data change instead of on every render. Active projects lead;
+  // completed/cancelled fall to the History section.
+  const activeProjects = useMemo(
+    () => projects.filter((p) => p.status === "active"),
+    [projects],
+  );
+  const historyProjects = useMemo(
+    () => projects.filter((p) => p.status !== "active"),
+    [projects],
+  );
+
   const retry = () => {
     setLoadState("loading");
     load();
   };
 
-  if (loadState === "loading")
-    return <p className="text-sm text-muted">Cargando…</p>;
+  if (loadState === "loading") {
+    return (
+      <main>
+        {/* School not loaded yet → blank subtitle, but the h1 sits in its final position. */}
+        <Heading />
+        <ul className="mt-8 flex flex-col gap-4" aria-hidden="true">
+          <li className="h-32 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <li className="h-32 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        </ul>
+        <p className="sr-only" role="status">
+          {LOADING_TEXT}
+        </p>
+      </main>
+    );
+  }
 
   if (loadState === "error") {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Proyectos
-        </h1>
+        <Heading />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar los proyectos. Revisá tu conexión e intentá de
           nuevo.
@@ -99,8 +223,17 @@ export default function SchoolProjectsPage() {
     );
   }
 
-  if (!school)
-    return <p className="text-sm text-muted">Escuela no encontrada.</p>;
+  if (!school) {
+    return (
+      <main>
+        <Heading />
+        <p className="mt-4 text-sm text-muted">Escuela no encontrada.</p>
+        <p className="mt-6 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
+  }
 
   const isManager =
     user != null &&
@@ -109,7 +242,16 @@ export default function SchoolProjectsPage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-error">No administrás esta escuela.</p>;
+    return (
+      <main>
+        <Heading subtitle={school.name} />
+        {/* Not a system failure — the user simply lacks access here, so muted, not error. */}
+        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-6 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
   }
 
   const onCreate = async (e: React.FormEvent) => {
@@ -134,7 +276,7 @@ export default function SchoolProjectsPage() {
     }
     // Stage costs are the project goal; a total of 0 yields a degenerate progress bar.
     if (cleanStages.reduce((s, x) => s + (x.cost || 0), 0) <= 0) {
-      setError("Cada etapa necesita un costo: la meta del proyecto no puede ser ₡0.");
+      setError("Cada etapa necesita un costo: la meta del proyecto no puede ser 0.");
       return;
     }
     setSaving(true);
@@ -146,76 +288,24 @@ export default function SchoolProjectsPage() {
         currency,
         stages: cleanStages,
       });
-      // Straight to the edit page so the board can add the cover and per-stage photos.
-      router.push(`/panel/school/${id}/projects/${newId}`);
+      // Straight to the edit page (with ?created=1 so it can confirm the creation) so the
+      // board can add the cover and per-stage photos.
+      router.push(`/panel/school/${id}/projects/${newId}?created=1`);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo crear el proyecto."));
       setSaving(false);
     }
   };
 
-  // Active projects lead; completed/cancelled fall to the History section.
-  const activeProjects = projects.filter((p) => p.status === "active");
-  const historyProjects = projects.filter((p) => p.status !== "active");
-
-  // Same card for both sections (active + history) to keep the look consistent.
-  const renderProjectCard = (p: ProjectDoc) => (
-    // Elevated calm-depth card per project (ring + soft shadow, no hard border).
-    <li
-      key={p.id}
-      className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-semibold tracking-tight text-foreground">
-            {p.title}
-          </p>
-          <p className="text-xs text-muted">
-            {p.stages.length} {p.stages.length === 1 ? "etapa" : "etapas"}
-          </p>
-        </div>
-        <ProjectStatusBadge status={p.status} />
-      </div>
-      <div className="mt-3">
-        <ProjectProgress
-          raised={p.raised}
-          goal={projectGoal(p.stages)}
-          currency={p.currency}
-          contributorsCount={p.contributorsCount}
-          compact
-        />
-      </div>
-      {/* One solid lead action; the public link is a quiet chip. A thin divider
-          sets the action shelf apart from the card body. */}
-      <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-4 text-sm">
-        <Link
-          href={`/panel/school/${id}/projects/${p.id}`}
-          className="btn btn-primary mr-1"
-        >
-          Editar
-        </Link>
-        <Link
-          href={`/school/${id}/project/${p.id}`}
-          // min-h-10 lifts the quiet chip to a 40px tap target without changing its look.
-          className="inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground"
-        >
-          Ver público
-        </Link>
-      </div>
-    </li>
-  );
-
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Proyectos
-      </h1>
-      <p className="mt-1 text-sm text-muted">{school.name}</p>
+      <Heading subtitle={school.name} />
 
       {school.verificationStatus !== "verified" && (
-        <p className="mt-6 rounded-xl bg-warning-tint p-3 text-sm text-warning ring-1 ring-warning/10">
-          Podés preparar proyectos desde ya, pero el botón “Financiar” recién se
-          activa cuando el equipo verifique la escuela.{" "}
+        <p className="mt-6 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
+          {school.verificationStatus === "needs_reverification"
+            ? "Editaste datos sensibles y la escuela quedó pendiente de re-verificación: el botón “Financiar” permanece apagado hasta que el equipo apruebe los cambios."
+            : "Podés preparar proyectos desde ya, pero el botón “Financiar” recién se activa cuando el equipo verifique la escuela."}{" "}
           <Link
             href={`/panel/school/${id}/edit`}
             className="font-medium underline underline-offset-2"
@@ -228,21 +318,26 @@ export default function SchoolProjectsPage() {
 
       <section className="mt-8">
         {/* Active projects lead; settled ones (completed/cancelled) go to a History
-            section below — same split as the subscriptions/contributions queues. */}
+            section below — same split as the subscriptions/contributions queues. The
+            counter labels exactly what it counts (active), like the sibling queues. */}
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Tus proyectos ({activeProjects.length})
+          Activos ({activeProjects.length})
         </h2>
         {projects.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">
-            Todavía no creaste ningún proyecto.
-          </p>
+          <div className="mt-4">
+            <EmptyState
+              icon={<FlagIcon className="h-7 w-7" />}
+              title="Todavía no creaste ningún proyecto"
+              description="Creá tu primer proyecto con el formulario de abajo: definí sus etapas y el costo de cada una."
+            />
+          </div>
         ) : activeProjects.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">
-            No tenés proyectos activos.
-          </p>
+          <p className="mt-2 text-sm text-muted">No tenés proyectos activos.</p>
         ) : (
           <ul className="mt-4 flex flex-col gap-4">
-            {activeProjects.map(renderProjectCard)}
+            {activeProjects.map((p) => (
+              <ProjectRow key={p.id} schoolId={id} p={p} />
+            ))}
           </ul>
         )}
       </section>
@@ -253,7 +348,9 @@ export default function SchoolProjectsPage() {
             Historial
           </h2>
           <ul className="mt-4 flex flex-col gap-4">
-            {historyProjects.map(renderProjectCard)}
+            {historyProjects.map((p) => (
+              <ProjectRow key={p.id} schoolId={id} p={p} />
+            ))}
           </ul>
         </section>
       )}
@@ -301,10 +398,16 @@ export default function SchoolProjectsPage() {
                 </option>
               ))}
             </select>
+            {/* Mirror the edit page's reason: the currency is frozen once money is in. */}
+            <p className="mt-1 text-xs text-muted">
+              No vas a poder cambiarla una vez que el proyecto reciba aportes.
+            </p>
           </Field>
 
           <div>
-            <p className="text-sm font-medium">Etapas</p>
+            <h2 className="text-sm font-semibold tracking-tight text-foreground">
+              Etapas
+            </h2>
             <p className="mb-2 text-xs text-muted">
               Cada etapa justifica su costo. La suma es la meta del proyecto.
             </p>

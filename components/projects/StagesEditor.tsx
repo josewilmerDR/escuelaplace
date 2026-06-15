@@ -50,6 +50,11 @@ export function StagesEditor({
               Etapa {i + 1}
             </legend>
             {stages.length > 1 && (
+              // Removal is immediate here (no ConfirmDialog) unlike the project edit page:
+              // a draft stage isn't persisted yet and has no media or index-linked
+              // contributions, so confirming would be needless friction. The edit page
+              // confirms because there a stage carries uploaded media and contributions
+              // reference stages by position (see projects/[pid]/page.tsx).
               <button
                 type="button"
                 onClick={() => remove(i)}
