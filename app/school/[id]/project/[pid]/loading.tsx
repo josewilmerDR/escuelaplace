@@ -8,6 +8,10 @@ import { cardClass } from "@/components/ui/Card";
  * the navigation from a project card stays smooth while the two Firestore reads resolve.
  * Routes through PageContainer/cardClass (like the sibling school/business skeletons) so
  * the canvas width and the card elevation can't drift from the design system.
+ * Conditional regions that depend on data unknown server-side are deliberately NOT reserved:
+ * the "Datos sin verificar" banner (shown before the article for any non-verified school) and
+ * the "Otros proyectos" sibling grid (below the stages); reserving them would jump the layout
+ * the other way when they're absent.
  * Server component; placeholders are purely decorative (aria-hidden), with an sr-only status.
  */
 export default function Loading() {
@@ -25,10 +29,11 @@ export default function Loading() {
             <div className="aspect-video w-full animate-pulse bg-brand-tint sm:aspect-[5/2]" />
 
             <div className="p-5 sm:p-8">
-              {/* Title + status */}
+              {/* Title — the status Badge only renders for completed/cancelled projects
+                  (ProjectStatusBadge returns null for the common 'active' state), so reserve
+                  the title row alone and let it span its natural width. */}
               <div className="flex flex-wrap items-center gap-3">
                 <div className="h-9 w-2/3 animate-pulse rounded bg-surface ring-1 ring-black/5" />
-                <div className="h-6 w-20 animate-pulse rounded-full bg-surface ring-1 ring-black/5" />
               </div>
 
               {/* Description */}
@@ -39,23 +44,23 @@ export default function Loading() {
 
               {/* Inset progress panel — mirrors ProjectProgress order: the bar first, then
                   the figures row below it, then the CTA and its disclaimer copy. */}
-              <div className="mt-6 rounded-2xl bg-surface p-5 ring-1 ring-black/5">
+              <div className={`mt-6 ${cardClass("inset")}`}>
                 {/* Progress bar — h-2.5 surface track with inset ring, like ProjectProgress. */}
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface ring-1 ring-inset ring-black/5">
-                  <div className="h-full w-2/5 animate-pulse rounded-full bg-brand-tint" />
+                  <div className="h-full w-2/5 animate-pulse rounded-full bg-brand/30" />
                 </div>
                 {/* Figures row (raised / goal · contributors) — below the bar. */}
                 <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
                   <div className="h-4 w-40 animate-pulse rounded bg-white ring-1 ring-black/5" />
                   <div className="h-4 w-28 animate-pulse rounded bg-white ring-1 ring-black/5" />
                 </div>
-                {/* CTA */}
-                <div className="mt-4 h-12 w-56 animate-pulse rounded-xl bg-brand-tint" />
-                {/* CTA disclaimer copy (two muted paragraphs). */}
-                <div className="mt-2 space-y-2">
-                  <div className="h-3 w-3/4 animate-pulse rounded bg-white ring-1 ring-black/5" />
-                  <div className="h-3 w-2/3 animate-pulse rounded bg-white ring-1 ring-black/5" />
-                </div>
+                {/* Action area — its real shape depends on state we can't know server-side:
+                    a "Financiar" button (canFund), a single muted line (completed/cancelled),
+                    or the UnverifiedSchoolNotice banner (unverified school — the default,
+                    since schools are born 'pending'). Reserve one neutral block that
+                    approximates all three rather than a brand button that would over-promise
+                    an action that often isn't there. */}
+                <div className="mt-4 h-16 w-full animate-pulse rounded-2xl bg-white ring-1 ring-black/5" />
               </div>
 
               {/* Stages */}
