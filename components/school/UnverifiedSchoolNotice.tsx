@@ -16,6 +16,11 @@ export const UNVERIFIED_DONATION_TEXT =
 export const UNVERIFIED_SUBSCRIPTION_TEXT =
   "Esta escuela aún no está verificada, así que sus métodos de pago no están disponibles. Podés registrar el apoyo igual; la escuela lo confirmará al verificarse.";
 
+// Canonical "platform never touches the money" reassurance shown on funding surfaces. Kept
+// in one place (same rationale as the UNVERIFIED_* constants above) so it can't drift.
+export const PLATFORM_MONEY_DISCLAIMER_TEXT =
+  "Tu aporte va directo a la escuela por los medios de pago que ella publica; la plataforma nunca toca el dinero y la escuela confirma cada colaboración.";
+
 export function UnverifiedSchoolNotice() {
   return (
     <p className="rounded-xl bg-warning-tint p-3 text-sm text-warning ring-1 ring-warning/10">
