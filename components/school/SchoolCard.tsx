@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { HeartIcon, VerifiedIcon } from "@/components/ui/icons";
+import { Badge } from "@/components/ui/Badge";
+import { FlagIcon, HeartIcon, VerifiedIcon } from "@/components/ui/icons";
 import { schoolSupportersCount } from "@/lib/firestore";
 import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
 import type { SchoolCardData } from "@/types";
@@ -43,6 +44,15 @@ function CardMedia({ school }: { school: SchoolCardData }) {
         >
           {initial}
         </span>
+      )}
+
+      {/* Schools crowdfunding right now get a pill so the directory surfaces where help is
+          actively needed. Top-left so it never collides with the picker's top-right check. */}
+      {school.hasActiveProject && (
+        <Badge tone="brand" className="absolute top-2 left-2 gap-1 shadow-sm">
+          <FlagIcon className="h-3 w-3" />
+          Proyecto activo
+        </Badge>
       )}
     </div>
   );

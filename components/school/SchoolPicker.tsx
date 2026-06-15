@@ -47,7 +47,7 @@ export function SchoolPicker({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ left: false, right: false });
 
-  const cards = useMemo(() => schools.map(toSchoolCardData), [schools]);
+  const cards = useMemo(() => schools.map((s) => toSchoolCardData(s)), [schools]);
 
   // Effective center: explicit location, or the pin of the school the buyer chose (so picking
   // a school re-orders by proximity to it even without GPS).

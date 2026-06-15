@@ -17,6 +17,7 @@ import { cache } from "react";
 import {
   addDoc,
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -94,6 +95,24 @@ function byCreatedAtDesc(
   b: { createdAt?: { toMillis?: () => number } },
 ): number {
   return (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0);
+}
+
+/**
+ * The ids of every school that has at least one project currently `active`. One
+ * collection-group read across all `projects` subcollections (each project carries a
+ * denormalized `schoolId`); status is filtered in JS — like the other project/contribution
+ * reads — so no collection-group index is needed. Used by the public /schools directory to
+ * badge schools that are crowdfunding something right now. Projects are public-read, so this
+ * runs anonymously from the server component.
+ */
+export async function getSchoolIdsWithActiveProject(): Promise<Set<string>> {
+  const snap = await getDocs(collectionGroup(db, PROJECTS));
+  const ids = new Set<string>();
+  for (const d of snap.docs) {
+    const data = d.data() as Project;
+    if (data.status === "active") ids.add(data.schoolId);
+  }
+  return ids;
 }
 
 /** All projects of a school (any status), newest first. */
