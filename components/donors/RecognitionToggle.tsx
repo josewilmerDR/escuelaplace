@@ -19,6 +19,7 @@
  */
 import { useEffect, useId, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { Switch } from "@/components/ui/Switch";
 import { CheckIcon } from "@/components/ui/icons";
@@ -48,7 +49,7 @@ function SaveHint({
     <p
       role="status"
       aria-live="polite"
-      className={`flex min-h-5 items-center text-xs ${className}`}
+      className={`flex min-h-6 items-center text-xs ${className}`}
     >
       {state === "saving" && <span className="text-muted">Guardando…</span>}
       {state === "error" && (
@@ -110,7 +111,7 @@ export function RecognitionToggle({ compact = false }: { compact?: boolean }) {
   // Let "Guardado" read as a transient confirmation, not a permanent label.
   useEffect(() => {
     if (save !== "saved") return;
-    const t = setTimeout(() => setSave("idle"), 2500);
+    const t = setTimeout(() => setSave("idle"), 4000);
     return () => clearTimeout(t);
   }, [save]);
 
@@ -224,7 +225,7 @@ export function RecognitionToggle({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         onClick={reload}
-        className="mt-2 font-medium text-brand-darker hover:underline"
+        className="btn btn-outline mt-2"
       >
         Reintentar
       </button>
@@ -232,18 +233,20 @@ export function RecognitionToggle({ compact = false }: { compact?: boolean }) {
   );
 
   const body = !loaded ? skeleton : loadError ? error : controls;
-  const card = (
-    <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">{body}</div>
-  );
+  const card = <div className={cardClass("inset")}>{body}</div>;
+
+  // The skeleton is aria-hidden, so a screen reader gets no cue while loading. This shared
+  // status announces it in both the compact and the full (settings) return.
+  const loadingStatus = !loaded ? (
+    <p className="sr-only" role="status">
+      Cargando preferencia de reconocimiento…
+    </p>
+  ) : null;
 
   if (compact) {
     return (
       <>
-        {!loaded && (
-          <p className="sr-only" role="status">
-            Cargando preferencia de reconocimiento…
-          </p>
-        )}
+        {loadingStatus}
         {card}
       </>
     );
@@ -254,6 +257,7 @@ export function RecognitionToggle({ compact = false }: { compact?: boolean }) {
       <h2 className="text-lg font-semibold tracking-tight text-foreground">
         Reconocimiento público
       </h2>
+      {loadingStatus}
       <p className="mt-1 text-sm text-muted">
         Por defecto tus aportes son anónimos: contás en los totales de la
         escuela, pero tu nombre no se publica. Si querés, podés aparecer en el
