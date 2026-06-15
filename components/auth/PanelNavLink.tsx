@@ -47,7 +47,9 @@ export function PanelNavLink({
       aria-current={active ? "page" : undefined}
       // Active: a soft filled brand pill. Inactive: quiet muted text that lifts to a
       // surface fill on hover — the same quiet-chip language as the panel card actions.
-      className={`rounded-lg px-3 py-2 transition-colors ${
+      // inline-flex + min-h-10 holds the ≥40px tap target the design system requires; the
+      // focus-visible ring matches the shared .btn primitive so keyboard nav is visible.
+      className={`inline-flex min-h-10 items-center rounded-lg px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
         active
           ? "bg-brand-tint font-semibold text-brand-darker"
           : "text-muted hover:bg-surface hover:text-foreground"

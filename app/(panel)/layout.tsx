@@ -14,6 +14,9 @@ import { RequireAuth } from "@/components/auth/RequireAuth";
  * flicker-free. Below md the sidebar collapses into a wrapping top bar; a fixed 192px column
  * would leave ~90px of content on a 360px viewport. Signing in is in the global
  * <SiteHeader>; signing out lives here in the account area.
+ *
+ * Each panel page renders its own <main>, so the content wrapper below is a plain styling
+ * <div> (a layout box with no accessible name), not a landmark element.
  */
 export default function PanelLayout({
   children,
@@ -24,10 +27,11 @@ export default function PanelLayout({
       {/* The content box is a single, fixed, LEFT-aligned rectangle owned here in the
           persistent layout: capped width + no mx-auto means every panel page renders in
           the exact same place. Pages must not re-introduce mx-auto (that would re-center
-          and shift the box horizontally between navigations). */}
-      <section className="min-w-0 max-w-2xl flex-1">
+          and shift the box horizontally between navigations). min-h reserves vertical
+          space so the global footer doesn't bounce while the loader/skeleton is short. */}
+      <div className="min-h-[60vh] min-w-0 max-w-2xl flex-1">
         <RequireAuth>{children}</RequireAuth>
-      </section>
+      </div>
     </div>
   );
 }
