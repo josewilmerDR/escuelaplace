@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { queryTerms, relevanceScore } from "./search";
+import { queryTerms, relevanceScore, searchQuery } from "./search";
 
 const biz = (over: Partial<Parameters<typeof relevanceScore>[0]> = {}) => ({
   name: "Panadería La Espiga",
   categoryNames: ["Panadería", "Cafetería"],
   description: "Pan artesanal y repostería",
   ...over,
+});
+
+describe("searchQuery", () => {
+  it("returns '' for a missing query", () => {
+    expect(searchQuery(undefined)).toBe("");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(searchQuery("  panadería  ")).toBe("panadería");
+  });
 });
 
 describe("queryTerms", () => {

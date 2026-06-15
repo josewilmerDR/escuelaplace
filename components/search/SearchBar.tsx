@@ -38,8 +38,11 @@ export function SearchBar({
     // Apple-style floating search field: a large, soft-shadowed white pill that lifts off
     // the hero. The whole form carries the focus ring (focus-within) so typing in the input
     // lights up the field as one unit, search button included.
+    // role="search" makes the form a landmark screen-reader users can jump to.
     <form
       onSubmit={onSubmit}
+      role="search"
+      aria-label="Buscar comercios"
       className="flex w-full items-center gap-2 overflow-hidden rounded-2xl bg-white p-1.5 pl-5 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-brand"
     >
       {/* Leading magnifier echoes the native search look; decorative (the field is labelled). */}

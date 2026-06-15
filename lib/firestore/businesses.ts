@@ -121,6 +121,35 @@ export function getTopBusinesses(max = 24): Promise<BusinessDoc[]> {
   return getActiveBusinesses(max);
 }
 
+const ACTIVE_BUSINESSES_CACHE_TTL_MS = 5 * 60_000; // 300s, matching the catalog ISR window
+let activeBusinessesCache: { at: number; max: number; data: BusinessDoc[] } | null =
+  null;
+
+/**
+ * `getActiveBusinesses()` behind a module-level TTL cache (mirrors getSchoolsCached). The
+ * candidate set search starts from — "top-N active businesses by ranking.score" — is
+ * query-independent and identical to what the home feed reads, yet /search re-read it from
+ * Firestore on every keystroke/query. Caching it like the home feed (same 300s window the
+ * catalog uses for home/category ISR) means repeated searches reuse one read instead of
+ * paying a full ~200-doc Firestore read each time. The cache key includes `max` so a
+ * larger request never returns a smaller cached set; errors are not cached (next call
+ * retries).
+ */
+export async function getActiveBusinessesCached(
+  max = 200,
+): Promise<BusinessDoc[]> {
+  if (
+    activeBusinessesCache &&
+    activeBusinessesCache.max === max &&
+    Date.now() - activeBusinessesCache.at < ACTIVE_BUSINESSES_CACHE_TTL_MS
+  ) {
+    return activeBusinessesCache.data;
+  }
+  const data = await getActiveBusinesses(max);
+  activeBusinessesCache = { at: Date.now(), max, data };
+  return data;
+}
+
 // ── Writes (owner panel) ─────────────────────────────────────────────────────
 
 /**

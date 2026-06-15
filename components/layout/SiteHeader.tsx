@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { HeaderCreateCta } from "@/components/layout/HeaderCreateCta";
-import { AcademicCapIcon, TagIcon } from "@/components/ui/icons";
+import { AcademicCapIcon, SearchIcon, TagIcon } from "@/components/ui/icons";
 
 /**
  * Top brand bar (encuentra24 style): solid brand-colored band with the wordmark
@@ -26,6 +26,16 @@ export function SiteHeader() {
               browse the catalog — icon-only below sm to save room. White-on-brand ghost chip:
               the band is dark enough for AA, so a soft inset ring + translucent hover keep
               it crisp without the light-card recipe. */}
+          {/* Search first: it's the primary catalog action and was previously only
+              reachable from the home hero, stranding buyers on inner pages. */}
+          <Link
+            href="/search"
+            aria-label="Buscar"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/15 hover:ring-white/50"
+          >
+            <SearchIcon className="h-5 w-5" />
+            <span className="hidden sm:inline">Buscar</span>
+          </Link>
           <Link
             href="/categories"
             aria-label="Categorías"
