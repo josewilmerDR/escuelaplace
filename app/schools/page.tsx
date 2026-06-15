@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { PageContainer } from "@/components/layout/PageContainer";
-import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AcademicCapIcon, WarningIcon } from "@/components/ui/icons";
-import { SchoolDirectoryFeed } from "@/components/school/SchoolDirectoryFeed";
+import { SchoolDirectory } from "@/components/school/SchoolDirectory";
 import {
+  getSchoolIdsWithActiveProject,
   getSchools,
   rankSchoolsByRelevance,
   toSchoolCardData,
@@ -15,7 +15,8 @@ import type { SchoolCardData } from "@/types";
 /**
  * Public school directory (/schools). Server component — rendered on the server for SEO, like
  * the home catalog. The baseline order is by activity (community-agnostic) so SEO is stable;
- * <SchoolDirectoryFeed> re-orders by proximity client-side from the buyer's community.
+ * <SchoolDirectory> then layers client-side filter (by name/locality) and proximity ordering
+ * on top — controls that act only on this list, not on the buyer's site-wide community.
  *
  * ISR: re-render the baseline every 5 minutes (matches the home page) so the order stays fresh
  * as activity metrics change, without a Firestore read per request.
@@ -28,7 +29,7 @@ export const revalidate = 300;
 const DIRECTORY_LIMIT = 60;
 
 const DESCRIPTION =
-  "Encontrá la escuela de tu comunidad, conocé sus proyectos y apoyala directamente. La plataforma nunca toca el dinero.";
+  "Encontrá la escuela de tu comunidad, conocé sus proyectos y apoyala directamente. El 100% de tu donación llega a la escuela: la plataforma nunca toca el dinero.";
 
 export const metadata: Metadata = {
   title: "Escuelas",
@@ -44,10 +45,18 @@ export default async function SchoolsPage() {
   let loadFailed = false;
   try {
     const schools = await getSchools(DIRECTORY_LIMIT);
-    // No location server-side → activity baseline order (deterministic for SEO/first paint).
-    cards = rankSchoolsByRelevance(schools.map(toSchoolCardData), {}).map(
-      (r) => r.school,
+    // "Active project" is a decorative badge: a failed projects read must not blank the
+    // whole directory, so fall back to no badges rather than letting it throw.
+    const activeProjectSchoolIds = await getSchoolIdsWithActiveProject().catch(
+      () => new Set<string>(),
     );
+    // No location server-side → activity baseline order (deterministic for SEO/first paint).
+    cards = rankSchoolsByRelevance(
+      schools.map((s) =>
+        toSchoolCardData(s, { hasActiveProject: activeProjectSchoolIds.has(s.id) }),
+      ),
+      {},
+    ).map((r) => r.school);
   } catch {
     loadFailed = true;
   }
@@ -99,8 +108,7 @@ export default async function SchoolsPage() {
       )}
 
       <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Escuelas</h1>
-        <p className="mt-1 text-sm text-muted">{DESCRIPTION}</p>
+        <h1 className="text-sm text-muted">{DESCRIPTION}</h1>
       </header>
 
       {loadFailed ? (
@@ -117,23 +125,11 @@ export default async function SchoolsPage() {
           cta={{ label: "Creá la de tu comunidad", href: "/create" }}
         />
       ) : (
-        <>
-          {/* The picker only renders with results: setting a school re-orders this very
-              list, and on the empty/error states it has nothing to sort. */}
-          <p role="status" className="sr-only">
-            {cards.length} escuelas
-          </p>
-          <CommunityPicker
-            subject="schools"
-            description="Elegí tu escuela o activá tu ubicación para ver primero las escuelas más cercanas a tu comunidad."
-          />
-          <SchoolDirectoryFeed initial={cards} />
-          {cards.length === DIRECTORY_LIMIT && (
-            <p className="mt-8 text-center text-sm text-muted">
-              Mostrando las primeras {DIRECTORY_LIMIT} escuelas del directorio.
-            </p>
-          )}
-        </>
+        // The directory's own filter/sort toolbar lives in this client component; it acts
+        // only on the list in front of the buyer (filter by name/locality, order by
+        // proximity) — it does NOT set the buyer's site-wide community the way the home
+        // <CommunityPicker> does.
+        <SchoolDirectory initial={cards} limit={DIRECTORY_LIMIT} />
       )}
     </PageContainer>
   );

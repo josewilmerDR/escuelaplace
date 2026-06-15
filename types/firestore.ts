@@ -290,6 +290,9 @@ export interface SchoolCardData {
   verified: boolean;
   supportingBusinesses: number;
   uniqueSupporters: number;
+  /** Whether the school has at least one project currently `active` (crowdfunding now).
+   * Decorative directory signal; defaults to false where not computed (e.g. pickers). */
+  hasActiveProject: boolean;
   /** Pin coordinates for the proximity re-rank; null when the school has no geopoint. */
   lat: number | null;
   lng: number | null;

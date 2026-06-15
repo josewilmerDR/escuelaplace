@@ -3,8 +3,8 @@ import { PageContainer } from "@/components/layout/PageContainer";
 /**
  * Route-level skeleton for /schools: without it, clicking through to the school directory
  * freezes the current page until the listing's SSR Firestore reads finish. Mirrors the page's
- * layout (listing column, title/subtitle header — no icon tile, unlike the category page — the
- * community picker strip, then the 1/2/3-column grid of SchoolCard) so the real content swaps
+ * layout (listing column, the muted description header — no big title or icon tile — the
+ * filter/sort toolbar, then the 1/2/3-column grid of SchoolCard) so the real content swaps
  * in without a jump ("parpadeo").
  *
  * Server component. The whole tree is a live region (`role="status"` + sr-only text) so
@@ -20,21 +20,20 @@ export default function LoadingSchoolsPage() {
         <span className="sr-only">Cargando escuelas…</span>
 
         <div aria-hidden="true">
-          {/* Header: title/subtitle bars (no icon tile — the schools page has none),
-              matching the page's offsets. The subtitle is a full sentence that wraps to
-              ~2 lines (3 on phones), so reserve two bars — a single one under-reserves and
-              the grid below jumps when the real header swaps in. */}
+          {/* Header: the page has no big title or icon tile — just the muted description
+              (text-sm), a sentence that wraps to ~2 lines, so reserve two thin bars. */}
           <header className="mb-8">
-            <div className="h-9 w-2/3 max-w-xs animate-pulse rounded bg-border" />
-            <div className="mt-1 h-4 w-full max-w-md animate-pulse rounded bg-border" />
+            <div className="h-4 w-full max-w-md animate-pulse rounded bg-border" />
             <div className="mt-2 h-4 w-2/3 max-w-sm animate-pulse rounded bg-border" />
           </header>
 
-          {/* Community picker strip placeholder: the page renders <CommunityPicker /> here
-              before the grid, so reserve its height to keep loading→loaded from jumping.
-              Its real height varies (collapsed chip vs full card); this approximates the
-              expanded card, the first-paint default when the buyer has no saved community. */}
-          <div className="mb-8 h-24 animate-pulse rounded-2xl bg-border" />
+          {/* Filter/sort toolbar placeholder: the page renders the directory's filter input
+              + "Ordenar por cercanía" button here before the grid (a row on ≥sm, stacked on
+              phones), so reserve that height to keep loading→loaded from jumping. */}
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="h-10 flex-1 animate-pulse rounded-lg bg-border" />
+            <div className="h-10 w-full animate-pulse rounded-xl bg-border sm:w-52" />
+          </div>
 
           {/* Card grid: same columns/gap as the directory feed (a <ul role="list"> of
               SchoolCards). Each placeholder mirrors a SchoolCard — a full-height flex column

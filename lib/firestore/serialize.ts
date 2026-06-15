@@ -56,7 +56,10 @@ export function toBusinessCardData(b: BusinessDoc): BusinessCardData {
  * cards by proximity. Cover fallback ladder matches the public school page: cover → first
  * gallery photo → profile photo.
  */
-export function toSchoolCardData(s: SchoolDoc): SchoolCardData {
+export function toSchoolCardData(
+  s: SchoolDoc,
+  opts: { hasActiveProject?: boolean } = {},
+): SchoolCardData {
   const gp = s.location?.geopoint;
   return {
     id: s.id,
@@ -67,6 +70,9 @@ export function toSchoolCardData(s: SchoolDoc): SchoolCardData {
     verified: s.verified ?? false,
     supportingBusinesses: s.metrics?.supportingBusinesses ?? 0,
     uniqueSupporters: s.metrics?.uniqueSupporters ?? 0,
+    // The directory passes this in (one collection-group read decorates the whole list);
+    // callers without project context (pickers) leave it false.
+    hasActiveProject: opts.hasActiveProject ?? false,
     lat: gp ? gp.latitude : null,
     lng: gp ? gp.longitude : null,
   };

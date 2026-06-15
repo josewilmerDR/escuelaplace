@@ -155,6 +155,17 @@ service cloud.firestore {
       }
     }
 
+    // Collection-group reads of projects (`collectionGroup(db, 'projects')`). A nested
+    // `match /schools/{id}/projects/...` rule governs direct + subcollection access but does
+    // NOT authorize collection-group queries — those require a rule whose path reaches the
+    // collection at ANY depth via a recursive wildcard. Read-only here (projects are public,
+    // same as the nested rule); writes stay on the nested rule, which has the schoolId in
+    // scope for the owner/counter checks. The /schools directory uses this to badge schools
+    // with an active project in a single query.
+    match /{path=**}/projects/{projectId} {
+      allow read: if true;
+    }
+
     // True if a project update leaves the function-maintained counters untouched.
     function preservesProjectCounters() {
       return request.resource.data.get('raised', 0) == resource.data.get('raised', 0) &&
