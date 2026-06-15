@@ -8,10 +8,14 @@
  * (expiresAt); a Cloud Function then recomputes the supporting business's ranking. The
  * board can confirm one at a time or all pending at once.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { Badge } from "@/components/ui/Badge";
+import { cardClass } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { HeartIcon } from "@/components/ui/icons";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
 import {
@@ -27,6 +31,25 @@ import type { SchoolDoc, SubscriptionDoc } from "@/types";
 /** Lifecycle of the initial school + subscriptions fetch. */
 type LoadState = "loading" | "error" | "loaded";
 
+const LOADING_TEXT = "Cargando apoyos…";
+
+/**
+ * The page heading, rendered identically in every state (loading, error, loaded) so the
+ * title never shifts as content swaps in. The subtitle takes the school name; during loading
+ * the school isn't known yet, so the subtitle renders blank (a non-breaking space keeps the
+ * line height reserved) and the h1 stays fixed.
+ */
+function Heading({ subtitle }: { subtitle?: string }) {
+  return (
+    <header>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Confirmar apoyos
+      </h1>
+      <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
+    </header>
+  );
+}
+
 export default function SchoolSubscriptionsPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -36,6 +59,8 @@ export default function SchoolSubscriptionsPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Accessible-only success feedback, announced via an aria-live region (no visual banner).
+  const [status, setStatus] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     return getSubscriptionsBySchool(id).then(setSubscriptions);
@@ -55,20 +80,41 @@ export default function SchoolSubscriptionsPage() {
 
   useEffect(load, [load]);
 
+  // Split the queue once per data change instead of on every render.
+  const pending = useMemo(
+    () => subscriptions.filter((s) => s.status === "pending"),
+    [subscriptions],
+  );
+  const others = useMemo(
+    () => subscriptions.filter((s) => s.status !== "pending"),
+    [subscriptions],
+  );
+
   const retry = () => {
     setLoadState("loading");
     load();
   };
 
-  if (loadState === "loading")
-    return <p className="text-sm text-muted">Cargando…</p>;
+  if (loadState === "loading") {
+    return (
+      <main>
+        {/* School not loaded yet → blank subtitle, but the h1 sits in its final position. */}
+        <Heading />
+        <ul className="mt-8 flex flex-col gap-4" aria-hidden="true">
+          <li className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <li className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        </ul>
+        <p className="sr-only" role="status">
+          {LOADING_TEXT}
+        </p>
+      </main>
+    );
+  }
 
   if (loadState === "error") {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Confirmar apoyos
-        </h1>
+        <Heading />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar los apoyos. Revisá tu conexión e intentá de nuevo.
         </p>
@@ -79,7 +125,17 @@ export default function SchoolSubscriptionsPage() {
     );
   }
 
-  if (!school) return <p className="text-sm text-muted">Escuela no encontrada.</p>;
+  if (!school) {
+    return (
+      <main>
+        <Heading />
+        <p className="mt-4 text-sm text-muted">Escuela no encontrada.</p>
+        <p className="mt-8 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
+  }
 
   const isManager =
     user != null &&
@@ -88,19 +144,26 @@ export default function SchoolSubscriptionsPage() {
       user.role === "admin");
 
   if (!isManager) {
-    return <p className="text-sm text-error">No administrás esta escuela.</p>;
+    return (
+      <main>
+        <Heading />
+        <p className="mt-4 text-sm text-error">No administrás esta escuela.</p>
+        <p className="mt-8 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
   }
-
-  const pending = subscriptions.filter((s) => s.status === "pending");
-  const others = subscriptions.filter((s) => s.status !== "pending");
 
   const confirmOne = async (subId: string) => {
     if (!user) return;
     setBusyId(subId);
     setError(null);
+    setStatus(null);
     try {
       await confirmSubscription(subId, user.id);
       await reload();
+      setStatus("Apoyo confirmado.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo confirmar.");
     } finally {
@@ -108,40 +171,90 @@ export default function SchoolSubscriptionsPage() {
     }
   };
 
-  const viewProof = async (subId: string) => {
-    setError(null);
-    const url = await getSubscriptionProofUrl(subId);
-    if (url) window.open(url, "_blank", "noopener");
-    else setError("No se pudo abrir el comprobante.");
-  };
-
   const confirmAll = async () => {
     if (!user || pending.length === 0) return;
+    // Bulk confirm is irreversible: guard with an explicit count before proceeding.
+    if (
+      !window.confirm(
+        `¿Confirmar los ${pending.length} apoyos pendientes? Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
     setBusyId("all");
     setError(null);
+    setStatus(null);
+    const total = pending.length;
     try {
-      await Promise.all(pending.map((s) => confirmSubscription(s.id, user.id)));
+      // allSettled (not all): one failed confirm must not block the others, and we always
+      // reload so successfully-confirmed rows disappear even on a partial failure.
+      const results = await Promise.allSettled(
+        pending.map((s) => confirmSubscription(s.id, user.id)),
+      );
       await reload();
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        setError(`No se pudieron confirmar ${failed} de ${total} apoyos.`);
+      } else {
+        setStatus(`${total} apoyos confirmados.`);
+      }
     } catch (err) {
+      // reload() itself failed — the confirms may still have gone through.
       setError(err instanceof Error ? err.message : "No se pudieron confirmar.");
     } finally {
       setBusyId(null);
     }
   };
 
+  const viewProof = async (subId: string) => {
+    setError(null);
+    setStatus(null);
+    const url = await getSubscriptionProofUrl(subId);
+    if (!url) {
+      setError("No se pudo abrir el comprobante.");
+      return;
+    }
+    // A blocked popup returns null too — surface the same error so the click isn't silent.
+    const win = window.open(url, "_blank", "noopener");
+    if (!win) setError("No se pudo abrir el comprobante.");
+  };
+
+  // Nothing at all: pending AND history both empty.
+  if (subscriptions.length === 0) {
+    return (
+      <main>
+        <Heading subtitle={school.name} />
+        <div className="mt-8">
+          <EmptyState
+            icon={<HeartIcon className="h-7 w-7" />}
+            title="Todavía no hay apoyos a tu escuela"
+            description="Cuando un comercio o donante apoye tu escuela, su apoyo aparecerá acá para que lo confirmes."
+          />
+        </div>
+        <p className="mt-8 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
+  }
+
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Confirmar apoyos
-      </h1>
-      <p className="mt-1 text-sm text-muted">{school.name}</p>
+      <Heading subtitle={school.name} />
+
+      {/* Accessible-only success announcement; no visual banner is needed. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {status}
+      </p>
 
       <section className="mt-8">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
             Pendientes ({pending.length})
           </h2>
-          {/* Bulk action is a quiet secondary; the per-row "Confirmar" is the primary. */}
+          {/* Bulk action is a quiet secondary; the per-row "Confirmar" is the primary. The
+              bulk button stays disabled for any in-flight work (busyId !== null), while each
+              per-row button only disables for its own row or a bulk run (see below). */}
           {pending.length > 0 && (
             <button
               type="button"
@@ -149,12 +262,16 @@ export default function SchoolSubscriptionsPage() {
               disabled={busyId !== null}
               className="btn btn-outline"
             >
-              {busyId === "all" ? "Confirmando…" : "Confirmar todas"}
+              {busyId === "all" ? "Confirmando…" : "Confirmar todos"}
             </button>
           )}
         </div>
 
-        {error && <p className="mt-3 text-sm text-error">{error}</p>}
+        {error && (
+          <p role="alert" className="mt-3 text-sm text-error">
+            {error}
+          </p>
+        )}
 
         {pending.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No hay apoyos pendientes.</p>
@@ -164,17 +281,19 @@ export default function SchoolSubscriptionsPage() {
               // Elevated calm-depth row per pending support, with its own primary confirm.
               <li
                 key={s.id}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-black/5"
+                className={`${cardClass("elevated")} flex items-center justify-between gap-3 text-sm`}
               >
-                <div>
+                <div className="min-w-0">
                   <p className="font-semibold tracking-tight text-foreground">
                     {supporterNameOf(s)}
                     {s.supporterType === "user" && (
-                      <span className="ml-2 text-xs font-normal text-muted">
+                      <Badge tone="info" className="ml-2">
                         Donación personal
-                      </span>
+                      </Badge>
                     )}
                   </p>
+                  {/* Subscriptions are always CRC (SUBSCRIPTION_UNIT_CRC) — keep formatColones,
+                      do not swap to formatMoney. */}
                   <p className="text-muted">
                     {s.units}× · {formatColones(s.amount)}
                   </p>
@@ -182,7 +301,8 @@ export default function SchoolSubscriptionsPage() {
                     <button
                       type="button"
                       onClick={() => viewProof(s.id)}
-                      className="mt-1 text-xs font-medium text-brand-darker hover:underline"
+                      // Always-underlined + min tap height: hover:underline is invisible on touch.
+                      className="mt-1 inline-flex min-h-10 items-center gap-1 text-xs font-medium text-brand-darker underline"
                     >
                       Ver comprobante
                     </button>
@@ -198,7 +318,9 @@ export default function SchoolSubscriptionsPage() {
                 <button
                   type="button"
                   onClick={() => confirmOne(s.id)}
-                  disabled={busyId !== null}
+                  // Only this row (or a bulk run) disables it — confirming one row must not
+                  // freeze the others.
+                  disabled={busyId === s.id || busyId === "all"}
                   className="btn btn-primary shrink-0"
                 >
                   {busyId === s.id ? "Confirmando…" : "Confirmar"}
@@ -219,17 +341,19 @@ export default function SchoolSubscriptionsPage() {
               // History is settled: a quieter inset panel, no primary action.
               <li
                 key={s.id}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5"
+                className={`${cardClass("inset")} flex items-center justify-between gap-3 text-sm`}
               >
-                <div>
+                <div className="min-w-0">
                   <p className="font-semibold tracking-tight text-foreground">
                     {supporterNameOf(s)}
                     {s.supporterType === "user" && (
-                      <span className="ml-2 text-xs font-normal text-muted">
+                      <Badge tone="info" className="ml-2">
                         Donación personal
-                      </span>
+                      </Badge>
                     )}
                   </p>
+                  {/* Subscriptions are always CRC (SUBSCRIPTION_UNIT_CRC) — keep formatColones,
+                      do not swap to formatMoney. */}
                   <p className="text-muted">
                     {s.units}× · {formatColones(s.amount)}
                   </p>
