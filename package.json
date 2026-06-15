@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "emulators": "firebase emulators:start --import=./.emulator-data --export-on-exit",
+    "emulators": "firebase emulators:start --only auth,functions,firestore,storage --import=./.emulator-data --export-on-exit",
     "seed": "node scripts/seed.mjs"
   },
   "dependencies": {
