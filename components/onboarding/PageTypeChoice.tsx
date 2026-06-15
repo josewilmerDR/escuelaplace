@@ -29,7 +29,8 @@ export function PageTypeChoice({
     <div className="grid gap-4 sm:grid-cols-2">
       <Link
         href="/panel/new/business"
-        className={`group ${cardClass("elevated")} transition-all hover:shadow-md hover:ring-brand/30`}
+        aria-label="Crear página de comercio"
+        className={`group ${cardClass("elevated")} transition-shadow hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand`}
       >
         <IconTile size="md">
           <TagIcon className="h-6 w-6" />
@@ -38,7 +39,8 @@ export function PageTypeChoice({
           Comercio
         </Heading>
         <p className="mt-1 text-sm text-muted">
-          Mostrá tu negocio, tus ofertas y la escuela que apoyás.
+          Mostrá tu negocio, tus ofertas y la escuela que apoyás. Se crea como
+          borrador hasta que lo publiques.
         </p>
         <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-darker transition-colors group-hover:text-brand-darkest">
           Crear comercio <ArrowRightIcon className="h-4 w-4" />
@@ -47,7 +49,8 @@ export function PageTypeChoice({
 
       <Link
         href="/panel/new/school"
-        className={`group ${cardClass("elevated")} transition-all hover:shadow-md hover:ring-brand/30`}
+        aria-label="Crear página de escuela"
+        className={`group ${cardClass("elevated")} transition-shadow hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand`}
       >
         <IconTile size="md">
           <AcademicCapIcon className="h-6 w-6" />
@@ -56,7 +59,7 @@ export function PageTypeChoice({
           Escuela
         </Heading>
         <p className="mt-1 text-sm text-muted">
-          Creá la página de tu escuela. Se publica como “sin verificar” hasta que
+          Creá la página de tu escuela. Se publica como <strong>sin verificar</strong> hasta que
           el equipo la apruebe.
         </p>
         <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-darker transition-colors group-hover:text-brand-darkest">
