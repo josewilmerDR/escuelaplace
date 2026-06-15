@@ -1,4 +1,6 @@
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
+import { Section } from "@/components/ui/Section";
+import { StatChip } from "@/components/ui/StatChip";
 import type { SchoolDonorWall } from "@/lib/firestore";
 import type { SchoolDoc } from "@/types";
 
@@ -15,14 +17,11 @@ export function DonorWall({
   school: SchoolDoc;
   wall: SchoolDonorWall;
 }) {
+  // SSR-evaluated current year — used to suppress a redundant "Desde {year}" when the
+  // donor's first confirmed donation happened this same year (reads odd otherwise).
+  const currentYear = new Date().getFullYear();
   return (
-    <section
-      id="muro"
-      className="mt-4 scroll-mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6"
-    >
-      <h2 className="text-lg font-semibold tracking-tight text-foreground">
-        Muro de agradecimiento
-      </h2>
+    <Section id="muro" title="Muro de agradecimiento">
       {school.thankYouMessage && (
         <p className="mt-2 text-muted">{school.thankYouMessage}</p>
       )}
@@ -39,17 +38,18 @@ export function DonorWall({
               </span>
               {donor.tier && <DonorTierBadge tier={donor.tier} />}
               {(donor.projectsSupported ?? 0) > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2 py-0.5 text-xs font-medium text-brand-darker">
+                <StatChip tone="brand">
                   {donor.projectsSupported === 1
                     ? "Participó en 1 proyecto"
                     : `Participó en ${donor.projectsSupported} proyectos`}
-                </span>
+                </StatChip>
               )}
-              {donor.firstConfirmedAt && (
-                <span className="text-xs text-muted">
-                  Desde {donor.firstConfirmedAt.toDate().getFullYear()}
-                </span>
-              )}
+              {donor.firstConfirmedAt &&
+                donor.firstConfirmedAt.toDate().getFullYear() !== currentYear && (
+                  <span className="text-xs text-muted">
+                    Desde {donor.firstConfirmedAt.toDate().getFullYear()}
+                  </span>
+                )}
             </li>
           ))}
         </ul>
@@ -62,6 +62,6 @@ export function DonorWall({
             : `…y ${wall.anonymousCount} personas más que donan de forma anónima. ¡Gracias!`}
         </p>
       )}
-    </section>
+    </Section>
   );
 }

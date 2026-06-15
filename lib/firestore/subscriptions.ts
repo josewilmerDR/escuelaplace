@@ -20,11 +20,14 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit as fbLimit,
+  orderBy,
   query,
   serverTimestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
+import { cache } from "react";
 import {
   getDownloadURL,
   ref as storageRef,
@@ -110,27 +113,70 @@ export async function getSubscriptionsByDonor(
   return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
 }
 
-/** All subscriptions targeting a school (any status), newest first. */
-export async function getSubscriptionsBySchool(
+/**
+ * All subscriptions targeting a school (any status), newest first.
+ *
+ * Wrapped in React cache(): the public school page reads these both directly (for its
+ * support metrics) and indirectly through getSchoolDonorWall during one request — the
+ * cache dedupes that into a single Firestore read (the Firestore SDK, unlike fetch, gets
+ * no deduping from Next).
+ */
+export const getSubscriptionsBySchool = cache(
+  async (schoolId: string): Promise<SubscriptionDoc[]> => {
+    const q = query(
+      collection(db, SUBSCRIPTIONS),
+      where("schoolId", "==", schoolId),
+    );
+    return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
+  },
+);
+
+/** Statuses a subscription passes through once it has been confirmed at least once. */
+const CONFIRMED_STATUSES = ["confirmed", "expiring", "expired"] as const;
+
+/**
+ * Bounded, server-side read of a school's CONFIRMED-at-some-point subscriptions, newest
+ * confirmation first. Feeds the public page's support metrics (recent unique supporters +
+ * average confirmation time), which only ever look at confirmed subscriptions — so the
+ * unbounded getSubscriptionsBySchool (which the donor wall also uses) does not need to
+ * grow O(N) just to compute them. `max` caps the read well above any window/sample the
+ * metrics need.
+ *
+ * Requires a composite index on subscriptions:
+ * (schoolId ASC, status ASC, confirmedAt DESC) — the `in` on status plus orderBy.
+ */
+export async function getConfirmedSubscriptionsBySchool(
   schoolId: string,
+  max = 200,
 ): Promise<SubscriptionDoc[]> {
   const q = query(
     collection(db, SUBSCRIPTIONS),
     where("schoolId", "==", schoolId),
+    where("status", "in", CONFIRMED_STATUSES),
+    orderBy("confirmedAt", "desc"),
+    fbLimit(max),
   );
-  return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
+  return snapToList<Subscription>(await getDocs(q));
 }
 
 /**
  * Pending subscriptions targeting a school — the queue the school's board confirms (the
  * institution validates that each payment proof matches). Newest first.
+ *
+ * Queries `status == "pending"` server-side (instead of fetching every status and
+ * filtering in memory) so the manager strip on the public page reads only the queue it
+ * shows. Requires a composite index on subscriptions: (schoolId ASC, status ASC) — the
+ * two equality filters.
  */
 export async function getPendingSubscriptionsBySchool(
   schoolId: string,
 ): Promise<SubscriptionDoc[]> {
-  return (await getSubscriptionsBySchool(schoolId)).filter(
-    (s) => s.status === "pending",
+  const q = query(
+    collection(db, SUBSCRIPTIONS),
+    where("schoolId", "==", schoolId),
+    where("status", "==", "pending"),
   );
+  return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
 }
 
 /** Firestore `in` accepts at most 30 values per query. */

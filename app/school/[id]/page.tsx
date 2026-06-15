@@ -26,15 +26,16 @@ import {
   averageConfirmationTimeMs,
   countRecentUniqueSupporters,
   getBusinessesBySchool,
+  getConfirmedSubscriptionsBySchool,
   getProjectsBySchool,
   getSchoolById,
   getSchoolDonorWall,
-  getSubscriptionsBySchool,
+  isSchoolVerified,
+  schoolCover,
   toBusinessCardData,
 } from "@/lib/firestore";
 import { formatApproxDuration } from "@/lib/format";
 import { locationParts } from "@/lib/location";
-import type { SchoolDoc } from "@/types";
 
 /**
  * Public school page: /school/[id]
@@ -51,23 +52,20 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
-/** Cover slot priority: explicit cover, first gallery photo, profile photo. */
-function coverOf(school: SchoolDoc): string | undefined {
-  return school.coverUrl ?? school.photos?.[0] ?? school.photoUrl;
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const school = await getSchoolById(id);
   if (!school) return { title: "Escuela no encontrada" };
   // og:image drives the share preview on WhatsApp — the platform's main share channel.
-  const image = coverOf(school);
+  const image = schoolCover(school);
+  // Omit `description` when empty (same conditional pattern as `image`) so OG/Twitter
+  // don't carry an empty field.
   return {
     title: school.name,
-    description: school.description,
+    ...(school.description && { description: school.description }),
     openGraph: {
       title: school.name,
-      description: school.description,
+      ...(school.description && { description: school.description }),
       type: "website",
       ...(image && { images: [image] }),
     },
@@ -88,7 +86,7 @@ export default async function SchoolPage({ params }: Props) {
   // failure so e.g. a flaky donor-wall read doesn't take down the whole profile. The page
   // already renders each section conditionally for empty data (cards.length === 0,
   // hasProjects, hasWall), so empty fallbacks render gracefully.
-  const [businesses, wall, subscriptions, allProjects] = await Promise.all([
+  const [businesses, wall, confirmedSubs, allProjects] = await Promise.all([
     getBusinessesBySchool(id).catch((err) => {
       console.error("school page: getBusinessesBySchool failed", err);
       return [];
@@ -97,8 +95,12 @@ export default async function SchoolPage({ params }: Props) {
       console.error("school page: getSchoolDonorWall failed", err);
       return { recognized: [], anonymousCount: 0 };
     }),
-    getSubscriptionsBySchool(id).catch((err) => {
-      console.error("school page: getSubscriptionsBySchool failed", err);
+    // Bounded, server-side read of confirmed subscriptions — feeds only the support
+    // metrics below (recent unique supporters + average confirmation time), both of
+    // which look at confirmed subscriptions alone. The donor wall above uses its own
+    // (cached) unbounded read.
+    getConfirmedSubscriptionsBySchool(id).catch((err) => {
+      console.error("school page: getConfirmedSubscriptionsBySchool failed", err);
       return [];
     }),
     getProjectsBySchool(id).catch((err) => {
@@ -113,13 +115,13 @@ export default async function SchoolPage({ params }: Props) {
     .filter((p) => p.status !== "cancelled")
     .sort((a, b) => Number(a.status === "completed") - Number(b.status === "completed"));
   const hasProjects = projects.length > 0;
-  const recentSupporters = countRecentUniqueSupporters(subscriptions);
+  const recentSupporters = countRecentUniqueSupporters(confirmedSubs);
   // Responsiveness signal: average registration→confirmation time of the last 10
   // confirmed donations. null (no chip) until the first confirmation.
-  const confirmationTimeMs = averageConfirmationTimeMs(subscriptions);
+  const confirmationTimeMs = averageConfirmationTimeMs(confirmedSubs);
   const hasWall = wall.recognized.length > 0 || wall.anonymousCount > 0;
 
-  const coverImage = coverOf(school);
+  const coverImage = schoolCover(school);
   const gallery = school.photos ?? [];
   const initial = school.name.charAt(0).toUpperCase();
   // Cover fallback ladder: a distinct cover photo → the profile photo contained on tint
@@ -142,14 +144,21 @@ export default async function SchoolPage({ params }: Props) {
   // Self-administered pages: anything not admin-approved carries the unverified banner
   // (the donate flow independently hides the payment methods for these — see
   // getVerifiedSchoolPaymentMethods).
-  const unverified = school.verificationStatus !== "verified";
+  const unverified = !isSchoolVerified(school);
+  // The "Información" card holds description, locality and the board contact. With all
+  // three empty it would render as an empty card, so the section (and its tab) are
+  // dropped entirely.
+  const hasInfo = Boolean(
+    school.description || placeParts.length > 0 || school.boardContact?.name,
+  );
 
   // School structured data: the page is the community's canonical SEO entity.
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "School",
     name: school.name,
-    description: school.description,
+    // Omit `description` when empty (same conditional pattern as `image`).
+    ...(school.description ? { description: school.description } : {}),
     url: `https://escuelaplace.com/school/${id}`,
     ...(coverImage ? { image: coverImage } : {}),
     ...(school.location
@@ -196,7 +205,7 @@ export default async function SchoolPage({ params }: Props) {
         avatar={school.photoUrl || undefined}
         initial={initial}
         name={school.name}
-        verified={school.verified}
+        verified={isSchoolVerified(school)}
         verifiedLabel="Escuela verificada"
         meta={
           placeParts.length > 0 ? (
@@ -228,11 +237,16 @@ export default async function SchoolPage({ params }: Props) {
 
         {/* Primary CTA: the whole platform exists so this button gets pressed.
             Donating requires sign-in (the panel asks for it); the platform never
-            touches the money. */}
+            touches the money. While the school is unverified its payment methods stay
+            hidden, so the CTA can't complete a donation — it is demoted from a solid
+            primary to an outline button so it doesn't promise an action that has no way
+            to finish yet. */}
         <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
           <Link
             href={`/panel/donate?schoolId=${id}`}
-            className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
+            className={`btn justify-center px-8 py-3 text-base font-semibold ${
+              unverified ? "btn-outline" : "btn-primary"
+            }`}
           >
             <HeartIcon className="mr-2 h-5 w-5" />
             Donar a esta escuela
@@ -256,8 +270,9 @@ export default async function SchoolPage({ params }: Props) {
           )}
         </div>
         <p className="mt-2 text-center text-xs text-muted sm:text-left">
-          Tu aporte va directo a la escuela por los medios de pago que ella
-          misma publica; la plataforma nunca toca el dinero.
+          {unverified
+            ? "Podrás donar cuando el equipo de escuelaplace verifique esta escuela y publique sus medios de pago."
+            : "Tu aporte va directo a la escuela por los medios de pago que ella misma publica; la plataforma nunca toca el dinero."}
         </p>
 
         {/* Edit/queue shortcuts — only the page's managers see this. */}
@@ -270,7 +285,7 @@ export default async function SchoolPage({ params }: Props) {
         {/* Section tabs (anchors) with scroll-spy. Only sections that exist. */}
         <SectionTabs
           sections={[
-            { id: "informacion", label: "Información" },
+            ...(hasInfo ? [{ id: "informacion", label: "Información" }] : []),
             ...(hasProjects ? [{ id: "proyectos", label: "Proyectos" }] : []),
             ...(gallery.length > 0 ? [{ id: "fotos", label: "Fotos" }] : []),
             { id: "comercios", label: "Comercios" },
@@ -290,59 +305,68 @@ export default async function SchoolPage({ params }: Props) {
         </div>
       )}
 
-      {/* Información (FB's intro card) */}
-      <Section id="informacion" title="Información">
-        {/* pre-line: the description is captured in a textarea — keep its line
-            breaks. */}
-        <p className="mt-3 whitespace-pre-line text-muted">
-          {school.description}
-        </p>
+      {/* Información (FB's intro card). Dropped entirely (with its tab) when the school
+          has no description, locality or board contact — an empty card reads as broken. */}
+      {hasInfo && (
+        <Section id="informacion" title="Información">
+          {/* pre-line: the description is captured in a textarea — keep its line
+              breaks. Guard for "" so an empty description doesn't leave a blank
+              paragraph. */}
+          {school.description && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {school.description}
+            </p>
+          )}
 
-        <ul className="mt-4 space-y-3 text-sm text-muted">
-          {placeParts.length > 0 && (
-            <li className="flex items-start gap-3">
-              <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
-              <span>
-                {placeParts.join(", ")}
-                {directionsUrl && (
-                  <>
-                    {" · "}
-                    <a
-                      href={directionsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-brand-darker hover:underline"
-                    >
-                      Cómo llegar
-                    </a>
-                  </>
-                )}
-              </span>
-            </li>
-          )}
-          {/* The board is the public face of the page: who receives the help. */}
-          {school.boardContact?.name && (
-            <li className="flex items-start gap-3">
-              <UsersIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
-              <span>
-                Comité escolar: {school.boardContact.name}
-                {school.boardContact.phone && (
-                  <> · {school.boardContact.phone}</>
-                )}
-                {school.boardContact.email && (
-                  <> · {school.boardContact.email}</>
-                )}
-              </span>
-            </li>
-          )}
-        </ul>
-      </Section>
+          <ul className="mt-4 space-y-3 text-sm text-muted">
+            {/* The locality also appears in the header meta; surfacing it again here
+                (with an actionable "Cómo llegar") is intentional — the Información card
+                is the place a reader scans for it, mirroring the sibling business page. */}
+            {placeParts.length > 0 && (
+              <li className="flex items-start gap-3">
+                <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
+                <span>
+                  {placeParts.join(", ")}
+                  {directionsUrl && (
+                    <>
+                      {" · "}
+                      <a
+                        href={directionsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-brand-darker hover:underline"
+                      >
+                        Cómo llegar
+                      </a>
+                    </>
+                  )}
+                </span>
+              </li>
+            )}
+            {/* The board is the public face of the page: who receives the help. */}
+            {school.boardContact?.name && (
+              <li className="flex items-start gap-3">
+                <UsersIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
+                <span>
+                  Comité escolar: {school.boardContact.name}
+                  {school.boardContact.phone && (
+                    <> · {school.boardContact.phone}</>
+                  )}
+                  {school.boardContact.email && (
+                    <> · {school.boardContact.email}</>
+                  )}
+                </span>
+              </li>
+            )}
+          </ul>
+        </Section>
+      )}
 
       {hasProjects && (
         <Section
           id="proyectos"
           title={`Proyectos (${projects.length})`}
-          description="Metas concretas de la escuela. Tu aporte va directo a ella; la plataforma nunca toca el dinero y la escuela confirma cada colaboración."
+          description="Metas concretas de la escuela. La escuela confirma cada colaboración."
         >
           <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
