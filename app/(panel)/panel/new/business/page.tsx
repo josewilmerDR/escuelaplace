@@ -227,6 +227,10 @@ export default function NewBusinessPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Crear comercio
         </h1>
+        <p className="mt-1 text-sm text-muted">
+          Empezá con lo esencial: lo publicás como borrador y completás el resto
+          después.
+        </p>
         <div className="mt-8 flex flex-col gap-6" aria-hidden="true">
           <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
           <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />

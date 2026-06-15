@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { PageTypeChoice } from "@/components/onboarding/PageTypeChoice";
+import { BackLink } from "@/components/ui/BackLink";
+
+export const metadata: Metadata = { title: "Crear página" };
 
 /**
  * Onboarding choice (/panel/new): a signed-in user picks what kind of page to create,
@@ -8,6 +13,9 @@ import { PageTypeChoice } from "@/components/onboarding/PageTypeChoice";
 export default function NewPageChoice() {
   return (
     <main>
+      <div className="mb-6">
+        <BackLink href="/panel">Mis páginas</BackLink>
+      </div>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         ¿Qué querés crear?
       </h1>
@@ -18,6 +26,19 @@ export default function NewPageChoice() {
       <div className="mt-8">
         <PageTypeChoice />
       </div>
+
+      {/* Bridge for the user who only wants to donate, not run a page. Quiet and
+          visually subordinate to the two choice cards above. */}
+      <p className="mt-8 text-sm text-muted">
+        ¿Solo querés apoyar a una escuela?{" "}
+        <Link
+          href="/panel/donate"
+          className="font-medium text-brand-darker underline hover:text-brand-darkest"
+        >
+          Doná directamente
+        </Link>
+        .
+      </p>
     </main>
   );
 }

@@ -6,14 +6,17 @@
  * banner shows until admin approves. Creates the school + optional payment methods and
  * links it to the user.
  */
-import { useCallback, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { readBuyerPreferences } from "@/lib/buyer/preferences";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { FormSection } from "@/components/ui/FormSection";
+import { PhoneField } from "@/components/ui/PhoneField";
+import { normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
@@ -68,6 +71,15 @@ export default function NewSchoolPage() {
     if (guess.country) setCountry(guess.country);
   }, []);
 
+  // The owner is usually a neighbor who browsed as a buyer first: seed the map pin from
+  // the location they already chose as their community (localStorage), as a starting
+  // point they can drag. It's a default, not user input — no setDirty here, so the
+  // unsaved-changes guard stays quiet and the pin remains freely movable.
+  useEffect(() => {
+    const preferredLocation = readBuyerPreferences().location;
+    if (preferredLocation) setCoords(preferredLocation);
+  }, []);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
@@ -82,6 +94,11 @@ export default function NewSchoolPage() {
     }
     if (!coords) {
       setError("Elegí la ubicación en el mapa.");
+      return;
+    }
+    const trimmedBoardPhone = boardPhone.trim();
+    if (trimmedBoardPhone && !normalizePhoneInternational(trimmedBoardPhone)) {
+      setError("Revisá el teléfono del comité: no parece un número marcable.");
       return;
     }
     setError(null);
@@ -202,9 +219,11 @@ export default function NewSchoolPage() {
             <Field label="Nombre">
               <input required value={boardName} onChange={(e) => setBoardName(e.target.value)} className="input" />
             </Field>
-            <Field label="Teléfono (opcional)">
-              <input value={boardPhone} onChange={(e) => setBoardPhone(e.target.value)} className="input" />
-            </Field>
+            <PhoneField
+              label="Teléfono (opcional)"
+              value={boardPhone}
+              onChange={setBoardPhone}
+            />
           </div>
         </FormSection>
 
