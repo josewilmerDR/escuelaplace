@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Account settings (/panel/settings).
  *
@@ -8,8 +6,11 @@
  * governs every school's thank-you wall (see RecognitionToggle) — so it belongs here, not
  * buried below the donate form where it read as a per-donation toggle.
  */
+import type { Metadata } from "next";
 import { BackLink } from "@/components/ui/BackLink";
 import { RecognitionToggle } from "@/components/donors/RecognitionToggle";
+
+export const metadata: Metadata = { title: "Configuración" };
 
 export default function SettingsPage() {
   return (
@@ -21,11 +22,11 @@ export default function SettingsPage() {
         Preferencias de tu cuenta.
       </p>
 
-      <section className="mt-8">
+      <div className="mt-8">
         <RecognitionToggle />
-      </section>
+      </div>
 
-      <p className="mt-10 text-sm">
+      <p className="mt-8 text-sm">
         <BackLink href="/panel">Volver al panel</BackLink>
       </p>
     </main>
