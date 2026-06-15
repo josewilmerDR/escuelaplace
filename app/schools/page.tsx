@@ -9,6 +9,7 @@ import {
   rankSchoolsByRelevance,
   toSchoolCardData,
 } from "@/lib/firestore";
+import { absoluteUrl } from "@/lib/site";
 import type { SchoolCardData } from "@/types";
 
 /**
@@ -32,6 +33,7 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   title: "Escuelas",
   description: DESCRIPTION,
+  alternates: { canonical: "/schools" },
   openGraph: { title: "Escuelas", description: DESCRIPTION },
 };
 
@@ -51,18 +53,20 @@ export default async function SchoolsPage() {
   }
 
   // Breadcrumb + item list so search engines understand where this page sits and what it
-  // lists. "<" escaped so school names can't close the script tag. Mirrors the JSON-LD on
-  // /categories so the directory and its listings describe the same shape to crawlers.
+  // lists. URLs are ABSOLUTE (absoluteUrl): Google ignores relative item/url in these
+  // schemas, so a relative breadcrumb yields no rich result. "<" escaped so school names
+  // can't close the script tag. Mirrors the JSON-LD on /categories so the directory and its
+  // listings describe the same shape to crawlers.
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Inicio", item: "/" },
+      { "@type": "ListItem", position: 1, name: "Inicio", item: absoluteUrl("/") },
       {
         "@type": "ListItem",
         position: 2,
         name: "Escuelas",
-        item: "/schools",
+        item: absoluteUrl("/schools"),
       },
     ],
   };
@@ -73,7 +77,7 @@ export default async function SchoolsPage() {
       "@type": "ListItem",
       position: i + 1,
       name: card.name,
-      url: `/school/${card.id}`,
+      url: absoluteUrl(`/school/${card.id}`),
     })),
   };
 
@@ -99,8 +103,6 @@ export default async function SchoolsPage() {
         <p className="mt-1 text-sm text-muted">{DESCRIPTION}</p>
       </header>
 
-      <CommunityPicker description="Elegí tu escuela o activá tu ubicación para ver primero las escuelas más cercanas a tu comunidad." />
-
       {loadFailed ? (
         <EmptyState
           icon={<WarningIcon className="h-7 w-7" />}
@@ -111,11 +113,27 @@ export default async function SchoolsPage() {
         <EmptyState
           icon={<AcademicCapIcon className="h-7 w-7" />}
           title="Todavía no hay escuelas publicadas"
-          description="Creá la de tu comunidad y aparecé en el directorio."
+          description="Sé la primera de tu zona en sumarse y aparecé en el directorio."
           cta={{ label: "Creá la de tu comunidad", href: "/create" }}
         />
       ) : (
-        <SchoolDirectoryFeed initial={cards} />
+        <>
+          {/* The picker only renders with results: setting a school re-orders this very
+              list, and on the empty/error states it has nothing to sort. */}
+          <p role="status" className="sr-only">
+            {cards.length} escuelas
+          </p>
+          <CommunityPicker
+            subject="schools"
+            description="Elegí tu escuela o activá tu ubicación para ver primero las escuelas más cercanas a tu comunidad."
+          />
+          <SchoolDirectoryFeed initial={cards} />
+          {cards.length === DIRECTORY_LIMIT && (
+            <p className="mt-8 text-center text-sm text-muted">
+              Mostrando las primeras {DIRECTORY_LIMIT} escuelas del directorio.
+            </p>
+          )}
+        </>
       )}
     </PageContainer>
   );

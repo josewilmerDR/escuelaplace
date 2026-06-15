@@ -19,10 +19,15 @@ type SchoolsState = "loading" | "error" | "loaded";
 
 export function CommunityPicker({
   description = "Elegí tu escuela o activá tu ubicación para ver primero los comercios que la apoyan.",
+  subject = "businesses",
 }: {
   /** Lead copy — override it on surfaces that order something other than businesses
    * (e.g. the /schools directory orders schools by proximity). */
   description?: string;
+  /** Switches the subject of the ordering copy (statusText): supporting businesses vs.
+   * nearby schools. Set to "schools" on surfaces that order schools instead of businesses
+   * (e.g. the /schools directory). */
+  subject?: "businesses" | "schools";
 } = {}) {
   const { prefs, ready, update } = useBuyerPreferences();
   const [schools, setSchools] = useState<SchoolDoc[]>([]);
@@ -121,11 +126,22 @@ export function CommunityPicker({
   const locationWithoutSchools =
     !prefs.schoolId && prefs.location && hasNearbySchool === false;
 
-  const statusText = prefs.schoolName
-    ? `Mostrando primero quienes apoyan a ${prefs.schoolName}`
-    : locationWithoutSchools
-      ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elegí una de la lista.`
-      : "Mostrando primero quienes apoyan cerca de tu ubicación";
+  // Computed once and consumed by both the collapsed chip and the expanded card status,
+  // so the copy stays in sync across both. The locationWithoutSchools string is already
+  // school-correct ("no encontramos escuelas…"), so only the other two branches vary by
+  // subject.
+  const statusText =
+    subject === "schools"
+      ? prefs.schoolName
+        ? `Mostrando primero las escuelas más cercanas a ${prefs.schoolName}`
+        : locationWithoutSchools
+          ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elegí una de la lista.`
+          : "Mostrando primero las escuelas más cercanas a tu ubicación"
+      : prefs.schoolName
+        ? `Mostrando primero quienes apoyan a ${prefs.schoolName}`
+        : locationWithoutSchools
+          ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elegí una de la lista.`
+          : "Mostrando primero quienes apoyan cerca de tu ubicación";
 
   // Dismissed entirely: leave only a quiet chip so the buyer can bring it back.
   if (hidden) {
