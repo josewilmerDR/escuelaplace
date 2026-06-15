@@ -64,6 +64,18 @@ export function isSchoolVerified(
 }
 
 /**
+ * Cover-slot image for a school: explicit cover, else first gallery photo, else profile
+ * photo, else undefined. Pure — used by the public page for both its metadata/OG image
+ * and the header cover so the two never drift. Presentation (contain vs full-bleed)
+ * stays in the page.
+ */
+export function schoolCover(
+  school: Pick<SchoolDoc, "coverUrl" | "photos" | "photoUrl">,
+): string | undefined {
+  return school.coverUrl ?? school.photos?.[0] ?? school.photoUrl;
+}
+
+/**
  * Schools open for selection (pickers, support/donation flows), ordered by name.
  * Deliberately includes `pending`: a just-created school must be selectable by buyers
  * and by the business that wants to support it — verification gates the payment methods

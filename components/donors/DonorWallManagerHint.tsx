@@ -11,6 +11,8 @@
  */
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { Badge } from "@/components/ui/Badge";
+import { cardClass } from "@/components/ui/Card";
 import { HeartIcon } from "@/components/ui/icons";
 import { useViewAsVisitor } from "@/lib/view-as";
 
@@ -33,15 +35,13 @@ export function DonorWallManagerHint({
   if (!canManage || asVisitor) return null;
 
   return (
-    <section className="mt-4 rounded-2xl border border-dashed border-border bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6">
+    <section className={`mt-4 ${cardClass()}`}>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
           <HeartIcon className="h-5 w-5 text-brand" />
           Muro de agradecimiento
         </h2>
-        <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-medium text-muted ring-1 ring-black/5">
-          Solo vos ves esto
-        </span>
+        <Badge tone="neutral">Solo vos ves esto</Badge>
       </div>
       <p className="mt-2 text-sm text-muted">
         Cuando confirmes tu primer aporte, acá aparece un muro público que
