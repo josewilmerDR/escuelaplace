@@ -14,6 +14,7 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HeartIcon } from "@/components/ui/icons";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
@@ -57,6 +58,7 @@ export default function ProjectContributionsPage() {
   const [contribs, setContribs] = useState<ProjectContributionDoc[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Accessible-only success feedback, announced via an aria-live region (no visual banner).
   const [status, setStatus] = useState<string | null>(null);
@@ -153,16 +155,10 @@ export default function ProjectContributionsPage() {
     }
   };
 
+  // The explicit-count guard now lives in <ConfirmDialog> (confirmAllOpen, declared with the
+  // other state above); this just does the work once confirmed.
   const confirmAll = async () => {
     if (!user || pending.length === 0) return;
-    // Bulk confirm is irreversible: guard with an explicit count before proceeding.
-    if (
-      !window.confirm(
-        `¿Confirmar los ${pending.length} aportes pendientes? Esta acción no se puede deshacer.`,
-      )
-    ) {
-      return;
-    }
     setBusyId("all");
     setError(null);
     setStatus(null);
@@ -239,7 +235,7 @@ export default function ProjectContributionsPage() {
           {pending.length > 0 && (
             <button
               type="button"
-              onClick={confirmAll}
+              onClick={() => setConfirmAllOpen(true)}
               disabled={busyId !== null}
               className="btn btn-outline"
             >
@@ -352,6 +348,20 @@ export default function ProjectContributionsPage() {
           </ul>
         </section>
       )}
+
+      <ConfirmDialog
+        open={confirmAllOpen}
+        title="Confirmar todos los aportes pendientes"
+        confirmLabel="Confirmar todos"
+        onConfirm={() => {
+          setConfirmAllOpen(false);
+          void confirmAll();
+        }}
+        onCancel={() => setConfirmAllOpen(false)}
+      >
+        Vas a confirmar los {pending.length} aportes pendientes. Esta acción no se
+        puede deshacer.
+      </ConfirmDialog>
 
       <p className="mt-8 text-sm">
         <BackLink href="/panel">Volver al panel</BackLink>
