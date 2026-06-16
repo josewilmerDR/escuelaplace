@@ -313,6 +313,7 @@ export async function createBusinessPage(
     ...(logoUrl ? { logoUrl } : {}),
     ...(coverUrl ? { coverUrl } : {}),
     photos: [],
+    tags: [],
     status: "draft",
     verified: false,
     subscription: { active: false, plan: "", validUntil: null },
@@ -361,6 +362,8 @@ export interface UpdateBusinessInput {
   location: LocationInput;
   contact: BusinessContact;
   discount: Discount;
+  /** Search keywords. Caller normalizes with `normalizeTags` before passing. */
+  tags: string[];
   hours?: string;
   /** New profile logo URL (already uploaded). Omit to keep the stored one. */
   logoUrl?: string;
@@ -389,6 +392,7 @@ export async function updateBusinessProfile(
     location: toLocation(input.location),
     contact: input.contact,
     discount: input.discount,
+    tags: input.tags,
     hours: input.hours ?? "",
     // Only written when a new image was uploaded this save; otherwise the stored URL
     // stands (the patch must never blank out an unchanged logo/cover).

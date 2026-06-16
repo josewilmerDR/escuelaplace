@@ -27,7 +27,8 @@ import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PagesIcon } from "@/components/ui/icons";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
-import { validateBusinessProfile } from "@/lib/business-profile";
+import { TagsInput } from "@/components/ui/TagsInput";
+import { normalizeTags, validateBusinessProfile } from "@/lib/business-profile";
 import { buildCatalogUrl, normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -51,6 +52,8 @@ import {
   type BusinessPublishStatus,
 } from "@/lib/firestore";
 import {
+  BUSINESS_TAG_MAX,
+  BUSINESS_TAGS_MAX,
   PAGE_DESCRIPTION_MAX,
   type BusinessContact,
   type BusinessDoc,
@@ -75,6 +78,8 @@ export default function BusinessEditPage() {
   const [description, setDescription] = useState("");
   const [schoolId, setSchoolId] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  // Owner-curated search keywords (chips). Normalized on save with normalizeTags.
+  const [tags, setTags] = useState<string[]>([]);
   // Country-agnostic administrative levels (see types/firestore.ts). country has no
   // input: it is carried from the doc and refreshed by the reverse geocoder on pin move.
   const [admin1, setAdmin1] = useState("");
@@ -150,6 +155,7 @@ export default function BusinessEditPage() {
         setDescription(b.description);
         setSchoolId(b.schoolId);
         setSelectedCategories(b.categories);
+        setTags(b.tags ?? []);
         // ?? "": docs created before the agnostic-location rename lack these fields.
         setAdmin1(b.location.admin1 ?? "");
         setAdmin2(b.location.admin2 ?? "");
@@ -351,6 +357,7 @@ export default function BusinessEditPage() {
           : {}),
       };
       const trimmedHours = hours.trim();
+      const cleanTags = normalizeTags(tags);
       await updateBusinessProfile(business.id, {
         name: trimmedName,
         description: description.trim(),
@@ -361,6 +368,7 @@ export default function BusinessEditPage() {
         location,
         contact,
         discount,
+        tags: cleanTags,
         hours: trimmedHours,
         ...(logoUrl ? { logoUrl } : {}),
         ...(coverUrl ? { coverUrl } : {}),
@@ -390,12 +398,15 @@ export default function BusinessEditPage() {
               },
               contact,
               discount,
+              tags: cleanTags,
               hours: trimmedHours,
               ...(logoUrl ? { logoUrl } : {}),
               ...(coverUrl ? { coverUrl } : {}),
             }
           : b,
       );
+      // Reflect the normalized (deduped/trimmed) tags back into the field after save.
+      setTags(cleanTags);
       setPhotoFile(null);
       setCoverFile(null);
       setSaved(true);
@@ -680,6 +691,19 @@ export default function BusinessEditPage() {
               </div>
             )}
           </fieldset>
+
+          <TagsInput
+            label="Etiquetas de búsqueda (opcional)"
+            hint="Palabras o frases que la gente busca y que vendés o ofrecés — “cuadernos”, “útiles escolares”, “tijeras”. Ayudan a que tu comercio aparezca aunque no estén en el nombre. Enter o coma para agregar cada una."
+            value={tags}
+            onChange={(next) => {
+              setTags(next);
+              setDirty(true);
+            }}
+            max={BUSINESS_TAGS_MAX}
+            maxLength={BUSINESS_TAG_MAX}
+            placeholder="cuadernos, útiles escolares, tijeras…"
+          />
         </FormSection>
 
         <FormSection

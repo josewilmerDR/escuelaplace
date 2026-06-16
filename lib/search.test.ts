@@ -4,6 +4,7 @@ import { queryTerms, relevanceScore, searchQuery } from "./search";
 const biz = (over: Partial<Parameters<typeof relevanceScore>[0]> = {}) => ({
   name: "Panadería La Espiga",
   categoryNames: ["Panadería", "Cafetería"],
+  tags: ["pan dulce", "queques"],
   description: "Pan artesanal y repostería",
   ...over,
 });
@@ -44,9 +45,25 @@ describe("relevanceScore", () => {
     expect(relevanceScore(b, "cafeteria")).toBeCloseTo(0.8);
   });
 
+  it("scores a tag-only match at the tag weight", () => {
+    // "queques" matches only the tag (not name/category/description).
+    const b = biz({ name: "La Espiga", categoryNames: [], description: "" });
+    expect(relevanceScore(b, "queques")).toBeCloseTo(0.7);
+  });
+
+  it("matches a term inside a phrase tag", () => {
+    const b = biz({ name: "La Espiga", categoryNames: [], description: "" });
+    expect(relevanceScore(b, "dulce")).toBeCloseTo(0.7);
+  });
+
   it("scores a description-only match at the description weight", () => {
-    const b = biz({ name: "La Espiga", categoryNames: [] });
+    const b = biz({ name: "La Espiga", categoryNames: [], tags: [] });
     expect(relevanceScore(b, "reposteria")).toBeCloseTo(0.5);
+  });
+
+  it("treats absent tags as no tag match", () => {
+    const b = biz({ name: "La Espiga", categoryNames: [], tags: undefined });
+    expect(relevanceScore(b, "queques")).toBe(0);
   });
 
   it("averages across terms so partial matches score lower", () => {
