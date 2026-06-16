@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { HeaderBrowse } from "@/components/layout/HeaderBrowse";
 import { HeaderCreateCta } from "@/components/layout/HeaderCreateCta";
+import { HeaderDonateCta } from "@/components/layout/HeaderDonateCta";
 
 /**
  * Top brand bar (encuentra24 style): solid brand-colored band with the wordmark
@@ -29,6 +30,10 @@ export function SiteHeader() {
             chips; on home the hero already owns search + category chips, so it collapses to a
             spacer + Escuelas. */}
         <HeaderBrowse />
+        {/* Mission CTA — a secondary ghost chip (preselects the buyer's community school)
+            that keeps "Dona a una escuela" reachable everywhere without rivaling the solid
+            Crear CTA. Grouped with the browse chips, ahead of the single solid CTA + login. */}
+        <HeaderDonateCta />
         {/* Acquisition CTA — state-aware (see HeaderCreateCta): a learn-what-this-is
             entry for visitors, hidden for accounts that already own a page. */}
         <HeaderCreateCta />
