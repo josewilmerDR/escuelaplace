@@ -94,21 +94,24 @@ function tsMillis(t: unknown): number | null {
 }
 
 /**
- * The donor's denormalized name now lives in a PRIVATE subdoc ({collection}/{id}/private/data),
- * off the public doc so an anonymous scraper can't deanonymize opt-out donors. The audit trail
- * (admin-only) reads it with Admin privileges. Empty string if absent.
+ * A personal record's PRIVATE subdoc ({collection}/{id}/private/data) — the donor's name and,
+ * for personal donations/contributions, the magnitude (`units`/`amount`) — moved off the public
+ * doc so anonymous scrapers can't deanonymize nor read how much a person gave. Read with Admin
+ * privileges (the donor tier / project `raised` are computed from these). Empty object if absent.
  */
-async function privateDonorName(
+async function privateRecord(
   collectionName: string,
   docId: string,
-): Promise<string> {
+): Promise<{ donorName?: string; units?: number; amount?: number }> {
   const snap = await db
     .collection(collectionName)
     .doc(docId)
     .collection("private")
     .doc("data")
     .get();
-  return (snap.get("donorName") as string | undefined) ?? "";
+  return (
+    (snap.data() as { donorName?: string; units?: number; amount?: number } | undefined) ?? {}
+  );
 }
 
 /**
@@ -159,11 +162,18 @@ async function recordSubscriptionAudit(
       : businessId
         ? principalsOf((await db.collection(BUSINESSES).doc(businessId).get()).data())
         : new Set<string>();
-  // A personal donor's name lives in the private subdoc; a business carries its public name.
-  const supporterName =
-    supporterType === "user"
-      ? await privateDonorName(SUBSCRIPTIONS, subscriptionId)
-      : ((data.businessName as string | undefined) ?? "");
+  // A personal donor's name + magnitude live in the private subdoc; a business carries its
+  // public name + units. `units` (a COUNT, never a money figure) stays in the fraud trail.
+  let supporterName: string;
+  let units: number;
+  if (supporterType === "user") {
+    const priv = await privateRecord(SUBSCRIPTIONS, subscriptionId);
+    supporterName = priv.donorName ?? "";
+    units = priv.units ?? 0;
+  } else {
+    supporterName = (data.businessName as string | undefined) ?? "";
+    units = (data.units as number) ?? 0;
+  }
 
   await db.collection(AUDIT_EVENTS).add({
     type: "subscription_confirmed",
@@ -174,7 +184,7 @@ async function recordSubscriptionAudit(
     schoolId,
     schoolName: (data.schoolName as string | undefined) ?? "",
     supporterName,
-    units: (data.units as number) ?? 0,
+    units,
     confirmedBy,
     confirmedAt: (data.confirmedAt as Timestamp | null) ?? null,
     ...(await confirmationSignals(schoolId, supporterPrincipals, confirmedBy)),
@@ -205,7 +215,7 @@ async function recordContributionAudit(
     donorId,
     schoolId,
     schoolName: (data.schoolName as string | undefined) ?? "",
-    supporterName: await privateDonorName(PROJECT_CONTRIBUTIONS, contributionId),
+    supporterName: (await privateRecord(PROJECT_CONTRIBUTIONS, contributionId)).donorName ?? "",
     ...(data.projectId ? { projectId: data.projectId as string } : {}),
     ...(data.projectTitle ? { projectTitle: data.projectTitle as string } : {}),
     ...(data.type ? { contributionType: data.type as string } : {}),
@@ -366,20 +376,26 @@ async function recomputeDonorProfile(donorId: string): Promise<void> {
     .where("donorId", "==", donorId)
     .get();
 
+  // Only confirmed donations count. `units` now lives in each donation's PRIVATE subdoc (off
+  // the public doc); read it with Admin privileges — one read per confirmed donation, bounded
+  // by the donor's history. The private rules freeze `units` once the school confirmed, so this
+  // total can't be inflated after the fact.
+  const confirmed = snap.docs.filter((d) => d.get("confirmedAt"));
+  const unitsPerDonation = await Promise.all(
+    confirmed.map((d) => privateRecord(SUBSCRIPTIONS, d.id).then((p) => p.units ?? 0)),
+  );
   let totalUnits = 0;
   const schools = new Set<string>();
   let firstMs: number | null = null;
   let lastMs: number | null = null;
-  for (const d of snap.docs) {
-    const data = d.data();
-    const confirmedAt = data.confirmedAt as Timestamp | null;
-    if (!confirmedAt) continue; // pending — the school never confirmed it
-    totalUnits += (data.units as number) ?? 0;
-    if (data.schoolId) schools.add(data.schoolId as string);
-    const ms = confirmedAt.toMillis();
+  confirmed.forEach((d, i) => {
+    totalUnits += unitsPerDonation[i];
+    const schoolId = d.get("schoolId") as string | undefined;
+    if (schoolId) schools.add(schoolId);
+    const ms = (d.get("confirmedAt") as Timestamp).toMillis();
     if (firstMs == null || ms < firstMs) firstMs = ms;
     if (lastMs == null || ms > lastMs) lastMs = ms;
-  }
+  });
 
   const computed = {
     totalUnits,
@@ -465,16 +481,24 @@ async function recomputeProject(
     .where("projectId", "==", projectId)
     .get();
 
+  // Only confirmed contributions count. `amount` now lives in each contribution's PRIVATE
+  // subdoc (off the public doc — the per-person figure is never published); read it with Admin
+  // privileges, one read per confirmed contribution. Both money and in-kind carry an `amount`
+  // (in-kind's is its assessed value), so both advance the bar. The private rules freeze
+  // `amount` once confirmed, so `raised` can't be inflated after the fact.
+  const confirmed = snap.docs.filter((d) => d.get("confirmedAt"));
+  const amountPerContribution = await Promise.all(
+    confirmed.map((d) =>
+      privateRecord(PROJECT_CONTRIBUTIONS, d.id).then((p) => p.amount ?? 0),
+    ),
+  );
   let raised = 0;
   const contributors = new Set<string>();
-  for (const d of snap.docs) {
-    const c = d.data();
-    if (!c.confirmedAt) continue; // pending — the school never confirmed it
-    // Both money and in-kind carry an `amount` in the project's currency (in-kind's is its
-    // assessed value), so both advance the bar — one flow, not two.
-    raised += (c.amount as number) ?? 0;
-    if (c.donorId) contributors.add(c.donorId as string);
-  }
+  confirmed.forEach((d, i) => {
+    raised += amountPerContribution[i];
+    const donorId = d.get("donorId") as string | undefined;
+    if (donorId) contributors.add(donorId);
+  });
 
   await ref.update({
     raised,

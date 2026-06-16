@@ -160,8 +160,6 @@ export async function createDonation(
     donorId: input.donorId,
     schoolId: input.schoolId,
     schoolName: input.schoolName,
-    units: input.units,
-    amount: input.units * SUBSCRIPTION_UNIT_CRC,
     status: "pending",
     confirmedAt: null,
     firstConfirmedAt: null,
@@ -169,11 +167,15 @@ export async function createDonation(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  // The donor's real name (matched against the proof) is denormalized into a PRIVATE subdoc,
-  // never the public doc — so an anonymous scraper of `subscriptions` can't deanonymize an
-  // opt-out donor. Readable only by the donor, the target school, or admin (firestore.rules).
+  // The donor's real name AND the donation magnitude (`units`/`amount`) go into a PRIVATE
+  // subdoc, never the public doc — so an anonymous scraper of `subscriptions` can neither
+  // deanonymize an opt-out donor nor read how much they gave. Readable only by the donor, the
+  // target school, or admin; the donor tier is computed by a Cloud Function from THIS `units`
+  // (firestore.rules freezes it once the school confirms).
   await setDoc(doc(db, SUBSCRIPTIONS, created.id, "private", "data"), {
     donorName: input.donorName,
+    units: input.units,
+    amount: input.units * SUBSCRIPTION_UNIT_CRC,
   });
   return created.id;
 }
