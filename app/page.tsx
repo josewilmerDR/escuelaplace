@@ -1,10 +1,18 @@
 import Image from "next/image";
+import Link from "next/link";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SearchBar } from "@/components/search/SearchBar";
 import { Chip } from "@/components/ui/Chip";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { TagIcon, WarningIcon } from "@/components/ui/icons";
+import { IconTile } from "@/components/ui/IconTile";
+import {
+  AcademicCapIcon,
+  HeartIcon,
+  SearchIcon,
+  TagIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 import {
   getCategories,
   getTopBusinesses,
@@ -94,6 +102,59 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Value strip: the product breaks marketplace expectations (no checkout, the
+          platform never touches money), so the home — where most buyers land — has to
+          say what the catalog is FOR before showing it. Condensed from the "Para quien
+          compra" steps on /about; the secondary CTAs also surface /schools and /about,
+          which are otherwise only reachable from the header/footer. */}
+      <section className="border-y border-border bg-surface">
+        <div className="mx-auto max-w-6xl px-6 py-12">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+              Comprá local, sostené tu escuela
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-muted">
+              No es una tienda en línea: es el directorio de los comercios que apoyan a
+              las escuelas de tu comunidad. Al preferirlos, tu compra sostiene a la
+              escuela de forma indirecta. Navegás sin crear cuenta.
+            </p>
+          </div>
+
+          <ol className="mx-auto mt-10 grid max-w-4xl gap-8 sm:grid-cols-3">
+            <BuyerStep
+              icon={<AcademicCapIcon className="h-6 w-6" />}
+              title="Elegí tu comunidad"
+            >
+              Seleccioná tu escuela y tu zona. Se guarda solo en tu navegador para
+              ordenar lo que ves.
+            </BuyerStep>
+            <BuyerStep
+              icon={<SearchIcon className="h-6 w-6" />}
+              title="Descubrí quién la apoya"
+            >
+              Buscá por nombre o rubro y mirá los comercios que apoyan a la escuela de
+              tu comunidad.
+            </BuyerStep>
+            <BuyerStep
+              icon={<HeartIcon className="h-6 w-6" />}
+              title="Comprales y sostenela"
+            >
+              Al gastar con quienes la apoyan, tu compra sostiene a la institución de
+              forma indirecta.
+            </BuyerStep>
+          </ol>
+
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
+            <Link href="/schools" className="btn btn-outline">
+              Ver escuelas
+            </Link>
+            <Link href="/about" className="btn btn-secondary">
+              Cómo funciona
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Explore feed: SSR baseline order (stored ranking.score), re-ranked client-side
           per the buyer's community. The picker renders regardless of the feed state so
           the buyer can set their school even when there is nothing to list yet. */}
@@ -141,5 +202,25 @@ export default async function HomePage() {
       </section>
       </main>
     </>
+  );
+}
+
+/** A buyer "how it works" step on the home value strip: icon tile + title + line.
+ *  Mirrors the numbered steps on /about, centered for the home's marketing rhythm. */
+function BuyerStep({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="flex flex-col items-center text-center">
+      <IconTile size="md">{icon}</IconTile>
+      <h3 className="mt-4 font-semibold tracking-tight text-foreground">{title}</h3>
+      <p className="mt-1 text-sm leading-relaxed text-muted">{children}</p>
+    </li>
   );
 }

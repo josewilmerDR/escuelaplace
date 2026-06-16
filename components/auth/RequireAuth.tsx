@@ -7,12 +7,35 @@
  * This is a UX gate, not the security boundary — that lives in firestore.rules. It does
  * not check the global `admin` role; per-page access is enforced by ownerId/editorIds.
  */
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAuth } from "./AuthProvider";
 import { LoginButton } from "./LoginButton";
 
+// The sign-in wall is shared by the whole panel, but a buyer who lands here from a public
+// "Donar"/"Financiar" CTA is NOT trying to manage pages — telling them to "administrar tus
+// páginas" reads as a dead end. Give the contribution flows donor-oriented copy that names
+// why an account is needed (the school confirms the aport) and reassures on money handling.
+const CONTRIBUTION_COPY = {
+  title: "Iniciá sesión para registrar tu aporte",
+  description:
+    "Necesitás una cuenta (con Google) para que la escuela pueda confirmar tu aporte. La plataforma nunca toca el dinero: pagás directo a la escuela por los medios que ella publica.",
+};
+
+const SIGN_IN_COPY: Record<string, { title: string; description: string }> = {
+  "/panel/donate": CONTRIBUTION_COPY,
+  "/panel/fund": CONTRIBUTION_COPY,
+};
+
+const DEFAULT_COPY = {
+  title: "Ingresá para administrar tus páginas",
+  description:
+    "Creá o gestioná tu comercio o escuela. Navegar el catálogo no requiere cuenta.",
+};
+
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
+  const pathname = usePathname();
 
   if (loading) {
     // Calm, LEFT-aligned loading line — sits near the top in the same horizontal rhythm
@@ -26,14 +49,13 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
+    const copy = SIGN_IN_COPY[pathname] ?? DEFAULT_COPY;
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Ingresá para administrar tus páginas
+          {copy.title}
         </h1>
-        <p className="mt-2 text-sm text-muted">
-          Creá o gestioná tu comercio o escuela. Navegar el catálogo no requiere cuenta.
-        </p>
+        <p className="mt-2 text-sm text-muted">{copy.description}</p>
         <div className="mt-6 flex justify-center">
           <LoginButton variant="primary" />
         </div>

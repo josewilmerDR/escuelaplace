@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Browse cluster of the brand header: catalog search + Categorías + Escuelas.
+ * Browse cluster of the brand header: catalog search + Categorías + Escuelas + Cómo funciona.
  *
  * Route-aware (a client island like LoginButton/HeaderCreateCta) so the bar doesn't
  * duplicate what the home page already shows prominently: the hero owns a large search
@@ -9,6 +9,11 @@
  * chip are hidden here. Escuelas has no home-page equivalent, so it stays everywhere.
  * On every inner page all three show — that's exactly where a buyer who scrolled past
  * (or never saw) the hero needs them.
+ *
+ * "Cómo funciona" (/about) follows the same rule: the trust page that explains the
+ * no-marketplace model was previously only reachable from the footer. It shows here on
+ * inner pages only (the home renders a prominent value strip that already links it) and
+ * only on sm+ (the footer carries it on mobile), so it never crowds the tight mobile band.
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -27,6 +32,18 @@ const SchoolsLink = (
     <AcademicCapIcon className="h-5 w-5" />
     <span className="hidden sm:inline">Escuelas</span>
   </Link>
+);
+
+// "Cómo funciona" (/about) chip — text-only (no icon fits the "explainer" idea, and the
+// other chips only drop their label below sm anyway). `hidden sm:contents` on the wrapper
+// toggles visibility without clashing with CHIP's own `inline-flex` display utility, so the
+// chip keeps its exact layout while staying off the narrow mobile band.
+const AboutLink = (
+  <span className="hidden sm:contents">
+    <Link href="/about" className={CHIP}>
+      Cómo funciona
+    </Link>
+  </span>
 );
 
 export function HeaderBrowse() {
@@ -62,6 +79,7 @@ export function HeaderBrowse() {
         <span className="hidden sm:inline">Categorías</span>
       </Link>
       {SchoolsLink}
+      {AboutLink}
     </>
   );
 }
