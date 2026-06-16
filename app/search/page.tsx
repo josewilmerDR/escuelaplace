@@ -56,7 +56,7 @@ export default async function SearchPage({ searchParams }: Props) {
   const originPath = safeOrigin(from);
 
   let cards: BusinessCardData[] = [];
-  let relevanceById: Record<string, number> = {};
+  const relevanceById: Record<string, number> = {};
   // Empty and error are different states: "no matches for this query" points the buyer
   // elsewhere; "catalog unavailable" (Firebase down) asks them to retry. Without this split
   // a Firestore outage would lie that the query has no matches.

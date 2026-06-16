@@ -29,8 +29,16 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    // Admin is anchored on the unforgeable custom claim (request.auth.token.admin), set ONLY
+    // by the Admin SDK (functions/src/admin.ts grant/revoke + the bootstrap script). The
+    // Firestore users/{uid}.role field is a non-authoritative MIRROR for the admin UI; it is
+    // honored here as a transitional fallback so admins provisioned before the custom-claim
+    // migration aren't locked out. The claim is checked FIRST and short-circuits, so a
+    // claim-bearing admin pays no userDoc() read. Once every admin carries the claim, drop the
+    // role fallback (and the get() it costs). See docs/security/ADMIN-BOOTSTRAP.md.
     function isAdmin() {
-      return isSignedIn() && userDoc().role == 'admin';
+      return isSignedIn() &&
+        (request.auth.token.admin == true || userDoc().role == 'admin');
     }
 
     // True if the signed-in user owns or co-edits a page, given that page's data.
@@ -51,12 +59,31 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/businesses/$(id)).data;
     }
 
+    // Data of a subscription / contribution doc by id (used by their private subcollections,
+    // which resolve who may see the donor's denormalized name).
+    function subscriptionData(id) {
+      return get(/databases/$(database)/documents/subscriptions/$(id)).data;
+    }
+    function contributionData(id) {
+      return get(/databases/$(database)/documents/projectContributions/$(id)).data;
+    }
+
     // ── users/{uid} ─────────────────────────────────────────────────────────
-    // Each user can only read/write their own document. Admin can do everything.
+    // Each user can only read/write their own document. Admin can do everything. The `role`
+    // field is the admin trust anchor (see isAdmin), so it is FROZEN to non-admins: a user
+    // creates their own doc as 'user' and may never change `role` on their own doc. Only an
+    // existing admin (isAdmin branch) — or the Admin SDK via the grant/revoke callables, which
+    // also set the unforgeable custom claim — may change a role. Without this guard any
+    // signed-in user could self-assign role:'admin' and own the whole platform.
     match /users/{uid} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
-      allow create: if isSignedIn() && request.auth.uid == uid;
-      allow update, delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.role == 'user';
+      allow update: if isAdmin() || (
+        isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
+      );
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
     }
 
     // ── businesses/{id} ─────────────────────────────────────────────────────
@@ -120,17 +147,27 @@ service cloud.firestore {
       );
 
       allow update: if isAdmin() || (
-        isOwnerOrEditor(resource.data) && !grantsVerification()
+        isOwnerOrEditor(resource.data) &&
+        !grantsVerification() &&
+        renamePreservesVerification()
       );
 
       allow delete: if isAdmin() || isOwnerOrEditor(resource.data);
 
       // Private subcollection (payment methods):
-      // - write: owner/editors of THIS school, or admin.
+      // - write: owner/editors of THIS school, or admin — but NOT while the school is
+      //   currently 'verified'. To change payment methods on a verified school the owner must
+      //   first drop it to needs_reverification (allowed on the school doc), which re-hides the
+      //   methods behind the read-gate below until admin re-approves. Without this an owner
+      //   could swap in their own account number on an approved school and it would stay
+      //   publicly readable with no admin re-review (decision #6). Admin may always write.
       // - read: owner/editors or admin always; plus ANY signed-in user (e.g. a business
       //   wanting to subscribe) but ONLY when the school is 'verified'. Never anonymous.
       match /private/{docId} {
-        allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
+        allow write: if isAdmin() || (
+          isOwnerOrEditor(schoolData(id)) &&
+          schoolData(id).verificationStatus != 'verified'
+        );
         allow read: if isAdmin() || isOwnerOrEditor(schoolData(id)) ||
           (isSignedIn() && schoolData(id).verificationStatus == 'verified');
       }
@@ -181,6 +218,18 @@ service cloud.firestore {
          resource.data.verificationStatus != 'verified');
     }
 
+    // A verified school that renames must SIMULTANEOUSLY drop to needs_reverification: the
+    // name is admin-reviewed sensitive metadata (decision #6) shown next to the verified badge,
+    // so an owner cannot quietly change it while keeping the badge. True when the update is
+    // allowed: the school isn't verified, or the name is unchanged, or the change also drops
+    // verification. (Payment-method changes are gated separately on the private/ write rule.)
+    function renamePreservesVerification() {
+      return resource.data.verificationStatus != 'verified' ||
+        request.resource.data.name == resource.data.name ||
+        (request.resource.data.verificationStatus == 'needs_reverification' &&
+         request.resource.data.verified == false);
+    }
+
     // ── categories/{id} ─────────────────────────────────────────────────────
     // Public read. Write: admin only.
     match /categories/{id} {
@@ -226,6 +275,19 @@ service cloud.firestore {
       );
 
       allow delete: if isAdmin() || isSupporterSide(resource.data);
+
+      // Private: the donor's real (proof-matching) name, denormalized OFF the public doc so an
+      // anonymous scraper of `subscriptions` can no longer deanonymize opt-out donors. Personal
+      // donations only — business subs carry the public `businessName`, no private subdoc.
+      // - read: the donor, the target school's owner/editors (to match the proof), or admin.
+      // - write: the donor (their own) or admin. Never anonymous; never the supporting business.
+      match /private/{doc} {
+        allow read: if isAdmin() ||
+          (isSignedIn() && subscriptionData(id).get('donorId', '') == request.auth.uid) ||
+          isOwnerOrEditor(schoolData(subscriptionData(id).schoolId));
+        allow write: if isAdmin() ||
+          (isSignedIn() && subscriptionData(id).get('donorId', '') == request.auth.uid);
+      }
     }
 
     // The supporter side of a subscription: owner/editor of the supporting business, or
@@ -317,6 +379,18 @@ service cloud.firestore {
 
       allow delete: if isAdmin() ||
         (isSignedIn() && resource.data.donorId == request.auth.uid);
+
+      // Private: the contributor's real (proof-matching) name, denormalized OFF the public doc
+      // (same rationale as subscriptions/private — anonymous scrapers can't deanonymize).
+      // - read: the contributor, the target school's owner/editors, or admin.
+      // - write: the contributor (their own) or admin. Never anonymous.
+      match /private/{doc} {
+        allow read: if isAdmin() ||
+          (isSignedIn() && contributionData(id).donorId == request.auth.uid) ||
+          isOwnerOrEditor(schoolData(contributionData(id).schoolId));
+        allow write: if isAdmin() ||
+          (isSignedIn() && contributionData(id).donorId == request.auth.uid);
+      }
     }
 
     // No update may rewrite who contributed what to which project (frozen at create).
@@ -339,6 +413,15 @@ service cloud.firestore {
     // (Admin SDK bypasses these rules). Admin-only read — it backs fraud review and the
     // future risk-scoring feature store; no client may read or write it.
     match /auditEvents/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ── adminEvents/{id} ──────────────────────────────────────────────────────
+    // Append-only trail of privileged admin actions (role grants/revokes; extend with
+    // verify/delete later) so the highest-authority actor is itself reviewable. Written ONLY
+    // by the Admin SDK (the grant/revoke callables). Admin-only read; no client write.
+    match /adminEvents/{id} {
       allow read: if isAdmin();
       allow write: if false;
     }

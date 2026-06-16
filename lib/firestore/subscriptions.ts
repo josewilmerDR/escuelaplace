@@ -114,12 +114,41 @@ export async function getSubscriptionsByDonor(
 }
 
 /**
+ * Merge each personal donation's private donorName back onto the doc — CLIENT-ONLY and
+ * best-effort. The donor's real name (matched against the proof) lives in a private subdoc,
+ * not the public doc (so anonymous scrapers can't deanonymize opt-out donors). The school's
+ * confirmation panel needs it, and the signed-in board IS authorized to read it; the
+ * anonymous SSR donor wall is NOT, and doesn't render the name anyway — so on the server we
+ * skip the merge entirely, and on the client an unauthorized read is swallowed.
+ */
+async function mergeDonorNames(
+  subs: SubscriptionDoc[],
+): Promise<SubscriptionDoc[]> {
+  if (typeof window === "undefined") return subs; // SSR: the wall doesn't need the name
+  await Promise.all(
+    subs.map(async (s) => {
+      if (s.supporterType !== "user") return; // business subs carry the public businessName
+      try {
+        const snap = await getDoc(doc(db, SUBSCRIPTIONS, s.id, "private", "data"));
+        const name = snap.data()?.donorName;
+        if (typeof name === "string") s.donorName = name;
+      } catch {
+        // Unauthorized (or missing) — leave donorName undefined; callers that render it are
+        // the authorized board, which won't hit this.
+      }
+    }),
+  );
+  return subs;
+}
+
+/**
  * All subscriptions targeting a school (any status), newest first.
  *
  * Wrapped in React cache(): the public school page reads these both directly (for its
  * support metrics) and indirectly through getSchoolDonorWall during one request — the
  * cache dedupes that into a single Firestore read (the Firestore SDK, unlike fetch, gets
- * no deduping from Next).
+ * no deduping from Next). On the client (the school's confirmation panel) each personal
+ * donation's private donorName is merged back in; on the server it is not (see mergeDonorNames).
  */
 export const getSubscriptionsBySchool = cache(
   async (schoolId: string): Promise<SubscriptionDoc[]> => {
@@ -127,7 +156,8 @@ export const getSubscriptionsBySchool = cache(
       collection(db, SUBSCRIPTIONS),
       where("schoolId", "==", schoolId),
     );
-    return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
+    const subs = snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
+    return mergeDonorNames(subs);
   },
 );
 

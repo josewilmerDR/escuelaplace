@@ -46,6 +46,7 @@ initializeApp();
 const db = getFirestore();
 
 export { recordWalkIn, trackInteraction } from "./track";
+export { grantAdminRole, revokeAdminRole } from "./admin";
 
 const DAY_MS = 86_400_000;
 const SUBSCRIPTIONS = "subscriptions";
@@ -90,6 +91,24 @@ function tsMillis(t: unknown): number | null {
   return t && typeof (t as Timestamp).toMillis === "function"
     ? (t as Timestamp).toMillis()
     : null;
+}
+
+/**
+ * The donor's denormalized name now lives in a PRIVATE subdoc ({collection}/{id}/private/data),
+ * off the public doc so an anonymous scraper can't deanonymize opt-out donors. The audit trail
+ * (admin-only) reads it with Admin privileges. Empty string if absent.
+ */
+async function privateDonorName(
+  collectionName: string,
+  docId: string,
+): Promise<string> {
+  const snap = await db
+    .collection(collectionName)
+    .doc(docId)
+    .collection("private")
+    .doc("data")
+    .get();
+  return (snap.get("donorName") as string | undefined) ?? "";
 }
 
 /**
@@ -140,6 +159,11 @@ async function recordSubscriptionAudit(
       : businessId
         ? principalsOf((await db.collection(BUSINESSES).doc(businessId).get()).data())
         : new Set<string>();
+  // A personal donor's name lives in the private subdoc; a business carries its public name.
+  const supporterName =
+    supporterType === "user"
+      ? await privateDonorName(SUBSCRIPTIONS, subscriptionId)
+      : ((data.businessName as string | undefined) ?? "");
 
   await db.collection(AUDIT_EVENTS).add({
     type: "subscription_confirmed",
@@ -149,10 +173,7 @@ async function recordSubscriptionAudit(
     ...(donorId ? { donorId } : {}),
     schoolId,
     schoolName: (data.schoolName as string | undefined) ?? "",
-    supporterName:
-      ((supporterType === "user" ? data.donorName : data.businessName) as
-        | string
-        | undefined) ?? "",
+    supporterName,
     units: (data.units as number) ?? 0,
     confirmedBy,
     confirmedAt: (data.confirmedAt as Timestamp | null) ?? null,
@@ -184,7 +205,7 @@ async function recordContributionAudit(
     donorId,
     schoolId,
     schoolName: (data.schoolName as string | undefined) ?? "",
-    supporterName: (data.donorName as string | undefined) ?? "",
+    supporterName: await privateDonorName(PROJECT_CONTRIBUTIONS, contributionId),
     ...(data.projectId ? { projectId: data.projectId as string } : {}),
     ...(data.projectTitle ? { projectTitle: data.projectTitle as string } : {}),
     ...(data.type ? { contributionType: data.type as string } : {}),

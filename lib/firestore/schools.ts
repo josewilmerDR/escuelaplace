@@ -283,16 +283,16 @@ export async function removeSchoolGalleryPhoto(
  * Write the school's payment methods (private subcollection). The set REPLACES the
  * whole doc, so a legacy single `sinpe` is retired the first time the owner saves the
  * list. Editing payment data is always sensitive, so if the school is currently
- * `verified` we also drop the public doc to `needs_reverification` (which re-hides the
- * payment methods until admin re-approves).
+ * `verified` we first drop the public doc to `needs_reverification` (which re-hides the
+ * payment methods until admin re-approves) and ONLY THEN write the methods — the rules
+ * reject a payment-method write while the school is still 'verified' (it must be dropped
+ * first), so the order matters.
  */
 export async function updateSchoolPaymentMethods(
   id: string,
   paymentMethods: PaymentMethod[],
   currentStatus: School["verificationStatus"],
 ): Promise<void> {
-  await setDoc(doc(db, SCHOOLS, id, "private", "data"), { paymentMethods });
-
   if (currentStatus === "verified") {
     await updateDoc(doc(db, SCHOOLS, id), {
       verified: false,
@@ -300,6 +300,8 @@ export async function updateSchoolPaymentMethods(
       updatedAt: serverTimestamp(),
     });
   }
+
+  await setDoc(doc(db, SCHOOLS, id, "private", "data"), { paymentMethods });
 }
 
 // ── Admin: school verification ───────────────────────────────────────────────
