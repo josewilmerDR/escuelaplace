@@ -14,9 +14,14 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // Mirror of firestore.rules isAdmin(): admin is anchored on the unforgeable custom claim
+    // (request.auth.token.admin), with the Firestore users/{uid}.role field as a transitional
+    // fallback. The claim short-circuits first, so a claim-bearing admin pays no firestore.get().
     function isAdmin() {
-      return isSignedIn() &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
     // Business assets: businesses/{businessId}/...

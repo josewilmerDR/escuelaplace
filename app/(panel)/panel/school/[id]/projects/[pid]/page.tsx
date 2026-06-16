@@ -144,10 +144,13 @@ export default function ProjectEditPage() {
   // disable its uploads until "Guardar cambios" persists it and re-keys it (#3). We track
   // identity by `_key` rather than array index because the editable array and the persisted
   // array drift as the board adds/removes stages mid-edit.
-  const persistedKeys = useRef<Set<number>>(new Set());
+  // State (not a ref): the set drives the `persisted` prop in render, so it must be reactive —
+  // reading a ref during render is fragile (a mutation wouldn't re-render). Every mutation here
+  // already co-occurs with a setStages/setProject, so this adds no extra render.
+  const [persistedKeys, setPersistedKeys] = useState<Set<number>>(new Set());
   const keyStages = (s: ProjectStage[]): EditableStage[] => {
     const keyed = s.map((stage) => ({ ...stage, _key: nextKey.current++ }));
-    persistedKeys.current = new Set(keyed.map((stage) => stage._key));
+    setPersistedKeys(new Set(keyed.map((stage) => stage._key)));
     return keyed;
   };
 
@@ -274,14 +277,14 @@ export default function ProjectEditPage() {
     media: Pick<ProjectStage, "photos" | "quoteUrls">,
   ) => {
     // Only persisted stages can receive media; an unsaved stage has no slot in project.stages.
-    if (!persistedKeys.current.has(key)) return;
+    if (!persistedKeys.has(key)) return;
     setError(null);
     // The persisted array holds exactly the persisted stages, in the same relative order as
     // they appear in the editable list. Map the target's position among persisted-only
     // editable stages onto project.stages, so a newer unsaved stage inserted earlier in the
     // editable list can't shift the index off the wrong saved stage.
     const persistedEditable = stages.filter((s) =>
-      persistedKeys.current.has(s._key),
+      persistedKeys.has(s._key),
     );
     const targetIndex = persistedEditable.findIndex((s) => s._key === key);
     if (targetIndex < 0) return;
@@ -313,7 +316,11 @@ export default function ProjectEditPage() {
       setProject((prev) => (prev ? { ...prev, stages: stored } : prev));
       setStages((prev) => prev.filter((s) => s._key !== key));
       // The removed stage left the persisted set; drop its key so its slot can't be reused.
-      persistedKeys.current.delete(key);
+      setPersistedKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
       setRemoveKey(null);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo guardar el cambio."));
@@ -563,7 +570,7 @@ export default function ProjectEditPage() {
             canRemove={stages.length > 1}
             // An unsaved stage has no slot in project.stages yet, so its media can't persist;
             // the card disables uploads and explains why until the stage is saved (#3).
-            persisted={persistedKeys.current.has(stage._key)}
+            persisted={persistedKeys.has(stage._key)}
             onText={(patch) => {
               setStages((prev) =>
                 prev.map((s) =>

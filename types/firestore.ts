@@ -769,8 +769,11 @@ export interface ProjectContribution {
   type: ProjectContributionType;
   /** Contributing user (uid). Contributing requires sign-in. */
   donorId: string;
-  /** Denormalized account name so the board can match the proof. Not public. */
-  donorName: string;
+  /** Denormalized account name so the board can match the proof. NOT on the public doc — it
+   * lives in the `private/data` subdoc (readable by the contributor/school/admin) and is
+   * merged back in client-side for the board (see getContributionsBySchool). Undefined on the
+   * public doc / anonymous reads. */
+  donorName?: string;
   /** Money: amount paid. In-kind: assessed value of the goods/labour. Both in `currency`
    * and both feed the progress bar once confirmed. */
   amount: number;

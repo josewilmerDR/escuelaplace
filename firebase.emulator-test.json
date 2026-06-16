@@ -1,0 +1,12 @@
+{
+  "//": "Isolated emulator config for the security-rules suite (npm run test:rules). Uses ports off the defaults in firebase.json so the suite can run ALONGSIDE a running dev emulator (npm run emulators) without colliding or sharing its data. The rules suite wipes Firestore between tests, so it must never point at the dev instance.",
+  "firestore": { "rules": "firestore.rules" },
+  "storage": { "rules": "storage.rules" },
+  "emulators": {
+    "firestore": { "port": 8588 },
+    "storage": { "port": 9588 },
+    "hub": { "port": 4588 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}

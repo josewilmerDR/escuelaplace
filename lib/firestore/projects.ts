@@ -24,6 +24,7 @@ import {
   getDocs,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -153,7 +154,38 @@ export async function getContributionsByProject(
   return snapToList<ProjectContribution>(await getDocs(q)).sort(byCreatedAtDesc);
 }
 
-/** All contributions targeting a school's projects (any status), newest first. */
+/**
+ * Merge each contribution's private donorName back onto the doc — CLIENT-ONLY and best-effort.
+ * The contributor's real name (matched against the proof) lives in a private subdoc, not the
+ * public doc (so anonymous scrapers can't deanonymize). The school's confirmation panel needs
+ * it and the signed-in board IS authorized; the anonymous SSR donor wall is NOT and doesn't
+ * render it — so we skip the merge on the server and swallow unauthorized reads on the client.
+ */
+async function mergeContributionDonorNames(
+  contributions: ProjectContributionDoc[],
+): Promise<ProjectContributionDoc[]> {
+  if (typeof window === "undefined") return contributions; // SSR: the wall doesn't need it
+  await Promise.all(
+    contributions.map(async (c) => {
+      try {
+        const snap = await getDoc(
+          doc(db, PROJECT_CONTRIBUTIONS, c.id, "private", "data"),
+        );
+        const name = snap.data()?.donorName;
+        if (typeof name === "string") c.donorName = name;
+      } catch {
+        // Unauthorized (or missing) — leave donorName undefined.
+      }
+    }),
+  );
+  return contributions;
+}
+
+/**
+ * All contributions targeting a school's projects (any status), newest first. On the client
+ * (the school's confirmation panel) each contribution's private donorName is merged back in;
+ * on the server (the anonymous donor wall) it is not (see mergeContributionDonorNames).
+ */
 export async function getContributionsBySchool(
   schoolId: string,
 ): Promise<ProjectContributionDoc[]> {
@@ -161,7 +193,10 @@ export async function getContributionsBySchool(
     collection(db, PROJECT_CONTRIBUTIONS),
     where("schoolId", "==", schoolId),
   );
-  return snapToList<ProjectContribution>(await getDocs(q)).sort(byCreatedAtDesc);
+  const contributions = snapToList<ProjectContribution>(
+    await getDocs(q),
+  ).sort(byCreatedAtDesc);
+  return mergeContributionDonorNames(contributions);
 }
 
 /**
@@ -368,7 +403,6 @@ export async function createContribution(
     projectTitle: input.projectTitle,
     type: input.type,
     donorId: input.donorId,
-    donorName: input.donorName,
     amount: input.amount,
     currency: input.currency,
     // Conditional spread: Firestore rejects explicit `undefined`.
@@ -379,6 +413,12 @@ export async function createContribution(
     confirmedAt: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+  });
+  // The contributor's real (proof-matching) name lives in a PRIVATE subdoc, never the public
+  // doc — so an anonymous scraper of `projectContributions` can't deanonymize the donor.
+  // Readable only by the contributor, the target school, or admin (firestore.rules).
+  await setDoc(doc(db, PROJECT_CONTRIBUTIONS, created.id, "private", "data"), {
+    donorName: input.donorName,
   });
   return created.id;
 }

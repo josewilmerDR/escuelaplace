@@ -6,10 +6,10 @@
  * banner shows until admin approves. Creates the school + optional payment methods and
  * links it to the user.
  */
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { readBuyerPreferences } from "@/lib/buyer/preferences";
+import { useBuyerPreferences } from "@/lib/buyer/preferences";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
@@ -43,7 +43,15 @@ export default function NewSchoolPage() {
   const [admin2, setAdmin2] = useState("");
   const [admin3, setAdmin3] = useState("");
   const [country, setCountry] = useState("");
-  const [coords, setCoords] = useState<LatLng | null>(null);
+
+  // The owner is usually a neighbor who browsed as a buyer first: seed the map pin from the
+  // location they already chose as their community (localStorage), as a draggable default.
+  // Derived (not an effect) through the SSR-safe preferences store, so there's no hydration
+  // mismatch — and an explicit pick always wins over the default. It's a default, not user
+  // input, so no setDirty until the owner actually moves the pin (onPickLocation).
+  const { prefs } = useBuyerPreferences();
+  const [pickedCoords, setPickedCoords] = useState<LatLng | null>(null);
+  const coords = pickedCoords ?? prefs.location ?? null;
   const [boardName, setBoardName] = useState("");
   const [boardPhone, setBoardPhone] = useState("");
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -58,7 +66,7 @@ export default function NewSchoolPage() {
   // Stable handlers so the memoized LocationPicker skips re-rendering the map tree on
   // every keystroke of the other fields.
   const onPickLocation = useCallback((next: LatLng) => {
-    setCoords(next);
+    setPickedCoords(next);
     setDirty(true);
   }, []);
 
@@ -69,15 +77,6 @@ export default function NewSchoolPage() {
     if (guess.admin2) setAdmin2(guess.admin2);
     if (guess.admin3) setAdmin3(guess.admin3);
     if (guess.country) setCountry(guess.country);
-  }, []);
-
-  // The owner is usually a neighbor who browsed as a buyer first: seed the map pin from
-  // the location they already chose as their community (localStorage), as a starting
-  // point they can drag. It's a default, not user input — no setDirty here, so the
-  // unsaved-changes guard stays quiet and the pin remains freely movable.
-  useEffect(() => {
-    const preferredLocation = readBuyerPreferences().location;
-    if (preferredLocation) setCoords(preferredLocation);
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {

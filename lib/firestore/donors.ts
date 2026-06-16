@@ -158,7 +158,6 @@ export async function createDonation(
   const created = await addDoc(collection(db, SUBSCRIPTIONS), {
     supporterType: "user",
     donorId: input.donorId,
-    donorName: input.donorName,
     schoolId: input.schoolId,
     schoolName: input.schoolName,
     units: input.units,
@@ -169,6 +168,12 @@ export async function createDonation(
     expiresAt: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+  });
+  // The donor's real name (matched against the proof) is denormalized into a PRIVATE subdoc,
+  // never the public doc — so an anonymous scraper of `subscriptions` can't deanonymize an
+  // opt-out donor. Readable only by the donor, the target school, or admin (firestore.rules).
+  await setDoc(doc(db, SUBSCRIPTIONS, created.id, "private", "data"), {
+    donorName: input.donorName,
   });
   return created.id;
 }

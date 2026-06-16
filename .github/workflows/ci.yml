@@ -1,0 +1,49 @@
+name: CI
+
+# Merge gate. The security boundary lives entirely in firestore.rules / storage.rules (there is
+# no server API), so the rules suite runs on every push/PR — a dropped guard must fail CI, not
+# reach production. App Hosting auto-deploys main, so main must always be green.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Lint, unit tests, audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      # Production deps only; fail on high/critical (moderate advisories are tracked, not blocking).
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+  rules:
+    name: Security-rules tests (emulator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # The Firestore emulator is a Java process; the rules suite drives it via emulators:exec.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
+      - name: Rules suite (allow + deny per collection)
+        run: npm run test:rules
