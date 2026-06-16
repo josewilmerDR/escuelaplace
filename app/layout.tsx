@@ -39,12 +39,28 @@ export default function RootLayout({
           cz-shortcut-listen) add attributes to <body> before hydration, which would
           otherwise log a hydration mismatch. Scoped to this node's attributes only. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {/* Skip link (WCAG 2.4.1 Bypass Blocks): the first focusable element, visually
+            hidden until focused. Lets keyboard/screen-reader users jump past the sticky
+            header — search + browse chips + account actions, repeated on every page —
+            straight to the page content. */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-brand-darker focus:shadow-lg focus:ring-2 focus:ring-brand"
+        >
+          Saltar al contenido
+        </a>
         {/* The brand header is part of the app shell: rendered once here so every
             route — the public catalog and the private panel alike — shares it,
             instead of each page importing and rendering <SiteHeader /> on its own. */}
         <AuthProvider>
           <SiteHeader />
-          {children}
+          {/* Skip-link target + content wrapper. Each page renders its own <main> landmark;
+              this stable id/tabIndex gives the skip link one focus target across every route
+              (public, panel, home, 404) without threading an id through every page's <main>.
+              A plain block wrapper — no flex classes — so the existing layout is unchanged. */}
+          <div id="main" tabIndex={-1} className="outline-none">
+            {children}
+          </div>
           <SiteFooter />
         </AuthProvider>
       </body>
