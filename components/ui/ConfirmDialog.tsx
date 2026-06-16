@@ -39,6 +39,8 @@ export function ConfirmDialog({
   // ESC closes (innermost handler), and on open move focus to Cancel and trap Tab inside.
   useEffect(() => {
     if (!open) return;
+    // Remember what was focused (the trigger) so we can return focus there on close.
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     cancelRef.current?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -65,7 +67,12 @@ export function ConfirmDialog({
     };
 
     document.addEventListener("keydown", onKeyDown, true);
-    return () => document.removeEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      // Restore focus to the trigger so keyboard/SR users land back where they were,
+      // instead of at the top of <body> when the dialog unmounts (WCAG 2.4.3).
+      previouslyFocused?.focus();
+    };
   }, [open, onCancel]);
 
   if (!open) return null;
