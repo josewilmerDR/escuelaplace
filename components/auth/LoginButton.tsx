@@ -36,12 +36,15 @@ export function LoginButton({
   };
 
   if (loading) {
-    // Skeleton sized like the signed-out button: no layout shift when it resolves.
+    // Skeleton sized like the signed-out button: no layout shift when it resolves. The
+    // header (on-brand) button collapses its label below sm, so its skeleton matches.
     return (
       <span
         aria-hidden
-        className={`inline-block h-10 w-36 animate-pulse rounded-xl ${
-          variant === "primary" ? "bg-slate-200" : "bg-white/20"
+        className={`inline-block h-10 animate-pulse rounded-xl ${
+          variant === "primary"
+            ? "w-36 bg-slate-200"
+            : "w-24 bg-white/20 sm:w-36"
         }`}
       />
     );
@@ -89,7 +92,16 @@ export function LoginButton({
           : "btn btn-on-brand font-semibold"
       }
     >
-      Ingresar con Google
+      {variant === "on-brand" ? (
+        // On the tight brand band, the full label never collapsed and pushed the row past
+        // the viewport on narrow phones — drop "con Google" below sm.
+        <>
+          <span className="sm:hidden">Ingresar</span>
+          <span className="hidden sm:inline">Ingresar con Google</span>
+        </>
+      ) : (
+        "Ingresar con Google"
+      )}
     </button>
   );
 }
