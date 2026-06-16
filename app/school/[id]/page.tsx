@@ -10,6 +10,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { ProfileHeader } from "@/components/layout/ProfileHeader";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { SchoolManageBar } from "@/components/school/SchoolManageBar";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Section } from "@/components/ui/Section";
 import { StatChip } from "@/components/ui/StatChip";
 import {
@@ -17,6 +18,7 @@ import {
   FlagIcon,
   HeartIcon,
   MapPinIcon,
+  TagIcon,
   UsersIcon,
   WarningIcon,
 } from "@/components/ui/icons";
@@ -251,6 +253,20 @@ export default async function SchoolPage({ params }: Props) {
             <HeartIcon className="mr-2 h-5 w-5" />
             Donar a esta escuela
           </Link>
+          {/* The no-login support path: buying from the community's businesses. Promote it
+              to primary when the school is unverified — donating can't complete then, so this
+              is the only real way a buyer can support it. */}
+          {cards.length > 0 && (
+            <a
+              href="#comercios"
+              className={`btn justify-center ${
+                unverified ? "btn-primary" : "btn-outline"
+              }`}
+            >
+              <TagIcon className="mr-2 h-5 w-5" />
+              Comprales a quienes la apoyan
+            </a>
+          )}
           {hasProjects && (
             <a href="#proyectos" className="btn btn-outline justify-center">
               <FlagIcon className="mr-2 h-5 w-5" />
@@ -272,7 +288,7 @@ export default async function SchoolPage({ params }: Props) {
         <p className="mt-2 text-center text-xs text-muted sm:text-left">
           {unverified
             ? "Podrás donar cuando el equipo de escuelaplace verifique esta escuela y publique sus medios de pago."
-            : "Tu aporte va directo a la escuela por los medios de pago que ella misma publica; la plataforma nunca toca el dinero."}
+            : "Iniciás sesión con Google para registrar tu aporte, que va directo a la escuela por los medios de pago que ella misma publica; la plataforma nunca toca el dinero."}
         </p>
 
         {/* Edit/queue shortcuts — only the page's managers see this. */}
@@ -384,15 +400,30 @@ export default async function SchoolPage({ params }: Props) {
         </Section>
       )}
 
-      {/* Businesses of the community */}
+      {/* Businesses of the community. Buying from them is the support action an anonymous
+          buyer CAN take without signing in (donating needs an account) — so the empty state
+          points to the wider catalog instead of dead-ending, and the populated state frames
+          the purchase as a way to support the school. */}
       <Section
         id="comercios"
-        title={`Comercios de su comunidad (${cards.length})`}
+        title={
+          cards.length > 0
+            ? `Comercios de su comunidad (${cards.length})`
+            : "Comercios de su comunidad"
+        }
+        description={
+          cards.length > 0
+            ? "Apoyá a la escuela comprándole a los comercios que ya la apoyan."
+            : undefined
+        }
       >
         {cards.length === 0 ? (
-          <p className="mt-4 text-sm text-muted">
-            Todavía no hay comercios vinculados a esta escuela.
-          </p>
+          <EmptyState
+            icon={<TagIcon className="h-7 w-7" />}
+            title="Todavía no hay comercios que la apoyen"
+            description="Explorá el directorio y apoyá a tu escuela comprándole a los comercios de tu comunidad."
+            cta={{ label: "Explorar comercios", href: "/search" }}
+          />
         ) : (
           <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {cards.map((business) => (
