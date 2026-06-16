@@ -16,7 +16,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "./AuthProvider";
-import { UserIcon } from "@/components/ui/icons";
+import { GoogleIcon, UserIcon } from "@/components/ui/icons";
 
 export function LoginButton({
   variant = "on-brand",
@@ -37,14 +37,12 @@ export function LoginButton({
 
   if (loading) {
     // Skeleton sized like the signed-out button: no layout shift when it resolves. The
-    // header (on-brand) button collapses its label below sm, so its skeleton matches.
+    // header (on-brand) button is now a constant-width "G Ingresar" chip at every width.
     return (
       <span
         aria-hidden
         className={`inline-block h-10 animate-pulse rounded-xl ${
-          variant === "primary"
-            ? "w-36 bg-slate-200"
-            : "w-24 bg-white/20 sm:w-36"
+          variant === "primary" ? "w-36 bg-slate-200" : "w-28 bg-white/20"
         }`}
       />
     );
@@ -89,15 +87,15 @@ export function LoginButton({
       className={
         variant === "primary"
           ? "btn btn-primary"
-          : "btn btn-on-brand font-semibold"
+          : "btn btn-on-brand gap-1.5 font-semibold"
       }
     >
       {variant === "on-brand" ? (
-        // On the tight brand band, the full label never collapsed and pushed the row past
-        // the viewport on narrow phones — drop "con Google" below sm.
+        // Compacted header: the Google "G" logo carries the provider, so the label drops to
+        // just "Ingresar" at every width (the full "con Google" string crowded the brand band).
         <>
-          <span className="sm:hidden">Ingresar</span>
-          <span className="hidden sm:inline">Ingresar con Google</span>
+          <GoogleIcon className="h-4 w-4" />
+          Ingresar
         </>
       ) : (
         "Ingresar con Google"

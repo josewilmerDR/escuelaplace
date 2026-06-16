@@ -27,7 +27,7 @@ export function HeaderCreateCta() {
     return (
       <span aria-hidden className={`${CTA_CLASS} invisible`}>
         <span className="text-base leading-none">+</span>
-        <span className="hidden sm:inline">Crear página</span>
+        <span className="hidden sm:inline">Crear</span>
       </span>
     );
   }
