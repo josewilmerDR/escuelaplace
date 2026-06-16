@@ -32,7 +32,9 @@ import {
 import {
   getBusinessBySlug,
   getReviewsByBusiness,
+  getSubscriptionsByBusiness,
   splitBusinessPhotos,
+  supportedSchoolsOf,
 } from "@/lib/firestore";
 import { formatRating } from "@/lib/format";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
@@ -84,6 +86,15 @@ export default async function BusinessPage({ params }: Props) {
 
   const reviews = await getReviewsByBusiness(business.id);
   const stats = business.reviewStats ?? { count: 0, average: 0 };
+  // Schools this business GENUINELY supports (counting, eligible subscriptions only),
+  // deduped. Ordered objectively by decayed support weight (community = [] here): this
+  // SSR roster is the complete, stable list — good for SEO and identical for every
+  // viewer. The buyer-relative ordering (which school to name first) stays in the
+  // SupportBadge island, whose "y N más" links down to this section.
+  const supportedSchools = supportedSchoolsOf(
+    await getSubscriptionsByBusiness(business.id),
+    [],
+  );
   // Explicit cover vs gallery (legacy-aware — see splitBusinessPhotos). The cover slot
   // falls back to the first gallery photo so landing here from a card (whose thumbnail
   // does the same) is never a visual downgrade.
@@ -294,6 +305,9 @@ export default async function BusinessPage({ params }: Props) {
         <SectionTabs
           sections={[
             { id: "informacion", label: "Información" },
+            ...(supportedSchools.length > 0
+              ? [{ id: "escuelas", label: "Escuelas" }]
+              : []),
             ...(gallery.length > 0 ? [{ id: "fotos", label: "Fotos" }] : []),
             { id: "resenas", label: "Reseñas" },
           ]}
@@ -410,6 +424,29 @@ export default async function BusinessPage({ params }: Props) {
           </ul>
         )}
       </Section>
+
+      {/* Escuelas que apoya — the full, objective roster (the "y N más" in the
+          SupportBadge above links here). Names only, never money figures: support is a
+          relationship, not a published payment (see CLAUDE.md). */}
+      {supportedSchools.length > 0 && (
+        <Section
+          id="escuelas"
+          title="Escuelas que apoya"
+          description={
+            supportedSchools.length === 1
+              ? "Este comercio apoya a una institución de la comunidad."
+              : `Este comercio apoya a ${supportedSchools.length} instituciones de la comunidad.`
+          }
+        >
+          <ul className="mt-4 flex flex-wrap gap-2">
+            {supportedSchools.map((school) => (
+              <li key={school.id}>
+                <Chip href={`/school/${school.id}`}>{school.name}</Chip>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
 
       {gallery.length > 0 && (
         <Section id="fotos" ariaLabel="Fotos del comercio" title="Fotos">
