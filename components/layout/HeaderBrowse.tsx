@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Browse cluster of the brand header: catalog search + Categorías + Escuelas + Cómo funciona.
+ * Browse cluster of the brand header: catalog search + Categorías + Escuelas.
  *
  * Route-aware (a client island like LoginButton/HeaderCreateCta) so the bar doesn't
  * duplicate what the home page already shows prominently: the hero owns a large search
@@ -9,11 +9,6 @@
  * chip are hidden here. Escuelas has no home-page equivalent, so it stays everywhere.
  * On every inner page all three show — that's exactly where a buyer who scrolled past
  * (or never saw) the hero needs them.
- *
- * "Cómo funciona" (/about) follows the same rule: the trust page that explains the
- * no-marketplace model was previously only reachable from the footer. It shows here on
- * inner pages only (the home renders a prominent value strip that already links it) and
- * only on sm+ (the footer carries it on mobile), so it never crowds the tight mobile band.
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -21,29 +16,18 @@ import { SearchBar } from "@/components/search/SearchBar";
 import { AcademicCapIcon, SearchIcon, TagIcon } from "@/components/ui/icons";
 
 // Ghost chip shared by the browse links: secondary nav (vs the solid white Crear CTA),
-// white-on-brand with a soft inset ring + translucent hover. Icon-only below sm to save room.
+// white-on-brand with a soft inset ring + translucent hover. The browse links render
+// icon-only (label dropped to compact the header); name lives in `title` + `aria-label`.
 const CHIP =
   "inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/15 hover:ring-white/50";
 
 // Escuelas chip — the one browse link with no home-page equivalent, so it shows on every
-// route (unlike search + Categorías, which the home hero already provides).
+// route (unlike search + Categorías, which the home hero already provides). Icon-only at every
+// width (the label was dropped to compact the header); `title` + `aria-label` carry the name.
 const SchoolsLink = (
-  <Link href="/schools" aria-label="Ver escuelas" className={CHIP}>
+  <Link href="/schools" aria-label="Ver escuelas" title="Escuelas" className={CHIP}>
     <AcademicCapIcon className="h-5 w-5" />
-    <span className="hidden sm:inline">Ver escuelas</span>
   </Link>
-);
-
-// "Cómo funciona" (/about) chip — text-only (no icon fits the "explainer" idea, and the
-// other chips only drop their label below sm anyway). `hidden sm:contents` on the wrapper
-// toggles visibility without clashing with CHIP's own `inline-flex` display utility, so the
-// chip keeps its exact layout while staying off the narrow mobile band.
-const AboutLink = (
-  <span className="hidden sm:contents">
-    <Link href="/about" className={CHIP}>
-      Cómo funciona
-    </Link>
-  </span>
 );
 
 export function HeaderBrowse() {
@@ -74,12 +58,10 @@ export function HeaderBrowse() {
       <Link href="/search" aria-label="Buscar" className={`${CHIP} sm:hidden`}>
         <SearchIcon className="h-5 w-5" />
       </Link>
-      <Link href="/categories" aria-label="Categorías" className={CHIP}>
+      <Link href="/categories" aria-label="Categorías" title="Categorías" className={CHIP}>
         <TagIcon className="h-5 w-5" />
-        <span className="hidden sm:inline">Categorías</span>
       </Link>
       {SchoolsLink}
-      {AboutLink}
     </>
   );
 }
