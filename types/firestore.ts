@@ -158,6 +158,15 @@ export const PAGE_DESCRIPTION_MAX = 300;
 /** Gallery photo cap per business. Enforced by the panel UI, not by rules. */
 export const BUSINESS_GALLERY_MAX = 5;
 
+/**
+ * Search tags ("keywords") cap per business, and the max length of each. Tags are the
+ * owner's free-text search keywords (Amazon-style: products/phrases people type, e.g.
+ * "cuadernos", "útiles escolares"), matched by the in-memory search relevance. Enforced
+ * by the panel UI and the `normalizeTags` helper, not by rules.
+ */
+export const BUSINESS_TAGS_MAX = 15;
+export const BUSINESS_TAG_MAX = 50;
+
 export interface Business {
   name: string;
   slug: string;
@@ -180,6 +189,13 @@ export interface Business {
    * with `coverUrl ?? photos[0]` and treat the rest as the gallery.
    */
   photos: string[];
+  /**
+   * Owner-curated search keywords (max BUSINESS_TAGS_MAX, each ≤ BUSINESS_TAG_MAX chars):
+   * products or phrases buyers type — "cuadernos", "útiles escolares" — that the search
+   * relevance matches alongside name/category/description. Absent on legacy docs (read
+   * with `?? []`). Editorial free text, written by the client like `description`; it feeds
+   * search match only, never the ranking score. */
+  tags?: string[];
   hours?: string;
   status: BusinessStatus;
   verified: boolean;

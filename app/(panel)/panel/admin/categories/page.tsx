@@ -19,6 +19,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { BackLink } from "@/components/ui/BackLink";
 import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { PlusIcon, TagIcon } from "@/components/ui/icons";
@@ -337,9 +338,10 @@ function CategoryRow({
     setEditing(false);
   };
 
-  // Deleting an empty category is reversible enough (re-create it); still confirm by name.
+  // Deleting an empty category is reversible enough (re-create it); still confirm by name
+  // via <ConfirmDialog> (confirmDelete). This just does the work once confirmed.
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const remove = async () => {
-    if (!window.confirm(`¿Eliminar la categoría "${category.name}"?`)) return;
     setBusy(true);
     setRowError(null);
     try {
@@ -457,7 +459,7 @@ function CategoryRow({
               </button>
               <button
                 type="button"
-                onClick={remove}
+                onClick={() => setConfirmDelete(true)}
                 disabled={busy || hasBusinesses}
                 title={
                   hasBusinesses
@@ -485,6 +487,21 @@ function CategoryRow({
           {rowError}
         </p>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Eliminar categoría"
+        confirmLabel="Eliminar"
+        tone="destructive"
+        onConfirm={() => {
+          setConfirmDelete(false);
+          void remove();
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      >
+        ¿Eliminar la categoría “{category.name}”? Podés volver a crearla más
+        adelante.
+      </ConfirmDialog>
     </li>
   );
 }

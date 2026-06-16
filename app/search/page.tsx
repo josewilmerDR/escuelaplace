@@ -73,6 +73,7 @@ export default async function SearchPage({ searchParams }: Props) {
           {
             name: b.name,
             categoryNames: b.categoryNames,
+            tags: b.tags,
             description: b.description,
           },
           query,

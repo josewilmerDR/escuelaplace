@@ -21,6 +21,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { VerifiedIcon } from "@/components/ui/icons";
@@ -363,20 +364,9 @@ function SchoolReviewCard({
   const hasContact = Boolean(contact?.name || contact?.phone || contact?.email);
 
   // Verifying makes the private payment methods public and is awkward to undo, so confirm
-  // with the concrete impact first — and warn loudly when there's nothing to publish.
-  const handleApprove = () => {
-    const count = paymentMethods.length;
-    const message =
-      count === 0
-        ? `${school.name} no tiene métodos de pago cargados. Si la verificás igual, no habrá ` +
-          `datos para que los donantes la apoyen.\n\n¿Verificar de todas formas?`
-        : `Al verificar ${school.name}, ${
-            count === 1
-              ? "su método de pago quedará visible"
-              : `sus ${count} métodos de pago quedarán visibles`
-          } para el público.\n\n¿Verificar la escuela?`;
-    if (window.confirm(message)) onApprove();
-  };
+  // the concrete impact first (see <ConfirmDialog> below) — and warn loudly when there's
+  // nothing to publish.
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
     // Elevated calm-depth card per queued school (ring + soft shadow, no hard border).
@@ -458,7 +448,7 @@ function SchoolReviewCard({
       <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-4 text-sm">
         <button
           type="button"
-          onClick={handleApprove}
+          onClick={() => setConfirmOpen(true)}
           disabled={busy}
           className="btn btn-primary mr-1"
         >
@@ -479,6 +469,33 @@ function SchoolReviewCard({
           </p>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Verificar escuela"
+        confirmLabel="Verificar escuela"
+        onConfirm={() => {
+          setConfirmOpen(false);
+          onApprove();
+        }}
+        onCancel={() => setConfirmOpen(false)}
+      >
+        {paymentMethods.length === 0 ? (
+          <>
+            {school.name} no tiene métodos de pago cargados. Si la verificás igual,
+            no habrá datos para que los donantes la apoyen. ¿Verificar de todas
+            formas?
+          </>
+        ) : (
+          <>
+            Al verificar {school.name},{" "}
+            {paymentMethods.length === 1
+              ? "su método de pago quedará visible"
+              : `sus ${paymentMethods.length} métodos de pago quedarán visibles`}{" "}
+            para el público.
+          </>
+        )}
+      </ConfirmDialog>
     </li>
   );
 }

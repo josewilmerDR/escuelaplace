@@ -18,6 +18,7 @@ import { GalleryManager } from "@/components/business/GalleryManager";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { cardClass } from "@/components/ui/Card";
 import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -26,7 +27,8 @@ import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PagesIcon } from "@/components/ui/icons";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
-import { validateBusinessProfile } from "@/lib/business-profile";
+import { TagsInput } from "@/components/ui/TagsInput";
+import { normalizeTags, validateBusinessProfile } from "@/lib/business-profile";
 import { buildCatalogUrl, normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -50,6 +52,8 @@ import {
   type BusinessPublishStatus,
 } from "@/lib/firestore";
 import {
+  BUSINESS_TAG_MAX,
+  BUSINESS_TAGS_MAX,
   PAGE_DESCRIPTION_MAX,
   type BusinessContact,
   type BusinessDoc,
@@ -74,6 +78,8 @@ export default function BusinessEditPage() {
   const [description, setDescription] = useState("");
   const [schoolId, setSchoolId] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  // Owner-curated search keywords (chips). Normalized on save with normalizeTags.
+  const [tags, setTags] = useState<string[]>([]);
   // Country-agnostic administrative levels (see types/firestore.ts). country has no
   // input: it is carried from the doc and refreshed by the reverse geocoder on pin move.
   const [admin1, setAdmin1] = useState("");
@@ -149,6 +155,7 @@ export default function BusinessEditPage() {
         setDescription(b.description);
         setSchoolId(b.schoolId);
         setSelectedCategories(b.categories);
+        setTags(b.tags ?? []);
         // ?? "": docs created before the agnostic-location rename lack these fields.
         setAdmin1(b.location.admin1 ?? "");
         setAdmin2(b.location.admin2 ?? "");
@@ -215,35 +222,13 @@ export default function BusinessEditPage() {
     [business],
   );
 
-  const onToggleStatus = async (status: BusinessPublishStatus) => {
+  // Un-publishing asks for confirmation first via <ConfirmDialog> (confirmUnpublish);
+  // publishing validates first. Both end in applyStatus, which writes the status.
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+
+  const applyStatus = async (status: BusinessPublishStatus) => {
     if (!business) return;
     setStatusError(null);
-    if (status === "active") {
-      // Don't publish a stale (unsaved) profile, and never publish one that fails the
-      // same minimums "Guardar" enforces — otherwise the just-edited form silently
-      // publishes the OLD doc, or a profile with no category / no map pin.
-      if (dirty) {
-        setStatusError(
-          "Tenés cambios sin guardar. Guardá el perfil antes de publicarlo.",
-        );
-        return;
-      }
-      const invalid = validateBusinessProfile({
-        categories: selectedCategories,
-        hasCoords: coords != null,
-      });
-      if (invalid) {
-        setStatusError(invalid);
-        return;
-      }
-    } else if (
-      // Concrete impact before taking the page off the catalog.
-      !window.confirm(
-        "Tu página dejará de aparecer en el catálogo y su URL pública dejará de abrir. ¿Continuar?",
-      )
-    ) {
-      return;
-    }
     setPublishing(true);
     try {
       await setBusinessStatus(business.id, status);
@@ -255,10 +240,33 @@ export default function BusinessEditPage() {
     }
   };
 
+  const onPublish = () => {
+    if (!business) return;
+    setStatusError(null);
+    // Don't publish a stale (unsaved) profile, and never publish one that fails the same
+    // minimums "Guardar" enforces — otherwise the just-edited form silently publishes the
+    // OLD doc, or a profile with no category / no map pin.
+    if (dirty) {
+      setStatusError(
+        "Tenés cambios sin guardar. Guardá el perfil antes de publicarlo.",
+      );
+      return;
+    }
+    const invalid = validateBusinessProfile({
+      categories: selectedCategories,
+      hasCoords: coords != null,
+    });
+    if (invalid) {
+      setStatusError(invalid);
+      return;
+    }
+    void applyStatus("active");
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!business) return;
-    // Same minimums publishing enforces (see onToggleStatus) — category for the
+    // Same minimums publishing enforces (see onPublish) — category for the
     // /category/* listings, a map pin for the location.
     const invalid = validateBusinessProfile({
       categories: selectedCategories,
@@ -349,6 +357,7 @@ export default function BusinessEditPage() {
           : {}),
       };
       const trimmedHours = hours.trim();
+      const cleanTags = normalizeTags(tags);
       await updateBusinessProfile(business.id, {
         name: trimmedName,
         description: description.trim(),
@@ -359,6 +368,7 @@ export default function BusinessEditPage() {
         location,
         contact,
         discount,
+        tags: cleanTags,
         hours: trimmedHours,
         ...(logoUrl ? { logoUrl } : {}),
         ...(coverUrl ? { coverUrl } : {}),
@@ -388,12 +398,15 @@ export default function BusinessEditPage() {
               },
               contact,
               discount,
+              tags: cleanTags,
               hours: trimmedHours,
               ...(logoUrl ? { logoUrl } : {}),
               ...(coverUrl ? { coverUrl } : {}),
             }
           : b,
       );
+      // Reflect the normalized (deduped/trimmed) tags back into the field after save.
+      setTags(cleanTags);
       setPhotoFile(null);
       setCoverFile(null);
       setSaved(true);
@@ -521,7 +534,10 @@ export default function BusinessEditPage() {
             </p>
             <button
               type="button"
-              onClick={() => onToggleStatus("draft")}
+              onClick={() => {
+                setStatusError(null);
+                setConfirmUnpublish(true);
+              }}
               disabled={saving || publishing}
               aria-busy={publishing}
               className="btn btn-outline mt-3"
@@ -538,7 +554,7 @@ export default function BusinessEditPage() {
             </p>
             <button
               type="button"
-              onClick={() => onToggleStatus("active")}
+              onClick={onPublish}
               disabled={saving || publishing}
               aria-busy={publishing}
               className="btn btn-primary mt-3"
@@ -561,6 +577,20 @@ export default function BusinessEditPage() {
           </p>
         )}
       </section>
+
+      <ConfirmDialog
+        open={confirmUnpublish}
+        title="Pasar la página a borrador"
+        confirmLabel="Pasar a borrador"
+        onConfirm={() => {
+          setConfirmUnpublish(false);
+          void applyStatus("draft");
+        }}
+        onCancel={() => setConfirmUnpublish(false)}
+      >
+        Tu página dejará de aparecer en el catálogo y su URL pública dejará de
+        abrir.
+      </ConfirmDialog>
 
       <form
         onSubmit={onSubmit}
@@ -661,6 +691,19 @@ export default function BusinessEditPage() {
               </div>
             )}
           </fieldset>
+
+          <TagsInput
+            label="Etiquetas de búsqueda (opcional)"
+            hint="Palabras o frases que la gente busca y que vendés o ofrecés — “cuadernos”, “útiles escolares”, “tijeras”. Ayudan a que tu comercio aparezca aunque no estén en el nombre. Enter o coma para agregar cada una."
+            value={tags}
+            onChange={(next) => {
+              setTags(next);
+              setDirty(true);
+            }}
+            max={BUSINESS_TAGS_MAX}
+            maxLength={BUSINESS_TAG_MAX}
+            placeholder="cuadernos, útiles escolares, tijeras…"
+          />
         </FormSection>
 
         <FormSection
