@@ -556,9 +556,13 @@ describe("private donor name (P0-d)", () => {
     });
   });
 
-  it("ALLOWS the donor to write their own subscription private name", async () => {
+  it("ALLOWS the donor to write their own subscription private record (name + magnitude)", async () => {
     await assertSucceeds(
-      setDoc(doc(asUser("dana"), "subscriptions", "sub1", "private", "data"), { donorName: "Dana" }),
+      setDoc(doc(asUser("dana"), "subscriptions", "sub1", "private", "data"), {
+        donorName: "Dana",
+        units: 1,
+        amount: 5000,
+      }),
     );
   });
 
@@ -592,6 +596,137 @@ describe("private donor name (P0-d)", () => {
     await assertSucceeds(getDoc(doc(asUser("bob"), "projectContributions", "c1", "private", "data")));
     await assertFails(getDoc(doc(asAnon(), "projectContributions", "c1", "private", "data")));
     await assertFails(getDoc(doc(asUser("mallory"), "projectContributions", "c1", "private", "data")));
+  });
+});
+
+// ── private magnitude: units/amount off the public doc, frozen after confirm (P0-d stage 2) ──
+describe("private magnitude + anti-fraud freeze (P0-d stage 2)", () => {
+  it("ALLOWS a donor's public donation WITHOUT units (magnitude lives in the private subdoc)", async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("bob")));
+    await assertSucceeds(
+      addDoc(collection(asUser("dana"), "subscriptions"), {
+        supporterType: "user",
+        donorId: "dana",
+        schoolId: "sch1",
+        schoolName: "Escuela",
+        status: "pending",
+        confirmedAt: null,
+        firstConfirmedAt: null,
+        expiresAt: null,
+      }),
+    );
+  });
+
+  it("DENIES a BUSINESS subscription created without units (still required on the public doc)", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, "businesses", "biz1"), businessDoc("alice"));
+      await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob"));
+    });
+    await assertFails(
+      addDoc(collection(asUser("alice"), "subscriptions"), {
+        supporterType: "business",
+        businessId: "biz1",
+        businessName: "Comercio",
+        schoolId: "sch1",
+        schoolName: "Escuela",
+        status: "pending",
+        confirmedAt: null,
+        firstConfirmedAt: null,
+        expiresAt: null,
+      }),
+    );
+  });
+
+  it("requires a valid units on the private create (denies missing units)", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob"));
+      await setDoc(doc(db, "subscriptions", "sub1"), {
+        supporterType: "user",
+        donorId: "dana",
+        schoolId: "sch1",
+        status: "pending",
+        confirmedAt: null,
+      });
+    });
+    await assertFails(
+      setDoc(doc(asUser("dana"), "subscriptions", "sub1", "private", "data"), { donorName: "Dana" }),
+    );
+    await assertSucceeds(
+      setDoc(doc(asUser("dana"), "subscriptions", "sub1", "private", "data"), {
+        donorName: "Dana",
+        units: 3,
+        amount: 15000,
+      }),
+    );
+  });
+
+  it("FREEZES units/amount in private once the school confirmed; editable while pending", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob"));
+      // pending donation
+      await setDoc(doc(db, "subscriptions", "subP"), {
+        supporterType: "user",
+        donorId: "dana",
+        schoolId: "sch1",
+        status: "pending",
+        confirmedAt: null,
+      });
+      await setDoc(doc(db, "subscriptions", "subP", "private", "data"), {
+        donorName: "Dana",
+        units: 1,
+        amount: 5000,
+      });
+      // confirmed donation
+      await setDoc(doc(db, "subscriptions", "subC"), {
+        supporterType: "user",
+        donorId: "dana",
+        schoolId: "sch1",
+        status: "confirmed",
+        confirmedAt: new Date(),
+      });
+      await setDoc(doc(db, "subscriptions", "subC", "private", "data"), {
+        donorName: "Dana",
+        units: 1,
+        amount: 5000,
+      });
+    });
+    // while pending: the donor may still adjust the magnitude
+    await assertSucceeds(
+      updateDoc(doc(asUser("dana"), "subscriptions", "subP", "private", "data"), { units: 2, amount: 10000 }),
+    );
+    // once confirmed: units/amount are frozen (no tier inflation without a new proof)
+    await assertFails(
+      updateDoc(doc(asUser("dana"), "subscriptions", "subC", "private", "data"), { units: 999 }),
+    );
+    // but the name (not anti-fraud-sensitive) may still be corrected post-confirm
+    await assertSucceeds(
+      updateDoc(doc(asUser("dana"), "subscriptions", "subC", "private", "data"), { donorName: "Dana R." }),
+    );
+  });
+
+  it("FREEZES a contribution's amount in private once confirmed", async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "projectContributions", "c1"), {
+        donorId: "dana",
+        schoolId: "sch1",
+        projectId: "p1",
+        type: "money",
+        currency: "CRC",
+        status: "confirmed",
+        confirmedAt: new Date(),
+      });
+      await setDoc(doc(db, "projectContributions", "c1", "private", "data"), {
+        donorName: "Dana",
+        amount: 10000,
+      });
+    });
+    await assertFails(
+      updateDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), { amount: 999999 }),
+    );
   });
 });
 

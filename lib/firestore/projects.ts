@@ -155,26 +155,28 @@ export async function getContributionsByProject(
 }
 
 /**
- * Merge each contribution's private donorName back onto the doc — CLIENT-ONLY and best-effort.
- * The contributor's real name (matched against the proof) lives in a private subdoc, not the
- * public doc (so anonymous scrapers can't deanonymize). The school's confirmation panel needs
- * it and the signed-in board IS authorized; the anonymous SSR donor wall is NOT and doesn't
- * render it — so we skip the merge on the server and swallow unauthorized reads on the client.
+ * Merge each contribution's PRIVATE fields (donorName + `amount`) back onto the doc — CLIENT-ONLY
+ * and best-effort. Those fields live in a private subdoc, not the public doc (so anonymous
+ * scrapers can't deanonymize nor read how much a person gave). The authorized viewers (the
+ * school's confirmation panel, or the contributor on their own history) need them and CAN read
+ * the subdoc; the anonymous SSR donor wall is NOT authorized and doesn't render them — so we skip
+ * the merge on the server and swallow unauthorized reads on the client.
  */
-async function mergeContributionDonorNames(
+async function mergeContributionPrivate(
   contributions: ProjectContributionDoc[],
 ): Promise<ProjectContributionDoc[]> {
-  if (typeof window === "undefined") return contributions; // SSR: the wall doesn't need it
+  if (typeof window === "undefined") return contributions; // SSR: the wall doesn't need them
   await Promise.all(
     contributions.map(async (c) => {
       try {
-        const snap = await getDoc(
-          doc(db, PROJECT_CONTRIBUTIONS, c.id, "private", "data"),
-        );
-        const name = snap.data()?.donorName;
-        if (typeof name === "string") c.donorName = name;
+        const data = (
+          await getDoc(doc(db, PROJECT_CONTRIBUTIONS, c.id, "private", "data"))
+        ).data();
+        if (!data) return;
+        if (typeof data.donorName === "string") c.donorName = data.donorName;
+        if (typeof data.amount === "number") c.amount = data.amount;
       } catch {
-        // Unauthorized (or missing) — leave donorName undefined.
+        // Unauthorized (or missing) — leave the fields as-is.
       }
     }),
   );
@@ -183,8 +185,8 @@ async function mergeContributionDonorNames(
 
 /**
  * All contributions targeting a school's projects (any status), newest first. On the client
- * (the school's confirmation panel) each contribution's private donorName is merged back in;
- * on the server (the anonymous donor wall) it is not (see mergeContributionDonorNames).
+ * (the school's confirmation panel) each contribution's private fields are merged back in; on
+ * the server (the anonymous donor wall) they are not (see mergeContributionPrivate).
  */
 export async function getContributionsBySchool(
   schoolId: string,
@@ -196,7 +198,7 @@ export async function getContributionsBySchool(
   const contributions = snapToList<ProjectContribution>(
     await getDocs(q),
   ).sort(byCreatedAtDesc);
-  return mergeContributionDonorNames(contributions);
+  return mergeContributionPrivate(contributions);
 }
 
 /**
@@ -211,7 +213,9 @@ export async function getPendingContributionsBySchool(
   );
 }
 
-/** All contributions a user has made (any status), newest first. */
+/** All contributions a user has made (any status), newest first. The contributor's own history
+ * shows the amount, so the private fields are merged back in (they're authorized to read them;
+ * runs client-side from the panel). */
 export async function getContributionsByDonor(
   donorId: string,
 ): Promise<ProjectContributionDoc[]> {
@@ -219,7 +223,10 @@ export async function getContributionsByDonor(
     collection(db, PROJECT_CONTRIBUTIONS),
     where("donorId", "==", donorId),
   );
-  return snapToList<ProjectContribution>(await getDocs(q)).sort(byCreatedAtDesc);
+  const contributions = snapToList<ProjectContribution>(
+    await getDocs(q),
+  ).sort(byCreatedAtDesc);
+  return mergeContributionPrivate(contributions);
 }
 
 /**
@@ -236,7 +243,10 @@ export async function getContributionsByDonorForProject(
     where("donorId", "==", donorId),
     where("projectId", "==", projectId),
   );
-  return snapToList<ProjectContribution>(await getDocs(q)).sort(byCreatedAtDesc);
+  const contributions = snapToList<ProjectContribution>(
+    await getDocs(q),
+  ).sort(byCreatedAtDesc);
+  return mergeContributionPrivate(contributions);
 }
 
 /** Private Storage path of a contribution's payment proof (gated by storage.rules). */
@@ -403,7 +413,6 @@ export async function createContribution(
     projectTitle: input.projectTitle,
     type: input.type,
     donorId: input.donorId,
-    amount: input.amount,
     currency: input.currency,
     // Conditional spread: Firestore rejects explicit `undefined`.
     ...(input.description ? { description: input.description } : {}),
@@ -414,11 +423,14 @@ export async function createContribution(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  // The contributor's real (proof-matching) name lives in a PRIVATE subdoc, never the public
-  // doc — so an anonymous scraper of `projectContributions` can't deanonymize the donor.
-  // Readable only by the contributor, the target school, or admin (firestore.rules).
+  // The contributor's real (proof-matching) name AND its `amount` live in a PRIVATE subdoc,
+  // never the public doc — so an anonymous scraper of `projectContributions` can neither
+  // deanonymize the donor nor read how much they gave. Readable only by the contributor, the
+  // target school, or admin; the project's public `raised` is a Cloud Function aggregate over
+  // THIS amount (firestore.rules freezes it once the school confirms).
   await setDoc(doc(db, PROJECT_CONTRIBUTIONS, created.id, "private", "data"), {
     donorName: input.donorName,
+    amount: input.amount,
   });
   return created.id;
 }

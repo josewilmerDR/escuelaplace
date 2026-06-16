@@ -102,7 +102,11 @@ export async function getSubscriptionsByBusiness(
   return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
 }
 
-/** All personal donations of a user (any status), newest first. */
+/**
+ * All personal donations of a user (any status), newest first. The donor's own history shows
+ * the magnitude, so the private fields (units/amount) are merged back in — the donor is
+ * authorized to read their own subdocs (this only runs client-side, from the donate panel).
+ */
 export async function getSubscriptionsByDonor(
   donorId: string,
 ): Promise<SubscriptionDoc[]> {
@@ -110,31 +114,37 @@ export async function getSubscriptionsByDonor(
     collection(db, SUBSCRIPTIONS),
     where("donorId", "==", donorId),
   );
-  return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
+  const subs = snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
+  return mergePrivateFields(subs);
 }
 
 /**
- * Merge each personal donation's private donorName back onto the doc — CLIENT-ONLY and
- * best-effort. The donor's real name (matched against the proof) lives in a private subdoc,
- * not the public doc (so anonymous scrapers can't deanonymize opt-out donors). The school's
- * confirmation panel needs it, and the signed-in board IS authorized to read it; the
- * anonymous SSR donor wall is NOT, and doesn't render the name anyway — so on the server we
- * skip the merge entirely, and on the client an unauthorized read is swallowed.
+ * Merge each personal donation's PRIVATE fields (donorName + magnitude `units`/`amount`) back
+ * onto the doc — CLIENT-ONLY and best-effort. Those fields live in a private subdoc, not the
+ * public doc (so anonymous scrapers can't deanonymize an opt-out donor nor read how much they
+ * gave). The authorized viewers (the school's confirmation panel, or the donor on their own
+ * history) need them and CAN read the subdoc; the anonymous SSR donor wall is NOT authorized and
+ * doesn't render them — so on the server we skip the merge entirely, and on the client an
+ * unauthorized read is swallowed. Business subs keep these public, so they're left untouched.
  */
-async function mergeDonorNames(
+async function mergePrivateFields(
   subs: SubscriptionDoc[],
 ): Promise<SubscriptionDoc[]> {
-  if (typeof window === "undefined") return subs; // SSR: the wall doesn't need the name
+  if (typeof window === "undefined") return subs; // SSR: the wall doesn't need them
   await Promise.all(
     subs.map(async (s) => {
-      if (s.supporterType !== "user") return; // business subs carry the public businessName
+      if (s.supporterType !== "user") return; // business subs carry public businessName/units
       try {
-        const snap = await getDoc(doc(db, SUBSCRIPTIONS, s.id, "private", "data"));
-        const name = snap.data()?.donorName;
-        if (typeof name === "string") s.donorName = name;
+        const data = (
+          await getDoc(doc(db, SUBSCRIPTIONS, s.id, "private", "data"))
+        ).data();
+        if (!data) return;
+        if (typeof data.donorName === "string") s.donorName = data.donorName;
+        if (typeof data.units === "number") s.units = data.units;
+        if (typeof data.amount === "number") s.amount = data.amount;
       } catch {
-        // Unauthorized (or missing) — leave donorName undefined; callers that render it are
-        // the authorized board, which won't hit this.
+        // Unauthorized (or missing) — leave the fields as-is; callers that render them are
+        // authorized (the board, or the donor on their own data) and won't hit this.
       }
     }),
   );
@@ -148,7 +158,7 @@ async function mergeDonorNames(
  * support metrics) and indirectly through getSchoolDonorWall during one request — the
  * cache dedupes that into a single Firestore read (the Firestore SDK, unlike fetch, gets
  * no deduping from Next). On the client (the school's confirmation panel) each personal
- * donation's private donorName is merged back in; on the server it is not (see mergeDonorNames).
+ * donation's private fields are merged back in; on the server they are not (see mergePrivateFields).
  */
 export const getSubscriptionsBySchool = cache(
   async (schoolId: string): Promise<SubscriptionDoc[]> => {
@@ -157,7 +167,7 @@ export const getSubscriptionsBySchool = cache(
       where("schoolId", "==", schoolId),
     );
     const subs = snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
-    return mergeDonorNames(subs);
+    return mergePrivateFields(subs);
   },
 );
 

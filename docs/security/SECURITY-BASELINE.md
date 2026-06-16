@@ -107,15 +107,15 @@ controles que el código debe garantizar, referencia ASVS y estado actual.
 
 **P0 — antes de lanzar público / acumular datos reales (todos cierran un invariante "solo-cliente"):**
 
-> **Estado (2026-06-16):** P0-a, P0-b, P0-c **implementados**; pendiente deploy en el orden de
-> [ADMIN-BOOTSTRAP.md](./ADMIN-BOOTSTRAP.md). **P0-d Etapa 1 (deanonimización) IMPLEMENTADA** y
-> verificada con el harness de reglas; **Etapa 2 (ocultar montos exactos) pendiente** — ver §5b.
+> **Estado (2026-06-16):** **P0-a, P0-b, P0-c y P0-d (Etapas 1 y 2) IMPLEMENTADOS** y verificados
+> con el harness de reglas (74 tests). Pendiente deploy en el orden de
+> [ADMIN-BOOTSTRAP.md](./ADMIN-BOOTSTRAP.md). Los 4 hallazgos P0 quedan cerrados.
 
 - ✅ **P0-a** · Restringir `role` en `users/{uid}`: create exige `role == 'user'`; update no-admin exige `role` sin cambios. Admin migrado a **custom claim** (`request.auth.token.admin`); `isAdmin()` transicional (claim OR campo, sin lockout) en `firestore.rules` **y** `storage.rules`. → `firestore.rules` (`isAdmin`, `users/{uid}`), `storage.rules` (`isAdmin`). *(cierra #1)*
 - ✅ **P0-b** · Callables admin-only `grantAdminRole`/`revokeAdminRole` (Admin SDK: claim + espejo `role` + revoke refresh tokens + `adminEvents`) + script de bootstrap del primer admin. → `functions/src/admin.ts`, `functions/scripts/set-admin.mjs`, regla `adminEvents`, [ADMIN-BOOTSTRAP.md](./ADMIN-BOOTSTRAP.md). *(habilita #1; base para auditar admin, #12)*
 - ✅ **P0-c** · Downgrade de re-verificación **forzado en reglas**: renombrar una escuela `verified` exige bajarla a `needs_reverification` (`renamePreservesVerification()`); escribir métodos de pago queda bloqueado mientras la escuela esté `verified` (debe bajarse primero). Cliente `updateSchoolPaymentMethods` reordenado. → `firestore.rules` (school update + `private/` write), `lib/firestore/schools.ts`. *(cierra #2)*
 - 🟢 **P0-d Etapa 1** · **Deanonimización cerrada — IMPLEMENTADO.** `donorName` movido del doc público de los registros personales (`subscriptions` con `supporterType:'user'` y todo `projectContributions`) a una subcolección privada `private/data`, legible solo por el donante/escuela/admin (verificado por harness). Un scraper anónimo ya **no** puede leer el nombre real de un donante opt-out. El nombre se vuelve a fusionar **client-side** para el panel de la escuela (que sí está autorizado), sin tocar el feed/wall/métricas SSR. → `firestore.rules` (subcols `private/`), `lib/firestore/{donors,projects,subscriptions}.ts`, `functions/src/index.ts` (audit lee de `private/`), `types/firestore.ts`, `test/rules/firestore.rules.test.ts`. *(cierra el núcleo de #3 — deanonimización de opt-out)*
-- 🔲 **P0-d Etapa 2** · **Ocultar montos exactos** (`amount`/`units` de registros personales). Pendiente: entrelazado con las reglas anti-fraude de inmutabilidad post-confirmación (`keepsCommitmentOnceConfirmed`/`keepsContributionIdentity` referencian `units`/`amount`); mover esos campos exige **reubicar el check anti-fraude** a la regla del subdoc privado y que las CF (`recomputeDonorProfile`/`recomputeProject`) los lean de `private/` (coste de N reads). Riesgo de integridad de ranking/tier → hacerlo con tests anti-fraude dedicados. **Residual actual:** los montos personales quedan visibles tarde a un `donorId` (uid) pseudónimo; para donantes opt-IN (perfil público) el monto exacto es cruzable vía su uid — cerrar en Etapa 2. *(cierra el resto de #3)*
+- 🟢 **P0-d Etapa 2** · **Montos exactos ocultados — IMPLEMENTADO.** `units`/`amount` de los registros personales movidos al subdoc `private/data` (junto a `donorName`); el doc público ya no expone cuánto dio una persona. La **inmutabilidad anti-fraude se reubicó a la regla del subdoc privado**: el create exige `units` válido (suscripciones) y `status:'pending'`; el update **congela `units`/`amount` una vez que la escuela confirmó** (impide inflar tier/`raised` sin nuevo comprobante) — verificado por harness. El create público de suscripción ya no exige `units` para donor subs (sí para business subs, que el feed necesita). Las CF (`recomputeDonorProfile` lee `units`, `recomputeProject` lee `amount`, auditoría lee ambos) leen de `private/` con Admin SDK (N reads/recompute — ver plan de escala). Merge client-side extendido a units/amount en las lecturas autorizadas (panel escuela + donante propio). → `firestore.rules`, `lib/firestore/{donors,projects,subscriptions}.ts`, `functions/src/index.ts`, `test/rules/firestore.rules.test.ts`. *(cierra #3 por completo)*
 
 ### 5b · Diseño de P0-d (para la siguiente sesión enfocada)
 
@@ -137,14 +137,18 @@ el nombre ahí, no en el doc público. Lecturas de panel (`getSubscriptionsBySch
 SSR anónimo se salta (el wall no lo necesita), en el panel el dueño autenticado sí lo trae. CF de
 auditoría leen `donorName` de `private/` con Admin SDK. Verificado: 5 tests allow/deny en el harness.
 
-**Etapa 2 — pendiente (`amount`/`units`).** El monto = `units × UNIT_CRC`, y `units`/`amount` están
-referenciados por las reglas anti-fraude (`keepsCommitmentOnceConfirmed`, `keepsContributionIdentity`)
-que impiden inflar la magnitud comprometida post-confirmación. Para ocultar montos hay que mover
-`units`/`amount` (de registros personales) a `private/` **y reubicar ese check anti-fraude** a la regla
-del subdoc privado, además de que `recomputeDonorProfile`/`recomputeProject` (CF) los lean de `private/`
-(coste de N reads/recompute). Es la parte riesgosa (integridad de ranking/tier) — hacerla con tests
-anti-fraude dedicados. Pairear con **minimizar el DTO público** del negocio (quitar `contact.phone/email`
-y geopoint exacto) para cortar el scraping de inteligencia competitiva (#13).
+**Etapa 2 — IMPLEMENTADA (`amount`/`units`).** Se movieron `units`/`amount` de los registros
+personales a `private/data` (el monto = `units × UNIT_CRC`, así que ocultar el monto exige ocultar
+`units`). El check anti-fraude de inmutabilidad post-confirmación **se reubicó** del doc público a la
+regla del subdoc privado (create exige `units` válido + padre `pending`; update congela `units`/`amount`
+una vez confirmado). El create público de suscripción dejó de exigir `units` para donor subs (los
+business subs lo mantienen, el feed lo necesita). `recomputeDonorProfile`/`recomputeProject` y la
+auditoría leen la magnitud de `private/` con Admin SDK (N reads/recompute — coste de escala anotado).
+Tests anti-fraude dedicados en el harness (congelar tras confirmar, validar create). **Residual menor:**
+un donante podría auto-exponer una magnitud basura en su propio doc público mientras está `pending`
+(la ignora el CF, que lee `private/`) — no es un vector de fraude. **Aparte (#13):** minimizar el DTO
+público del negocio (quitar `contact.phone/email` y geopoint exacto) para cortar el scraping competitivo
+— sigue pendiente.
 
 **P1 — endurecer antes de escalar:**
 

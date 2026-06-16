@@ -260,8 +260,11 @@ service cloud.firestore {
         request.resource.data.confirmedAt == null &&
         request.resource.data.get('firstConfirmedAt', null) == null &&
         request.resource.data.get('countsForRanking', false) == false &&
-        request.resource.data.units is int &&
-        request.resource.data.units >= 1 &&
+        // Business subs carry `units` on the public doc (the feed needs it). Personal
+        // donations keep their magnitude (`units`/`amount`) in the private subdoc so a
+        // scraper can't read how much a person gave — it is validated on the private create.
+        (request.resource.data.get('supporterType', 'business') == 'user' ||
+          (request.resource.data.units is int && request.resource.data.units >= 1)) &&
         isSupporterSide(request.resource.data)
       );
 
@@ -276,17 +279,34 @@ service cloud.firestore {
 
       allow delete: if isAdmin() || isSupporterSide(resource.data);
 
-      // Private: the donor's real (proof-matching) name, denormalized OFF the public doc so an
-      // anonymous scraper of `subscriptions` can no longer deanonymize opt-out donors. Personal
-      // donations only — business subs carry the public `businessName`, no private subdoc.
+      // Private: a personal donation's sensitive fields — the donor's real (proof-matching)
+      // name AND its magnitude (`units`/`amount`) — denormalized OFF the public doc so an
+      // anonymous scraper of `subscriptions` can neither deanonymize an opt-out donor nor read
+      // how much they gave. Personal donations only — business subs keep `businessName`/`units`
+      // public (the feed needs units), no private subdoc.
       // - read: the donor, the target school's owner/editors (to match the proof), or admin.
-      // - write: the donor (their own) or admin. Never anonymous; never the supporting business.
+      // - create: the donor, while the parent is still `pending`; `units` validated here (the
+      //   public create skips it for donor subs). - update: the donor, but once the school
+      //   confirmed, `units`/`amount` are FROZEN — a post-confirm bump would inflate the donor
+      //   tier (which the Cloud Function computes from THIS private `units`) with no new proof.
+      function donorOwnsSub() {
+        return isSignedIn() && subscriptionData(id).get('donorId', '') == request.auth.uid;
+      }
       match /private/{doc} {
-        allow read: if isAdmin() ||
-          (isSignedIn() && subscriptionData(id).get('donorId', '') == request.auth.uid) ||
+        allow read: if isAdmin() || donorOwnsSub() ||
           isOwnerOrEditor(schoolData(subscriptionData(id).schoolId));
-        allow write: if isAdmin() ||
-          (isSignedIn() && subscriptionData(id).get('donorId', '') == request.auth.uid);
+        allow create: if isAdmin() || (
+          donorOwnsSub() &&
+          subscriptionData(id).status == 'pending' &&
+          request.resource.data.units is int && request.resource.data.units >= 1
+        );
+        allow update: if isAdmin() || (
+          donorOwnsSub() && (
+            subscriptionData(id).status == 'pending' ||
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['units', 'amount'])
+          )
+        );
+        allow delete: if isAdmin() || donorOwnsSub();
       }
     }
 
@@ -380,16 +400,31 @@ service cloud.firestore {
       allow delete: if isAdmin() ||
         (isSignedIn() && resource.data.donorId == request.auth.uid);
 
-      // Private: the contributor's real (proof-matching) name, denormalized OFF the public doc
-      // (same rationale as subscriptions/private — anonymous scrapers can't deanonymize).
+      // Private: a contribution's sensitive fields — the contributor's real (proof-matching)
+      // name AND its `amount` — denormalized OFF the public doc (same rationale as
+      // subscriptions/private: anonymous scrapers can't deanonymize nor read how much a person
+      // gave). The project's public `raised` bar is the Cloud-Function aggregate, which reads
+      // THIS private `amount`.
       // - read: the contributor, the target school's owner/editors, or admin.
-      // - write: the contributor (their own) or admin. Never anonymous.
+      // - create: the contributor, while the parent is still `pending`. - update: the
+      //   contributor, but once the school confirmed, `amount` is FROZEN (a post-confirm bump
+      //   would inflate `raised` with no new proof).
+      function donorOwnsContribution() {
+        return isSignedIn() && contributionData(id).donorId == request.auth.uid;
+      }
       match /private/{doc} {
-        allow read: if isAdmin() ||
-          (isSignedIn() && contributionData(id).donorId == request.auth.uid) ||
+        allow read: if isAdmin() || donorOwnsContribution() ||
           isOwnerOrEditor(schoolData(contributionData(id).schoolId));
-        allow write: if isAdmin() ||
-          (isSignedIn() && contributionData(id).donorId == request.auth.uid);
+        allow create: if isAdmin() || (
+          donorOwnsContribution() && contributionData(id).status == 'pending'
+        );
+        allow update: if isAdmin() || (
+          donorOwnsContribution() && (
+            contributionData(id).status == 'pending' ||
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount'])
+          )
+        );
+        allow delete: if isAdmin() || donorOwnsContribution();
       }
     }
 
