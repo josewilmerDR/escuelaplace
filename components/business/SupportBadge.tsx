@@ -85,7 +85,18 @@ export function SupportBadge({ businessId }: { businessId: string }) {
             {supportedSchools[0].name}
           </Link>
           {supportedSchools.length > 1 && (
-            <> y {supportedSchools.length - 1} más</>
+            // Links down to the full "Escuelas que apoya" section on the same profile,
+            // so the collapsed "+N" is no longer a dead end (the other schools were
+            // otherwise unreachable from here).
+            <>
+              {" y "}
+              <a
+                href="#escuelas"
+                className="font-medium text-brand-darker hover:underline"
+              >
+                {supportedSchools.length - 1} más
+              </a>
+            </>
           )}
         </p>
       )}
