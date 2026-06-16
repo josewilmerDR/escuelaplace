@@ -139,7 +139,7 @@ export function BusinessCard({
             <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-muted">
               {business.reviewStats.count > 0 && (
                 <span className="flex shrink-0 items-center gap-1 font-medium text-muted">
-                  <span aria-hidden className="text-amber-500">
+                  <span aria-hidden className="text-brand">
                     ★
                   </span>
                   <span className="sr-only">Calificación:</span>

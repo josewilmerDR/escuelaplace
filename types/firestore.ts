@@ -382,6 +382,14 @@ export type CategoryDoc = Category & { id: string };
 export const SUBSCRIPTION_UNIT_CRC = 5000;
 
 /**
+ * Upper bound for `units` in a single subscription/donation. Anti-typo guard (mirrors how
+ * PROJECT_STAGE_COST_MAX caps stage cost): one extra zero shouldn't register an absurd
+ * amount the school then has to reject. The platform never moves money, so this only bounds
+ * the recorded relationship, not a payment.
+ */
+export const SUBSCRIPTION_UNITS_MAX = 1000;
+
+/**
  * How many days a single confirmation stays valid before it must be renewed. A
  * subscription is recurring but the platform never sees renewals, so confirmation is
  * time-boxed: after this window the support stops counting unless re-confirmed.

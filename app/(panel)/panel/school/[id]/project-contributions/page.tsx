@@ -17,6 +17,7 @@ import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HeartIcon } from "@/components/ui/icons";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
+import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import {
   confirmContribution,
   getContributionProofUrl,
@@ -221,6 +222,8 @@ export default function ProjectContributionsPage() {
   return (
     <main>
       <Heading subtitle={school.name} />
+
+      <SchoolPanelNav schoolId={id} current="project-contributions" />
 
       {/* Accessible-only success announcement; no visual banner is needed. */}
       <p className="sr-only" role="status" aria-live="polite">

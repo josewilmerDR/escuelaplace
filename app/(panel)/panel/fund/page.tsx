@@ -39,7 +39,7 @@ import {
   uploadContributionProof,
 } from "@/lib/firestore";
 import { formatMoney } from "@/lib/format";
-import { CONTRIBUTION_DESCRIPTION_MAX } from "@/types";
+import { CONTRIBUTION_DESCRIPTION_MAX, PROJECT_STAGE_COST_MAX } from "@/types";
 import type {
   PaymentMethod,
   ProjectContributionDoc,
@@ -441,11 +441,16 @@ function FundContent() {
             <input
               type="number"
               min={1}
+              max={PROJECT_STAGE_COST_MAX}
               required
               disabled={!canFund}
               value={amount || ""}
+              // Upper clamp on change so a typo (an extra zero) can't register an absurd
+              // amount; mirrors the cap StageFields puts on stage cost.
               onChange={(e) => {
-                setAmount(Math.max(0, Number(e.target.value) || 0));
+                setAmount(
+                  Math.min(PROJECT_STAGE_COST_MAX, Math.max(0, Number(e.target.value) || 0)),
+                );
                 setDone(false);
               }}
               className="input"

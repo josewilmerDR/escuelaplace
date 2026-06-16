@@ -116,19 +116,9 @@ export function SearchBar({
       aria-label="Buscar comercios"
       className="flex w-full items-center gap-2 overflow-hidden rounded-2xl bg-white p-1.5 pl-5 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-brand"
     >
-      {/* Leading magnifier echoes the native search look; decorative (the field is labelled). */}
-      <svg
-        aria-hidden
-        viewBox="0 0 20 20"
-        fill="currentColor"
-        className="h-5 w-5 shrink-0 text-muted"
-      >
-        <path
-          fillRule="evenodd"
-          d="M9 3.5a5.5 5.5 0 1 0 3.473 9.765l3.13 3.13a.75.75 0 1 0 1.061-1.06l-3.13-3.131A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z"
-          clipRule="evenodd"
-        />
-      </svg>
+      {/* Leading magnifier echoes the native search look; decorative (the field is labelled).
+          Shared icon (same as the compact variant) so both search fields use one glyph. */}
+      <SearchIcon className="h-5 w-5 shrink-0 text-muted" />
       {/* type="text" (not "search") so the browser's inconsistent native clear "x" doesn't
           double up with our own — ours also resets the filter, the native one wouldn't. */}
       <input
@@ -150,14 +140,7 @@ export function SearchBar({
           aria-label="Limpiar filtro"
           className="shrink-0 rounded-full p-1.5 text-muted transition-colors hover:bg-black/5 hover:text-foreground"
         >
-          <svg
-            aria-hidden
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="h-5 w-5"
-          >
-            <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-          </svg>
+          <XMarkIcon className="h-5 w-5" />
         </button>
       )}
       <button
