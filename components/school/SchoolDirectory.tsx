@@ -143,7 +143,7 @@ export function SchoolDirectory({
       </div>
 
       {geoError && (
-        <p role="alert" className="mb-4 text-sm text-red-600">
+        <p role="alert" className="mb-4 text-sm text-error">
           {geoError}
         </p>
       )}
