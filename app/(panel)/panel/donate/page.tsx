@@ -38,7 +38,7 @@ import {
   uploadSubscriptionProof,
 } from "@/lib/firestore";
 import { formatColones } from "@/lib/format";
-import { SUBSCRIPTION_UNIT_CRC } from "@/types";
+import { SUBSCRIPTION_UNIT_CRC, SUBSCRIPTION_UNITS_MAX } from "@/types";
 import type {
   DonorProfileDoc,
   PaymentMethod,
@@ -311,12 +311,22 @@ function DonateContent() {
           <input
             type="number"
             min={1}
+            max={SUBSCRIPTION_UNITS_MAX}
             required
             // Allow an empty display while editing (don't snap to 1 on backspace); the value
-            // is normalized to ≥1 on blur and again on submit.
+            // is normalized to the [1, SUBSCRIPTION_UNITS_MAX] range on blur. The upper clamp
+            // on change keeps a typo (an extra zero) from ever reaching state/submit.
             value={units || ""}
-            onChange={(e) => setUnits(Math.max(0, Number(e.target.value) || 0))}
-            onBlur={() => setUnits((u) => Math.max(1, Math.floor(u) || 1))}
+            onChange={(e) =>
+              setUnits(
+                Math.min(SUBSCRIPTION_UNITS_MAX, Math.max(0, Number(e.target.value) || 0)),
+              )
+            }
+            onBlur={() =>
+              setUnits((u) =>
+                Math.min(SUBSCRIPTION_UNITS_MAX, Math.max(1, Math.floor(u) || 1)),
+              )
+            }
             className="input"
           />
           <span className="text-muted">
