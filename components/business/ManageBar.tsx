@@ -12,9 +12,9 @@
  * OwnReviewMark) render their public state — so what's left on screen is exactly what
  * a visitor gets.
  */
-import { useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { VisitorModeToast } from "@/components/ui/VisitorModeToast";
 import { useViewAsVisitor } from "@/lib/view-as";
 
 export function ManageBar({
@@ -34,16 +34,6 @@ export function ManageBar({
 }) {
   const { user } = useAuth();
   const [asVisitor, setAsVisitor] = useViewAsVisitor();
-  // Escape exits "ver como visitante", mirroring the lightbox overlay — the floating pill
-  // shouldn't be the only way out of the mode.
-  useEffect(() => {
-    if (!asVisitor) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setAsVisitor(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [asVisitor, setAsVisitor]);
   const canManage =
     user &&
     (user.id === ownerId ||
@@ -51,22 +41,9 @@ export function ManageBar({
       user.role === "admin");
   if (!canManage) return null;
 
-  if (asVisitor) {
-    // The strip disappears with the rest of the owner-only UI; the floating pill is
-    // the only trace, so the mode can't get stuck on invisibly.
-    return (
-      <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 py-2 pl-4 pr-2 text-sm text-white shadow-lg">
-        <span>Así ven tu página los visitantes</span>
-        <button
-          type="button"
-          onClick={() => setAsVisitor(false)}
-          className="rounded-full bg-white/15 px-3 py-1 font-medium hover:bg-white/25"
-        >
-          Salir
-        </button>
-      </div>
-    );
-  }
+  // In visitor mode the strip collapses with the rest of the owner-only UI; the shared
+  // floating pill is the only trace, so the mode can't get stuck on invisibly.
+  if (asVisitor) return <VisitorModeToast />;
 
   return (
     <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-2xl bg-surface px-4 py-3 ring-1 ring-black/5 sm:justify-start">

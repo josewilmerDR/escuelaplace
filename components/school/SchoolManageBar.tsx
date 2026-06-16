@@ -13,6 +13,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { VisitorModeToast } from "@/components/ui/VisitorModeToast";
 import { getPendingSubscriptionsBySchool } from "@/lib/firestore";
 import { useViewAsVisitor } from "@/lib/view-as";
 
@@ -51,20 +52,7 @@ export function SchoolManageBar({
 
   if (!canManage) return null;
 
-  if (asVisitor) {
-    return (
-      <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-900 py-2 pl-4 pr-2 text-sm text-white shadow-lg">
-        <span>Así ven tu página los visitantes</span>
-        <button
-          type="button"
-          onClick={() => setAsVisitor(false)}
-          className="rounded-full bg-white/15 px-3 py-1 font-medium hover:bg-white/25"
-        >
-          Salir
-        </button>
-      </div>
-    );
-  }
+  if (asVisitor) return <VisitorModeToast />;
 
   return (
     <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-xl bg-surface px-4 py-3 ring-1 ring-black/5 sm:justify-start">
