@@ -1,13 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CommunityPicker } from "@/components/buyer/CommunityPicker";
+import { CommunityStep } from "@/components/buyer/CommunityStep";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SearchBar } from "@/components/search/SearchBar";
 import { Chip } from "@/components/ui/Chip";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { IconTile } from "@/components/ui/IconTile";
+import { StepTile } from "@/components/ui/StepTile";
 import {
-  AcademicCapIcon,
   HeartIcon,
   SearchIcon,
   TagIcon,
@@ -99,6 +98,17 @@ export default async function HomePage() {
           <div className="mx-auto mt-10 max-w-2xl">
             <SearchBar />
           </div>
+
+          {/* Quiet explainer link under the search: a translucent pill so it stays legible
+              over any part of the photo without competing with the search affordance. */}
+          <p className="mt-5">
+            <Link
+              href="/about"
+              className="inline-flex items-center rounded-full bg-black/25 px-4 py-1.5 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-black/35"
+            >
+              ¿Cómo funciona escuelaplace?
+            </Link>
+          </p>
         </div>
       </section>
 
@@ -108,50 +118,30 @@ export default async function HomePage() {
           compra" steps on /about; the secondary CTAs also surface /schools and /about,
           which are otherwise only reachable from the header/footer. */}
       <section className="border-y border-border bg-surface">
-        <div className="mx-auto max-w-6xl px-6 py-12">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-              Comprá local, sostené tu escuela
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-muted">
-              No es una tienda en línea: es el directorio de los comercios que apoyan a
-              las escuelas de tu comunidad. Al preferirlos, tu compra sostiene a la
-              escuela de forma indirecta. Navegás sin crear cuenta.
-            </p>
-          </div>
-
-          <ol className="mx-auto mt-10 grid max-w-4xl gap-8 sm:grid-cols-3">
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <ol className="relative mx-auto grid max-w-4xl gap-4 sm:grid-cols-3 sm:gap-6">
+            {/* Stepper connector: a faint line linking the three icon centers so the
+                steps read as a 1→2→3 flow, not three independent items. Desktop only
+                (the mobile layout is a vertical row where the numbers carry the order).
+                top-6 = the h-12 icon's vertical center; insets stop at the outer icons. */}
+            <span
+              aria-hidden
+              className="absolute left-[16.6%] right-[16.6%] top-6 hidden h-px bg-border sm:block"
+            />
+            {/* Step 1 is interactive (picks the buyer's community → drives the feed),
+                so it's a client component; steps 2–3 stay static SSR. */}
+            <CommunityStep />
             <BuyerStep
-              icon={<AcademicCapIcon className="h-6 w-6" />}
-              title="Elegí tu comunidad"
-            >
-              Seleccioná tu escuela y tu zona. Se guarda solo en tu navegador para
-              ordenar lo que ves.
-            </BuyerStep>
+              step={2}
+              icon={<SearchIcon className="h-5 w-5" />}
+              title="Descubrí los comercios que la apoyan"
+            />
             <BuyerStep
-              icon={<SearchIcon className="h-6 w-6" />}
-              title="Descubrí quién la apoya"
-            >
-              Buscá por nombre o rubro y mirá los comercios que apoyan a la escuela de
-              tu comunidad.
-            </BuyerStep>
-            <BuyerStep
-              icon={<HeartIcon className="h-6 w-6" />}
-              title="Comprales y sostenela"
-            >
-              Al gastar con quienes la apoyan, tu compra sostiene a la institución de
-              forma indirecta.
-            </BuyerStep>
+              step={3}
+              icon={<HeartIcon className="h-5 w-5" />}
+              title="Comprá en ellos y apoyá tu institución"
+            />
           </ol>
-
-          <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <Link href="/schools" className="btn btn-outline">
-              Ver escuelas
-            </Link>
-            <Link href="/about" className="btn btn-secondary">
-              Cómo funciona
-            </Link>
-          </div>
         </div>
       </section>
 
@@ -181,8 +171,6 @@ export default async function HomePage() {
           </nav>
         )}
 
-        <CommunityPicker />
-
         {loadFailed ? (
           <EmptyState
             icon={<WarningIcon className="h-7 w-7" />}
@@ -205,22 +193,30 @@ export default async function HomePage() {
   );
 }
 
-/** A buyer "how it works" step on the home value strip: icon tile + title + line.
- *  Mirrors the numbered steps on /about, centered for the home's marketing rhythm. */
+/** A buyer "how it works" step on the home value strip: numbered icon tile + title + line.
+ *  The number badge + the connector line behind the icons (see <ol> above) make the three
+ *  read as an ordered flow. Compact: a horizontal row on mobile (icon left, text right) to
+ *  keep the strip short; recenters into a column on the 3-up grid (sm+). */
 function BuyerStep({
+  step,
   icon,
   title,
   children,
 }: {
+  step: number;
   icon: React.ReactNode;
   title: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
-    <li className="flex flex-col items-center text-center">
-      <IconTile size="md">{icon}</IconTile>
-      <h3 className="mt-4 font-semibold tracking-tight text-foreground">{title}</h3>
-      <p className="mt-1 text-sm leading-relaxed text-muted">{children}</p>
+    <li className="flex items-start gap-3 text-left sm:flex-col sm:items-center sm:text-center">
+      <StepTile step={step}>{icon}</StepTile>
+      <div className="min-w-0 sm:mt-3">
+        <h3 className="font-semibold tracking-tight text-foreground">{title}</h3>
+        {children && (
+          <p className="mt-0.5 text-sm leading-relaxed text-muted sm:mt-1">{children}</p>
+        )}
+      </div>
     </li>
   );
 }

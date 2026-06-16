@@ -28,9 +28,9 @@ const CHIP =
 // Escuelas chip — the one browse link with no home-page equivalent, so it shows on every
 // route (unlike search + Categorías, which the home hero already provides).
 const SchoolsLink = (
-  <Link href="/schools" aria-label="Escuelas" className={CHIP}>
+  <Link href="/schools" aria-label="Ver escuelas" className={CHIP}>
     <AcademicCapIcon className="h-5 w-5" />
-    <span className="hidden sm:inline">Escuelas</span>
+    <span className="hidden sm:inline">Ver escuelas</span>
   </Link>
 );
 
