@@ -10,11 +10,13 @@
  */
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { SearchIcon, XMarkIcon } from "@/components/ui/icons";
 
 export function SearchBar({
   autoFocus = false,
   initialQuery = "",
   originPath = "",
+  compact = false,
 }: {
   autoFocus?: boolean;
   initialQuery?: string;
@@ -22,6 +24,9 @@ export function SearchBar({
   // clearing the filter returns the user to that page. Only the results page passes it
   // (read from the URL); on other surfaces the origin is the current pathname.
   originPath?: string;
+  // Header variant: a small white pill sized to the brand band, instead of the tall hero
+  // field. Same submit/clear logic — only the chrome differs.
+  compact?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -56,6 +61,49 @@ export function SearchBar({
     // clear, so just empty the input.
     if (pathname === "/search") router.push(originPath || "/");
   };
+
+  // Compact header variant: a small white pill that sits on the dark brand band, sized to
+  // the header's ghost chips (h-10). The leading magnifier doubles as the submit control
+  // (Enter submits too via the form). focus-within lifts the ring so the field reads as one
+  // focused unit.
+  if (compact) {
+    return (
+      <form
+        onSubmit={onSubmit}
+        role="search"
+        aria-label="Buscar comercios"
+        className="flex h-10 w-full items-center gap-1 rounded-xl bg-white pl-2 pr-1.5 ring-1 ring-inset ring-black/5 transition focus-within:ring-2 focus-within:ring-white/70"
+      >
+        <button
+          type="submit"
+          aria-label="Buscar"
+          className="shrink-0 rounded-md p-1 text-muted transition-colors hover:text-foreground"
+        >
+          <SearchIcon className="h-5 w-5" />
+        </button>
+        <input
+          ref={inputRef}
+          type="text"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          autoFocus={autoFocus}
+          placeholder="Buscar comercios"
+          aria-label="¿Qué buscás?"
+          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+        />
+        {q && (
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label="Limpiar"
+            className="shrink-0 rounded-full p-1 text-muted transition-colors hover:bg-black/5 hover:text-foreground"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </button>
+        )}
+      </form>
+    );
+  }
 
   return (
     // Apple-style floating search field: a large, soft-shadowed white pill that lifts off

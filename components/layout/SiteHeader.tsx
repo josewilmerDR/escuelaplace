@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { LoginButton } from "@/components/auth/LoginButton";
+import { HeaderBrowse } from "@/components/layout/HeaderBrowse";
 import { HeaderCreateCta } from "@/components/layout/HeaderCreateCta";
-import { AcademicCapIcon, SearchIcon, TagIcon } from "@/components/ui/icons";
 
 /**
  * Top brand bar (encuentra24 style): solid brand-colored band with the wordmark
@@ -13,50 +13,26 @@ export function SiteHeader() {
     // Sticky brand band so content scrolls cleanly under it; a soft bottom hairline +
     // small shadow sets it apart from the page without a hard 1px line (depth, not borders).
     <header className="sticky top-0 z-40 bg-brand-dark text-white shadow-sm ring-1 ring-black/5">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <div className="flex items-center gap-3 sm:gap-5">
-          <Link href="/" className="flex items-baseline gap-1 text-2xl font-bold tracking-tight">
-            escuela<span className="rounded-md bg-white px-1.5 text-brand-dark">place</span>
-          </Link>
-        </div>
+      {/* Flat flex row (no justify-between): the wordmark stays left and pinned (shrink-0),
+          and HeaderBrowse contributes a flex-1 element — the embedded search on inner pages,
+          an empty spacer on home — that fills the gap and pushes the actions right. */}
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-6">
+        <Link
+          href="/"
+          className="flex shrink-0 items-baseline gap-1 text-2xl font-bold tracking-tight"
+        >
+          escuela<span className="rounded-md bg-white px-1.5 text-brand-dark">place</span>
+        </Link>
 
-        <div className="flex items-center gap-3">
-          {/* Browse entries. Ghost chips (vs the solid white Crear CTA) so they read as
-              secondary nav, not the primary action. Always shown — buyers and owners alike
-              browse the catalog — icon-only below sm to save room. White-on-brand ghost chip:
-              the band is dark enough for AA, so a soft inset ring + translucent hover keep
-              it crisp without the light-card recipe. */}
-          {/* Search first: it's the primary catalog action and was previously only
-              reachable from the home hero, stranding buyers on inner pages. */}
-          <Link
-            href="/search"
-            aria-label="Buscar"
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/15 hover:ring-white/50"
-          >
-            <SearchIcon className="h-5 w-5" />
-            <span className="hidden sm:inline">Buscar</span>
-          </Link>
-          <Link
-            href="/categories"
-            aria-label="Categorías"
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/15 hover:ring-white/50"
-          >
-            <TagIcon className="h-5 w-5" />
-            <span className="hidden sm:inline">Categorías</span>
-          </Link>
-          <Link
-            href="/schools"
-            aria-label="Escuelas"
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/15 hover:ring-white/50"
-          >
-            <AcademicCapIcon className="h-5 w-5" />
-            <span className="hidden sm:inline">Escuelas</span>
-          </Link>
-          {/* Acquisition CTA — state-aware (see HeaderCreateCta): a learn-what-this-is
-              entry for visitors, hidden for accounts that already own a page. */}
-          <HeaderCreateCta />
-          <LoginButton />
-        </div>
+        {/* Browse cluster (search + Categorías + Escuelas). A route-aware client island:
+            on inner pages the search bar grows to fill the space between the wordmark and the
+            chips; on home the hero already owns search + category chips, so it collapses to a
+            spacer + Escuelas. */}
+        <HeaderBrowse />
+        {/* Acquisition CTA — state-aware (see HeaderCreateCta): a learn-what-this-is
+            entry for visitors, hidden for accounts that already own a page. */}
+        <HeaderCreateCta />
+        <LoginButton />
       </div>
     </header>
   );
