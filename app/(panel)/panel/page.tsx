@@ -25,6 +25,7 @@ import { BusinessStatusBadge } from "@/components/business/BusinessStatusBadge";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
 import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { IconTile } from "@/components/ui/IconTile";
 import {
@@ -404,19 +405,16 @@ function PageCard({
   // and surface a remove-specific failure inline on this card.
   const [busy, setBusy] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  // The confirm now lives in <ConfirmDialog> (confirmRemove); this does the work once
+  // confirmed and closes the dialog on failure so the inline error is visible.
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const handleRemove = () => {
-    if (
-      !window.confirm(
-        "¿Quitar esta página de tu lista? Ya no existe y no se puede recuperar desde acá.",
-      )
-    ) {
-      return;
-    }
     setBusy(true);
     setRemoveError(null);
     void onRemove()
       .catch(() => {
         setRemoveError("No se pudo quitar la página de tu lista. Intentá de nuevo.");
+        setConfirmRemove(false);
       })
       .finally(() => setBusy(false));
   };
@@ -430,7 +428,7 @@ function PageCard({
         </p>
         <button
           type="button"
-          onClick={handleRemove}
+          onClick={() => setConfirmRemove(true)}
           disabled={busy}
           className="btn btn-destructive mt-3"
         >
@@ -441,6 +439,18 @@ function PageCard({
             {removeError}
           </p>
         )}
+        <ConfirmDialog
+          open={confirmRemove}
+          title="Quitar esta página de tu lista"
+          confirmLabel="Quitar"
+          tone="destructive"
+          busy={busy}
+          busyLabel="Quitando…"
+          onConfirm={handleRemove}
+          onCancel={() => setConfirmRemove(false)}
+        >
+          Ya no existe y no se puede recuperar desde acá.
+        </ConfirmDialog>
       </li>
     );
   }

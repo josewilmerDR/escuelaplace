@@ -18,6 +18,7 @@ import { GalleryManager } from "@/components/business/GalleryManager";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { cardClass } from "@/components/ui/Card";
 import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -215,35 +216,13 @@ export default function BusinessEditPage() {
     [business],
   );
 
-  const onToggleStatus = async (status: BusinessPublishStatus) => {
+  // Un-publishing asks for confirmation first via <ConfirmDialog> (confirmUnpublish);
+  // publishing validates first. Both end in applyStatus, which writes the status.
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+
+  const applyStatus = async (status: BusinessPublishStatus) => {
     if (!business) return;
     setStatusError(null);
-    if (status === "active") {
-      // Don't publish a stale (unsaved) profile, and never publish one that fails the
-      // same minimums "Guardar" enforces — otherwise the just-edited form silently
-      // publishes the OLD doc, or a profile with no category / no map pin.
-      if (dirty) {
-        setStatusError(
-          "Tenés cambios sin guardar. Guardá el perfil antes de publicarlo.",
-        );
-        return;
-      }
-      const invalid = validateBusinessProfile({
-        categories: selectedCategories,
-        hasCoords: coords != null,
-      });
-      if (invalid) {
-        setStatusError(invalid);
-        return;
-      }
-    } else if (
-      // Concrete impact before taking the page off the catalog.
-      !window.confirm(
-        "Tu página dejará de aparecer en el catálogo y su URL pública dejará de abrir. ¿Continuar?",
-      )
-    ) {
-      return;
-    }
     setPublishing(true);
     try {
       await setBusinessStatus(business.id, status);
@@ -255,10 +234,33 @@ export default function BusinessEditPage() {
     }
   };
 
+  const onPublish = () => {
+    if (!business) return;
+    setStatusError(null);
+    // Don't publish a stale (unsaved) profile, and never publish one that fails the same
+    // minimums "Guardar" enforces — otherwise the just-edited form silently publishes the
+    // OLD doc, or a profile with no category / no map pin.
+    if (dirty) {
+      setStatusError(
+        "Tenés cambios sin guardar. Guardá el perfil antes de publicarlo.",
+      );
+      return;
+    }
+    const invalid = validateBusinessProfile({
+      categories: selectedCategories,
+      hasCoords: coords != null,
+    });
+    if (invalid) {
+      setStatusError(invalid);
+      return;
+    }
+    void applyStatus("active");
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!business) return;
-    // Same minimums publishing enforces (see onToggleStatus) — category for the
+    // Same minimums publishing enforces (see onPublish) — category for the
     // /category/* listings, a map pin for the location.
     const invalid = validateBusinessProfile({
       categories: selectedCategories,
@@ -521,7 +523,10 @@ export default function BusinessEditPage() {
             </p>
             <button
               type="button"
-              onClick={() => onToggleStatus("draft")}
+              onClick={() => {
+                setStatusError(null);
+                setConfirmUnpublish(true);
+              }}
               disabled={saving || publishing}
               aria-busy={publishing}
               className="btn btn-outline mt-3"
@@ -538,7 +543,7 @@ export default function BusinessEditPage() {
             </p>
             <button
               type="button"
-              onClick={() => onToggleStatus("active")}
+              onClick={onPublish}
               disabled={saving || publishing}
               aria-busy={publishing}
               className="btn btn-primary mt-3"
@@ -561,6 +566,20 @@ export default function BusinessEditPage() {
           </p>
         )}
       </section>
+
+      <ConfirmDialog
+        open={confirmUnpublish}
+        title="Pasar la página a borrador"
+        confirmLabel="Pasar a borrador"
+        onConfirm={() => {
+          setConfirmUnpublish(false);
+          void applyStatus("draft");
+        }}
+        onCancel={() => setConfirmUnpublish(false)}
+      >
+        Tu página dejará de aparecer en el catálogo y su URL pública dejará de
+        abrir.
+      </ConfirmDialog>
 
       <form
         onSubmit={onSubmit}
