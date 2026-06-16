@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { HeartIcon } from "@/components/ui/icons";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { SubscriptionStatusBadge } from "@/components/subscriptions/SubscriptionStatusBadge";
+import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import {
   confirmSubscription,
   getSchoolById,
@@ -241,6 +242,8 @@ export default function SchoolSubscriptionsPage() {
   return (
     <main>
       <Heading subtitle={school.name} />
+
+      <SchoolPanelNav schoolId={id} current="subscriptions" />
 
       {/* Accessible-only success announcement; no visual banner is needed. */}
       <p className="sr-only" role="status" aria-live="polite">

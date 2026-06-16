@@ -17,6 +17,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { ProjectStatusBadge } from "@/components/projects/ProjectStatusBadge";
+import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import {
   StagesEditor,
   emptyStage,
@@ -300,6 +301,8 @@ export default function SchoolProjectsPage() {
   return (
     <main>
       <Heading subtitle={school.name} />
+
+      <SchoolPanelNav schoolId={id} current="projects" />
 
       {school.verificationStatus !== "verified" && (
         <p className="mt-6 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
