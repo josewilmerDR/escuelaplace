@@ -9,6 +9,7 @@
  * via useBuyerPreferences.
  */
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { distanceBetween } from "geofire-common";
 import { Combobox } from "@/components/ui/Combobox";
 import { Modal } from "@/components/ui/Modal";
@@ -112,30 +113,50 @@ export function CommunityStep() {
       <StepTile step={1}>
         <AcademicCapIcon className="h-5 w-5" />
       </StepTile>
-      <div className="min-w-0 sm:mt-3">
+      <div className="w-full min-w-0 sm:mt-3">
         {showSummary ? (
           <>
             <h3 className="flex items-center gap-1.5 font-semibold tracking-tight text-foreground sm:justify-center">
               <MapPinIcon className="h-4 w-4 shrink-0 text-brand-dark" aria-hidden />
               <span className="truncate">{prefs.schoolName ?? "Tu zona"}</span>
             </h3>
-            <p className="mt-0.5 text-sm text-muted">
-              <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="font-medium text-brand-darker hover:underline"
-              >
-                Cambiar
-              </button>
-              {" · "}
-              <button
-                type="button"
-                onClick={clear}
-                className="font-medium text-brand-darker hover:underline"
-              >
-                Limpiar
-              </button>
-            </p>
+            {/* Donar (left) is pushed to the opposite edge from the filter actions
+                (Cambiar/Limpiar, right) so the donate CTA reads as its own thing, not a third
+                filter control. Kept at the weight of Cambiar/Limpiar so it doesn't rival the
+                buy-to-support story the stepper tells. justify-between only kicks in with a
+                chosen school — that's the one state where Donar exists (it preselects the
+                school via `?schoolId=`); otherwise the filter actions stay on their own. */}
+            <div
+              className={`mt-0.5 flex w-full items-center gap-3 text-sm text-muted ${
+                prefs.schoolId ? "justify-between" : ""
+              }`}
+            >
+              {prefs.schoolId && (
+                <Link
+                  href={`/panel/donate?schoolId=${encodeURIComponent(prefs.schoolId)}`}
+                  className="font-medium text-brand-darker hover:underline"
+                >
+                  Donar
+                </Link>
+              )}
+              <span className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setOpen(true)}
+                  className="font-medium text-brand-darker hover:underline"
+                >
+                  Cambiar
+                </button>
+                <span aria-hidden>·</span>
+                <button
+                  type="button"
+                  onClick={clear}
+                  className="font-medium text-brand-darker hover:underline"
+                >
+                  Limpiar
+                </button>
+              </span>
+            </div>
           </>
         ) : (
           <h3 className="font-semibold tracking-tight text-foreground">
