@@ -108,7 +108,10 @@ export default async function SchoolsPage() {
       )}
 
       <header className="mb-8">
-        <h1 className="text-sm text-muted">{DESCRIPTION}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Escuelas
+        </h1>
+        <p className="mt-1 text-sm text-muted">{DESCRIPTION}</p>
       </header>
 
       {loadFailed ? (

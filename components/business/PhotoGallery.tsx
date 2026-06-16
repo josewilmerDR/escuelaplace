@@ -19,6 +19,7 @@ export function PhotoGallery({
   // Index of the photo open in the lightbox; null = closed.
   const [index, setIndex] = useState<number | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const open = index !== null;
 
   const close = useCallback(() => setIndex(null), []);
@@ -32,10 +33,28 @@ export function PhotoGallery({
 
   useEffect(() => {
     if (!open) return;
+    // Remember the thumbnail that opened the lightbox so focus returns to it on close.
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
       else if (e.key === "ArrowRight") step(1);
       else if (e.key === "ArrowLeft") step(-1);
+      else if (e.key === "Tab") {
+        // Trap Tab within the overlay (close / prev / next) so focus can't reach the page
+        // behind the modal — matches ConfirmDialog and honors aria-modal.
+        const focusable =
+          dialogRef.current?.querySelectorAll<HTMLElement>("button");
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener("keydown", onKey);
     // Lock the page scroll behind the overlay and land focus on the close button so
@@ -46,6 +65,8 @@ export function PhotoGallery({
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
+      // Return focus to the trigger thumbnail instead of dropping it to <body> (WCAG 2.4.3).
+      previouslyFocused?.focus();
     };
   }, [open, close, step]);
 
@@ -73,6 +94,7 @@ export function PhotoGallery({
 
       {open && (
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label={`Fotos de ${businessName}`}
