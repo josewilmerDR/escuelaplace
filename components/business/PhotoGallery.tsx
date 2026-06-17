@@ -31,6 +31,19 @@ export function PhotoGallery({
     [photos.length],
   );
 
+  // Horizontal touch-swipe to page between photos (native gallery gesture). A move past the
+  // threshold steps; below it the tap falls through to the close-on-backdrop handler.
+  const touchStartX = useRef<number | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX.current;
+    touchStartX.current = null;
+    if (photos.length > 1 && Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
+  };
+
   useEffect(() => {
     if (!open) return;
     // Remember the thumbnail that opened the lightbox so focus returns to it on close.
@@ -101,6 +114,8 @@ export function PhotoGallery({
           className="fixed inset-0 z-50 bg-black/90"
           // Backdrop click closes; the controls stop propagation themselves.
           onClick={close}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
         >
           <div
             className="absolute inset-0 m-4 sm:m-12"
@@ -123,7 +138,7 @@ export function PhotoGallery({
             type="button"
             onClick={close}
             aria-label="Cerrar"
-            className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-2xl leading-none text-white hover:bg-black/70"
+            className="absolute right-[calc(0.75rem+env(safe-area-inset-right))] top-[calc(0.75rem+env(safe-area-inset-top))] flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-2xl leading-none text-white hover:bg-black/70 active:bg-black/80"
           >
             ×
           </button>
@@ -137,7 +152,7 @@ export function PhotoGallery({
                   step(-1);
                 }}
                 aria-label="Foto anterior"
-                className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-2xl leading-none text-white hover:bg-black/70"
+                className="absolute left-[calc(0.75rem+env(safe-area-inset-left))] top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-2xl leading-none text-white hover:bg-black/70 active:bg-black/80"
               >
                 ‹
               </button>
@@ -148,13 +163,13 @@ export function PhotoGallery({
                   step(1);
                 }}
                 aria-label="Foto siguiente"
-                className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-2xl leading-none text-white hover:bg-black/70"
+                className="absolute right-[calc(0.75rem+env(safe-area-inset-right))] top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-2xl leading-none text-white hover:bg-black/70 active:bg-black/80"
               >
                 ›
               </button>
               <p
                 aria-live="polite"
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white"
+                className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white"
               >
                 {index + 1} / {photos.length}
               </p>

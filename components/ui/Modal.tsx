@@ -27,6 +27,10 @@ export function Modal({
   // On open: remember the trigger, focus the first focusable, ESC closes, Tab cycles inside.
   useEffect(() => {
     if (!open) return;
+    // Lock background scroll while the dialog is open so the page behind the overlay can't
+    // scroll under the soft keyboard on mobile (and the scroll position is preserved).
+    const prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const focusablesOf = () =>
       dialogRef.current?.querySelectorAll<HTMLElement>(
@@ -57,6 +61,7 @@ export function Modal({
     document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
+      document.body.style.overflow = prevBodyOverflow;
       // Return focus to the trigger (WCAG 2.4.3) instead of the top of <body>.
       previouslyFocused?.focus();
     };
@@ -65,8 +70,12 @@ export function Modal({
   if (!open) return null;
 
   return (
+    // On phones the dialog is a bottom sheet (items-end, flush to the bottom, rounded top only)
+    // so it sits above the thumb and never collides with the soft keyboard; from sm up it's a
+    // centered card. The card caps its height and scrolls internally so its actions stay
+    // reachable, and pads the bottom safe-area inset on the flush mobile sheet.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
@@ -74,7 +83,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-2xl bg-white p-6 text-left shadow-lg ring-1 ring-black/5"
+        className="max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-left shadow-lg ring-1 ring-black/5 sm:max-h-[calc(100dvh-2rem)] sm:max-w-md sm:rounded-2xl sm:pb-6"
         // Clicks inside the card (and bubbling from the Combobox portal) must not reach the
         // overlay's onClose.
         onClick={(e) => e.stopPropagation()}

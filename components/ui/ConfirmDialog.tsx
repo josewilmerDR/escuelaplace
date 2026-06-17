@@ -41,6 +41,9 @@ export function ConfirmDialog({
     if (!open) return;
     // Remember what was focused (the trigger) so we can return focus there on close.
     const previouslyFocused = document.activeElement as HTMLElement | null;
+    // Lock background scroll while open (see Modal) so the page can't scroll behind the sheet.
+    const prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     cancelRef.current?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -69,6 +72,7 @@ export function ConfirmDialog({
     document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
+      document.body.style.overflow = prevBodyOverflow;
       // Restore focus to the trigger so keyboard/SR users land back where they were,
       // instead of at the top of <body> when the dialog unmounts (WCAG 2.4.3).
       previouslyFocused?.focus();
@@ -78,8 +82,10 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
+    // Bottom sheet on phones / centered card from sm up (mirrors Modal), capped height with
+    // internal scroll so the confirm/cancel actions are always reachable above the keyboard.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       onClick={onCancel}
     >
       <div
@@ -87,7 +93,7 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg ring-1 ring-black/5"
+        className="max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-lg ring-1 ring-black/5 sm:max-h-[calc(100dvh-2rem)] sm:max-w-md sm:rounded-2xl sm:pb-6"
         // Clicks inside the card must not bubble to the overlay's onCancel.
         onClick={(e) => e.stopPropagation()}
       >
@@ -98,11 +104,13 @@ export function ConfirmDialog({
           {title}
         </h2>
         <div className="mt-2 text-sm text-muted">{children}</div>
-        <div className="mt-6 flex justify-end gap-3">
+        {/* On phones the actions stack full-width (flex-col-reverse keeps Cancelar as the
+            bottom, thumb-reachable button); from sm up they're a right-aligned row. */}
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             ref={cancelRef}
             type="button"
-            className="btn btn-secondary"
+            className="btn btn-secondary w-full sm:w-auto"
             disabled={busy}
             onClick={onCancel}
           >
@@ -110,9 +118,9 @@ export function ConfirmDialog({
           </button>
           <button
             type="button"
-            className={
-              tone === "destructive" ? "btn btn-destructive" : "btn btn-primary"
-            }
+            className={`btn w-full sm:w-auto ${
+              tone === "destructive" ? "btn-destructive" : "btn-primary"
+            }`}
             disabled={busy}
             onClick={onConfirm}
           >

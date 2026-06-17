@@ -54,9 +54,14 @@ interface ComboboxProps {
 }
 
 interface DropdownPosition {
-  top: number;
   left: number;
   width: number;
+  /** Viewport-relative top, when the list drops below the input (the default). */
+  top?: number;
+  /** Distance from the viewport bottom, when the list flips above the input. */
+  bottom?: number;
+  /** Cap so the list never exceeds the space visible above the soft keyboard. */
+  maxHeight: number;
 }
 
 export function Combobox({
@@ -102,11 +107,27 @@ export function Combobox({
   const updatePosition = useCallback(() => {
     const rect = inputRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setPosition({
-      top: rect.bottom + window.scrollY + 4,
-      left: rect.left + window.scrollX,
-      width: rect.width,
-    });
+    const gap = 4;
+    const margin = 8;
+    // visualViewport reflects the area NOT covered by the soft keyboard; fall back to the
+    // layout viewport on browsers without it. The list is positioned `fixed` (viewport
+    // coordinates), so no scroll offset is needed and bottom-anchoring works for the flip-up.
+    const vv = window.visualViewport;
+    const visibleTop = vv?.offsetTop ?? 0;
+    const visibleBottom = (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight);
+    const spaceBelow = visibleBottom - rect.bottom - gap - margin;
+    const spaceAbove = rect.top - visibleTop - gap - margin;
+    // Prefer dropping below; flip up only when below is cramped (e.g. keyboard up) and above
+    // has more room — so the school picker can't render under the keyboard on a tall form.
+    const dropUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(120, Math.min(288, dropUp ? spaceAbove : spaceBelow));
+    const width = Math.min(rect.width, window.innerWidth - 2 * margin);
+    const left = Math.min(Math.max(margin, rect.left), window.innerWidth - margin - width);
+    setPosition(
+      dropUp
+        ? { left, width, bottom: window.innerHeight - rect.top + gap, maxHeight }
+        : { left, width, top: rect.bottom + gap, maxHeight },
+    );
   }, []);
 
   const openList = useCallback(() => {
@@ -117,14 +138,21 @@ export function Combobox({
 
   const close = useCallback(() => setOpen(false), []);
 
-  // Track viewport changes while open (the portal is positioned in page coordinates).
+  // Track viewport changes while open (the portal is fixed-positioned to the viewport). The
+  // visualViewport listeners catch the soft keyboard opening/closing on mobile, which resizes
+  // the visible area and may require the list to flip up or shrink.
   useEffect(() => {
     if (!open) return;
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", updatePosition);
+    vv?.addEventListener("scroll", updatePosition);
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
+      vv?.removeEventListener("resize", updatePosition);
+      vv?.removeEventListener("scroll", updatePosition);
     };
   }, [open, updatePosition]);
 
@@ -244,13 +272,15 @@ export function Combobox({
             id={listboxId}
             role="listbox"
             style={{
-              position: "absolute",
+              position: "fixed",
               top: position.top,
+              bottom: position.bottom,
               left: position.left,
               width: position.width,
+              maxHeight: position.maxHeight,
               zIndex: 50,
             }}
-            className="max-h-64 overflow-auto rounded-xl bg-white py-1.5 shadow-lg ring-1 ring-black/5"
+            className="overflow-auto rounded-xl bg-white py-1.5 shadow-lg ring-1 ring-black/5"
           >
             {filtered.length === 0 ? (
               <li className="mx-1.5 px-3 py-2 text-sm text-muted">{emptyMessage}</li>
