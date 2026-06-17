@@ -111,3 +111,12 @@ body {
     animation: none;
   }
 }
+
+/* Firebase Auth emulator banner: the SDK appends a fixed <p class="firebase-emulator-warning">
+   at the bottom of the body in emulator mode, which overlaps our fixed BottomNav. We already
+   pass disableWarnings:true to connectAuthEmulator (lib/firebase.ts), so this is a belt-and-
+   suspenders hide that also covers stale dev sessions. In production the element never exists,
+   so the rule is a no-op there. */
+.firebase-emulator-warning {
+  display: none !important;
+}

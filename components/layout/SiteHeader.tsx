@@ -16,10 +16,10 @@ export function SiteHeader() {
       {/* Flat flex row (no justify-between): the wordmark stays left and pinned (shrink-0),
           and HeaderBrowse contributes a flex-1 element — the embedded search on inner pages,
           an empty spacer on home — that fills the gap and pushes the actions right. */}
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-6">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-3 sm:gap-3 sm:px-6">
         <Link
           href="/"
-          className="flex shrink-0 items-baseline gap-1 text-2xl font-bold tracking-tight"
+          className="flex shrink-0 items-baseline gap-1 text-xl font-bold tracking-tight sm:text-2xl"
         >
           escuela<span className="rounded-md bg-white px-1.5 text-brand-dark">place</span>
         </Link>
