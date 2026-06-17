@@ -17,7 +17,9 @@ export function BackLink({
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-1.5 text-muted hover:text-foreground hover:underline"
+      // min-h-10 + the -mx-1/px-1 pad give a comfortable touch target without shifting the
+      // visual position (the negative margin absorbs the padding).
+      className="-mx-1 inline-flex min-h-10 items-center gap-1.5 px-1 text-muted hover:text-foreground hover:underline active:text-foreground"
     >
       <ArrowLeftIcon className="h-4 w-4 shrink-0" />
       {children}

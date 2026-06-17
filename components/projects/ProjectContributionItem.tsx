@@ -48,7 +48,7 @@ export function ProjectContributionItem({
           {formatMoney(c.amount, c.currency)}
         </p>
         {c.type === "in_kind" && c.description && (
-          <p className="text-xs text-muted">{c.description}</p>
+          <p className="break-words text-xs text-muted">{c.description}</p>
         )}
         <p className="text-xs text-muted">
           {c.proofUploaded ? (

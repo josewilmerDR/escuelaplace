@@ -280,7 +280,7 @@ export default function SchoolSubscriptionsPage() {
               // Elevated calm-depth row per pending support, with its own primary confirm.
               <li
                 key={s.id}
-                className={`${cardClass("elevated")} flex items-center justify-between gap-3 text-sm`}
+                className={`${cardClass("elevated")} flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between`}
               >
                 <div className="min-w-0">
                   <p className="font-semibold tracking-tight text-foreground">
@@ -320,7 +320,7 @@ export default function SchoolSubscriptionsPage() {
                   // Only this row (or a bulk run) disables it — confirming one row must not
                   // freeze the others.
                   disabled={busyId === s.id || busyId === "all"}
-                  className="btn btn-primary shrink-0"
+                  className="btn btn-primary w-full shrink-0 sm:w-auto"
                 >
                   {busyId === s.id ? "Confirmando…" : "Confirmar"}
                 </button>

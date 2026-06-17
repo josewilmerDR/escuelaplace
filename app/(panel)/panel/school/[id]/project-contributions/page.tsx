@@ -258,7 +258,7 @@ export default function ProjectContributionsPage() {
               // Elevated calm-depth row per pending contribution, with its own primary confirm.
               <li
                 key={c.id}
-                className={`${cardClass("elevated")} flex items-center justify-between gap-3 text-sm`}
+                className={`${cardClass("elevated")} flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between`}
               >
                 <div className="min-w-0">
                   <p className="font-semibold tracking-tight text-foreground">
@@ -304,7 +304,7 @@ export default function ProjectContributionsPage() {
                   // Only this row (or a bulk run) disables it — confirming one row must not
                   // freeze the others.
                   disabled={busyId === c.id || busyId === "all"}
-                  className="btn btn-primary shrink-0"
+                  className="btn btn-primary w-full shrink-0 sm:w-auto"
                 >
                   {busyId === c.id ? "Confirmando…" : "Confirmar"}
                 </button>

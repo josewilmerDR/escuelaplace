@@ -44,8 +44,10 @@ export function SupporterContributionItem({
 
   return (
     <li className="flex items-center justify-between gap-3 rounded-2xl bg-surface p-4 text-sm ring-1 ring-black/5">
-      <div>
-        <p className="font-semibold tracking-tight text-foreground">{s.schoolName}</p>
+      <div className="min-w-0">
+        <p className="font-semibold tracking-tight break-words text-foreground">
+          {s.schoolName}
+        </p>
         <p className="text-muted">
           {s.units}× · {formatColones(s.amount)} ·{" "}
           {s.proofUploaded ? (
