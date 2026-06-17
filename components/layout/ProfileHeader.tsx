@@ -111,7 +111,7 @@ export function ProfileHeader({
           </div>
 
           <div className="mt-3 min-w-0 text-center sm:mt-0 sm:flex-1 sm:pb-1 sm:text-left">
-            <h1 className="flex flex-wrap items-center justify-center gap-2 text-3xl font-semibold tracking-tight text-foreground sm:justify-start">
+            <h1 className="flex flex-wrap items-center justify-center gap-2 text-2xl font-semibold tracking-tight break-words text-foreground sm:justify-start sm:text-3xl">
               {name}
               {verified && (
                 <>

@@ -19,10 +19,13 @@ import type { ReactNode } from "react";
  */
 export type PageVariant = "detail" | "listing" | "narrow";
 
+// Mobile-first gutters: px-4 on phones (matching the detail variant and the panel shell) so
+// every page lines up and the narrowest phones don't lose ~16px of content width to the
+// gutter, widening to px-6 from sm up.
 const COLUMN: Record<PageVariant, string> = {
   detail: "mx-auto max-w-6xl px-4 py-6 sm:px-6",
-  listing: "mx-auto max-w-6xl px-6 py-10",
-  narrow: "mx-auto max-w-6xl px-6 py-12",
+  listing: "mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10",
+  narrow: "mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12",
 };
 
 export function PageContainer({

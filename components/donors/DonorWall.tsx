@@ -31,9 +31,9 @@ export function DonorWall({
           {wall.recognized.map((donor) => (
             <li
               key={donor.id}
-              className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2 text-sm ring-1 ring-black/5"
+              className="flex max-w-full flex-wrap items-center gap-2 rounded-xl bg-surface px-3 py-2 text-sm ring-1 ring-black/5"
             >
-              <span className="font-medium text-foreground">
+              <span className="min-w-0 break-words font-medium text-foreground">
                 {donor.displayName}
               </span>
               {donor.tier && <DonorTierBadge tier={donor.tier} />}

@@ -143,7 +143,7 @@ export function SchoolCard({
         onClick={() => onSelect(school.id)}
         // Depth, not a hard border: elevated card by default; the current choice swaps
         // the hairline for a brand ring + lift (calm-depth "selected card" recipe).
-        className={`group relative flex h-full w-full flex-col overflow-hidden rounded-2xl bg-white text-left shadow-sm transition ${
+        className={`group relative flex h-full w-full flex-col overflow-hidden rounded-2xl bg-white text-left shadow-sm transition active:scale-[0.99] ${
           selected
             ? "ring-2 ring-brand shadow-md"
             : "ring-1 ring-black/5 hover:shadow-md"
@@ -164,7 +164,7 @@ export function SchoolCard({
   return (
     // Stretched-link card: the title link's ::after covers the whole surface. Elevated
     // calm-depth surface — a soft hairline ring + shadow that lifts on hover.
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md">
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition hover:shadow-md active:scale-[0.99] active:shadow-md">
       <CardMedia school={school} />
       <CardBody
         school={school}

@@ -58,8 +58,9 @@ export function BusinessCard({
     // real nested target (relative z-10 lifts it above the overlay).
     <article
       // Depth, not a hard border: a soft hairline ring + small shadow reads as an
-      // elevated surface; hover lifts it via a slightly deeper shadow.
-      className="group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md"
+      // elevated surface; hover lifts it via a slightly deeper shadow, and a press dips it
+      // slightly (active:scale) so a tap feels native (the inner link drives :active).
+      className="group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition hover:shadow-md active:scale-[0.99] active:shadow-md"
       style={{ viewTransitionName: `business-${business.id}` }}
     >
       {/* Cover (YouTube-thumbnail style): the photo sells the business, so it gets the

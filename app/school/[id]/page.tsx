@@ -363,7 +363,7 @@ export default async function SchoolPage({ params }: Props) {
             {school.boardContact?.name && (
               <li className="flex items-start gap-3">
                 <UsersIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
-                <span>
+                <span className="min-w-0 break-words">
                   Comité escolar: {school.boardContact.name}
                   {school.boardContact.phone && (
                     <> · {school.boardContact.phone}</>

@@ -150,15 +150,16 @@ export default async function HomePage() {
           the buyer can set their school even when there is nothing to list yet. */}
       <section className="mx-auto max-w-6xl px-6 pt-4 pb-20">
         {categories.length > 0 && (
-          /* Single-line row: the list still wraps internally but is clipped to one
-             chip row (max-h = 20px line + 20px padding + 2px border), so chips that
-             don't fit are simply hidden. "Todas las categorías" sits outside the
-             clipped list, so it always stays visible at the end of the line and
-             links to the full listing. Pure CSS — no client-side measuring. */
+          /* On mobile the chips scroll horizontally on a single line (a native pill rail) so
+             every category stays reachable — clipping them to one row hid almost all of them
+             on a phone, the buyer's main no-search browse path. From sm up the row reverts to
+             the desktop behavior: clipped to one wrapped line (max-h = 20px line + 20px padding
+             + 2px border). "Todas las categorías" sits outside the list so it's always visible
+             at the end. The scrollbar is hidden (the overflow itself signals more content). */
           <nav aria-label="Categorías" className="mb-4 flex items-start gap-2">
-            <ul className="flex max-h-[42px] min-w-0 flex-1 flex-wrap gap-2 overflow-hidden">
+            <ul className="flex min-w-0 flex-1 flex-nowrap gap-2 overflow-x-auto [scrollbar-width:none] sm:max-h-[42px] sm:flex-wrap sm:overflow-hidden [&::-webkit-scrollbar]:hidden">
               {categories.map((c) => (
-                <li key={c.id}>
+                <li key={c.id} className="shrink-0">
                   <Chip href={`/category/${c.id}`} icon={c.icon}>
                     {c.name}
                   </Chip>
