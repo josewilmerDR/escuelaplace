@@ -73,6 +73,20 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+/* Native-feel touch defaults. On phones, taps on links/buttons would otherwise flash the
+   browser's default grey highlight box and incur the legacy 300ms double-tap delay — both
+   read as "web page", not "app". `tap-highlight-color: transparent` removes the flash (the
+   shared primitives provide their own :active press state), and `touch-action: manipulation`
+   drops the double-tap-to-zoom delay so taps register immediately. */
+a,
+button,
+[role="button"],
+[role="switch"],
+summary {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 /* Shared form control style used by the panel forms. The ring is the focus indicator:
    a 1px border-color change alone is near-invisible for low vision (WCAG 2.4.7).
    text-base (16px) on phones is deliberate: iOS Safari auto-zooms the page whenever a
@@ -87,7 +101,7 @@ body {
    min-h-10 keeps tap targets ≥40px. Variants follow the AA contrast rules of the brand
    scale (see :root): white text needs at least --brand-darker behind it. */
 .btn {
-  @apply inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50;
+  @apply inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50 disabled:active:scale-100;
 }
 .btn-primary {
   @apply bg-brand-darker text-white hover:bg-brand-darkest;

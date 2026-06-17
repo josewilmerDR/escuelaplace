@@ -5,7 +5,8 @@ import { cardClass, type CardVariant } from "./Card";
  * A titled section rendered as a calm-depth card — the repeated block of every detail page
  * (business / school "Información", "Fotos", "Proyectos", "Comercios"…). Owns the canonical
  * page rhythm so callers stop hand-copying it: top margin `mt-4` between sibling sections
- * and `scroll-mt-6` so an anchored section clears the sticky header when a tab jumps to it.
+ * and `scroll-mt-20` so an anchored section clears the 64px sticky header when a tab jumps to it
+ * (scroll-mt-6 left the heading tucked under the header band).
  *
  * The heading is optional: a section whose body renders its own heading (e.g. the reviews
  * block) passes no `title` and supplies an `aria-label` for the landmark instead. Body
@@ -42,7 +43,7 @@ export function Section({
     <section
       id={id}
       aria-label={ariaLabel}
-      className={`mt-4 scroll-mt-6 ${cardClass(variant)} ${className}`.trim()}
+      className={`mt-4 scroll-mt-20 ${cardClass(variant)} ${className}`.trim()}
     >
       {(title || action) && (
         <div className="flex items-start justify-between gap-3">

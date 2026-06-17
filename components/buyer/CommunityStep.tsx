@@ -134,16 +134,16 @@ export function CommunityStep() {
               {prefs.schoolId && (
                 <Link
                   href={`/panel/donate?schoolId=${encodeURIComponent(prefs.schoolId)}`}
-                  className="font-medium text-brand-darker hover:underline"
+                  className="inline-flex min-h-11 items-center px-1 -mx-1 font-medium text-brand-darker hover:underline"
                 >
                   Donar
                 </Link>
               )}
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setOpen(true)}
-                  className="font-medium text-brand-darker hover:underline"
+                  className="inline-flex min-h-11 items-center px-1 -mx-1 font-medium text-brand-darker hover:underline"
                 >
                   Cambiar
                 </button>
@@ -151,7 +151,7 @@ export function CommunityStep() {
                 <button
                   type="button"
                   onClick={clear}
-                  className="font-medium text-brand-darker hover:underline"
+                  className="inline-flex min-h-11 items-center px-1 -mx-1 font-medium text-brand-darker hover:underline"
                 >
                   Limpiar
                 </button>
@@ -160,10 +160,12 @@ export function CommunityStep() {
           </>
         ) : (
           <h3 className="font-semibold tracking-tight text-foreground">
+            {/* Inline-in-sentence links: inflate the hit area vertically (-my-2 py-2) so the
+                target clears 40px without breaking the heading's flow. */}
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="text-brand-darker hover:underline"
+              className="inline-block -my-2 py-2 text-brand-darker hover:underline"
             >
               Elegí tu escuela
             </button>{" "}
@@ -172,7 +174,7 @@ export function CommunityStep() {
               type="button"
               onClick={useMyLocation}
               disabled={locating}
-              className="text-brand-darker hover:underline disabled:opacity-60"
+              className="inline-block -my-2 py-2 text-brand-darker hover:underline disabled:opacity-60"
             >
               {locating ? "activando…" : "activá tu ubicación"}
             </button>

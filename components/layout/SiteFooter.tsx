@@ -20,25 +20,39 @@ export function SiteFooter() {
           </span>
         </Link>
 
+        {/* Each link carries a real ≥44px touch target (inline-flex min-h-11) with a slight
+            horizontal pad pulled back by -mx-1 so the visual spacing is unchanged. */}
         <nav aria-label="Pie de página">
-          <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+          <ul className="flex flex-wrap items-center justify-center gap-x-5 gap-y-0 sm:gap-y-1">
             <li>
-              <Link href="/about" className="hover:text-brand-darker">
+              <Link
+                href="/about"
+                className="inline-flex min-h-11 items-center px-1 -mx-1 hover:text-brand-darker active:text-brand-darker"
+              >
                 Cómo funciona
               </Link>
             </li>
             <li>
-              <Link href="/schools" className="hover:text-brand-darker">
+              <Link
+                href="/schools"
+                className="inline-flex min-h-11 items-center px-1 -mx-1 hover:text-brand-darker active:text-brand-darker"
+              >
                 Escuelas
               </Link>
             </li>
             <li>
-              <Link href="/categories" className="hover:text-brand-darker">
+              <Link
+                href="/categories"
+                className="inline-flex min-h-11 items-center px-1 -mx-1 hover:text-brand-darker active:text-brand-darker"
+              >
                 Categorías
               </Link>
             </li>
             <li>
-              <Link href="/create" className="hover:text-brand-darker">
+              <Link
+                href="/create"
+                className="inline-flex min-h-11 items-center px-1 -mx-1 hover:text-brand-darker active:text-brand-darker"
+              >
                 Crear una página
               </Link>
             </li>

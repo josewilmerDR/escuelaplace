@@ -150,14 +150,14 @@ export function SearchBar({
           type="button"
           onClick={onClear}
           aria-label="Limpiar filtro"
-          className="shrink-0 rounded-full p-1.5 text-muted transition-colors hover:bg-black/5 hover:text-foreground"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-black/5 hover:text-foreground active:bg-black/10"
         >
           <XMarkIcon className="h-5 w-5" />
         </button>
       )}
       <button
         type="submit"
-        className="shrink-0 rounded-xl bg-brand-darker px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-brand-darkest"
+        className="shrink-0 rounded-xl bg-brand-darker px-6 py-3 text-base font-semibold text-white transition hover:bg-brand-darkest active:scale-[0.98] active:bg-brand-darkest"
       >
         Buscar
       </button>

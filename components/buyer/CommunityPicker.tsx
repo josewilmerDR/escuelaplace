@@ -170,10 +170,12 @@ export function CommunityPicker({
         <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-gradient-to-br from-brand-tint/50 to-surface py-2 pl-4 pr-1 text-sm text-muted shadow-sm">
           <Icon className="h-4 w-4 shrink-0 text-brand-dark" />
           <span className="truncate">{statusText}</span>
+          {/* Both controls keep their compact look but extend their tap area invisibly with a
+              `before` pseudo-element (the Switch primitive's trick) so each clears ~44px. */}
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="shrink-0 rounded-full px-2 py-1 font-medium text-brand-darker hover:underline"
+            className="relative shrink-0 rounded-full px-2 py-1 font-medium text-brand-darker before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:underline active:underline"
           >
             Cambiar
           </button>
@@ -182,7 +184,7 @@ export function CommunityPicker({
             type="button"
             onClick={hide}
             aria-label="Ocultar"
-            className="shrink-0 rounded-full p-1.5 text-muted hover:bg-border/60 hover:text-foreground"
+            className="relative shrink-0 rounded-full p-1.5 text-muted before:absolute before:-inset-2 before:content-[''] hover:bg-border/60 hover:text-foreground active:bg-border/60"
           >
             <XMarkIcon className="h-4 w-4" />
           </button>
@@ -206,7 +208,7 @@ export function CommunityPicker({
           <button
             type="button"
             onClick={() => setExpanded(false)}
-            className="shrink-0 rounded-full px-3 py-1 text-sm font-medium text-white hover:bg-white/10"
+            className="inline-flex min-h-10 shrink-0 items-center rounded-full px-3 text-sm font-medium text-white hover:bg-white/10 active:bg-white/20"
           >
             Listo
           </button>
@@ -216,7 +218,7 @@ export function CommunityPicker({
           type="button"
           onClick={hide}
           aria-label="Ocultar"
-          className="shrink-0 rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+          className="relative shrink-0 rounded-full p-1.5 text-white/70 before:absolute before:-inset-2 before:content-[''] hover:bg-white/10 hover:text-white active:bg-white/20"
         >
           <XMarkIcon className="h-4 w-4" />
         </button>
@@ -288,7 +290,7 @@ export function CommunityPicker({
           <button
             type="button"
             onClick={clear}
-            className="-my-2 px-2 py-2 font-medium text-white hover:underline"
+            className="-my-2 px-2 py-2 font-medium text-white hover:underline active:underline"
           >
             Limpiar
           </button>
