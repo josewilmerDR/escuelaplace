@@ -8,12 +8,14 @@
  *
  * Renders as its own labelled group ("Administración") separated by a divider, so admin
  * tools read apart from the personal nav. Delegates to PanelNavLink so each entry gets the
- * same active-section highlight as the other sidebar entries.
+ * same active-section highlight as the other sidebar entries; `block` is threaded through for
+ * the mobile dropdown's full-width rows.
  */
 import { useAuth } from "./AuthProvider";
 import { PanelNavLink } from "./PanelNavLink";
+import { ADMIN_NAV_ITEMS } from "./panelNav";
 
-export function AdminNavLink() {
+export function AdminNavLink({ block = false }: { block?: boolean }) {
   const { user } = useAuth();
   if (user?.role !== "admin") return null;
   return (
@@ -23,9 +25,9 @@ export function AdminNavLink() {
       <p className="px-3 text-xs uppercase tracking-wide text-muted">
         Administración
       </p>
-      {/* exact: /panel/admin must not stay lit while on /panel/admin/categories. */}
-      <PanelNavLink href="/panel/admin" label="Verificar escuelas" exact />
-      <PanelNavLink href="/panel/admin/categories" label="Categorías" />
+      {ADMIN_NAV_ITEMS.map((item) => (
+        <PanelNavLink key={item.href} {...item} block={block} />
+      ))}
     </div>
   );
 }
