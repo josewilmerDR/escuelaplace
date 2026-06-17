@@ -2,34 +2,24 @@
 
 /**
  * A single panel-sidebar nav link that highlights itself when its section is active, so the
- * user always knows where they are in the panel. Shared by PanelSidebar and AdminNavLink so
- * every entry gets the same active treatment (and the same hover/spacing).
+ * user always knows where they are in the panel. Shared by PanelSidebar, AdminNavLink and the
+ * header avatar's dropdown (AccountMenu) so every entry gets the same active treatment (and
+ * the same hover/spacing). Matching lives in `isPanelLinkActive` (panelNav.ts).
  *
- * Matching: the link is active on its own route and (unless `exact`) on any nested route
- * under it. `extraPrefixes` covers sections reachable from this entry but living under a
- * different path — e.g. "Mis páginas" stays lit while managing a specific business/school.
+ * Layout: the default `inline-flex` pill suits the desktop column. Pass `block` for the mobile
+ * dropdown, where each entry is a full-width row (`flex w-full`) so the menu reads as a stacked
+ * list of tappable rows rather than a wrapping cloud of chips.
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-function isActive(
-  pathname: string,
-  href: string,
-  exact: boolean,
-  extraPrefixes: string[],
-): boolean {
-  const matches = (base: string) =>
-    pathname === base || pathname.startsWith(`${base}/`);
-  if (pathname === href) return true;
-  if (!exact && matches(href)) return true;
-  return extraPrefixes.some(matches);
-}
+import { isPanelLinkActive } from "./panelNav";
 
 export function PanelNavLink({
   href,
   label,
   exact = false,
   extraPrefixes = [],
+  block = false,
 }: {
   href: string;
   label: string;
@@ -37,9 +27,11 @@ export function PanelNavLink({
   exact?: boolean;
   /** Extra path prefixes that should also light this entry (e.g. management sub-flows). */
   extraPrefixes?: string[];
+  /** Render as a full-width row instead of an inline pill (for the mobile dropdown). */
+  block?: boolean;
 }) {
   const pathname = usePathname();
-  const active = isActive(pathname, href, exact, extraPrefixes);
+  const active = isPanelLinkActive(pathname, { href, exact, extraPrefixes });
 
   return (
     <Link
@@ -47,9 +39,9 @@ export function PanelNavLink({
       aria-current={active ? "page" : undefined}
       // Active: a soft filled brand pill. Inactive: quiet muted text that lifts to a
       // surface fill on hover — the same quiet-chip language as the panel card actions.
-      // inline-flex + min-h-10 holds the ≥40px tap target the design system requires; the
-      // focus-visible ring matches the shared .btn primitive so keyboard nav is visible.
-      className={`inline-flex min-h-10 items-center rounded-lg px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
+      // min-h-10 holds the ≥40px tap target the design system requires; the focus-visible
+      // ring matches the shared .btn primitive so keyboard nav is visible.
+      className={`${block ? "flex w-full" : "inline-flex"} min-h-10 items-center rounded-lg px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
         active
           ? "bg-brand-tint font-semibold text-brand-darker"
           : "text-muted hover:bg-surface hover:text-foreground"
