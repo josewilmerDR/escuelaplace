@@ -49,6 +49,29 @@ service cloud.firestore {
       );
     }
 
+    // ── P1-b write-shape helpers (see docs/security/SECURITY-BASELINE.md §P1-b) ──
+    // The set of keys a write actually changed. Only meaningful inside an UPDATE rule
+    // (request.resource.data is the post-merge doc, resource.data is the stored doc); never
+    // call it on create (resource is null there). The CREATE/UPDATE asymmetry is the load-bearing
+    // rule of P1-b: on UPDATE the merged doc still carries every create-only/computed field a
+    // partial write never sends, so keys().hasOnly() would reject 100% of legit updates — we must
+    // constrain only the CHANGED keys instead. keys().hasOnly() is correct ONLY on create.
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // #4 (HIGH): ownerId and editorIds are live authz signals (isOwnerOrEditor reads both) but
+    // were mutable on non-admin updates — an editor could rewrite ownerId to themselves, or
+    // grant themselves editor, and take over the page. No legitimate client write path touches
+    // either after create (only the Admin SDK / admin console does), so freezing them on the
+    // non-admin arm closes the takeover with zero breakage. Admin writes bypass (isAdmin branch).
+    function keepsOwner() {
+      return request.resource.data.get('ownerId', null) == resource.data.get('ownerId', null);
+    }
+    function keepsEditors() {
+      return !changedKeys().hasAny(['editorIds']);
+    }
+
     // Data of a school doc by id (used by its private subcollection).
     function schoolData(id) {
       return get(/databases/$(database)/documents/schools/$(id)).data;
@@ -93,9 +116,11 @@ service cloud.firestore {
     match /businesses/{id} {
       allow read: if true;
       allow create: if isAdmin() ||
-        (isSignedIn() && request.resource.data.ownerId == request.auth.uid);
+        (isSignedIn() && request.resource.data.ownerId == request.auth.uid &&
+          validBusinessCreate());
       allow update: if isAdmin() ||
-        (isOwnerOrEditor(resource.data) && preservesComputedFields());
+        (isOwnerOrEditor(resource.data) && preservesComputedFields() &&
+          validBusinessUpdate());
       allow delete: if isAdmin() || isOwnerOrEditor(resource.data);
 
       // Daily metric counters (doc id = YYYY-MM-DD): written ONLY by the
@@ -132,6 +157,52 @@ service cloud.firestore {
         request.resource.data.get('reviewStats', null) == resource.data.get('reviewStats', null);
     }
 
+    // P1-b write-shape validation for businesses (non-admin arm only). CREATE: the doc IS the
+    // payload, so keys().hasOnly() pins the exact field set createBusinessPage writes (junk keys
+    // rejected) and forces the draft/unverified start. UPDATE: constrains only the CHANGED keys
+    // (gallery arrayUnion, setBusinessStatus and the profile edit each touch a different subset),
+    // freezes ownerId/editorIds, and — by omitting slug/verified/ranking/reviewStats/metrics from
+    // the allowed set — keeps them immutable. logoUrl/coverUrl/tags/hours are conditional, so they
+    // are allowed but never required; description is type-only on update (legacy docs may exceed
+    // 300 and the form re-saves them); photos uses a generous cap (arrayUnion on legacy >5 docs).
+    function validBusinessCreate() {
+      return request.resource.data.keys().hasOnly([
+          'name', 'slug', 'description', 'categories', 'categoryNames', 'location', 'schoolId',
+          'schoolName', 'contact', 'discount', 'logoUrl', 'coverUrl', 'photos', 'tags', 'status',
+          'verified', 'subscription', 'ranking', 'metrics', 'reviewStats', 'ownerId', 'editorIds',
+          'createdAt', 'updatedAt']) &&
+        request.resource.data.status == 'draft' &&
+        request.resource.data.verified == false &&
+        request.resource.data.name is string &&
+        request.resource.data.slug is string &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() <= 300 &&
+        request.resource.data.categories is list &&
+        request.resource.data.location is map &&
+        request.resource.data.contact is map &&
+        request.resource.data.discount is map &&
+        request.resource.data.photos is list;
+    }
+    function validBusinessUpdate() {
+      return keepsOwner() && keepsEditors() &&
+        changedKeys().hasOnly([
+          'name', 'description', 'categories', 'categoryNames', 'schoolId', 'schoolName',
+          'location', 'contact', 'discount', 'tags', 'hours', 'logoUrl', 'coverUrl', 'status',
+          'photos', 'updatedAt']) &&
+        (!changedKeys().hasAny(['name']) || request.resource.data.name is string) &&
+        (!changedKeys().hasAny(['description']) || request.resource.data.description is string) &&
+        (!changedKeys().hasAny(['status']) ||
+          request.resource.data.status in ['draft', 'active']) &&
+        (!changedKeys().hasAny(['photos']) ||
+          (request.resource.data.photos is list && request.resource.data.photos.size() <= 10)) &&
+        (!changedKeys().hasAny(['tags']) ||
+          (request.resource.data.tags is list && request.resource.data.tags.size() <= 15)) &&
+        (!changedKeys().hasAny(['categories']) || request.resource.data.categories is list) &&
+        (!changedKeys().hasAny(['location']) || request.resource.data.location is map) &&
+        (!changedKeys().hasAny(['contact']) || request.resource.data.contact is map) &&
+        (!changedKeys().hasAny(['discount']) || request.resource.data.discount is map);
+    }
+
     // ── schools/{id} ────────────────────────────────────────────────────────
     // Public read of the doc. Self-administered with admin-gated verification:
     // - create: signed-in user as owner, forced unverified ('pending').
@@ -143,13 +214,15 @@ service cloud.firestore {
         isSignedIn() &&
         request.resource.data.ownerId == request.auth.uid &&
         request.resource.data.verified == false &&
-        request.resource.data.verificationStatus == 'pending'
+        request.resource.data.verificationStatus == 'pending' &&
+        validSchoolCreate()
       );
 
       allow update: if isAdmin() || (
         isOwnerOrEditor(resource.data) &&
         !grantsVerification() &&
-        renamePreservesVerification()
+        renamePreservesVerification() &&
+        validSchoolUpdate()
       );
 
       allow delete: if isAdmin() || isOwnerOrEditor(resource.data);
@@ -183,10 +256,12 @@ service cloud.firestore {
         allow create: if isAdmin() || (
           isOwnerOrEditor(schoolData(id)) &&
           request.resource.data.raised == 0 &&
-          request.resource.data.contributorsCount == 0
+          request.resource.data.contributorsCount == 0 &&
+          validProjectCreate()
         );
         allow update: if isAdmin() || (
-          isOwnerOrEditor(schoolData(id)) && preservesProjectCounters()
+          isOwnerOrEditor(schoolData(id)) && preservesProjectCounters() &&
+          validProjectUpdate()
         );
         allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
       }
@@ -210,6 +285,43 @@ service cloud.firestore {
           resource.data.get('contributorsCount', 0);
     }
 
+    // P1-b write-shape validation for projects (non-admin arm only). CREATE pins createProject's
+    // field set, forces status 'active', and caps title/description/stage count (no per-stage deep
+    // validation — rules can't iterate a list). UPDATE constrains the changed keys (updateProject
+    // patch + setProjectStatus) and freezes ownerId; raised/contributorsCount stay frozen by
+    // preservesProjectCounters() and out of the allowed set. Projects have no editorIds (authz is
+    // via the parent school), so there is no keepsEditors() here.
+    function validProjectCreate() {
+      return request.resource.data.keys().hasOnly([
+          'schoolId', 'schoolName', 'title', 'description', 'currency', 'status', 'stages',
+          'raised', 'contributorsCount', 'ownerId', 'createdAt', 'updatedAt']) &&
+        request.resource.data.status == 'active' &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() <= 120 &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() <= 600 &&
+        request.resource.data.currency in ['CRC', 'USD', 'NIO', 'MXN', 'EUR'] &&
+        request.resource.data.stages is list &&
+        request.resource.data.stages.size() <= 12 &&
+        request.resource.data.ownerId is string;
+    }
+    function validProjectUpdate() {
+      return keepsOwner() &&
+        changedKeys().hasOnly([
+          'title', 'description', 'currency', 'stages', 'coverUrl', 'status', 'updatedAt']) &&
+        (!changedKeys().hasAny(['title']) ||
+          (request.resource.data.title is string && request.resource.data.title.size() <= 120)) &&
+        (!changedKeys().hasAny(['description']) ||
+          (request.resource.data.description is string &&
+            request.resource.data.description.size() <= 600)) &&
+        (!changedKeys().hasAny(['currency']) ||
+          request.resource.data.currency in ['CRC', 'USD', 'NIO', 'MXN', 'EUR']) &&
+        (!changedKeys().hasAny(['status']) ||
+          request.resource.data.status in ['active', 'completed', 'cancelled']) &&
+        (!changedKeys().hasAny(['stages']) ||
+          (request.resource.data.stages is list && request.resource.data.stages.size() <= 12));
+    }
+
     // True if this update would elevate the school's verification state. Owners must
     // not be able to self-verify; only admin may grant 'verified'/verified:true.
     function grantsVerification() {
@@ -228,6 +340,40 @@ service cloud.firestore {
         request.resource.data.name == resource.data.name ||
         (request.resource.data.verificationStatus == 'needs_reverification' &&
          request.resource.data.verified == false);
+    }
+
+    // P1-b write-shape validation for schools (non-admin arm only). CREATE pins createSchoolPage's
+    // field set and forces the pending start; it intentionally OMITS editorIds from the allowed
+    // keys, so a non-admin can't seed co-editors at creation. UPDATE freezes ownerId/editorIds and
+    // — by leaving status/metrics/createdAt out of the allowed set — keeps them immutable, while
+    // still admitting every legit writer: the profile edit, the two gallery writers ({photos}),
+    // and the re-verification downgrade ({verified:false, verificationStatus:'needs_reverification'}).
+    // The verified:true / 'verified' GRANT stays admin-only via grantsVerification(). location/
+    // name/boardContact shape is checked ONLY when actually changed, so a gallery add on a legacy
+    // doc with an incomplete stored location is never re-validated.
+    function validSchoolCreate() {
+      return request.resource.data.keys().hasOnly([
+          'name', 'description', 'thankYouMessage', 'location', 'boardContact', 'status',
+          'verified', 'verificationStatus', 'metrics', 'ownerId', 'createdAt', 'updatedAt']) &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.name is string &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() <= 300 &&
+        request.resource.data.location is map &&
+        request.resource.data.boardContact is map;
+    }
+    function validSchoolUpdate() {
+      return keepsOwner() && keepsEditors() &&
+        !changedKeys().hasAny(['status', 'metrics', 'createdAt']) &&
+        changedKeys().hasOnly([
+          'name', 'description', 'thankYouMessage', 'photoUrl', 'coverUrl', 'photos',
+          'boardContact', 'location', 'verified', 'verificationStatus', 'updatedAt']) &&
+        (!changedKeys().hasAny(['name']) || request.resource.data.name is string) &&
+        (!changedKeys().hasAny(['description']) || request.resource.data.description is string) &&
+        (!changedKeys().hasAny(['photos']) ||
+          (request.resource.data.photos is list && request.resource.data.photos.size() <= 10)) &&
+        (!changedKeys().hasAny(['boardContact']) || request.resource.data.boardContact is map) &&
+        (!changedKeys().hasAny(['location']) || request.resource.data.location is map);
     }
 
     // ── categories/{id} ─────────────────────────────────────────────────────
@@ -265,11 +411,13 @@ service cloud.firestore {
         // scraper can't read how much a person gave — it is validated on the private create.
         (request.resource.data.get('supporterType', 'business') == 'user' ||
           (request.resource.data.units is int && request.resource.data.units >= 1)) &&
-        isSupporterSide(request.resource.data)
+        isSupporterSide(request.resource.data) &&
+        validSubscriptionCreate()
       );
 
       allow update: if isAdmin() || (
-        keepsSupporterIdentity() && preservesRankingEligibility() && (
+        keepsSupporterIdentity() && preservesRankingEligibility() &&
+        validSubscriptionUpdate() && (
           isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
           (isSupporterSide(resource.data) &&
             !changesConfirmation() &&
@@ -364,6 +512,39 @@ service cloud.firestore {
           .hasAny(['units', 'amount']);
     }
 
+    // P1-b write-shape validation for subscriptions (non-admin arm only). CREATE is PER-BRANCH on
+    // supporterType: a business sub carries units/amount on the public doc (the feed needs them)
+    // and amount must equal units × SUBSCRIPTION_UNIT_CRC (₡5.000, hardcoded — rules can't import
+    // TS) with units capped at SUBSCRIPTION_UNITS_MAX (1000); a personal donation's branch OMITS
+    // units/amount/businessId/donorName, so a donor doc that tries to expose its magnitude on the
+    // public doc is rejected (defends P0-d — magnitude lives in private/data). UPDATE pins the
+    // confirmation/proof fields only; countsForRanking is excluded (Cloud-Function-maintained, and
+    // already frozen by preservesRankingEligibility()).
+    function validSubscriptionCreate() {
+      return (
+        request.resource.data.get('supporterType', 'business') == 'business' &&
+        request.resource.data.keys().hasOnly([
+          'supporterType', 'businessId', 'businessName', 'schoolId', 'schoolName', 'units',
+          'amount', 'status', 'confirmedAt', 'firstConfirmedAt', 'expiresAt', 'createdAt',
+          'updatedAt']) &&
+        request.resource.data.businessId is string &&
+        request.resource.data.units is int &&
+        request.resource.data.units >= 1 &&
+        request.resource.data.units <= 1000 &&
+        request.resource.data.amount == request.resource.data.units * 5000
+      ) || (
+        request.resource.data.supporterType == 'user' &&
+        request.resource.data.keys().hasOnly([
+          'supporterType', 'donorId', 'schoolId', 'schoolName', 'status', 'confirmedAt',
+          'firstConfirmedAt', 'expiresAt', 'createdAt', 'updatedAt'])
+      );
+    }
+    function validSubscriptionUpdate() {
+      return changedKeys().hasOnly([
+        'status', 'confirmedAt', 'confirmedBy', 'expiresAt', 'firstConfirmedAt',
+        'proofUploaded', 'updatedAt']);
+    }
+
     // ── projectContributions/{id} ─────────────────────────────────────────────
     // One-off contribution to a school project. Like subscriptions, the doc holds NO
     // sensitive payment data — the proof file lives in Storage
@@ -385,11 +566,12 @@ service cloud.firestore {
         request.resource.data.donorId == request.auth.uid &&
         request.resource.data.status == 'pending' &&
         request.resource.data.confirmedAt == null &&
-        schoolData(request.resource.data.schoolId).verificationStatus == 'verified'
+        schoolData(request.resource.data.schoolId).verificationStatus == 'verified' &&
+        validContributionCreate()
       );
 
       allow update: if isAdmin() || (
-        keepsContributionIdentity() && (
+        keepsContributionIdentity() && validContributionUpdate() && (
           isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
           (isSignedIn() &&
             resource.data.donorId == request.auth.uid &&
@@ -442,6 +624,34 @@ service cloud.firestore {
         request.resource.data.confirmedAt != resource.data.confirmedAt;
     }
 
+    // P1-b write-shape validation for projectContributions (non-admin arm only). CREATE pins
+    // createContribution's PUBLIC field set — it OMITS amount/donorName (those live in
+    // private/data, P0-d), so a contributor can't expose their magnitude/name on the public doc —
+    // and validates the type/currency enums, the title cap, and the optional in-kind fields
+    // (guarded with get-defaults so a plain money contribution that omits them still passes).
+    // UPDATE pins the confirmation/proof fields only.
+    function validContributionCreate() {
+      return request.resource.data.keys().hasOnly([
+          'schoolId', 'schoolName', 'projectId', 'projectTitle', 'type', 'donorId', 'currency',
+          'status', 'confirmedAt', 'createdAt', 'updatedAt', 'description', 'stageIndex',
+          'stageTitle']) &&
+        request.resource.data.type in ['money', 'in_kind'] &&
+        request.resource.data.currency in ['CRC', 'USD', 'NIO', 'MXN', 'EUR'] &&
+        request.resource.data.projectTitle is string &&
+        request.resource.data.projectTitle.size() <= 120 &&
+        request.resource.data.get('description', '') is string &&
+        request.resource.data.get('description', '').size() <= 500 &&
+        request.resource.data.get('stageTitle', '') is string &&
+        request.resource.data.get('stageTitle', '').size() <= 120 &&
+        request.resource.data.get('stageIndex', 0) is int &&
+        request.resource.data.get('stageIndex', 0) >= 0 &&
+        request.resource.data.get('stageIndex', 0) <= 11;
+    }
+    function validContributionUpdate() {
+      return changedKeys().hasOnly([
+        'status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'updatedAt']);
+    }
+
     // ── auditEvents/{id} ──────────────────────────────────────────────────────
     // Append-only, non-sensitive audit trail of confirmations (who/when + collusion
     // signals; never the proof or a money figure). Written ONLY by the Cloud Function
@@ -476,6 +686,12 @@ service cloud.firestore {
         resource.data.isPublic == true;
 
       allow create: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly([
+          'displayName', 'isPublic', 'totalUnits', 'tier', 'schoolsSupported',
+          'projectsSupported', 'firstConfirmedAt', 'lastConfirmedAt', 'createdAt', 'updatedAt']) &&
+        request.resource.data.displayName is string &&
+        request.resource.data.displayName.size() <= 60 &&
+        request.resource.data.isPublic is bool &&
         request.resource.data.totalUnits == 0 &&
         request.resource.data.tier == null &&
         request.resource.data.schoolsSupported == 0 &&
@@ -483,12 +699,16 @@ service cloud.firestore {
         request.resource.data.firstConfirmedAt == null &&
         request.resource.data.lastConfirmedAt == null;
 
+      // P1-b: the donor may touch ONLY the two preference fields (displayName/isPublic).
+      // hasOnly() both blocks junk keys and keeps every computed field (tier/totals) frozen —
+      // it subsumes the previous explicit per-field freeze.
       allow update: if isAdmin() || (
         isSignedIn() && request.auth.uid == uid &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-          ['totalUnits', 'tier', 'schoolsSupported', 'projectsSupported',
-           'firstConfirmedAt', 'lastConfirmedAt']
-        )
+        changedKeys().hasOnly(['displayName', 'isPublic', 'updatedAt']) &&
+        (!changedKeys().hasAny(['displayName']) ||
+          (request.resource.data.displayName is string &&
+            request.resource.data.displayName.size() <= 60)) &&
+        (!changedKeys().hasAny(['isPublic']) || request.resource.data.isPublic is bool)
       );
 
       allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
