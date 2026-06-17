@@ -199,7 +199,8 @@ export function CommunityPicker({
     // prompt still stands out and stays legible. Dismissable via the ✕.
     <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-br from-brand to-brand-dark p-4 text-white shadow-md ring-1 ring-black/5">
       <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-inset ring-white/25">
+        {/* Decorative tile hidden on the narrowest screens so the description gets full width. */}
+        <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-inset ring-white/25 sm:flex">
           <AcademicCapIcon className="h-5 w-5" />
         </span>
         <p className="flex-1 text-sm leading-snug text-white">{description}</p>

@@ -52,7 +52,7 @@ export function PanelNavLink({
       className={`inline-flex min-h-10 items-center rounded-lg px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
         active
           ? "bg-brand-tint font-semibold text-brand-darker"
-          : "text-muted hover:bg-surface hover:text-foreground"
+          : "text-muted hover:bg-surface hover:text-foreground active:bg-surface"
       }`}
     >
       {label}

@@ -30,7 +30,7 @@ export function PageTypeChoice({
       <Link
         href="/panel/new/business"
         aria-label="Crear página de comercio"
-        className={`group ${cardClass("elevated")} transition-shadow hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand`}
+        className={`group ${cardClass("elevated")} transition hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.99]`}
       >
         <IconTile size="md">
           <TagIcon className="h-6 w-6" />
@@ -50,7 +50,7 @@ export function PageTypeChoice({
       <Link
         href="/panel/new/school"
         aria-label="Crear página de escuela"
-        className={`group ${cardClass("elevated")} transition-shadow hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand`}
+        className={`group ${cardClass("elevated")} transition hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.99]`}
       >
         <IconTile size="md">
           <AcademicCapIcon className="h-6 w-6" />

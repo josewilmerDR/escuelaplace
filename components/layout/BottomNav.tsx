@@ -70,7 +70,7 @@ export function BottomNav() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                className={`flex flex-col items-center gap-0.5 px-0.5 py-2 text-xs font-medium whitespace-nowrap transition-colors active:bg-slate-100 ${
                   active
                     ? "text-brand-darker"
                     : "text-slate-500 hover:text-brand-darker"

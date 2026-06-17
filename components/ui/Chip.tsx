@@ -36,7 +36,7 @@ export function Chip({
       ? "text-brand-darker hover:border-brand-dark"
       : "text-muted hover:border-brand-dark hover:text-brand-darker";
   const classes =
-    `inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium transition-colors ${tone} ${className}`.trim();
+    `inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium transition-colors active:border-brand-dark active:bg-brand-tint ${tone} ${className}`.trim();
 
   const inner = (
     <>

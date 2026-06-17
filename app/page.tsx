@@ -86,7 +86,7 @@ export default async function HomePage() {
           aria-hidden
         />
 
-        <div className="mx-auto max-w-3xl px-6 py-20 text-center sm:py-28">
+        <div className="mx-auto max-w-3xl px-6 py-12 text-center sm:py-28">
           {/* Copy promises only what the catalog shows (businesses). "Las personas y
               comercios…" oversold: there are no people profiles in the product. */}
           <h1 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-4xl">
@@ -118,8 +118,8 @@ export default async function HomePage() {
           compra" steps on /about; the secondary CTAs also surface /schools and /about,
           which are otherwise only reachable from the header/footer. */}
       <section className="border-y border-border bg-surface">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <ol className="relative mx-auto grid max-w-4xl gap-4 sm:grid-cols-3 sm:gap-6">
+        <div className="mx-auto max-w-6xl px-6 py-8 sm:py-10">
+          <ol className="relative mx-auto grid max-w-4xl gap-3 sm:grid-cols-3 sm:gap-6">
             {/* Stepper connector: a faint line linking the three icon centers so the
                 steps read as a 1→2→3 flow, not three independent items. Desktop only
                 (the mobile layout is a vertical row where the numbers carry the order).
