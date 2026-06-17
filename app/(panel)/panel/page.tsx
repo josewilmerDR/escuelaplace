@@ -32,12 +32,9 @@ import { VerificationBadge } from "@/components/school/VerificationBadge";
 import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { IconTile } from "@/components/ui/IconTile";
 import {
   AcademicCapIcon,
-  ArrowRightIcon,
   EllipsisIcon,
-  HeartIcon,
   PagesIcon,
   PencilIcon,
   PlusIcon,
@@ -96,11 +93,6 @@ function PanelHeading({ count }: { count?: number }) {
       <div className="min-w-0">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Mis páginas
-          {count !== undefined && count > 0 && (
-            <span className="ml-2 align-middle text-2xl font-normal text-muted">
-              {count}
-            </span>
-          )}
         </h1>
         <p className="mt-1 text-sm text-muted">
           Administrá tus comercios y escuelas.
@@ -235,7 +227,6 @@ function PanelHomeInner() {
           description="Creá la página de tu comercio o de tu escuela para empezar a aparecer en el directorio de tu comunidad."
           cta={{ label: "Crear página", href: "/panel/new" }}
         />
-        <DonateCallout />
       </main>
     );
   }
@@ -274,7 +265,6 @@ function PanelHomeInner() {
           />
         ))}
       </ul>
-      <DonateCallout />
     </main>
   );
 }
@@ -352,32 +342,6 @@ function CreatedBanner({
         <XMarkIcon className="h-4 w-4" />
       </button>
     </div>
-  );
-}
-
-function DonateCallout() {
-  return (
-    <section className={`mt-10 flex items-start gap-4 ${cardClass("inset")}`}>
-      <IconTile size="md">
-        <HeartIcon className="h-6 w-6" />
-      </IconTile>
-      <div className="min-w-0">
-        <h2 className="font-semibold tracking-tight text-foreground">
-          Apoyá como persona
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          No necesitás una página para apoyar: doná directamente a una escuela
-          y, si querés, aparecé en su muro de agradecimiento.
-        </p>
-        <Link
-          href="/panel/donate"
-          className="mt-3 inline-flex min-h-10 items-center gap-1 py-1 text-sm font-medium text-brand-darker transition-colors hover:text-brand-darkest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-        >
-          Donar a una escuela
-          <ArrowRightIcon className="h-4 w-4" />
-        </Link>
-      </div>
-    </section>
   );
 }
 

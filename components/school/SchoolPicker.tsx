@@ -263,6 +263,9 @@ export function SchoolPicker({
         placeholder="o buscá tu escuela…"
         ariaLabel="Buscar escuela"
         emptyMessage="Sin resultados"
+        // Subtle fill so the field stands out from the white canvas instead of
+        // reading as just a hairline border (the base `.input` is transparent).
+        inputClassName="bg-surface"
       />
     </div>
   );
