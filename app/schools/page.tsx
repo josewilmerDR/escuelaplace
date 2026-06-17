@@ -29,7 +29,7 @@ export const revalidate = 300;
 const DIRECTORY_LIMIT = 60;
 
 const DESCRIPTION =
-  "Encontrá la escuela de tu comunidad, conocé sus proyectos y apoyala directamente. El 100% de tu donación llega a la escuela: la plataforma nunca toca el dinero.";
+  "Encontrá la escuela de tu comunidad, conocé sus proyectos, qué comercios o personas la apoyan y hazlo tú también. El 100% de tu donación llega a la escuela: la plataforma nunca toca el dinero.";
 
 export const metadata: Metadata = {
   title: "Escuelas",
