@@ -399,6 +399,35 @@ export function PagesIcon({ className }: IconProps) {
   );
 }
 
+/** Pencil outline — the "Editar" action on a page card. */
+export function PencilIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
+      />
+    </svg>
+  );
+}
+
+/** Three horizontal dots — the "más" overflow-menu trigger on a page card. */
+export function EllipsisIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M4.5 12a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm6 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm6 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Z" />
+    </svg>
+  );
+}
+
 /**
  * Google "G" logo (official 4-color mark). Unlike the rest of this file it carries its own
  * brand colors instead of `currentColor`, so it must sit on a light surface (the white
