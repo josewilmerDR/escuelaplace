@@ -12,18 +12,23 @@
  * and a banner confirms the creation and says what to do next (publish the draft
  * business / wait for school verification). Dismissing it clears the param.
  *
- * Visual treatment follows the app's "calm, depth-not-borders" surface language: each
- * page is a soft elevated card (ring + shadow, no hard border) led by a rounded app-icon
- * tile, one solid primary action and the rest as quiet chip links. All of it composes the
- * existing design tokens (--brand/--surface) and .btn primitives — no new palette.
+ * Visual treatment: each page is a full-bleed cover card (the same photo ladder the public
+ * profile uses — cover → first gallery photo → logo/avatar — falling back to a brand
+ * gradient + type glyph when the page has no image yet). The page type, role and
+ * status/verification badge float over the top on frosted chips; the name and the two
+ * controls — a solid white "Editar" and a glass "más" overflow menu — sit over a bottom
+ * scrim that keeps them legible on any photo. The cards lay out in a responsive grid (1
+ * column on phones, up to 3 on wide screens) like the public catalog's card grids. All of
+ * it composes the existing design tokens (--brand/--surface) — no new palette.
  */
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { BusinessStatusBadge } from "@/components/business/BusinessStatusBadge";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
-import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -31,8 +36,10 @@ import { IconTile } from "@/components/ui/IconTile";
 import {
   AcademicCapIcon,
   ArrowRightIcon,
+  EllipsisIcon,
   HeartIcon,
   PagesIcon,
+  PencilIcon,
   PlusIcon,
   TagIcon,
   WarningIcon,
@@ -47,9 +54,24 @@ import {
 
 const LOADING_TEXT = "Cargando tus páginas…";
 
-/** Quiet, low-emphasis card action (everything except the lead "Editar página"). */
-const CHIP_ACTION =
-  "inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40";
+/**
+ * The two on-photo controls of a page card, frosted so they integrate with the cover image
+ * instead of sitting on it like a sticker. "Editar" is the solid white primary (the only
+ * action valid for both page types in every state — a draft business 404s its public link,
+ * its metrics are empty, etc.); everything else lives behind the glass ellipsis trigger.
+ */
+const EDIT_ACTION =
+  "inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-brand-darker shadow-sm transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70";
+const GLASS_ICON_ACTION =
+  "inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-white/15 text-white ring-1 ring-inset ring-white/30 backdrop-blur transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70";
+
+/** A frosted pill that floats over the cover (page type, "Editor" role). */
+const OVERLAY_CHIP =
+  "inline-flex items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-xs font-medium text-white ring-1 ring-inset ring-white/15 backdrop-blur";
+
+/** A row inside the "más" overflow menu. */
+const MENU_ITEM =
+  "flex min-h-10 items-center rounded-lg px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface focus-visible:bg-surface focus-visible:outline-none";
 
 export default function PanelHome() {
   // useSearchParams needs a Suspense boundary to keep the route statically
@@ -107,9 +129,13 @@ function PanelHomeSkeleton() {
   return (
     <main>
       <PanelHeading />
-      <ul className="mt-8 flex flex-col gap-4" aria-hidden="true">
-        <li className={`h-32 animate-pulse ${cardClass("inset", false)}`} />
-        <li className={`h-32 animate-pulse ${cardClass("inset", false)}`} />
+      <ul
+        className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        aria-hidden="true"
+      >
+        <li className={`aspect-[3/2] animate-pulse ${cardClass("inset", false)}`} />
+        <li className={`aspect-[3/2] animate-pulse ${cardClass("inset", false)}`} />
+        <li className={`aspect-[3/2] animate-pulse ${cardClass("inset", false)}`} />
       </ul>
       <p className="sr-only" role="status">
         {LOADING_TEXT}
@@ -227,7 +253,7 @@ function PanelHomeInner() {
           onDismiss={() => router.replace("/panel", { scroll: false })}
         />
       )}
-      <ul className="mt-8 flex flex-col gap-4">
+      <ul className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {pages.map((page) => (
           <PageCard
             key={`${page.type}-${page.id}`}
@@ -355,20 +381,77 @@ function DonateCallout() {
   );
 }
 
+/** Page-type glyph (mortarboard for schools, tag for businesses), sized by `className`. */
+function TypeGlyph({
+  type,
+  className,
+}: {
+  type: ResolvedPage["type"];
+  className: string;
+}) {
+  return type === "school" ? (
+    <AcademicCapIcon className={className} />
+  ) : (
+    <TagIcon className={className} />
+  );
+}
+
 /**
- * App-icon style tile that leads each card: a rounded square in a soft brand wash with the
- * page-type glyph (mortarboard for schools, tag for businesses). The instant visual cue for
- * "is this a school or a comercio" before reading a word.
+ * The card's "más" control: a glass ellipsis button that opens a small menu of the
+ * secondary actions (everything that isn't "Editar"). It lives OUTSIDE the cover's
+ * overflow-hidden clip layer so the menu can extend past the card edge, and closes on an
+ * outside click, on Escape, or once an item inside it is chosen.
  */
-function PageIconTile({ type }: { type: ResolvedPage["type"] }) {
+function MoreMenu({ note, children }: { note?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <IconTile size="md">
-      {type === "school" ? (
-        <AcademicCapIcon className="h-6 w-6" />
-      ) : (
-        <TagIcon className="h-6 w-6" />
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Más opciones"
+        className={GLASS_ICON_ACTION}
+      >
+        <EllipsisIcon className="h-5 w-5" />
+      </button>
+      {open && (
+        // Opens upward (the trigger sits at the bottom of the card) and escapes the cover
+        // clip; z-30 lifts it above neighbouring cards in the grid.
+        <div
+          role="menu"
+          className="absolute bottom-full right-0 z-30 mb-2 w-60 origin-bottom-right rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-black/10"
+          // Any click that lands on an item (a Link) closes the menu before navigating.
+          onClick={() => setOpen(false)}
+        >
+          {note && (
+            <p className="mb-1 rounded-lg bg-warning-tint px-3 py-2 text-xs leading-snug text-warning">
+              {note}
+            </p>
+          )}
+          {children}
+        </div>
       )}
-    </IconTile>
+    </div>
   );
 }
 
@@ -461,107 +544,153 @@ function PageCard({
       ? `/business/${page.doc.slug}`
       : `/school/${page.doc.id}`;
 
+  // Cover hero, same ladder as the public profile: explicit cover → first gallery photo →
+  // (schools) the avatar photo. A business with no photo but a logo shows the logo contained
+  // on the gradient; with nothing at all both types fall back to a brand gradient + glyph.
+  const photo =
+    page.type === "business"
+      ? page.doc.coverUrl ?? page.doc.photos?.[0]
+      : page.doc.coverUrl ?? page.doc.photos?.[0] ?? page.doc.photoUrl;
+  const logo = page.type === "business" ? page.doc.logoUrl : undefined;
+
+  // Shown only inside the "más" menu (the at-a-glance signal is the status badge): the longer
+  // sentence on why a draft / unverified page is limited. Suppressed when highlighted — the
+  // CreatedBanner above already says it.
+  const warning =
+    highlight
+      ? undefined
+      : page.type === "school" && page.doc.verificationStatus !== "verified"
+        ? page.doc.verificationStatus === "needs_reverification"
+          ? "Editaste datos sensibles: la escuela quedó pendiente de re-verificación. Los métodos de pago siguen ocultos hasta una nueva aprobación del equipo."
+          : "Datos sin verificar. Los métodos de pago permanecen ocultos hasta que el equipo verifique la escuela."
+        : page.type === "business" && page.doc.status === "draft"
+          ? "Esta página está en borrador y no es visible al público. Publicala desde “Editar”."
+          : undefined;
+
+  const coverSizes = "(min-width: 1280px) 300px, (min-width: 640px) 50vw, 100vw";
+
   return (
     <li
       ref={liRef}
       // Depth, not a hard border: a soft hairline ring + small shadow reads as an elevated
-      // surface. The just-created card swaps the hairline for a brand ring + lift.
-      className={`${cardClass(highlight ? "selected" : "elevated")} transition-shadow`}
+      // surface; the just-created card swaps the hairline for a brand ring + lift. NOT
+      // overflow-hidden — the cover is clipped by its own layer so the "más" menu can spill
+      // past the card edge.
+      className={`group relative ${cardClass(highlight ? "selected" : "elevated", false)} transition-shadow`}
     >
-      <div className="flex items-center gap-4">
-        <PageIconTile type={page.type} />
-        <div className="min-w-0 flex-1">
-          <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted">
-            {typeLabel}
-            {page.role === "editor" && <Badge tone="outline">Editor</Badge>}
-          </span>
-          <h2 className="truncate text-lg font-semibold tracking-tight text-foreground">
-            {page.doc.name}
-          </h2>
-        </div>
-        {page.type === "school" ? (
-          <VerificationBadge status={page.doc.verificationStatus} />
+      {/* Cover layer, clipped to the card radius and sitting under the content. */}
+      <div className="absolute inset-0 overflow-hidden rounded-2xl">
+        {photo ? (
+          <Image
+            src={photo}
+            alt=""
+            fill
+            sizes={coverSizes}
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
+          />
         ) : (
-          <BusinessStatusBadge status={page.doc.status} />
+          <div className="absolute inset-0 bg-gradient-to-br from-brand to-brand-darker" />
         )}
+        {!photo && logo && (
+          // A logo stretched to fill looks broken — contain it on the gradient instead.
+          <Image src={logo} alt="" fill sizes={coverSizes} className="object-contain p-10" />
+        )}
+        {!photo && !logo && (
+          <div className="absolute inset-0 grid place-items-center">
+            <TypeGlyph type={page.type} className="h-16 w-16 text-white/80" />
+          </div>
+        )}
+        {/* Scrims keep the white chips (top) and name/buttons (bottom) legible over any photo. */}
+        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/45 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
       </div>
 
-      {/* Hidden when highlighted: the CreatedBanner already states the same thing. */}
-      {!highlight &&
-        page.type === "school" &&
-        page.doc.verificationStatus !== "verified" && (
-          <p className="mt-4 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
-            {page.doc.verificationStatus === "needs_reverification"
-              ? "Editaste datos sensibles: la escuela quedó pendiente de re-verificación. Los métodos de pago están ocultos hasta que el equipo apruebe los cambios."
-              : "Datos sin verificar. Los métodos de pago permanecen ocultos hasta que el equipo verifique la escuela."}
-          </p>
-        )}
+      {/* Content layer: above the cover and NOT clipped, so the overflow menu can escape. The
+          aspect ratio gives the card its height; justify-between pins the chips to the top and
+          the name + actions to the bottom. */}
+      <div className="relative flex aspect-[3/2] flex-col justify-between p-4">
+        <div className="flex items-start justify-between gap-2">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className={OVERLAY_CHIP}>
+              <TypeGlyph type={page.type} className="h-3.5 w-3.5" />
+              {typeLabel}
+            </span>
+            {page.role === "editor" && <span className={OVERLAY_CHIP}>Editor</span>}
+          </span>
+          {page.type === "school" ? (
+            <VerificationBadge status={page.doc.verificationStatus} />
+          ) : (
+            <BusinessStatusBadge status={page.doc.status} />
+          )}
+        </div>
 
-      {!highlight && page.type === "business" && page.doc.status === "draft" && (
-        <p className="mt-4 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
-          Tu página está en borrador y no es visible al público. Completá el
-          perfil y publicala desde “Editar página”.
-        </p>
-      )}
-
-      {/* One solid lead action; the rest are quiet chip links that light up on hover, so the
-          row reads as a single primary + secondary shelf instead of a flat wall of links. A
-          thin divider sets the action shelf apart from the card header. */}
-      <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-4 text-sm">
-        <Link
-          href={`/panel/${page.type}/${page.doc.id}/edit`}
-          className="btn btn-primary mr-1"
-        >
-          Editar página
-        </Link>
-        {/* A non-active business profile 404s (public reads filter by status), so the
-            public link only renders when it actually resolves. */}
-        {(page.type === "school" || page.doc.status === "active") && (
-          <Link href={href} className={CHIP_ACTION}>
-            Ver página pública
-          </Link>
-        )}
-        {page.type === "business" && (
-          <>
-            <Link
-              href={`/panel/business/${page.doc.id}/subscribe`}
-              className={CHIP_ACTION}
-            >
-              Apoyar una escuela
+        <div className="flex flex-col gap-3">
+          <h2 className="line-clamp-2 text-lg font-semibold tracking-tight text-white drop-shadow-sm">
+            {page.doc.name}
+          </h2>
+          {/* Two controls on one line: the solid "Editar" primary + the glass "más" menu. */}
+          <div className="flex items-center justify-end gap-2">
+            <Link href={`/panel/${page.type}/${page.doc.id}/edit`} className={EDIT_ACTION}>
+              <PencilIcon className="h-4 w-4" />
+              Editar
             </Link>
-            {/* Drafts have no public traffic yet, so metrics would be empty. */}
-            {page.doc.status === "active" && (
-              <Link
-                href={`/panel/business/${page.doc.id}/metrics`}
-                className={CHIP_ACTION}
-              >
-                Ver métricas
-              </Link>
-            )}
-          </>
-        )}
-        {page.type === "school" && (
-          <>
-            <Link
-              href={`/panel/school/${page.doc.id}/projects`}
-              className={CHIP_ACTION}
-            >
-              Proyectos
-            </Link>
-            <Link
-              href={`/panel/school/${page.doc.id}/subscriptions`}
-              className={CHIP_ACTION}
-            >
-              Confirmar apoyos
-            </Link>
-            <Link
-              href={`/panel/school/${page.doc.id}/project-contributions`}
-              className={CHIP_ACTION}
-            >
-              Aportes a proyectos
-            </Link>
-          </>
-        )}
+            <MoreMenu note={warning}>
+              {/* A non-active business profile 404s (public reads filter by status), so the
+                  public link only renders when it actually resolves. */}
+              {(page.type === "school" || page.doc.status === "active") && (
+                <Link href={href} role="menuitem" className={MENU_ITEM}>
+                  Ver página pública
+                </Link>
+              )}
+              {page.type === "business" && (
+                <>
+                  <Link
+                    href={`/panel/business/${page.doc.id}/subscribe`}
+                    role="menuitem"
+                    className={MENU_ITEM}
+                  >
+                    Apoyar una escuela
+                  </Link>
+                  {/* Drafts have no public traffic yet, so metrics would be empty. */}
+                  {page.doc.status === "active" && (
+                    <Link
+                      href={`/panel/business/${page.doc.id}/metrics`}
+                      role="menuitem"
+                      className={MENU_ITEM}
+                    >
+                      Ver métricas
+                    </Link>
+                  )}
+                </>
+              )}
+              {page.type === "school" && (
+                <>
+                  <Link
+                    href={`/panel/school/${page.doc.id}/projects`}
+                    role="menuitem"
+                    className={MENU_ITEM}
+                  >
+                    Proyectos
+                  </Link>
+                  <Link
+                    href={`/panel/school/${page.doc.id}/subscriptions`}
+                    role="menuitem"
+                    className={MENU_ITEM}
+                  >
+                    Confirmar apoyos
+                  </Link>
+                  <Link
+                    href={`/panel/school/${page.doc.id}/project-contributions`}
+                    role="menuitem"
+                    className={MENU_ITEM}
+                  >
+                    Aportes a proyectos
+                  </Link>
+                </>
+              )}
+            </MoreMenu>
+          </div>
+        </div>
       </div>
     </li>
   );
