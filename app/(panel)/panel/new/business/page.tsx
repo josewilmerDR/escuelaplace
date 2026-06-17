@@ -21,7 +21,8 @@ import { FormSection } from "@/components/ui/FormSection";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PhoneField } from "@/components/ui/PhoneField";
-import { validateBusinessProfile } from "@/lib/business-profile";
+import { TagsInput } from "@/components/ui/TagsInput";
+import { normalizeTags, validateBusinessProfile } from "@/lib/business-profile";
 import { normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -33,7 +34,13 @@ import {
   getSchoolsCached,
   slugify,
 } from "@/lib/firestore";
-import { PAGE_DESCRIPTION_MAX, type CategoryDoc, type SchoolDoc } from "@/types";
+import {
+  BUSINESS_TAG_MAX,
+  BUSINESS_TAGS_MAX,
+  PAGE_DESCRIPTION_MAX,
+  type CategoryDoc,
+  type SchoolDoc,
+} from "@/types";
 import {
   LocationPicker,
   type AdminAreaGuess,
@@ -58,6 +65,8 @@ export default function NewBusinessPage() {
   const [description, setDescription] = useState("");
   const [schoolId, setSchoolId] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  // Owner-curated search keywords (chips). Normalized on submit with normalizeTags.
+  const [tags, setTags] = useState<string[]>([]);
   // Country-agnostic administrative levels (see types/firestore.ts). country has no
   // input: it arrives from the reverse geocoder when the pin moves.
   const [admin1, setAdmin1] = useState("");
@@ -196,6 +205,7 @@ export default function NewBusinessPage() {
         categoryNames: categories
           .filter((c) => selectedCategories.includes(c.id))
           .map((c) => c.name),
+        tags: normalizeTags(tags),
         schoolId,
         schoolName: school?.name ?? "",
         location: {
@@ -322,66 +332,6 @@ export default function NewBusinessPage() {
             </span>
           </Field>
 
-          <div>
-            <Field label="Escuela vinculada (opcional)">
-              {/* Type-to-filter with a locality hint: school names repeat a lot across
-                  localities, and a native select gives no way to tell homonyms apart —
-                  picking the wrong school misdirects the link publicly. Hidden when there
-                  are no schools: a search box over zero options is dead, so only the
-                  helper line below (which links to create one) shows in that case. */}
-              {schools.length > 0 && (
-                <Combobox
-                  options={schoolOptions}
-                  value={schoolId}
-                  // The dropdown is a portal outside the form, so its selection doesn't
-                  // bubble to the form's onChange — mark dirty here. Also clears the
-                  // preselection hint, since touching the field counts as user input.
-                  onChange={(id) => {
-                    setSchoolId(id);
-                    setDirty(true);
-                    setPreselectedFromBuyer(false);
-                  }}
-                  placeholder="Buscá tu escuela por nombre o lugar…"
-                  emptyMessage="Ninguna escuela coincide — probá otro nombre o lugar."
-                />
-              )}
-            </Field>
-            {/* Outside the Field: links must not nest inside its <label>. */}
-            {schools.length === 0 ? (
-              <p className="mt-1 text-xs text-muted">
-                Todavía no hay escuelas en la plataforma. Podés crear tu comercio
-                sin escuela y vincularla después, o{" "}
-                <Link href="/panel/new/school" className="font-medium underline">
-                  crear la página de tu escuela
-                </Link>{" "}
-                primero.
-              </p>
-            ) : (
-              <>
-                {/* Non-accional copy: this field only denormalizes the association on the
-                    doc — it does NOT create a subscription or count for ranking (that's
-                    the /subscribe flow). */}
-                <p className="mt-1 text-xs text-muted">
-                  Asocia tu comercio a una escuela en tu perfil. Para apoyarla con una
-                  suscripción, andá a “Apoyar una escuela” desde el panel. Podés dejarla
-                  en blanco y vincularla después. ¿Tu escuela no está en la lista?{" "}
-                  <Link href="/panel/new/school" className="font-medium underline">
-                    Creá su página
-                  </Link>
-                  .
-                </p>
-                {/* Only after an actual preselection from the buyer's community, so the
-                    user knows we filled it (and can change it). */}
-                {preselectedFromBuyer && (
-                  <p className="mt-1 text-xs text-muted">
-                    Preseleccionamos la escuela de tu comunidad — cambiala si no
-                    corresponde.
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-
           <fieldset>
             <legend className="text-sm font-medium">
               Categorías (elegí al menos una)
@@ -423,38 +373,27 @@ export default function NewBusinessPage() {
               </div>
             )}
           </fieldset>
-        </FormSection>
 
-        <FormSection legend="Presentación" boxed>
-          <ImagePicker
-            label="Logo o foto de perfil (opcional)"
-            hint="Se muestra en círculo junto al nombre, en tu página pública y en el catálogo."
-            variant="avatar"
-            value={logoFile}
-            onChange={(f) => {
-              setLogoFile(f);
+          <TagsInput
+            label="Etiquetas de búsqueda (opcional)"
+            hint="Palabras o frases que la gente busca y que vendés o ofrecés — “cuadernos”, “útiles escolares”, “tijeras”. Ayudan a que tu comercio aparezca aunque no estén en el nombre. Enter o coma para agregar cada una."
+            value={tags}
+            onChange={(next) => {
+              setTags(next);
               setDirty(true);
             }}
+            max={BUSINESS_TAGS_MAX}
+            maxLength={BUSINESS_TAG_MAX}
+            placeholder="cuadernos, útiles escolares, tijeras…"
           />
-
-          <ImagePicker
-            label="Foto de portada (opcional)"
-            hint="La franja ancha arriba de tu página pública (ideal 1200×480 px). Si no subís una, se muestra el logo en su lugar."
-            variant="cover"
-            value={coverFile}
-            onChange={(f) => {
-              setCoverFile(f);
-              setDirty(true);
-            }}
-          />
-
-          {/* Renders nothing until at least one image is chosen. */}
-          <HeaderPreview cover={coverFile} logo={logoFile} businessName={name} />
         </FormSection>
 
+        {/* Location before the optional sections: the map pin is REQUIRED (the submit
+            rejects without it), so it must come before the optional images/contact, not
+            buried after them. */}
         <FormSection
           legend="Ubicación"
-          description="Se completan solos al mover el pin en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
+          description="Marcá tu comercio en el mapa (obligatorio). Los demás campos se completan solos al mover el pin — revisalos, corregilos o dejalos en blanco si no aplican."
           boxed
         >
           <div
@@ -463,7 +402,13 @@ export default function NewBusinessPage() {
             className="flex flex-col gap-1 text-sm"
           >
             <span id={locationLabelId} className="font-medium">
-              Ubicación en el mapa
+              Ubicación en el mapa{" "}
+              {/* The pin is the one required field in this section; mark it so the user
+                  doesn't discover it only on submit. */}
+              <span className="text-error" aria-hidden="true">
+                *
+              </span>
+              <span className="sr-only">(obligatorio)</span>
             </span>
             <LocationPicker
               value={coords}
@@ -501,12 +446,118 @@ export default function NewBusinessPage() {
           </Field>
         </FormSection>
 
+        {/* Optional relationship field on its own — moved out of "Información básica" so
+            it reads as an association, not part of the required identity. The Combobox is
+            labeled by the section legend (ariaLabel mirrors it for AT). */}
+        <FormSection legend="Escuela de tu comunidad (opcional)" boxed>
+          <div>
+            {/* Type-to-filter with a locality hint: school names repeat a lot across
+                localities, and a native select gives no way to tell homonyms apart —
+                picking the wrong school misdirects the link publicly. Hidden when there
+                are no schools: a search box over zero options is dead, so only the
+                helper line below (which links to create one) shows in that case. */}
+            {schools.length > 0 && (
+              <Combobox
+                options={schoolOptions}
+                value={schoolId}
+                ariaLabel="Escuela de tu comunidad"
+                // The dropdown is a portal outside the form, so its selection doesn't
+                // bubble to the form's onChange — mark dirty here. Also clears the
+                // preselection hint, since touching the field counts as user input.
+                onChange={(id) => {
+                  setSchoolId(id);
+                  setDirty(true);
+                  setPreselectedFromBuyer(false);
+                }}
+                placeholder="Buscá tu escuela por nombre o lugar…"
+                emptyMessage="Ninguna escuela coincide — probá otro nombre o lugar."
+              />
+            )}
+            {schools.length === 0 ? (
+              <p className="text-xs text-muted">
+                Todavía no hay escuelas en la plataforma. Podés crear tu comercio
+                sin escuela y vincularla después, o{" "}
+                <Link href="/panel/new/school" className="font-medium underline">
+                  crear la página de tu escuela
+                </Link>{" "}
+                primero.
+              </p>
+            ) : (
+              <>
+                {/* Non-accional copy: this field only denormalizes the association on the
+                    doc — it does NOT create a subscription or count for ranking (that's
+                    the /subscribe flow). Spell that out plainly so it can't be misread as
+                    a donation or a ranking boost. */}
+                <p className="mt-2 text-xs text-muted">
+                  Solo indica a qué escuela está vinculado tu comercio, para mostrarlo en
+                  tu perfil. No es una donación ni te suma en el ranking. Para apoyarla,
+                  usá{" "}
+                  {/* Deep-links to the donation flow, carrying the chosen school so it
+                      lands preselected (donate reads ?schoolId). No school chosen yet →
+                      plain link, user picks there. */}
+                  <Link
+                    href={
+                      schoolId ? `/panel/donate?schoolId=${schoolId}` : "/panel/donate"
+                    }
+                    className="font-medium underline"
+                  >
+                    Donar a una escuela
+                  </Link>
+                  . Podés dejarla en blanco y vincularla después. ¿Tu escuela no está en la
+                  lista?{" "}
+                  <Link href="/panel/new/school" className="font-medium underline">
+                    Creá su página
+                  </Link>
+                  .
+                </p>
+                {/* Only after an actual preselection from the buyer's community, so the
+                    user knows we filled it (and can change it). */}
+                {preselectedFromBuyer && (
+                  <p className="mt-2 text-xs text-muted">
+                    Preseleccionamos la escuela de tu comunidad — cambiala si no
+                    corresponde.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </FormSection>
+
         <FormSection legend="Contacto" boxed>
           <PhoneField
             label="WhatsApp (opcional)"
             value={whatsapp}
             onChange={setWhatsapp}
           />
+        </FormSection>
+
+        {/* Presentation last: logo/cover are an optional cosmetic polish, so they come
+            after every required field and the contact channel. */}
+        <FormSection legend="Presentación" boxed>
+          <ImagePicker
+            label="Logo o foto de perfil (opcional)"
+            hint="Se muestra en círculo junto al nombre, en tu página pública y en el catálogo."
+            variant="avatar"
+            value={logoFile}
+            onChange={(f) => {
+              setLogoFile(f);
+              setDirty(true);
+            }}
+          />
+
+          <ImagePicker
+            label="Foto de portada (opcional)"
+            hint="La franja ancha arriba de tu página pública (ideal 1200×480 px). Si no subís una, se muestra el logo en su lugar."
+            variant="cover"
+            value={coverFile}
+            onChange={(f) => {
+              setCoverFile(f);
+              setDirty(true);
+            }}
+          />
+
+          {/* Renders nothing until at least one image is chosen. */}
+          <HeaderPreview cover={coverFile} logo={logoFile} businessName={name} />
         </FormSection>
 
         <FormError message={error} />
