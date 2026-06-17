@@ -74,9 +74,13 @@ body {
 }
 
 /* Shared form control style used by the panel forms. The ring is the focus indicator:
-   a 1px border-color change alone is near-invisible for low vision (WCAG 2.4.7). */
+   a 1px border-color change alone is near-invisible for low vision (WCAG 2.4.7).
+   text-base (16px) on phones is deliberate: iOS Safari auto-zooms the page whenever a
+   focused field is < 16px and never zooms back out, so 14px fields yanked the viewport on
+   every form. We drop to 14px from sm up, where there is no zoom penalty and the denser
+   desktop scale is preferred. */
 .input {
-  @apply rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/40;
+  @apply rounded-lg border border-border px-3 py-2 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/40 sm:text-sm;
 }
 
 /* Shared button primitives (same spirit as .input) — compose as `btn btn-<variant>`.

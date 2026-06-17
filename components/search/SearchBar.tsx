@@ -94,7 +94,9 @@ export function SearchBar({
           autoFocus={autoFocus}
           placeholder="Buscar comercios"
           aria-label="¿Qué buscás?"
-          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+          // text-base on phones avoids iOS focus-zoom (< 16px zooms); 14px from sm up matches
+          // the compact header density. The large hero/results field already uses text-base.
+          className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted sm:text-sm"
         />
         {q && (
           <button

@@ -111,7 +111,9 @@ export function SchoolDirectory({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscá una escuela por nombre o localidad…"
             aria-label="Filtrar escuelas"
-            className="w-full rounded-lg border border-border py-2 pl-10 pr-10 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
+            // Mirrors .input (which is text-base sm:text-sm to dodge iOS focus-zoom) but with
+            // custom padding for the leading icon + clear button, so the font scale is copied here.
+            className="w-full rounded-lg border border-border py-2 pl-10 pr-10 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/40 sm:text-sm"
           />
           {hasFilter && (
             <button
