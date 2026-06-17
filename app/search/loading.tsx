@@ -1,12 +1,11 @@
-import { BrandBand } from "@/components/layout/BrandBand";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 /**
  * Route-level skeleton for /search: the page is a dynamic SSR surface that blocks on a
  * Firestore read on every query, with no Suspense fallback — without this, the user sees
- * the previous page frozen with no feedback. This mirrors the real page's layout (a brand
- * band with the floating search field, then a listing column with a results grid) so the
- * real content replaces it without jumping ("parpadeo").
+ * the previous page frozen with no feedback. This mirrors the real page's layout (the search
+ * field flush on the white listing column, then a results grid) so the real content replaces
+ * it without jumping ("parpadeo").
  *
  * Server component. The whole tree is a live region (`role="status"` + sr-only text) so
  * assistive tech announces the load; the decorative placeholders are `aria-hidden`. It shares
@@ -21,15 +20,15 @@ export default function SearchLoading() {
       <span className="sr-only">Cargando resultados…</span>
 
       <div aria-hidden="true">
-        {/* Brand band echoing the real one, with the floating search field standing in as a
-            rounded-2xl white pulse bar lifted off the gradient. */}
-        <BrandBand size="band">
-          {/* The real SearchBar is a ~56px floating field with a deep shadow-xl; match its
-              height (h-14) and shadow so the field doesn't resize/lift on swap-in. */}
-          <div className="h-14 w-full animate-pulse rounded-2xl bg-white shadow-xl ring-1 ring-black/5" />
-        </BrandBand>
-
         <PageContainer variant="listing">
+          {/* The real SearchBar sits flush on the white page (no brand band), constrained to
+              max-w-2xl and centered. Match its width, height (h-14 ≈ the ~56px field) and
+              flat elevation (shadow-sm + ring-border) so the field doesn't resize/shift on
+              swap-in. */}
+          <div className="mx-auto mb-10 max-w-2xl">
+            <div className="h-14 w-full animate-pulse rounded-2xl bg-white shadow-sm ring-1 ring-border" />
+          </div>
+
           {/* Header placeholder: a wide title bar + a thin subline. The subline approximates
               the with-results header (the page only renders it when there are matches); the
               happy path is the common case for a query, so reserve it. */}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { RankedFeed } from "@/components/feed/RankedFeed";
-import { BrandBand } from "@/components/layout/BrandBand";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { SearchBar } from "@/components/search/SearchBar";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -95,72 +95,85 @@ export default async function SearchPage({ searchParams }: Props) {
     }
   }
 
-  // One stable <h1> per render: EmptyState only renders an <h2>, so the no-query / no-results
-  // / error branches would otherwise have no h1. Render it once above the conditional.
-  const heading = query ? `Resultados para “${query}”` : "Buscar";
-
   return (
-    <>
-      {/* Brand band echoing the home hero, with the floating search field lifted off it. */}
-      <BrandBand size="band">
-        {/* autoFocus only when arriving without a query: the user came to search and
-            the empty state below asks them to type — focusing is the next action. With
-            results on screen, stealing focus would just pop the mobile keyboard. */}
+    <PageContainer variant="listing">
+      {/* The search field sits directly on the white page (no brand band), so it reads as part
+          of the results surface rather than a separate hero. It's the single search
+          affordance — there's deliberately no "Buscar" page title repeating it below
+          ("menos es más"). Constrained to the home hero's width and centered.
+          autoFocus only when arriving without a query: the user came to search, so the field
+          is the next action. With results on screen, stealing focus would just pop the mobile
+          keyboard. */}
+      <div className="mx-auto mb-10 max-w-2xl">
         <SearchBar
           initialQuery={query}
           autoFocus={!query}
           originPath={originPath}
+          flat
         />
-      </BrandBand>
+      </div>
 
-      <PageContainer variant="listing">
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            {heading}
-          </h1>
-          {query && !loadFailed && cards.length > 0 && (
-            <p className="mt-1 text-sm text-muted">
-              Comercios de tu comunidad que coinciden con tu búsqueda.
-            </p>
-          )}
-        </header>
-
-        {!query ? (
-          <EmptyState
-            icon={<SearchIcon className="h-7 w-7" />}
-            title="Buscá comercios"
-            description="Escribí el nombre, la categoría o lo que necesitás para encontrar comercios de tu comunidad."
-            cta={{ label: "Explorar por categoría", href: "/categories" }}
-          />
-        ) : loadFailed ? (
-          <EmptyState
-            icon={<WarningIcon className="h-7 w-7" />}
-            title="No pudimos cargar el catálogo"
-            description="Recargá la página para intentarlo de nuevo."
-          />
-        ) : cards.length === 0 ? (
-          <EmptyState
-            icon={<SearchIcon className="h-7 w-7" />}
-            title={`No encontramos comercios para “${query}”`}
-            description="Probá con otras palabras o explorá el directorio por categoría."
-            cta={{ label: "Explorar por categoría", href: "/categories" }}
-          />
-        ) : (
-          <>
-            <p role="status" className="sr-only">
-              {cards.length} resultados para “{query}”.
-            </p>
-            <CommunityPicker />
-            <RankedFeed initial={cards} relevanceById={relevanceById} />
-            {candidatesSaturated && (
-              <p className="mt-8 text-center text-sm text-muted">
-                Mostrando coincidencias entre los {SEARCH_CANDIDATE_MAX}{" "}
-                comercios con mejor ranking.
+      {!query ? (
+        // No query yet: the search field above is self-evidently the search, so we drop the
+        // repeated "Buscar" heading and the heavy empty-state tile — just one quiet nudge
+        // toward browsing by category. The h1 stays for a11y/SEO but sr-only.
+        <>
+          <h1 className="sr-only">Buscar comercios</h1>
+          <p className="mx-auto max-w-sm text-center text-sm text-muted">
+            Escribí lo que necesitás, o{" "}
+            <Link
+              href="/categories"
+              className="font-medium text-brand-darker underline-offset-2 hover:underline"
+            >
+              explorá por categoría
+            </Link>
+            .
+          </p>
+        </>
+      ) : (
+        <>
+          <header className="mb-8">
+            {/* Result-summary heading — the one place the page names the query back. */}
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              Resultados para “{query}”
+            </h1>
+            {!loadFailed && cards.length > 0 && (
+              <p className="mt-1 text-sm text-muted">
+                Comercios de tu comunidad que coinciden con tu búsqueda.
               </p>
             )}
-          </>
-        )}
-      </PageContainer>
-    </>
+          </header>
+
+          {loadFailed ? (
+            <EmptyState
+              icon={<WarningIcon className="h-7 w-7" />}
+              title="No pudimos cargar el catálogo"
+              description="Recargá la página para intentarlo de nuevo."
+            />
+          ) : cards.length === 0 ? (
+            <EmptyState
+              icon={<SearchIcon className="h-7 w-7" />}
+              title={`No encontramos comercios para “${query}”`}
+              description="Probá con otras palabras o explorá el directorio por categoría."
+              cta={{ label: "Explorar por categoría", href: "/categories" }}
+            />
+          ) : (
+            <>
+              <p role="status" className="sr-only">
+                {cards.length} resultados para “{query}”.
+              </p>
+              <CommunityPicker />
+              <RankedFeed initial={cards} relevanceById={relevanceById} />
+              {candidatesSaturated && (
+                <p className="mt-8 text-center text-sm text-muted">
+                  Mostrando coincidencias entre los {SEARCH_CANDIDATE_MAX}{" "}
+                  comercios con mejor ranking.
+                </p>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </PageContainer>
   );
 }

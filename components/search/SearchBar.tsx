@@ -17,6 +17,7 @@ export function SearchBar({
   initialQuery = "",
   originPath = "",
   compact = false,
+  flat = false,
 }: {
   autoFocus?: boolean;
   initialQuery?: string;
@@ -27,6 +28,10 @@ export function SearchBar({
   // Header variant: a small white pill sized to the brand band, instead of the tall hero
   // field. Same submit/clear logic — only the chrome differs.
   compact?: boolean;
+  // Page-integrated elevation for the large field when it sits on the plain white body
+  // (the /search results page) instead of lifting off a dark brand band: a soft hairline
+  // ring + light shadow rather than the deep hero shadow. Ignored by the compact variant.
+  flat?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -106,15 +111,20 @@ export function SearchBar({
   }
 
   return (
-    // Apple-style floating search field: a large, soft-shadowed white pill that lifts off
-    // the hero. The whole form carries the focus ring (focus-within) so typing in the input
-    // lights up the field as one unit, search button included.
-    // role="search" makes the form a landmark screen-reader users can jump to.
+    // Apple-style floating search field: a large, soft-shadowed white pill. The whole form
+    // carries the focus ring (focus-within) so typing in the input lights up the field as one
+    // unit, search button included. role="search" makes the form a landmark screen-reader
+    // users can jump to.
+    // Elevation adapts to the surface: over the dark brand band (home hero) it needs a deep
+    // shadow to lift off; on the white results page (`flat`) a hairline ring + soft shadow
+    // lets it read as part of the page instead of a separate hero card.
     <form
       onSubmit={onSubmit}
       role="search"
       aria-label="Buscar comercios"
-      className="flex w-full items-center gap-2 overflow-hidden rounded-2xl bg-white p-1.5 pl-5 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-brand"
+      className={`flex w-full items-center gap-2 overflow-hidden rounded-2xl bg-white p-1.5 pl-5 transition focus-within:ring-2 focus-within:ring-brand ${
+        flat ? "shadow-sm ring-1 ring-border" : "shadow-xl ring-1 ring-black/5"
+      }`}
     >
       {/* Leading magnifier echoes the native search look; decorative (the field is labelled).
           Shared icon (same as the compact variant) so both search fields use one glyph. */}
