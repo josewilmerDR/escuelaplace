@@ -19,6 +19,7 @@ import {
 import {
   type Firestore,
   addDoc,
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -79,7 +80,8 @@ async function seed(fn: (db: Firestore) => Promise<unknown>): Promise<void> {
   });
 }
 
-// Common seed shapes.
+// Common SEED shapes — minimal "already exists" docs written with rules DISABLED (so they need
+// not satisfy the P1-b create-shape). Use these to set up an existing active business/school.
 const businessDoc = (ownerId: string, over: Record<string, unknown> = {}) => ({
   name: "Comercio",
   slug: "comercio",
@@ -100,6 +102,46 @@ const schoolDoc = (ownerId: string, over: Record<string, unknown> = {}) => ({
   verified: false,
   verificationStatus: "pending",
   metrics: { supportingBusinesses: 0, uniqueSupporters: 0 },
+  ...over,
+});
+
+// Valid CREATE payloads — the exact field set createBusinessPage / createSchoolPage write, so a
+// client create must pass the P1-b write-shape rules (draft/pending start, no junk keys, no
+// editorIds seeding). Used wherever a test creates a page AS a signed-in user (not a seed).
+const newBusiness = (ownerId: string, over: Record<string, unknown> = {}) => ({
+  name: "Comercio",
+  slug: "comercio",
+  description: "",
+  categories: ["cat1"],
+  categoryNames: ["Comida"],
+  location: { geohash: "d1", admin1: "", admin2: "", admin3: "" },
+  schoolId: "",
+  schoolName: "",
+  contact: {},
+  discount: { active: false, text: "" },
+  photos: [],
+  tags: [],
+  status: "draft",
+  verified: false,
+  subscription: { active: false, plan: "", validUntil: null },
+  ranking: { score: 0, totalDonated: 0 },
+  reviewStats: { count: 0, average: 0 },
+  metrics: { views: 0, interactions: 0 },
+  ownerId,
+  ...over,
+});
+
+const newSchool = (ownerId: string, over: Record<string, unknown> = {}) => ({
+  name: "Escuela",
+  description: "",
+  thankYouMessage: "",
+  location: { geohash: "d1", admin1: "", admin2: "", admin3: "" },
+  boardContact: { name: "Junta" },
+  status: "pending",
+  verified: false,
+  verificationStatus: "pending",
+  metrics: { supportingBusinesses: 0, uniqueSupporters: 0 },
+  ownerId,
   ...over,
 });
 
@@ -186,7 +228,7 @@ describe("isAdmin() — custom claim grants admin; field is the fallback", () =>
 describe("schools — verification & re-verification (P0-c)", () => {
   it("ALLOWS an owner to create an unverified (pending) school", async () => {
     await assertSucceeds(
-      setDoc(doc(asUser("alice"), "schools", "sch1"), schoolDoc("alice")),
+      setDoc(doc(asUser("alice"), "schools", "sch1"), newSchool("alice")),
     );
   });
 
@@ -194,7 +236,7 @@ describe("schools — verification & re-verification (P0-c)", () => {
     await assertFails(
       setDoc(
         doc(asUser("alice"), "schools", "sch1"),
-        schoolDoc("alice", { verified: true, verificationStatus: "verified" }),
+        newSchool("alice", { verified: true, verificationStatus: "verified" }),
       ),
     );
   });
@@ -352,13 +394,13 @@ describe("schools/{id}/private/data — payment methods", () => {
 describe("businesses — ownership & computed-field immutability", () => {
   it("ALLOWS the owner to create their business", async () => {
     await assertSucceeds(
-      setDoc(doc(asUser("alice"), "businesses", "biz1"), businessDoc("alice")),
+      setDoc(doc(asUser("alice"), "businesses", "biz1"), newBusiness("alice")),
     );
   });
 
   it("DENIES creating a business owned by someone else", async () => {
     await assertFails(
-      setDoc(doc(asUser("alice"), "businesses", "biz1"), businessDoc("bob")),
+      setDoc(doc(asUser("alice"), "businesses", "biz1"), newBusiness("bob")),
     );
   });
 
@@ -436,6 +478,7 @@ describe("subscriptions — create pending, no self-confirm", () => {
 
 // ── projectContributions: created only against a verified school ─────────────
 describe("projectContributions — create only when the school is verified", () => {
+  // The PUBLIC contribution doc carries NO amount/donorName — those live in private/data (P0-d).
   const contribution = (over: Record<string, unknown> = {}) => ({
     schoolId: "sch1",
     schoolName: "Escuela",
@@ -443,8 +486,6 @@ describe("projectContributions — create only when the school is verified", () 
     projectTitle: "Cancha",
     type: "money",
     donorId: "dana",
-    donorName: "Dana",
-    amount: 10000,
     currency: "CRC",
     status: "pending",
     confirmedAt: null,
@@ -727,6 +768,269 @@ describe("private magnitude + anti-fraud freeze (P0-d stage 2)", () => {
     await assertFails(
       updateDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), { amount: 999999 }),
     );
+  });
+});
+
+// ── write-shape validation (P1-b): reject oversized/garbage/extra fields & frozen-field abuse ──
+// These are the systemic data-integrity boundary (#6) plus the ownerId/editorIds takeover (#4).
+// The golden rule under test: keys().hasOnly() guards CREATE; diff().affectedKeys() guards UPDATE,
+// so every legitimate partial write (gallery arrayUnion, status-only, proof, confirm) still passes.
+describe("businesses — write-shape (P1-b)", () => {
+  it("DENIES creating a business that is not draft/unverified", async () => {
+    await assertFails(
+      setDoc(doc(asUser("alice"), "businesses", "b"), newBusiness("alice", { status: "active" })),
+    );
+    await assertFails(
+      setDoc(doc(asUser("alice"), "businesses", "b"), newBusiness("alice", { verified: true })),
+    );
+  });
+
+  it("DENIES creating a business with an over-long description or a junk key", async () => {
+    await assertFails(
+      setDoc(doc(asUser("alice"), "businesses", "b"), newBusiness("alice", { description: "x".repeat(301) })),
+    );
+    await assertFails(
+      setDoc(doc(asUser("alice"), "businesses", "b"), newBusiness("alice", { foo: "bar" })),
+    );
+  });
+
+  it("ALLOWS publishing (status draft→active) and a gallery arrayUnion", async () => {
+    await seed((db) => setDoc(doc(db, "businesses", "b"), businessDoc("alice", { status: "draft" })));
+    await assertSucceeds(updateDoc(doc(asUser("alice"), "businesses", "b"), { status: "active" }));
+    await assertSucceeds(
+      updateDoc(doc(asUser("alice"), "businesses", "b"), { photos: arrayUnion("https://x/1") }),
+    );
+  });
+
+  it("ALLOWS an editor to edit the profile but DENIES taking over ownerId/editorIds", async () => {
+    await seed((db) => setDoc(doc(db, "businesses", "b"), businessDoc("alice", { editorIds: ["carol"] })));
+    await assertSucceeds(updateDoc(doc(asUser("carol"), "businesses", "b"), { name: "Nuevo" }));
+    await assertFails(updateDoc(doc(asUser("carol"), "businesses", "b"), { ownerId: "carol" }));
+    await assertFails(
+      updateDoc(doc(asUser("carol"), "businesses", "b"), { editorIds: ["carol", "carol2"] }),
+    );
+  });
+
+  it("DENIES a non-admin update that changes slug or sets verified, or adds a junk key", async () => {
+    await seed((db) => setDoc(doc(db, "businesses", "b"), businessDoc("alice")));
+    await assertFails(updateDoc(doc(asUser("alice"), "businesses", "b"), { slug: "otro" }));
+    await assertFails(updateDoc(doc(asUser("alice"), "businesses", "b"), { verified: true }));
+    await assertFails(updateDoc(doc(asUser("alice"), "businesses", "b"), { foo: "bar" }));
+  });
+});
+
+describe("schools — write-shape (P1-b)", () => {
+  it("DENIES a non-admin seeding editorIds or an over-long description on create", async () => {
+    await assertFails(
+      setDoc(doc(asUser("alice"), "schools", "s"), newSchool("alice", { editorIds: ["alice"] })),
+    );
+    await assertFails(
+      setDoc(doc(asUser("alice"), "schools", "s"), newSchool("alice", { description: "x".repeat(301) })),
+    );
+  });
+
+  it("ALLOWS a gallery arrayUnion but DENIES ownerId/editorIds takeover and metrics tampering", async () => {
+    await seed((db) => setDoc(doc(db, "schools", "s"), schoolDoc("alice")));
+    await assertSucceeds(
+      updateDoc(doc(asUser("alice"), "schools", "s"), { photos: arrayUnion("https://x/1") }),
+    );
+    await assertFails(updateDoc(doc(asUser("alice"), "schools", "s"), { ownerId: "eve" }));
+    await assertFails(updateDoc(doc(asUser("alice"), "schools", "s"), { editorIds: ["eve"] }));
+    await assertFails(
+      updateDoc(doc(asUser("alice"), "schools", "s"), { metrics: { supportingBusinesses: 99, uniqueSupporters: 99 } }),
+    );
+  });
+});
+
+describe("schools/{id}/projects — write-shape (P1-b)", () => {
+  const newProject = (over: Record<string, unknown> = {}) => ({
+    schoolId: "sch1",
+    schoolName: "Escuela",
+    title: "Cancha",
+    description: "Una cancha techada",
+    currency: "CRC",
+    status: "active",
+    stages: [],
+    raised: 0,
+    contributorsCount: 0,
+    ownerId: "bob",
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("bob")));
+  });
+
+  it("ALLOWS the school owner to create a valid active project", async () => {
+    await assertSucceeds(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "projects", "p1"), newProject()),
+    );
+  });
+
+  it("DENIES create with a non-active status, an over-long title, too many stages, or a junk key", async () => {
+    await assertFails(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "projects", "p1"), newProject({ status: "completed" })),
+    );
+    await assertFails(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "projects", "p1"), newProject({ title: "x".repeat(121) })),
+    );
+    await assertFails(
+      setDoc(
+        doc(asUser("bob"), "schools", "sch1", "projects", "p1"),
+        newProject({ stages: Array.from({ length: 13 }, () => ({})) }),
+      ),
+    );
+    await assertFails(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "projects", "p1"), newProject({ foo: "bar" })),
+    );
+  });
+
+  it("ALLOWS editing stages and setting status, but DENIES changing ownerId or a junk key", async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1", "projects", "p1"), newProject()));
+    await assertSucceeds(
+      updateDoc(doc(asUser("bob"), "schools", "sch1", "projects", "p1"), { stages: [{ title: "Etapa 1", cost: 1000 }] }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asUser("bob"), "schools", "sch1", "projects", "p1"), { status: "completed" }),
+    );
+    await assertFails(
+      updateDoc(doc(asUser("bob"), "schools", "sch1", "projects", "p1"), { ownerId: "eve" }),
+    );
+    await assertFails(
+      updateDoc(doc(asUser("bob"), "schools", "sch1", "projects", "p1"), { foo: "bar" }),
+    );
+  });
+});
+
+describe("subscriptions — write-shape (P1-b)", () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, "businesses", "biz1"), businessDoc("alice"));
+      await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob"));
+    });
+  });
+
+  const businessSub = (over: Record<string, unknown> = {}) => ({
+    supporterType: "business",
+    businessId: "biz1",
+    businessName: "Comercio",
+    schoolId: "sch1",
+    schoolName: "Escuela",
+    units: 2,
+    amount: 10000,
+    status: "pending",
+    confirmedAt: null,
+    firstConfirmedAt: null,
+    expiresAt: null,
+    ...over,
+  });
+
+  it("DENIES a business sub whose amount != units × 5000, units > 1000, or with a junk key", async () => {
+    await assertFails(addDoc(collection(asUser("alice"), "subscriptions"), businessSub({ amount: 9999 })));
+    await assertFails(
+      addDoc(collection(asUser("alice"), "subscriptions"), businessSub({ units: 1001, amount: 5005000 })),
+    );
+    await assertFails(addDoc(collection(asUser("alice"), "subscriptions"), businessSub({ foo: "bar" })));
+  });
+
+  it("DENIES a donor smuggling units/amount onto the PUBLIC donation doc (P0-d)", async () => {
+    await assertFails(
+      addDoc(collection(asUser("dana"), "subscriptions"), {
+        supporterType: "user",
+        donorId: "dana",
+        schoolId: "sch1",
+        schoolName: "Escuela",
+        units: 5,
+        amount: 25000,
+        status: "pending",
+        confirmedAt: null,
+        firstConfirmedAt: null,
+        expiresAt: null,
+      }),
+    );
+  });
+
+  it("ALLOWS the supporter to upload a proof and the school to expire it", async () => {
+    await seed((db) => setDoc(doc(db, "subscriptions", "sub1"), businessSub()));
+    await assertSucceeds(
+      updateDoc(doc(asUser("alice"), "subscriptions", "sub1"), { proofUploaded: true, updatedAt: new Date() }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asUser("bob"), "subscriptions", "sub1"), { status: "expired", updatedAt: new Date() }),
+    );
+  });
+
+  it("DENIES a supporter update that injects an unexpected field", async () => {
+    await seed((db) => setDoc(doc(db, "subscriptions", "sub1"), businessSub()));
+    await assertFails(updateDoc(doc(asUser("alice"), "subscriptions", "sub1"), { countsForRanking: true }));
+  });
+});
+
+describe("projectContributions — write-shape (P1-b)", () => {
+  beforeEach(async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1"), schoolDoc("bob", { verified: true, verificationStatus: "verified" })),
+    );
+  });
+
+  const contrib = (over: Record<string, unknown> = {}) => ({
+    schoolId: "sch1",
+    schoolName: "Escuela",
+    projectId: "proj1",
+    projectTitle: "Cancha",
+    type: "money",
+    donorId: "dana",
+    currency: "CRC",
+    status: "pending",
+    confirmedAt: null,
+    ...over,
+  });
+
+  it("DENIES exposing amount on the public doc, a bad type enum, or an over-long title", async () => {
+    await assertFails(addDoc(collection(asUser("dana"), "projectContributions"), contrib({ amount: 5000 })));
+    await assertFails(addDoc(collection(asUser("dana"), "projectContributions"), contrib({ type: "cash" })));
+    await assertFails(
+      addDoc(collection(asUser("dana"), "projectContributions"), contrib({ projectTitle: "x".repeat(121) })),
+    );
+  });
+
+  it("ALLOWS the contributor to upload a proof and the school to confirm", async () => {
+    await seed((db) => setDoc(doc(db, "projectContributions", "c1"), contrib()));
+    await assertSucceeds(
+      updateDoc(doc(asUser("dana"), "projectContributions", "c1"), { proofUploaded: true, updatedAt: new Date() }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asUser("bob"), "projectContributions", "c1"), {
+        status: "confirmed",
+        confirmedAt: new Date(),
+        confirmedBy: "bob",
+        updatedAt: new Date(),
+      }),
+    );
+  });
+});
+
+describe("donorProfiles — write-shape (P1-b)", () => {
+  const zeroed = (over: Record<string, unknown> = {}) => ({
+    displayName: "Dana",
+    isPublic: false,
+    totalUnits: 0,
+    tier: null,
+    schoolsSupported: 0,
+    projectsSupported: 0,
+    firstConfirmedAt: null,
+    lastConfirmedAt: null,
+    ...over,
+  });
+
+  it("DENIES an over-long displayName or a junk key on create", async () => {
+    await assertFails(setDoc(doc(asUser("dana"), "donorProfiles", "dana"), zeroed({ displayName: "x".repeat(61) })));
+    await assertFails(setDoc(doc(asUser("dana"), "donorProfiles", "dana"), zeroed({ foo: "bar" })));
+  });
+
+  it("DENIES an unexpected field on a prefs update", async () => {
+    await seed((db) => setDoc(doc(db, "donorProfiles", "dana"), zeroed()));
+    await assertFails(updateDoc(doc(asUser("dana"), "donorProfiles", "dana"), { foo: "bar" }));
   });
 });
 
