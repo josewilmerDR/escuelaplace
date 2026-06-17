@@ -54,11 +54,13 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    // Fixed bar with a top hairline + safe-area padding so it clears the iOS home indicator.
+    // Fixed bar with a top hairline + safe-area padding so it clears the iOS home indicator
+    // (bottom inset) and the landscape display cutout (left/right insets). These env() values
+    // only resolve once viewport-fit:cover is set in the root layout's viewport export.
     // z-40 matches the header so neither overlaps page modals unexpectedly.
     <nav
       aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white pb-[env(safe-area-inset-bottom)] sm:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] sm:hidden"
     >
       <ul className="mx-auto flex max-w-md">
         {ITEMS.map(({ href, label, Icon, match }) => {
