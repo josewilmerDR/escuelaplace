@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { BottomNav } from "@/components/layout/BottomNav";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 
@@ -38,7 +39,13 @@ export default function RootLayout({
       {/* suppressHydrationWarning: browser extensions (e.g. ColorZilla's
           cz-shortcut-listen) add attributes to <body> before hydration, which would
           otherwise log a hydration mismatch. Scoped to this node's attributes only. */}
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+      {/* pb-16 on mobile reserves room for the fixed BottomNav so it never covers the footer
+          or trailing content; cleared from sm up, where the bar is hidden and nav lives in
+          the header. */}
+      <body
+        className="min-h-full flex flex-col pb-16 sm:pb-0"
+        suppressHydrationWarning
+      >
         {/* Skip link (WCAG 2.4.1 Bypass Blocks): the first focusable element, visually
             hidden until focused. Lets keyboard/screen-reader users jump past the sticky
             header — search + browse chips + account actions, repeated on every page —
@@ -62,6 +69,9 @@ export default function RootLayout({
             {children}
           </div>
           <SiteFooter />
+          {/* Mobile-only bottom navigation; on desktop these destinations live in the
+              header's browse cluster (see HeaderBrowse / BottomNav). */}
+          <BottomNav />
         </AuthProvider>
       </body>
     </html>
