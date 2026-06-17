@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
@@ -26,6 +26,19 @@ export const metadata: Metadata = {
     "Directorio comunitario que conecta comercios locales con escuelas de Costa Rica. Descubrí negocios que apoyan a la escuela de tu comunidad.",
 };
 
+// Mobile viewport config. `viewportFit: "cover"` is the prerequisite that makes
+// `env(safe-area-inset-*)` resolve to non-zero on notched phones — without it the
+// BottomNav's bottom-inset padding (and the body reservation below) is a silent no-op
+// and the bar sits under the iOS home indicator. `themeColor` tints the mobile browser
+// status bar to match the sticky brand header (--brand-dark / sky-600) so the chrome
+// reads as an app, not a web page.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0284c7",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -39,11 +52,13 @@ export default function RootLayout({
       {/* suppressHydrationWarning: browser extensions (e.g. ColorZilla's
           cz-shortcut-listen) add attributes to <body> before hydration, which would
           otherwise log a hydration mismatch. Scoped to this node's attributes only. */}
-      {/* pb-16 on mobile reserves room for the fixed BottomNav so it never covers the footer
-          or trailing content; cleared from sm up, where the bar is hidden and nav lives in
-          the header. */}
+      {/* On mobile, reserve room for the fixed BottomNav so it never covers the footer or
+          trailing content. The bar is 64px (4rem) tall PLUS its bottom safe-area inset, so the
+          reservation must track the same inset — a flat pb-16 would leave content hidden under
+          the taller bar on notched phones once viewport-fit:cover is on. Cleared from sm up,
+          where the bar is hidden and nav lives in the header. */}
       <body
-        className="min-h-full flex flex-col pb-16 sm:pb-0"
+        className="min-h-full flex flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0"
         suppressHydrationWarning
       >
         {/* Skip link (WCAG 2.4.1 Bypass Blocks): the first focusable element, visually
