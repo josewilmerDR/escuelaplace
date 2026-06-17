@@ -22,6 +22,7 @@ import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { StickyFormActions } from "@/components/ui/StickyFormActions";
 import { FormSection } from "@/components/ui/FormSection";
 import { PagesIcon } from "@/components/ui/icons";
 import { ImagePicker } from "@/components/ui/ImagePicker";
@@ -606,17 +607,17 @@ export default function SchoolEditPage() {
 
         <FormError message={error} />
 
-        <div className="flex items-center gap-3">
+        <StickyFormActions>
           <button
             type="submit"
             disabled={saving}
             aria-busy={saving}
-            className="btn btn-primary"
+            className="btn btn-primary flex-1 sm:flex-none"
           >
             {saving ? "Guardando…" : "Guardar cambios"}
           </button>
           <SavedIndicator show={saved} onHide={() => setSaved(false)} />
-        </div>
+        </StickyFormActions>
       </form>
 
       {/* Outside the form: gallery changes publish immediately (upload/remove mutate

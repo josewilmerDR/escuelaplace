@@ -316,12 +316,13 @@ function CreatedBanner({
           .
         </p>
       )}
-      {/* Inflated tap target (negative margin keeps the visual layout untouched). */}
+      {/* Compact glyph; -m-2 keeps the layout and the before:-inset extends the tap area to
+          ~44px so it clears a thumb. */}
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Cerrar aviso"
-        className="-m-2 shrink-0 rounded-full p-2 transition-colors hover:bg-success/10"
+        className="relative -m-2 shrink-0 rounded-full p-2 transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-success/10 active:bg-success/20"
       >
         <XMarkIcon className="h-4 w-4" />
       </button>

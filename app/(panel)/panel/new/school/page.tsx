@@ -14,6 +14,7 @@ import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { StickyFormActions } from "@/components/ui/StickyFormActions";
 import { FormSection } from "@/components/ui/FormSection";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { normalizePhoneInternational } from "@/lib/contact";
@@ -242,9 +243,15 @@ export default function NewSchoolPage() {
 
         <FormError message={error} />
 
-        <button type="submit" disabled={saving} className="btn btn-primary">
-          {saving ? "Creando…" : "Crear escuela"}
-        </button>
+        <StickyFormActions>
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn btn-primary w-full sm:w-auto"
+          >
+            {saving ? "Creando…" : "Crear escuela"}
+          </button>
+        </StickyFormActions>
       </form>
 
       <p className="mt-8 text-sm">

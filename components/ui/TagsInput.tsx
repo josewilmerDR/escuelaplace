@@ -80,7 +80,9 @@ export function TagsInput({
                 type="button"
                 onClick={() => removeAt(i)}
                 aria-label={`Quitar “${tag}”`}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted transition-colors hover:bg-error/10 hover:text-error has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand"
+                // Compact glyph, but the before:-inset extends the tap area to ~36px so the
+                // pill stays small while the target clears a thumb (the Switch primitive's trick).
+                className="relative inline-flex h-6 w-6 items-center justify-center rounded-full text-muted transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-error/10 hover:text-error active:bg-error/20 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand"
               >
                 <XMarkIcon className="h-3.5 w-3.5" />
               </button>

@@ -17,6 +17,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { StickyFormActions } from "@/components/ui/StickyFormActions";
 import { FormSection } from "@/components/ui/FormSection";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { ImagePicker } from "@/components/ui/ImagePicker";
@@ -511,19 +512,21 @@ export default function NewBusinessPage() {
 
         <FormError message={error} />
 
-        <button
-          type="submit"
-          disabled={saving}
-          aria-busy={saving}
-          className="btn btn-primary"
-        >
-          {/* Uploads can take a few seconds on mobile data — say what's happening. */}
-          {saving
-            ? logoFile || coverFile
-              ? "Subiendo imágenes…"
-              : "Creando…"
-            : "Crear comercio"}
-        </button>
+        <StickyFormActions>
+          <button
+            type="submit"
+            disabled={saving}
+            aria-busy={saving}
+            className="btn btn-primary w-full sm:w-auto"
+          >
+            {/* Uploads can take a few seconds on mobile data — say what's happening. */}
+            {saving
+              ? logoFile || coverFile
+                ? "Subiendo imágenes…"
+                : "Creando…"
+              : "Crear comercio"}
+          </button>
+        </StickyFormActions>
       </form>
 
       <p className="mt-8 text-sm">

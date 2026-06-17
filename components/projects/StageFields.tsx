@@ -53,6 +53,7 @@ export function StageFields({
       <Field label={`Costo (${currency})`}>
         <input
           type="number"
+          inputMode="decimal"
           min={0}
           max={PROJECT_STAGE_COST_MAX}
           required={required}
