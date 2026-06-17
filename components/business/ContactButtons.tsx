@@ -9,6 +9,7 @@ import {
   formatPhoneDisplay,
 } from "@/lib/contact";
 import { TrackedLink } from "@/components/business/TrackedLink";
+import { PhoneIcon } from "@/components/ui/icons";
 import type { BusinessContact, ContactChannel, Discount } from "@/types";
 
 /**
@@ -120,9 +121,9 @@ export function ContactButtons({
   }
 
   return (
-    // Centered on mobile / left on desktop, matching the FB-style profile header
-    // (avatar and name center on small screens).
-    <div className="mt-4 flex flex-wrap justify-center gap-3 sm:justify-start">
+    // Full-width stacked actions on mobile (a clean vertical list instead of half-width
+    // "chip soup"); a centered/left wrapping row from sm up to match the FB-style header.
+    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-start sm:gap-3">
       {whatsAppUrl && (
         <TrackedLink
           businessId={businessId}
@@ -131,7 +132,7 @@ export function ContactButtons({
           external
           // WhatsApp-flavored green, darkened to emerald-700: white on WhatsApp's own
           // #25D366 is ~2:1, far below AA (see the contrast rules in globals.css).
-          className="btn bg-emerald-700 text-white hover:bg-emerald-800"
+          className="btn w-full bg-emerald-700 text-white hover:bg-emerald-800 active:bg-emerald-900 sm:w-auto"
         >
           <WhatsAppIcon className="mr-2 h-4 w-4" />
           Consultar por WhatsApp
@@ -144,12 +145,86 @@ export function ContactButtons({
           channel={channel}
           href={href}
           external={external}
-          className="btn btn-outline"
+          className="btn btn-outline w-full sm:w-auto"
         >
           {label}
         </TrackedLink>
       ))}
     </div>
+  );
+}
+
+/**
+ * Sticky mobile-only contact bar for the public business page. The page's whole job is
+ * producing a contact, but the inline WhatsApp CTA scrolls out of view; this keeps the
+ * primary action (WhatsApp, with a Llamar shortcut when a phone exists) one thumb-tap away
+ * while the buyer reads down the page. It floats just above the fixed BottomNav and clears
+ * the home-indicator inset. Renders nothing when there is no WhatsApp nor phone, and is
+ * paired with an in-flow spacer so it never covers the last section. Desktop is unaffected
+ * (`sm:hidden`) — the inline buttons remain the only contact UI there.
+ */
+export function MobileContactBar({
+  businessId,
+  businessName,
+  contact,
+  discount,
+}: {
+  businessId: string;
+  businessName: string;
+  contact?: BusinessContact;
+  discount?: Discount;
+}) {
+  const whatsAppUrl = contact?.whatsapp
+    ? buildWhatsAppUrl(contact.whatsapp, businessName, discount?.active ?? false)
+    : null;
+  const phoneUrl = contact?.phone ? buildPhoneUrl(contact.phone) : null;
+
+  if (!whatsAppUrl && !phoneUrl) return null;
+
+  return (
+    <>
+      {/* In-flow spacer (mobile only) so the fixed bar above the BottomNav never overlaps
+          the last section's content (e.g. the review form). */}
+      <div aria-hidden className="h-20 sm:hidden" />
+      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-border bg-white/95 px-4 py-3 backdrop-blur sm:hidden">
+        {whatsAppUrl ? (
+          <TrackedLink
+            businessId={businessId}
+            channel="whatsapp"
+            href={whatsAppUrl}
+            external
+            className="btn flex-1 bg-emerald-700 text-white hover:bg-emerald-800 active:bg-emerald-900"
+          >
+            <WhatsAppIcon className="mr-2 h-4 w-4" />
+            Consultar por WhatsApp
+          </TrackedLink>
+        ) : (
+          // No WhatsApp: promote Llamar to the full-width primary action.
+          <TrackedLink
+            businessId={businessId}
+            channel="phone"
+            href={phoneUrl!}
+            external={false}
+            className="btn btn-primary flex-1"
+          >
+            Llamar
+          </TrackedLink>
+        )}
+        {/* When WhatsApp is primary, keep Llamar as a compact secondary icon button. */}
+        {whatsAppUrl && phoneUrl && (
+          <TrackedLink
+            businessId={businessId}
+            channel="phone"
+            href={phoneUrl}
+            external={false}
+            aria-label="Llamar"
+            className="btn btn-outline aspect-square px-0"
+          >
+            <PhoneIcon className="h-5 w-5" />
+          </TrackedLink>
+        )}
+      </div>
+    </>
   );
 }
 

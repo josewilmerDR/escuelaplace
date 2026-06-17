@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ContactButtons } from "@/components/business/ContactButtons";
+import { ContactButtons, MobileContactBar } from "@/components/business/ContactButtons";
 import { ManageBar } from "@/components/business/ManageBar";
 import { PhotoGallery } from "@/components/business/PhotoGallery";
 import { SectionTabs } from "@/components/business/SectionTabs";
@@ -338,7 +338,7 @@ export default async function BusinessPage({ params }: Props) {
         {/* pre-line: the description is captured in a textarea — keep its line
             breaks. */}
         {business.description && (
-          <p className="mt-3 whitespace-pre-line text-muted">
+          <p className="mt-3 whitespace-pre-line break-words text-muted">
             {business.description}
           </p>
         )}
@@ -386,7 +386,9 @@ export default async function BusinessPage({ params }: Props) {
                 <ClockIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
                 {/* pre-line: hours are free text the owner may write across
                     lines. */}
-                <span className="whitespace-pre-line">{business.hours}</span>
+                <span className="min-w-0 whitespace-pre-line break-words">
+                  {business.hours}
+                </span>
               </li>
             )}
             {/* Phone and website also live in the action buttons; repeating them
@@ -470,6 +472,15 @@ export default async function BusinessPage({ params }: Props) {
           />
         </div>
       </Section>
+
+      {/* Sticky mobile-only contact bar (WhatsApp + Llamar), kept one tap away while the
+          buyer scrolls. Renders nothing — and adds no spacer — when there's no contact. */}
+      <MobileContactBar
+        businessId={business.id}
+        businessName={business.name}
+        contact={business.contact}
+        discount={business.discount}
+      />
     </PageContainer>
   );
 }
