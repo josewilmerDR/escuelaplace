@@ -1,5 +1,4 @@
 import {
-  buildCatalogUrl,
   buildDirectionsUrl,
   buildFacebookUrl,
   buildInstagramUrl,
@@ -48,16 +47,6 @@ export function ContactButtons({
     channel: ContactChannel;
     external: boolean;
   }[] = [];
-  // Catalog first: browsing products is the strongest intent after the chat itself.
-  // The catalog lives in WhatsApp Business (we never host products) — see types.
-  const catalogUrl = contact?.catalog ? buildCatalogUrl(contact.catalog) : null;
-  if (catalogUrl)
-    secondary.push({
-      href: catalogUrl,
-      label: "Ver catálogo",
-      channel: "catalog",
-      external: true,
-    });
   // Both derive from the same normalization, so they are null together.
   const phoneUrl = contact?.phone ? buildPhoneUrl(contact.phone) : null;
   const phoneDisplay = contact?.phone ? formatPhoneDisplay(contact.phone) : null;
