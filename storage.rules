@@ -4,8 +4,13 @@ rules_version = '2';
 //
 // Principles (mirror firestore.rules):
 // - Public read: logos and photos of businesses/schools are part of the public catalog.
-// - Writes are restricted to authenticated users; fine-grained ownership is enforced at
-//   the Firestore level (a business doc references its assets). Keep paths namespaced.
+// - Writes are gated by OWNERSHIP of the parent Firestore doc (a business/school asset may
+//   be written only by that page's owner/editors or admin — see #7/P1-c) AND validated for
+//   shape: a hard size backstop + a contentType matcher on every create/update. Deletes are
+//   ownership-only (request.resource is null on a delete, so the size/type matcher must not
+//   run there — writes are split into create,update vs delete accordingly).
+// - Payment proofs are private (financial PII): ownership resolved via Firestore, same
+//   shape validation applied.
 
 service firebase.storage {
   match /b/{bucket}/o {
@@ -24,16 +29,95 @@ service firebase.storage {
       );
     }
 
-    // Business assets: businesses/{businessId}/...
-    match /businesses/{businessId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn();
+    // ── P1-c write-shape helpers ────────────────────────────────────────────────
+    // A single HARD BACKSTOP cap (bytes), chosen safely ABOVE the largest legit UI upload
+    // (images cap at 5 MiB, payment proofs at 10 MiB via FilePicker) so a UI-allowed file is
+    // NEVER rejected, yet small enough to stop gross abuse / denial-of-wallet. The UI checks
+    // `size > MAX` (so an exactly-MAX file passes); the rule uses strict `<`, so the 12 MiB
+    // backstop keeps >2x headroom over the 5 MiB image budget and clears the 10 MiB proof budget.
+    function assetMax() { return 12 * 1024 * 1024; }
+
+    // request.resource is the INCOMING upload — it is NULL on a delete, so these matchers are
+    // applied ONLY to create/update (delete gets an ownership-only condition). The `!= null`
+    // guard is belt-and-suspenders so a stray reference can never error-deny a legit write.
+    function isImage() {
+      return request.resource != null &&
+        request.resource.size < assetMax() &&
+        request.resource.contentType.matches('image/.*');
+    }
+    function isImageOrPdf() {
+      return request.resource != null &&
+        request.resource.size < assetMax() && (
+          request.resource.contentType.matches('image/.*') ||
+          request.resource.contentType == 'application/pdf'
+        );
     }
 
-    // School assets: schools/{schoolId}/...
-    match /schools/{schoolId}/{allPaths=**} {
+    // Parent-doc ownership (the id is the Storage path segment). Mirrors firestore.rules'
+    // isOwnerOrEditor: owner OR a co-editor of that page. `.get('editorIds', [])` (not
+    // `.editorIds`) so a legacy doc without the field doesn't error-deny. If the parent doc
+    // does NOT exist, `.data` is null and the field access errors → the write is denied
+    // (fail-closed) — which is what we want for an asset whose page doesn't exist.
+    function businessData(bid) {
+      return firestore.get(/databases/(default)/documents/businesses/$(bid)).data;
+    }
+    function schoolData(sid) {
+      return firestore.get(/databases/(default)/documents/schools/$(sid)).data;
+    }
+    function ownsBusinessId(bid) {
+      return isSignedIn() && (
+        businessData(bid).ownerId == request.auth.uid ||
+        request.auth.uid in businessData(bid).get('editorIds', [])
+      );
+    }
+    function ownsSchoolId(sid) {
+      return isSignedIn() && (
+        schoolData(sid).ownerId == request.auth.uid ||
+        request.auth.uid in schoolData(sid).get('editorIds', [])
+      );
+    }
+
+    // ── Business assets: businesses/{businessId}/** (logo, cover, gallery) ───────
+    // Public read. Write: owner/editor of THIS business, or admin — a generic signed-in user
+    // could previously overwrite ANY business's logo (#7). Every business asset is an image, so
+    // one recursive match is safe (no PDF path to carve out, no overlap problem). create/update
+    // validate owner + image shape; delete is ownership-only so removeBusinessGalleryPhoto works.
+    match /businesses/{businessId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow create, update: if (ownsBusinessId(businessId) || isAdmin()) && isImage();
+      allow delete: if ownsBusinessId(businessId) || isAdmin();
+    }
+
+    // ── School assets: THREE non-overlapping match blocks ───────────────────────
+    // Firebase Storage recursive wildcards are OR-ADDITIVE (no most-specific-wins), so a
+    // school-root `{allPaths=**}` catch-all would OR-union with the projects subtree and we
+    // could not keep logo/cover/gallery image-only while allowing PDF only under projects.
+    // Instead each school object is governed by EXACTLY ONE mutually-exclusive block:
+    //   - schools/{id}/photo, schools/{id}/cover   → single-segment {schoolAsset}, image-only
+    //   - schools/{id}/gallery/{file}              → image-only
+    //   - schools/{id}/projects/{pid}/**           → image OR pdf (project stage quotes are PDF)
+    // All gated by the PARENT school doc's owner/editor (project assets inherit the school owner;
+    // the projectId is not separately gated — the school owner is the only legit writer).
+
+    // photo & cover (exactly one segment after the school id; NOT gallery/ or projects/).
+    match /schools/{schoolId}/{schoolAsset} {
+      allow read: if true;
+      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImage();
+      allow delete: if ownsSchoolId(schoolId) || isAdmin();
+    }
+
+    // gallery photos (one segment under gallery/).
+    match /schools/{schoolId}/gallery/{galleryFile} {
+      allow read: if true;
+      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImage();
+      allow delete: if ownsSchoolId(schoolId) || isAdmin();
+    }
+
+    // project assets (cover/photo are images, quote can be a PDF) — image OR pdf.
+    match /schools/{schoolId}/projects/{projectId}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImageOrPdf();
+      allow delete: if ownsSchoolId(schoolId) || isAdmin();
     }
 
     // Payment proof files (sensitive): subscription-proofs/{subscriptionId}/...
@@ -41,6 +125,8 @@ service firebase.storage {
     // whose supporter is a business page or a personal donor (supporterType 'user').
     // - write: the supporter side (business owner/editors, or the donor) or admin.
     // - read: the supporter side, the target school's owner/editors (to verify), or admin.
+    // P1-c: create/update also enforce the image|pdf shape + size cap; delete stays
+    // ownership-only (request.resource is null on delete).
     match /subscription-proofs/{subscriptionId}/{allPaths=**} {
       function sub() {
         return firestore.get(/databases/(default)/documents/subscriptions/$(subscriptionId)).data;
@@ -70,8 +156,9 @@ service firebase.storage {
         );
       }
 
-      allow write: if ownsBusiness() || isDonor() || isAdmin();
       allow read: if ownsBusiness() || isDonor() || ownsSchool() || isAdmin();
+      allow create, update: if (ownsBusiness() || isDonor() || isAdmin()) && isImageOrPdf();
+      allow delete: if ownsBusiness() || isDonor() || isAdmin();
     }
 
     // Project contribution proofs (sensitive): project-contribution-proofs/{contributionId}/...
@@ -79,6 +166,8 @@ service firebase.storage {
     // which references its contributor (donorId) and target school.
     // - write: the contributor or admin.
     // - read: the contributor, the target school's owner/editors (to verify), or admin.
+    // P1-c: create/update also enforce the image|pdf shape + size cap; delete stays
+    // ownership-only.
     match /project-contribution-proofs/{contributionId}/{allPaths=**} {
       function contribution() {
         return firestore.get(
@@ -100,8 +189,9 @@ service firebase.storage {
         );
       }
 
-      allow write: if isContributor() || isAdmin();
       allow read: if isContributor() || ownsSchool() || isAdmin();
+      allow create, update: if (isContributor() || isAdmin()) && isImageOrPdf();
+      allow delete: if isContributor() || isAdmin();
     }
   }
 }
