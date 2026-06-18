@@ -37,6 +37,7 @@ import { formatMoney } from "@/lib/format";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { PROFILE_COVER_ASPECT, PAGE_COVER_SIZES } from "@/lib/layout";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
+import { safeExternalUrl } from "@/lib/url";
 import {
   deleteProject,
   getProjectById,
@@ -946,16 +947,26 @@ function StageCard({
           </p>
           {quotes.length > 0 && (
             <ul className="mt-1 flex flex-col gap-1">
-              {quotes.map((url, qi) => (
+              {quotes.map((url, qi) => {
+                // Only render an http(s) link; a legacy/raw-written quote with a
+                // javascript:/data: scheme stays inert text but is still removable (#15).
+                const safeUrl = safeExternalUrl(url);
+                return (
                 <li key={url} className="flex items-center gap-3 text-xs">
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-brand-darker underline"
-                  >
-                    Cotización {qi + 1}
-                  </a>
+                  {safeUrl ? (
+                    <a
+                      href={safeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-brand-darker underline"
+                    >
+                      Cotización {qi + 1}
+                    </a>
+                  ) : (
+                    <span className="font-medium text-muted">
+                      Cotización {qi + 1} (enlace inválido)
+                    </span>
+                  )}
                   <button
                     type="button"
                     aria-label={`Quitar cotización ${qi + 1}`}
@@ -972,7 +983,8 @@ function StageCard({
                     Quitar
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
           {/* When the stage isn't persisted yet, the shared hint under "Fotos" already explains

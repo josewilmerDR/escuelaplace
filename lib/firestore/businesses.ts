@@ -16,6 +16,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
   writeBatch,
@@ -31,6 +32,7 @@ import type {
   Business,
   BusinessContact,
   BusinessDoc,
+  BusinessPrivate,
   BusinessStatus,
   Discount,
 } from "@/types";
@@ -84,6 +86,25 @@ export async function getBusinessById(
   id: string,
 ): Promise<BusinessDoc | null> {
   return docToTyped<Business>(await getDoc(doc(db, BUSINESSES, id)));
+}
+
+/**
+ * The business's private, owner-only contact details (currently the email) from the private
+ * subcollection — kept off the world-readable doc (finding #13). Readable by the business
+ * owner/editors or admin (see rules). Best-effort: returns null when the doc is missing OR the
+ * caller isn't authorized, so the edit form can add it to its initial load without a denied
+ * read breaking the page for a non-manager (who is shown the "not your business" notice anyway).
+ * Never used for public rendering.
+ */
+export async function getBusinessPrivate(
+  id: string,
+): Promise<BusinessPrivate | null> {
+  try {
+    const snap = await getDoc(doc(db, BUSINESSES, id, "private", "data"));
+    return snap.exists() ? (snap.data() as BusinessPrivate) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Businesses of a category, ordered by ranking.score (desc). Active only. */
@@ -363,6 +384,9 @@ export interface UpdateBusinessInput {
   schoolName: string; // denormalized; "" when no school is linked
   location: LocationInput;
   contact: BusinessContact;
+  /** Owner contact email — persisted to the PRIVATE subcollection, never the public doc
+   * (finding #13). "" clears it. */
+  email?: string;
   discount: Discount;
   /** Search keywords. Caller normalizes with `normalizeTags` before passing. */
   tags: string[];
@@ -384,6 +408,15 @@ export async function updateBusinessProfile(
   id: string,
   input: UpdateBusinessInput,
 ): Promise<void> {
+  // The owner email goes to the PRIVATE subcollection FIRST, then the public doc — so a
+  // partial failure can never scrub the public email (the public write below replaces the
+  // whole `contact` map, dropping any legacy `contact.email`) without it being saved here.
+  // setDoc REPLACES the one-field doc, so an empty email clears it (finding #13).
+  const email = input.email?.trim();
+  await setDoc(
+    doc(db, BUSINESSES, id, "private", "data"),
+    email ? { email } : {},
+  );
   await updateDoc(doc(db, BUSINESSES, id), {
     name: input.name,
     description: input.description,

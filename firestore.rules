@@ -149,6 +149,16 @@ service cloud.firestore {
         allow delete: if isAdmin() ||
           (isSignedIn() && request.auth.uid == userId);
       }
+
+      // Private subcollection (businesses/{id}/private/data): owner-only contact details kept
+      // OFF the world-readable business doc — currently the contact email, which renders on no
+      // public surface, so leaving it on the public doc made it a harvestable email in every
+      // catalog scrape (#13). Owner/editors of THIS business or admin only; NEVER public (unlike
+      // the business doc, which is world-readable). Unlike the schools private rule there is no
+      // verification gate — a business has no verification lifecycle and no supporter-read path.
+      match /private/{docId} {
+        allow read, write: if isAdmin() || isOwnerOrEditor(businessData(id));
+      }
     }
 
     // True if a business update leaves the function-maintained aggregates unchanged.

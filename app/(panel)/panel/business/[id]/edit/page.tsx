@@ -42,6 +42,7 @@ import {
 import {
   addBusinessGalleryPhoto,
   getBusinessById,
+  getBusinessPrivate,
   getCategories,
   getSchoolsCached,
   removeBusinessGalleryPhoto,
@@ -143,8 +144,15 @@ export default function BusinessEditPage() {
   // setState only happens in the async callbacks, never synchronously in the effect
   // body (loadState already starts as "loading"; retry resets it from the handler).
   const load = useCallback(() => {
-    Promise.all([getBusinessById(id), getSchoolsCached(), getCategories()])
-      .then(([b, s, c]) => {
+    Promise.all([
+      getBusinessById(id),
+      getSchoolsCached(),
+      getCategories(),
+      // Owner email lives in the private subcollection now (#13). Best-effort read: a
+      // non-manager gets null (and the "not your business" notice below), not a load error.
+      getBusinessPrivate(id),
+    ])
+      .then(([b, s, c, priv]) => {
         setBusiness(b);
         setSchools(s);
         setCategories(c);
@@ -167,7 +175,13 @@ export default function BusinessEditPage() {
         });
         setWhatsapp(b.contact?.whatsapp ?? "");
         setPhone(b.contact?.phone ?? "");
-        setEmail(b.contact?.email ?? "");
+        // Email comes from the private subdoc; fall back to a legacy public `contact.email`
+        // (pre-#13 docs) so it prefills here and migrates to private on the next save.
+        setEmail(
+          priv?.email ??
+            (b.contact as { email?: string } | undefined)?.email ??
+            "",
+        );
         setWeb(b.contact?.web ?? "");
         setInstagram(b.contact?.instagram ?? "");
         setFacebook(b.contact?.facebook ?? "");
@@ -307,11 +321,12 @@ export default function BusinessEditPage() {
       ]);
 
       const school = schools.find((s) => s.id === schoolId);
+      // Email is NOT a public contact channel: it goes to the private subcollection (#13),
+      // passed separately to updateBusinessProfile below.
       const contact: BusinessContact = {};
       const channels: Array<[keyof BusinessContact, string]> = [
         ["whatsapp", whatsapp],
         ["phone", phone],
-        ["email", email],
         ["web", web],
         ["instagram", instagram],
         ["facebook", facebook],
@@ -361,6 +376,8 @@ export default function BusinessEditPage() {
         schoolName,
         location,
         contact,
+        // Persisted to the private subcollection, not the public doc (#13).
+        email: email.trim(),
         discount,
         tags: cleanTags,
         hours: trimmedHours,
