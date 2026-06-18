@@ -10,11 +10,13 @@ import { useCallback, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
+import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { FormSection } from "@/components/ui/FormSection";
+import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
@@ -55,6 +57,10 @@ export default function NewSchoolPage() {
   const [boardName, setBoardName] = useState("");
   const [boardPhone, setBoardPhone] = useState("");
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  // Profile images (both optional): they fill the avatar and cover slots of the
+  // public page header. Held locally and uploaded inside createSchoolPage.
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   // Any field change marks the form dirty (form-level onChange + the map handler);
   // the guard warns before close/refresh would throw the typed work away.
@@ -123,6 +129,8 @@ export default function NewSchoolPage() {
           phone: boardPhone.trim() || undefined,
         },
         paymentMethods: completeMethods.length ? completeMethods : undefined,
+        photoFile: photoFile ?? undefined,
+        coverFile: coverFile ?? undefined,
       });
       router.push(`/panel?created=${id}`);
     } catch (err) {
@@ -164,6 +172,33 @@ export default function NewSchoolPage() {
               {description.length}/{PAGE_DESCRIPTION_MAX}
             </span>
           </Field>
+        </FormSection>
+
+        <FormSection legend="Presentación (opcional)" boxed>
+          <ImagePicker
+            label="Foto de perfil (opcional)"
+            hint="Se muestra como círculo sobre la portada (escudo o fachada)."
+            value={photoFile}
+            onChange={(file) => {
+              setPhotoFile(file);
+              setDirty(true);
+            }}
+            variant="avatar"
+          />
+
+          <ImagePicker
+            label="Foto de portada (opcional)"
+            hint="Banda ancha arriba de la página (patio, actividades, la comunidad)."
+            value={coverFile}
+            onChange={(file) => {
+              setCoverFile(file);
+              setDirty(true);
+            }}
+            variant="cover"
+          />
+
+          {/* Renders nothing until at least one image is chosen. */}
+          <HeaderPreview cover={coverFile} logo={photoFile} businessName={name} />
         </FormSection>
 
         <FormSection
@@ -243,7 +278,12 @@ export default function NewSchoolPage() {
         <FormError message={error} />
 
         <button type="submit" disabled={saving} className="btn btn-primary">
-          {saving ? "Creando…" : "Crear escuela"}
+          {/* Uploads can take a few seconds on mobile data — say what's happening. */}
+          {saving
+            ? photoFile || coverFile
+              ? "Subiendo imágenes…"
+              : "Creando…"
+            : "Crear escuela"}
         </button>
       </form>
 

@@ -350,6 +350,11 @@ export interface CreateSchoolInput {
   /** Optional payment methods; stored in the private subcollection, hidden until
    * verified. Informational only — the platform never processes payments. */
   paymentMethods?: PaymentMethod[];
+  /** Profile (avatar) image — uploaded to Storage, its URL stored as `photoUrl`. */
+  photoFile?: Blob;
+  /** Cover image — uploaded to Storage, its URL stored as `coverUrl` (the public
+   * page cover; see app/school/[id]). */
+  coverFile?: Blob;
 }
 
 /**
@@ -362,6 +367,19 @@ export async function createSchoolPage(
   input: CreateSchoolInput,
 ): Promise<string> {
   const ref = doc(collection(db, SCHOOLS));
+  // Images go up BEFORE the doc commit: the id already exists client-side, and a
+  // failed upload must fail the whole creation (a page missing the images the owner
+  // picked would publish broken). Files under a never-committed id are unreachable
+  // orphans — harmless. Image changes are not sensitive, so they never affect
+  // verification (the school is born unverified regardless).
+  const [photoUrl, coverUrl] = await Promise.all([
+    input.photoFile
+      ? uploadSchoolImage(ref.id, "photo", input.photoFile)
+      : Promise.resolve(null),
+    input.coverFile
+      ? uploadSchoolImage(ref.id, "cover", input.coverFile)
+      : Promise.resolve(null),
+  ]);
   const batch = writeBatch(db);
   batch.set(ref, {
     name: input.name,
@@ -369,6 +387,8 @@ export async function createSchoolPage(
     thankYouMessage: input.thankYouMessage ?? "",
     location: toLocation(input.location),
     boardContact: input.boardContact,
+    ...(photoUrl ? { photoUrl } : {}),
+    ...(coverUrl ? { coverUrl } : {}),
     status: "pending",
     verified: false,
     verificationStatus: "pending",
