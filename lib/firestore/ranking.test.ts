@@ -9,6 +9,7 @@ import {
   computeSupportSignals,
   countRecentUniqueSupporters,
   isCountingSubscription,
+  recentBusinessSupporterIds,
   isRankingEligible,
   qualityScore,
   scoreBusiness,
@@ -106,6 +107,41 @@ describe("countRecentUniqueSupporters", () => {
       sub({ id: "s2", supporterType: "user", donorId: "same-id", businessId: undefined }),
     ];
     expect(countRecentUniqueSupporters(subs, NOW)).toBe(2);
+  });
+});
+
+describe("recentBusinessSupporterIds", () => {
+  const WINDOW = RECENT_SUPPORT_WINDOW_DAYS * DAY;
+
+  it("returns distinct business ids with recent confirmed support", () => {
+    const subs = [
+      sub({ id: "s1", businessId: "b1" }),
+      sub({ id: "s2", businessId: "b1" }), // renewal of the same business
+      sub({ id: "s3", businessId: "b2" }),
+    ];
+    expect(recentBusinessSupporterIds(subs, NOW)).toEqual(new Set(["b1", "b2"]));
+  });
+
+  it("excludes personal donors (not catalog businesses)", () => {
+    const subs = [
+      sub({ id: "s1", businessId: "b1" }),
+      sub({ id: "s2", supporterType: "user", donorId: "u1", businessId: undefined }),
+    ];
+    expect(recentBusinessSupporterIds(subs, NOW)).toEqual(new Set(["b1"]));
+  });
+
+  it("excludes never-confirmed and pre-window-lapsed support (matches the chip)", () => {
+    const subs = [
+      sub({ id: "s1", businessId: "b1", status: "pending", confirmedAt: null, expiresAt: null }),
+      sub({
+        id: "s2",
+        businessId: "b2",
+        status: "expired",
+        confirmedAt: ts(NOW - 200 * DAY),
+        expiresAt: ts(NOW - WINDOW - DAY),
+      }),
+    ];
+    expect(recentBusinessSupporterIds(subs, NOW)).toEqual(new Set());
   });
 });
 

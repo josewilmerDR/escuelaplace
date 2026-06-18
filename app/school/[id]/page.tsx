@@ -33,6 +33,7 @@ import {
   getSchoolById,
   getSchoolDonorWall,
   isSchoolVerified,
+  recentBusinessSupporterIds,
   schoolCover,
   toBusinessCardData,
 } from "@/lib/firestore";
@@ -110,7 +111,13 @@ export default async function SchoolPage({ params }: Props) {
       return [];
     }),
   ]);
-  const cards = businesses.map(toBusinessCardData);
+  // The list shows only businesses with confirmed, recent support (same predicate as the
+  // recent-supporters chip below) — not every business that merely declares this school —
+  // so "Comercios que apoyan a la escuela" is honest and never contradicts that chip.
+  const supporterIds = recentBusinessSupporterIds(confirmedSubs);
+  const cards = businesses
+    .filter((b) => supporterIds.has(b.id))
+    .map(toBusinessCardData);
   // Cancelled projects are dropped from the public profile; active ones lead and
   // completed ones stay as a track record.
   const projects = allProjects
@@ -400,17 +407,14 @@ export default async function SchoolPage({ params }: Props) {
         </Section>
       )}
 
-      {/* Businesses of the community. Buying from them is the support action an anonymous
-          buyer CAN take without signing in (donating needs an account) — so the empty state
-          points to the wider catalog instead of dead-ending, and the populated state frames
-          the purchase as a way to support the school. */}
+      {/* Businesses that actually support this school (confirmed, recent support — see the
+          `cards` filter above), not every business that merely declares it. Buying from them
+          is the support action an anonymous buyer CAN take without signing in (donating needs
+          an account) — so the empty state points to the wider catalog instead of dead-ending,
+          and the populated state frames the purchase as a way to support the school. */}
       <Section
         id="comercios"
-        title={
-          cards.length > 0
-            ? `Comercios de su comunidad (${cards.length})`
-            : "Comercios de su comunidad"
-        }
+        title="Comercios que apoyan a la escuela"
         description={
           cards.length > 0
             ? "Apoyá a la escuela comprándole a los comercios que ya la apoyan."

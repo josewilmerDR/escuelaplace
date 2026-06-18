@@ -10,7 +10,6 @@
  * (donorProfiles), which is shown publicly only if the donor opts in.
  */
 import { Suspense, useCallback, useEffect, useId, useMemo, useState } from "react";
-import { BackLink } from "@/components/ui/BackLink";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
@@ -68,9 +67,8 @@ function DonateSkeleton() {
         Donar a una escuela
       </h1>
       <p className="mt-1 text-sm text-muted">
-        Tu aporte va directo a la escuela por el medio de pago que ella misma
-        publica; la plataforma nunca toca el dinero. La escuela confirma cada
-        donación.
+        El 100% de tu aporte va directo a la escuela por el medio de pago que
+        ella misma publica; la plataforma nunca toca el dinero.
       </p>
       <div className="mt-6 space-y-3" aria-hidden="true">
         <div className="h-10 animate-pulse rounded-xl bg-surface ring-1 ring-black/5" />
@@ -252,9 +250,8 @@ function DonateContent() {
         Donar a una escuela
       </h1>
       <p className="mt-1 text-sm text-muted">
-        Tu aporte va directo a la escuela por el medio de pago que ella misma
-        publica; la plataforma nunca toca el dinero. La escuela confirma cada
-        donación.
+        El 100% de tu aporte va directo a la escuela por el medio de pago que
+        ella misma publica; la plataforma nunca toca el dinero.
       </p>
 
       {(profile?.tier || (profile?.projectsSupported ?? 0) > 0) && (
@@ -394,10 +391,6 @@ function DonateContent() {
           </ul>
         )}
       </section>
-
-      <p className="mt-8 text-sm">
-        <BackLink href="/panel">Volver al panel</BackLink>
-      </p>
     </main>
   );
 }
