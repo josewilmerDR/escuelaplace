@@ -201,6 +201,8 @@ export interface CreateBusinessInput {
   schoolName: string; // denormalized; "" when no school is linked
   location: LocationInput;
   contact?: BusinessContact;
+  /** Search keywords. Caller normalizes with `normalizeTags` before passing. */
+  tags?: string[];
   /** Profile (avatar) image — uploaded to Storage, its URL stored as `logoUrl`. */
   logoFile?: Blob;
   /** Cover image — uploaded to Storage, its URL stored as `coverUrl` (the public
@@ -313,7 +315,7 @@ export async function createBusinessPage(
     ...(logoUrl ? { logoUrl } : {}),
     ...(coverUrl ? { coverUrl } : {}),
     photos: [],
-    tags: [],
+    tags: input.tags ?? [],
     status: "draft",
     verified: false,
     subscription: { active: false, plan: "", validUntil: null },
