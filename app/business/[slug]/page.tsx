@@ -301,14 +301,15 @@ export default async function BusinessPage({ params }: Props) {
           supportsSchool={Boolean(business.subscription?.active)}
         />
 
-        {/* Section tabs (anchors) with scroll-spy. Only sections that exist. */}
+        {/* Section tabs (anchors) with scroll-spy. Only sections that exist; the order
+            mirrors the document order below — Fotos leads (the merchant's storefront). */}
         <SectionTabs
           sections={[
+            ...(gallery.length > 0 ? [{ id: "fotos", label: "Fotos" }] : []),
             { id: "informacion", label: "Información" },
             ...(supportedSchools.length > 0
               ? [{ id: "escuelas", label: "Escuelas" }]
               : []),
-            ...(gallery.length > 0 ? [{ id: "fotos", label: "Fotos" }] : []),
             { id: "resenas", label: "Reseñas" },
           ]}
         />
@@ -331,6 +332,17 @@ export default async function BusinessPage({ params }: Props) {
             </span>
           </p>
         </div>
+      )}
+
+      {/* Fotos first: merchants use the gallery as a storefront for their products and
+          offers, so it leads the page (right under the header/discount) instead of sitting
+          below Información. */}
+      {gallery.length > 0 && (
+        <Section id="fotos" ariaLabel="Fotos del comercio" title="Fotos">
+          {/* Client island: the grid crops to squares, so the lightbox is the
+              only way to see the full photo. */}
+          <PhotoGallery photos={gallery} businessName={business.name} />
+        </Section>
       )}
 
       {/* Información (FB's intro card) */}
@@ -445,14 +457,6 @@ export default async function BusinessPage({ params }: Props) {
               </li>
             ))}
           </ul>
-        </Section>
-      )}
-
-      {gallery.length > 0 && (
-        <Section id="fotos" ariaLabel="Fotos del comercio" title="Fotos">
-          {/* Client island: the grid crops to squares, so the lightbox is the
-              only way to see the full photo. */}
-          <PhotoGallery photos={gallery} businessName={business.name} />
         </Section>
       )}
 

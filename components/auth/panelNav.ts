@@ -28,6 +28,7 @@ export const PANEL_NAV_ITEMS: PanelNavItem[] = [
   },
   { href: "/panel/new", label: "Crear página" },
   { href: "/panel/donate", label: "Donar a una escuela" },
+  { href: "/panel/donations", label: "Mis donaciones" },
   { href: "/panel/settings", label: "Configuración" },
 ];
 

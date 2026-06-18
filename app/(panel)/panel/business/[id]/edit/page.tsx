@@ -29,7 +29,7 @@ import { PhoneField } from "@/components/ui/PhoneField";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { TagsInput } from "@/components/ui/TagsInput";
 import { normalizeTags, validateBusinessProfile } from "@/lib/business-profile";
-import { buildCatalogUrl, normalizePhoneInternational } from "@/lib/contact";
+import { normalizePhoneInternational } from "@/lib/contact";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { localityLabel } from "@/lib/location";
@@ -92,7 +92,6 @@ export default function BusinessEditPage() {
   // mount-time reverse geocode must not overwrite the stored fields unprompted).
   const [pinMoved, setPinMoved] = useState(false);
   const [whatsapp, setWhatsapp] = useState("");
-  const [catalog, setCatalog] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [web, setWeb] = useState("");
@@ -167,7 +166,6 @@ export default function BusinessEditPage() {
           lng: b.location.geopoint.longitude,
         });
         setWhatsapp(b.contact?.whatsapp ?? "");
-        setCatalog(b.contact?.catalog ?? "");
         setPhone(b.contact?.phone ?? "");
         setEmail(b.contact?.email ?? "");
         setWeb(b.contact?.web ?? "");
@@ -293,12 +291,6 @@ export default function BusinessEditPage() {
       setError("Revisá el número de teléfono: no parece un número marcable.");
       return;
     }
-    if (catalog.trim() && !buildCatalogUrl(catalog)) {
-      setError(
-        "Revisá el catálogo: pegá el enlace wa.me/c/… que da WhatsApp Business o el número que lo tiene.",
-      );
-      return;
-    }
     setError(null);
     setSaved(false);
     setSaving(true);
@@ -318,7 +310,6 @@ export default function BusinessEditPage() {
       const contact: BusinessContact = {};
       const channels: Array<[keyof BusinessContact, string]> = [
         ["whatsapp", whatsapp],
-        ["catalog", catalog],
         ["phone", phone],
         ["email", email],
         ["web", web],
@@ -329,6 +320,9 @@ export default function BusinessEditPage() {
         const value = raw.trim();
         if (value) contact[channel] = value;
       }
+      // The catalog is no longer editable here (its public button was removed), but carry a
+      // stored value through so saving never silently drops it — same as discount.percentage.
+      if (business.contact?.catalog) contact.catalog = business.contact.catalog;
       const trimmedName = name.trim();
       const categoryNames = categories
         .filter((c) => selectedCategories.includes(c.id))
@@ -593,6 +587,7 @@ export default function BusinessEditPage() {
       </ConfirmDialog>
 
       <form
+        id="business-edit-form"
         onSubmit={onSubmit}
         onChange={() => setDirty(true)}
         onInvalidCapture={spanishRequiredMessage}
@@ -636,7 +631,13 @@ export default function BusinessEditPage() {
               <Combobox
                 options={schoolOptions}
                 value={schoolId}
-                onChange={setSchoolId}
+                // The Combobox selects from a portal outside the form's DOM subtree, so its
+                // change never bubbles to the form's onChange — mark dirty here, like the
+                // other off-form controls (TagsInput / ImagePicker / LocationPicker).
+                onChange={(next) => {
+                  setSchoolId(next);
+                  setDirty(true);
+                }}
                 placeholder="Buscá tu escuela por nombre o lugar…"
                 emptyMessage="Ninguna escuela coincide — probá otro nombre o lugar."
               />
@@ -775,14 +776,6 @@ export default function BusinessEditPage() {
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <PhoneField label="WhatsApp" value={whatsapp} onChange={setWhatsapp} />
-            <Field label="Catálogo de WhatsApp Business">
-              <input
-                value={catalog}
-                onChange={(e) => setCatalog(e.target.value)}
-                placeholder="Enlace wa.me/c/… o el número del catálogo"
-                className="input"
-              />
-            </Field>
             <PhoneField label="Teléfono" value={phone} onChange={setPhone} />
             <Field label="Email">
               <input
@@ -890,20 +883,6 @@ export default function BusinessEditPage() {
             )}
           </fieldset>
         </FormSection>
-
-        <FormError message={error} />
-
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={saving || publishing}
-            aria-busy={saving}
-            className="btn btn-primary"
-          >
-            {saving ? "Guardando…" : "Guardar cambios"}
-          </button>
-          <SavedIndicator show={saved} onHide={() => setSaved(false)} />
-        </div>
       </form>
 
       {/* Outside the form: gallery changes publish immediately (upload/remove mutate
@@ -922,6 +901,27 @@ export default function BusinessEditPage() {
           />
         </div>
       </section>
+
+      {/* The save action lives at the very bottom of the page, after the gallery, so it
+          reads as the final step. It's outside the <form> now, so it's reconnected via the
+          form="" attribute (submits the same form); its FormError sits right above it. The
+          wrapper owns the spacing (gap-4 only bites when the error is present, since
+          FormError renders null otherwise — no empty gap when there's no error). */}
+      <div className="mt-10 flex flex-col gap-4">
+        <FormError message={error} />
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            form="business-edit-form"
+            disabled={saving || publishing}
+            aria-busy={saving}
+            className="btn btn-primary"
+          >
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
+          <SavedIndicator show={saved} onHide={() => setSaved(false)} />
+        </div>
+      </div>
 
       <p className="mt-8 text-sm">
         <BackLink href="/panel">Volver al panel</BackLink>
