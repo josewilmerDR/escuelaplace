@@ -1034,6 +1034,90 @@ describe("donorProfiles — write-shape (P1-b)", () => {
   });
 });
 
+// ── confirm transitions (P1-h / #11): contributions confirm ONCE; subscriptions may renew ──
+// The state-machine guard that stops a re-confirm from re-stamping confirmedAt and making the
+// Cloud Function append a DUPLICATE audit event under a fresh trigger event id.
+describe("confirm transitions (P1-h)", () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "businesses", "biz1"), businessDoc("alice"));
+    });
+  });
+
+  const pendingContribution = (over: Record<string, unknown> = {}) => ({
+    schoolId: "sch1",
+    schoolName: "Escuela",
+    projectId: "proj1",
+    projectTitle: "Cancha",
+    type: "money",
+    donorId: "dana",
+    currency: "CRC",
+    status: "pending",
+    confirmedAt: null,
+    ...over,
+  });
+
+  it("ALLOWS the school to confirm a PENDING contribution (pending → confirmed)", async () => {
+    await seed((db) => setDoc(doc(db, "projectContributions", "c1"), pendingContribution()));
+    await assertSucceeds(
+      updateDoc(doc(asUser("bob"), "projectContributions", "c1"), {
+        status: "confirmed",
+        confirmedAt: new Date(),
+        confirmedBy: "bob",
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES RE-confirming an already-confirmed contribution (no duplicate audit)", async () => {
+    await seed((db) =>
+      setDoc(
+        doc(db, "projectContributions", "c1"),
+        pendingContribution({ status: "confirmed", confirmedAt: new Date(), confirmedBy: "bob" }),
+      ),
+    );
+    await assertFails(
+      updateDoc(doc(asUser("bob"), "projectContributions", "c1"), {
+        status: "confirmed",
+        confirmedAt: new Date(Date.now() + 1000),
+        confirmedBy: "bob",
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("ALLOWS the school to RENEW a subscription (confirmed → confirmed re-stamp)", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "subscriptions", "sub1"), {
+        supporterType: "business",
+        businessId: "biz1",
+        businessName: "Comercio",
+        schoolId: "sch1",
+        schoolName: "Escuela",
+        units: 1,
+        amount: 5000,
+        status: "confirmed",
+        confirmedAt: new Date(),
+        firstConfirmedAt: new Date(),
+        expiresAt: new Date(Date.now() + 90 * 86_400_000),
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asUser("bob"), "subscriptions", "sub1"), {
+        status: "confirmed",
+        confirmedAt: new Date(Date.now() + 1000),
+        confirmedBy: "bob",
+        expiresAt: new Date(Date.now() + 180 * 86_400_000),
+        updatedAt: new Date(),
+      }),
+    );
+  });
+});
+
 // ── auditEvents / adminEvents: admin-only read, client-write forbidden ───────
 describe("auditEvents & adminEvents — admin-only read, no client write", () => {
   it("DENIES a non-admin reading auditEvents", async () => {

@@ -28,6 +28,7 @@
  * - recordWalkIn (./track): manager-only counter of walk-in customers who mentioned
  *   escuelaplace at the counter.
  */
+import { createHash } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
@@ -138,14 +139,47 @@ async function confirmationSignals(
 }
 
 /**
+ * A redelivery-stable, document-id-safe audit id derived from the trigger's CloudEvent id:
+ * a SHA-256 hex digest (64 chars of [0-9a-f] — always valid, never contains '/'). The raw
+ * Eventarc event id is NOT guaranteed to satisfy Firestore's doc-id constraints, so we hash it.
+ */
+function auditIdOf(eventId: string): string {
+  return createHash("sha256").update(eventId).digest("hex");
+}
+
+/**
+ * Append an audit row IDEMPOTENTLY, keyed by `auditId` (derived from the event id). 2nd-gen
+ * Firestore triggers are AT-LEAST-ONCE: the same confirmation event can invoke this function
+ * more than once, so a plain `.add()` (fresh auto-id) would mint a DUPLICATE row on redelivery.
+ * `create()` on a stable id rejects with ALREADY_EXISTS (gRPC code 6) when the row already
+ * exists — a redelivery — which we swallow, so exactly one row survives per logical event. A
+ * genuine subscription RENEWAL is a SEPARATE write with a distinct event id, so it still gets
+ * its own row. The catch lives HERE so the audit promise RESOLVES on a duplicate: letting it
+ * reject would fail the whole handler and the platform would retry it forever.
+ */
+async function appendAuditOnce(
+  auditId: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await db.collection(AUDIT_EVENTS).doc(auditId).create(payload);
+  } catch (err) {
+    if ((err as { code?: number }).code === 6) return; // ALREADY_EXISTS — redelivery, no-op
+    throw err; // a real failure — surface it (retried only if retry is enabled)
+  }
+}
+
+/**
  * Append a non-sensitive audit event for a SUBSCRIPTION confirmation — the admin's fraud
  * pattern-review trail AND the feature store for the planned risk-scoring layer. Records WHO
  * confirmed, WHEN, the support magnitude (a COUNT), and the deterministic collusion signals —
  * NEVER the payment proof or any money figure. Names are denormalized so the admin UI renders
  * without N+1 reads. `auditEvents` has no trigger so this never cascades; firestore.rules deny
- * all client access (admin-only read, Cloud-Function-only write).
+ * all client access (admin-only read, Cloud-Function-only write). Idempotent on `auditId` so an
+ * at-least-once redelivery of the same confirmation doesn't double-append (see appendAuditOnce).
  */
 async function recordSubscriptionAudit(
+  auditId: string,
   subscriptionId: string,
   data: Record<string, unknown>,
 ): Promise<void> {
@@ -175,7 +209,7 @@ async function recordSubscriptionAudit(
     units = (data.units as number) ?? 0;
   }
 
-  await db.collection(AUDIT_EVENTS).add({
+  await appendAuditOnce(auditId, {
     type: "subscription_confirmed",
     subscriptionId,
     supporterType,
@@ -199,6 +233,7 @@ async function recordSubscriptionAudit(
  * only the relationship and the project funded.
  */
 async function recordContributionAudit(
+  auditId: string,
   contributionId: string,
   data: Record<string, unknown>,
 ): Promise<void> {
@@ -208,7 +243,7 @@ async function recordContributionAudit(
   const confirmedBy = (data.confirmedBy as string | undefined) ?? null;
   const supporterPrincipals = new Set([donorId]);
 
-  await db.collection(AUDIT_EVENTS).add({
+  await appendAuditOnce(auditId, {
     type: "project_contribution_confirmed",
     contributionId,
     supporterType: "user",
@@ -446,7 +481,7 @@ export const onSubscriptionWritten = onDocumentWritten(
     const audit =
       after?.confirmedAt != null &&
       tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt)
-        ? recordSubscriptionAudit(event.params.id, after)
+        ? recordSubscriptionAudit(auditIdOf(event.id), event.params.id, after)
         : Promise.resolve();
 
     await Promise.all([
@@ -578,7 +613,7 @@ export const onProjectContributionWritten = onDocumentWritten(
     const audit =
       after?.confirmedAt != null &&
       tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt)
-        ? recordContributionAudit(event.params.id, after)
+        ? recordContributionAudit(auditIdOf(event.id), event.params.id, after)
         : Promise.resolve();
 
     await Promise.all([
