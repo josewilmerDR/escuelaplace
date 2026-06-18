@@ -23,6 +23,7 @@ import {
   limit as fbLimit,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
   where,
@@ -319,18 +320,23 @@ export async function confirmSubscription(
   durationDays: number = SUBSCRIPTION_CONFIRMATION_DAYS,
 ): Promise<void> {
   const ref = doc(db, SUBSCRIPTIONS, id);
-  const existing = (await getDoc(ref)).data();
-  // Never confirmed before → this confirmation is the school's first response. A
-  // legacy doc already confirmed (renewal without firstConfirmedAt) keeps it absent:
-  // stamping "now" there would fake a slow response.
-  const isFirstConfirmation = existing?.confirmedAt == null;
-  await updateDoc(ref, {
-    status: "confirmed",
-    confirmedAt: serverTimestamp(),
-    ...(isFirstConfirmation ? { firstConfirmedAt: serverTimestamp() } : {}),
-    confirmedBy,
-    expiresAt: Timestamp.fromMillis(Date.now() + durationDays * DAY_MS),
-    updatedAt: serverTimestamp(),
+  // Read-decide-write ATOMICALLY: the firstConfirmedAt decision depends on the current
+  // confirmedAt, so a plain getDoc()+updateDoc() has a TOCTOU window — two board members
+  // confirming the same pending sub at once could both treat their write as "the first" and
+  // both stamp firstConfirmedAt. A transaction collapses that race. Never confirmed before →
+  // this is the school's first response; a renewal (already confirmed) intentionally re-stamps
+  // confirmedAt and pushes expiresAt forward, but never re-stamps firstConfirmedAt.
+  await runTransaction(db, async (tx) => {
+    const existing = (await tx.get(ref)).data();
+    const isFirstConfirmation = existing?.confirmedAt == null;
+    tx.update(ref, {
+      status: "confirmed",
+      confirmedAt: serverTimestamp(),
+      ...(isFirstConfirmation ? { firstConfirmedAt: serverTimestamp() } : {}),
+      confirmedBy,
+      expiresAt: Timestamp.fromMillis(Date.now() + durationDays * DAY_MS),
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 

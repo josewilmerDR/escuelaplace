@@ -571,7 +571,8 @@ service cloud.firestore {
       );
 
       allow update: if isAdmin() || (
-        keepsContributionIdentity() && validContributionUpdate() && (
+        keepsContributionIdentity() && validContributionUpdate() &&
+        confirmsContributionFromPending() && (
           isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
           (isSignedIn() &&
             resource.data.donorId == request.auth.uid &&
@@ -622,6 +623,17 @@ service cloud.firestore {
     function changesContributionConfirmation() {
       return request.resource.data.status != resource.data.status ||
         request.resource.data.confirmedAt != resource.data.confirmedAt;
+    }
+
+    // A contribution is confirmed exactly ONCE (pending → confirmed; no renewal, unlike a
+    // subscription). A write that sets status to 'confirmed' is allowed only FROM a pending doc,
+    // so the school can't RE-CONFIRM an already-confirmed contribution — a re-confirm would
+    // re-stamp confirmedAt and make the Cloud Function append a DUPLICATE audit event under a
+    // fresh trigger event id (which the function-side event.id dedup can't catch). Admin keeps the
+    // correction capability (it bypasses this whole arm). Closes #11 for contributions. (P1-h)
+    function confirmsContributionFromPending() {
+      return request.resource.data.status != 'confirmed' ||
+        resource.data.status == 'pending';
     }
 
     // P1-b write-shape validation for projectContributions (non-admin arm only). CREATE pins
