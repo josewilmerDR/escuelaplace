@@ -97,6 +97,25 @@ export function isRankingEligible(
 export const RECENT_SUPPORT_WINDOW_DAYS = 30;
 
 /**
+ * True if a confirmed subscription still counts as "recent support" at nowMs: confirmed
+ * in the past and not lapsed *before* the RECENT_SUPPORT_WINDOW_DAYS window (support that
+ * lapsed *inside* the window still counts — the school did receive that help recently).
+ * Shared by the recent-supporters chip and the public "comercios que apoyan" list so the
+ * two never disagree (e.g. an affiliated business with no confirmed support is in neither).
+ */
+export function isRecentConfirmedSupport(
+  sub: SubscriptionDoc,
+  nowMs: number = Date.now(),
+): boolean {
+  const confirmedMs = sub.confirmedAt?.toMillis?.() ?? null;
+  if (confirmedMs == null || confirmedMs > nowMs) return false; // never confirmed
+  const windowStartMs = nowMs - RECENT_SUPPORT_WINDOW_DAYS * DAY_MS;
+  const expMs = sub.expiresAt?.toMillis?.() ?? null;
+  if (expMs != null && expMs <= windowStartMs) return false; // lapsed before the window
+  return true;
+}
+
+/**
  * Distinct supporters (business pages + personal donors) whose confirmed support was
  * active at some point during the last RECENT_SUPPORT_WINDOW_DAYS. Unlike
  * isCountingSubscription (a point-in-time check), support that lapsed *inside* the
@@ -107,19 +126,34 @@ export function countRecentUniqueSupporters(
   subscriptions: SubscriptionDoc[],
   nowMs: number = Date.now(),
 ): number {
-  const windowStartMs = nowMs - RECENT_SUPPORT_WINDOW_DAYS * DAY_MS;
   const supporters = new Set<string>();
   for (const sub of subscriptions) {
-    const confirmedMs = sub.confirmedAt?.toMillis?.() ?? null;
-    if (confirmedMs == null || confirmedMs > nowMs) continue; // never confirmed
-    const expMs = sub.expiresAt?.toMillis?.() ?? null;
-    if (expMs != null && expMs <= windowStartMs) continue; // lapsed before the window
+    if (!isRecentConfirmedSupport(sub, nowMs)) continue;
     // Absent supporterType = legacy business subscription (see SupporterType).
     const isDonor = sub.supporterType === "user";
     const supporterId = isDonor ? sub.donorId : sub.businessId;
     if (supporterId) supporters.add(`${isDonor ? "u" : "b"}:${supporterId}`);
   }
   return supporters.size;
+}
+
+/**
+ * Business ids with recent confirmed support for the school — the set that backs the
+ * public "Comercios que apoyan a la escuela" list, so it shows only businesses that
+ * actually support the school (not every business that merely declares it). Donors are
+ * excluded: they are people, not catalog pages.
+ */
+export function recentBusinessSupporterIds(
+  subscriptions: SubscriptionDoc[],
+  nowMs: number = Date.now(),
+): Set<string> {
+  const ids = new Set<string>();
+  for (const sub of subscriptions) {
+    if (!isRecentConfirmedSupport(sub, nowMs)) continue;
+    if (sub.supporterType === "user") continue; // donors aren't catalog businesses
+    if (sub.businessId) ids.add(sub.businessId);
+  }
+  return ids;
 }
 
 /** Sample size for the "typically confirms in ~X" responsiveness signal. */
