@@ -1,6 +1,7 @@
 import { PhotoGallery } from "@/components/business/PhotoGallery";
 import { PaperClipIcon } from "@/components/ui/icons";
 import { formatMoney } from "@/lib/format";
+import { safeExternalUrls } from "@/lib/url";
 import type { ProjectStage } from "@/types";
 
 /**
@@ -19,6 +20,11 @@ export function ProjectStageItem({
   currency: string;
   projectTitle: string;
 }) {
+  // Quote attachments are normally Firebase Storage download URLs, but they ride raw inside
+  // the stages[] array (Firestore rules can't validate list elements), so a raw SDK write
+  // could plant a javascript:/data: href that runs for anonymous visitors. Render only the
+  // http(s) ones (see safeExternalUrls / finding #15).
+  const quoteUrls = safeExternalUrls(stage.quoteUrls);
   return (
     // Inset panel inside the white article card: a soft surface fill + hairline ring
     // reads as a nested block without stacking white-on-white.
@@ -57,9 +63,9 @@ export function ProjectStageItem({
         </div>
       )}
 
-      {stage.quoteUrls && stage.quoteUrls.length > 0 && (
+      {quoteUrls.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-3 text-sm">
-          {stage.quoteUrls.map((url, qi) => (
+          {quoteUrls.map((url, qi) => (
             <li key={qi}>
               <a
                 href={url}
@@ -70,7 +76,7 @@ export function ProjectStageItem({
               >
                 <PaperClipIcon className="h-4 w-4" />
                 Ver cotización
-                {stage.quoteUrls!.length > 1 ? ` ${qi + 1}` : ""}
+                {quoteUrls.length > 1 ? ` ${qi + 1}` : ""}
               </a>
             </li>
           ))}

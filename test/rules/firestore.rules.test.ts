@@ -419,6 +419,92 @@ describe("businesses — ownership & computed-field immutability", () => {
   });
 });
 
+// ── businesses/{id}/private/data: owner email kept OFF the world-readable doc (#13) ───────────
+// The business doc itself is world-readable (public catalog), but the owner's contact email is
+// rendered on no public page. Relocating it here means an anonymous scrape of `businesses` no
+// longer harvests it. Owner/editors/admin only; never anonymous.
+describe("businesses/{id}/private/data — owner contact email (#13)", () => {
+  it("ALLOWS the owner to write their private contact data", async () => {
+    await seed((db) => setDoc(doc(db, "businesses", "biz1"), businessDoc("alice")));
+    await assertSucceeds(
+      setDoc(doc(asUser("alice"), "businesses", "biz1", "private", "data"), {
+        email: "owner@example.com",
+      }),
+    );
+  });
+
+  it("ALLOWS an editor to write the private contact data", async () => {
+    await seed((db) =>
+      setDoc(
+        doc(db, "businesses", "biz1"),
+        businessDoc("alice", { editorIds: ["edith"] }),
+      ),
+    );
+    await assertSucceeds(
+      setDoc(doc(asUser("edith"), "businesses", "biz1", "private", "data"), {
+        email: "owner@example.com",
+      }),
+    );
+  });
+
+  it("DENIES a signed-in non-owner writing the private contact data", async () => {
+    await seed((db) => setDoc(doc(db, "businesses", "biz1"), businessDoc("alice")));
+    await assertFails(
+      setDoc(doc(asUser("mallory"), "businesses", "biz1", "private", "data"), {
+        email: "evil@example.com",
+      }),
+    );
+  });
+
+  it("ALLOWS the owner to read their private contact data", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, "businesses", "biz1"), businessDoc("alice"));
+      await setDoc(doc(db, "businesses", "biz1", "private", "data"), {
+        email: "owner@example.com",
+      });
+    });
+    await assertSucceeds(
+      getDoc(doc(asUser("alice"), "businesses", "biz1", "private", "data")),
+    );
+  });
+
+  it("DENIES anonymous reads of the private contact data (the #13 scrape gate)", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, "businesses", "biz1"), businessDoc("alice"));
+      await setDoc(doc(db, "businesses", "biz1", "private", "data"), {
+        email: "owner@example.com",
+      });
+    });
+    await assertFails(
+      getDoc(doc(asAnon(), "businesses", "biz1", "private", "data")),
+    );
+  });
+
+  it("DENIES a signed-in non-owner reading the private contact data", async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, "businesses", "biz1"), businessDoc("alice"));
+      await setDoc(doc(db, "businesses", "biz1", "private", "data"), {
+        email: "owner@example.com",
+      });
+    });
+    await assertFails(
+      getDoc(doc(asUser("bob"), "businesses", "biz1", "private", "data")),
+    );
+  });
+
+  it("ALLOWS an admin to read and write the private contact data", async () => {
+    await seed((db) => setDoc(doc(db, "businesses", "biz1"), businessDoc("alice")));
+    await assertSucceeds(
+      setDoc(doc(asClaimAdmin("root"), "businesses", "biz1", "private", "data"), {
+        email: "owner@example.com",
+      }),
+    );
+    await assertSucceeds(
+      getDoc(doc(asClaimAdmin("root"), "businesses", "biz1", "private", "data")),
+    );
+  });
+});
+
 // ── subscriptions: the supporter creates pending; only the school confirms ───
 describe("subscriptions — create pending, no self-confirm", () => {
   const pendingSub = (over: Record<string, unknown> = {}) => ({

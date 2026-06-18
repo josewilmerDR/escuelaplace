@@ -45,10 +45,27 @@ export interface BusinessContact {
    */
   catalog?: string;
   phone?: string;
-  email?: string;
+  // NOTE: the owner's contact `email` is NOT here. It is rendered on no public surface, so
+  // keeping it in this world-readable map made it a harvestable email in every catalog scrape
+  // (#13). It now lives in the private subcollection (see BusinessPrivate). Legacy docs may
+  // still carry a stale `contact.email` at runtime; the edit form migrates it to private on
+  // the next save (and the public write replaces the whole map, scrubbing it).
   web?: string;
   instagram?: string;
   facebook?: string;
+}
+
+/**
+ * Private subcollection: businesses/{id}/private/data
+ * Owner-only contact details kept OFF the world-readable business doc. Currently just the
+ * contact email: captured for the owner but shown on no public page, so it would otherwise
+ * be a harvestable email in every scrape of the catalog (finding #13). Readable/writable by
+ * the business owner/editors and admin only (see firestore.rules) — never public, unlike the
+ * business doc itself.
+ */
+export interface BusinessPrivate {
+  /** Owner's contact email, relocated here from the public `contact` map. */
+  email?: string;
 }
 
 export interface Discount {

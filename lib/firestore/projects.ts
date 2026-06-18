@@ -34,6 +34,7 @@ import {
   uploadBytes,
 } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
+import { safeExternalUrls } from "@/lib/url";
 import type {
   Project,
   ProjectContribution,
@@ -282,6 +283,22 @@ export interface CreateProjectInput {
 }
 
 /**
+ * Strip any quote URL whose scheme isn't http(s) before a stage is persisted. quoteUrls are
+ * Firebase Storage download URLs in the normal flow, but they ride raw inside the stages[]
+ * array — which Firestore rules can't validate element-by-element — so this is the write-side
+ * half of the defense against a smuggled javascript:/data: href (the render-side guard is
+ * safeExternalUrls; see finding #15). Photos render through next/image (remotePatterns-gated),
+ * so they're left untouched.
+ */
+function sanitizeStages(stages: ProjectStage[]): ProjectStage[] {
+  return stages.map((stage) =>
+    stage.quoteUrls
+      ? { ...stage, quoteUrls: safeExternalUrls(stage.quoteUrls) }
+      : stage,
+  );
+}
+
+/**
  * Create an `active` project under a school. Must be called by the school owner/editor (the
  * rules enforce it). `raised`/`contributorsCount` start at 0 and are maintained by the
  * Cloud Function; `ownerId`/`schoolName` are denormalized from the school. Returns the id.
@@ -299,7 +316,7 @@ export async function createProject(
     description: input.description,
     currency: input.currency,
     status: "active",
-    stages: input.stages,
+    stages: sanitizeStages(input.stages),
     raised: 0,
     contributorsCount: 0,
     ownerId,
@@ -327,6 +344,8 @@ export async function updateProject(
 ): Promise<void> {
   await updateDoc(doc(db, SCHOOLS, schoolId, PROJECTS, projectId), {
     ...patch,
+    // Override patch.stages with the scheme-sanitized copy when the patch carries stages.
+    ...(patch.stages ? { stages: sanitizeStages(patch.stages) } : {}),
     updatedAt: serverTimestamp(),
   });
 }
