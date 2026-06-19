@@ -386,7 +386,7 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['sale']) ||
           request.resource.data.sale is map) &&
         (!request.resource.data.keys().hasAny(['service']) ||
-          request.resource.data.service is map);
+          request.resource.data['service'] is map);
     }
     function validToolUpdate() {
       return keepsOwner() &&
@@ -411,7 +411,7 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['sale']) ||
           request.resource.data.sale is map) &&
         (!request.resource.data.keys().hasAny(['service']) ||
-          request.resource.data.service is map) &&
+          request.resource.data['service'] is map) &&
         (!request.resource.data.keys().hasAny(['cta']) ||
           (request.resource.data.cta is map &&
             request.resource.data.cta.label is string &&
