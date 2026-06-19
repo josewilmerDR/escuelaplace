@@ -1012,6 +1012,92 @@ export interface ServiceConfig {
   contactPhone?: string;
 }
 
+// ── Bingo (type: 'bingo') — a card-based fundraiser game ──────────────────────
+//
+// A bingo sells cartones (cards): each a grid of distinct random numbers. The lote (often
+// 100+) lives in a SUBCOLLECTION schools/{id}/tools/{toolId}/cards (one doc per cartón) so the
+// public tool doc stays light; the config below lives on the tool doc under `bingo`. Buyers
+// reserve a QUANTITY of cartones (bingoOrders) and pay the school directly; the school confirms
+// the proof and ASSIGNS that many available cartones to the buyer. PURELY INFORMATIONAL like
+// every tool — the platform never processes money. Phase 1 covers setup + selling + assignment;
+// the live event (called numbers, claims, validation) is phase 2.
+
+/** Lote size + grid bounds + per-pattern prize cap. Enforced by the panel UI, not by rules. */
+export const BINGO_CARD_MAX = 1000;
+export const BINGO_GRID_MIN = 3;
+export const BINGO_GRID_MAX = 9;
+export const BINGO_LABEL_MAX = 40;
+export const BINGO_PRIZE_MAX = 80;
+export const BINGO_METHOD_MAX = 140;
+/** Defensive cap on one order's quantity (anti-typo; the platform never moves money). */
+export const BINGO_ORDER_QTY_MAX = 100;
+
+/** A winning shape on a cartón. A "line" means a COMPLETE row/column/diagonal; `full` = the
+ * whole cartón marked. The organizer enables which ones count, each with its prize. */
+export type BingoPattern = "row" | "column" | "diagonal" | "full";
+
+export const BINGO_PATTERNS: BingoPattern[] = ["row", "column", "diagonal", "full"];
+
+/** Spanish labels for the patterns (the only screen-visible part of the enum). */
+export const BINGO_PATTERN_LABELS: Record<BingoPattern, string> = {
+  row: "Línea horizontal",
+  column: "Línea vertical",
+  diagonal: "Diagonal",
+  full: "Cartón lleno",
+};
+
+/** The cartón grid + number pool. Every cell holds a distinct number in [poolMin, poolMax];
+ * a valid format needs the pool size (poolMax − poolMin + 1) to be ≥ rows*cols. */
+export interface BingoFormat {
+  rows: number;
+  cols: number;
+  poolMin: number;
+  poolMax: number;
+}
+
+/** One enabled winning pattern and what its winner gets. */
+export interface BingoWinningPattern {
+  pattern: BingoPattern;
+  prize: string;
+}
+
+export interface BingoConfig {
+  format: BingoFormat;
+  /** Enabled winning patterns, in play order; at least one required. */
+  patterns: BingoWinningPattern[];
+  /** Price the school charges per cartón, in `currency`. Informational — the platform never
+   * collects it; it only labels the total the buyer pays the school directly. */
+  pricePerCard: number;
+  currency: ProjectCurrency;
+  /** When the live event happens (optional, informational). */
+  eventDate?: Timestamp;
+  /** "Modalidad": how the bingo is run/announced (free text, optional). */
+  drawMethod?: string;
+  /** Optional WhatsApp for questions; empty falls back to the school's board phone. */
+  contactPhone?: string;
+}
+
+export type BingoCardStatus = "available" | "sold";
+
+/** One cartón of a bingo lote, a doc in schools/{id}/tools/{toolId}/cards/{cardId}. `numbers`
+ * is row-major (length rows*cols), distinct, within the format's pool. Cards are written ONLY
+ * by the school (the numbers are integrity-critical; a buyer never edits them); a card is
+ * assigned to a buyer when their order is confirmed. */
+export interface BingoCard {
+  /** Printed serial/identifier shown to players (e.g. "001"). */
+  label: string;
+  /** Row-major grid numbers, length = rows*cols, distinct, within the pool. */
+  numbers: number[];
+  status: BingoCardStatus;
+  /** The confirmed bingoOrder that owns this cartón (set on assignment). */
+  soldOrderId?: string;
+  /** The buyer who owns this cartón (= that order's buyerId), for the buyer's "my cards" view. */
+  ownerId?: string;
+  createdAt: Timestamp;
+}
+
+export type BingoCardDoc = BingoCard & { id: string };
+
 export interface Tool {
   /** Denormalized parent id (the doc lives under the school; kept for the detail page and
    * any query that starts from a tool). */
@@ -1036,6 +1122,9 @@ export interface Tool {
   sale?: SaleConfig;
   /** Present only when `type === 'service'`: the service catalog. */
   service?: ServiceConfig;
+  /** Present only when `type === 'bingo'`: the bingo's configuration (cartones live in a
+   * subcollection, not here). */
+  bingo?: BingoConfig;
   status: ToolStatus;
   /** Denormalized from the school so rules/UI resolve the board without an extra read. */
   ownerId: string;
@@ -1121,6 +1210,45 @@ export interface ProductOrder {
 }
 
 export type ProductOrderDoc = ProductOrder & { id: string };
+
+// ── bingoOrders/{orderId} ────────────────────────────────────────────────────
+//
+// A buyer's reservation of N cartones from a bingo (a tool of `type: 'bingo'`), awaiting the
+// school's payment confirmation. Top-level (like raffleOrders/productOrders) so its proof file
+// and private subdoc resolve by id alone. The buyer's real name and the amount live in a
+// PRIVATE subdoc (bingoOrders/{id}/private/data) — off the public doc. The buyer reserves a
+// QUANTITY (not specific cartones); the school assigns that many available cartones on confirm,
+// recording their ids in `cardIds`.
+
+export type BingoOrderStatus = "pending" | "confirmed";
+
+export interface BingoOrder {
+  schoolId: string;
+  schoolName: string;
+  toolId: string;
+  /** Denormalized bingo title so the confirmation queue renders without an extra read. */
+  toolTitle: string;
+  /** The buyer (must equal auth.uid on create). */
+  buyerId: string;
+  /** Cartones requested (integer ≥ 1). */
+  quantity: number;
+  currency: ProjectCurrency;
+  status: BingoOrderStatus;
+  /** The cartones assigned to the buyer, set by the school on confirmation. */
+  cardIds?: string[];
+  confirmedAt: Timestamp | null;
+  confirmedBy?: string;
+  /** Whether a payment proof was uploaded to Storage (the file itself stays private). */
+  proofUploaded?: boolean;
+  /** Merged in CLIENT-SIDE from the private subdoc for the board's queue — NEVER on the public
+   * doc (firestore.rules excludes them). */
+  buyerName?: string;
+  amount?: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type BingoOrderDoc = BingoOrder & { id: string };
 
 // ── projectContributions/{id} ────────────────────────────────────────────────
 

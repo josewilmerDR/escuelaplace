@@ -17,6 +17,7 @@ export type SchoolPanelSection =
   | "tools"
   | "raffle-orders"
   | "product-orders"
+  | "bingo-orders"
   | "project-contributions";
 
 const SECTIONS: { key: SchoolPanelSection; label: string }[] = [
@@ -26,6 +27,7 @@ const SECTIONS: { key: SchoolPanelSection; label: string }[] = [
   { key: "tools", label: "Herramientas" },
   { key: "raffle-orders", label: "Rifas" },
   { key: "product-orders", label: "Pedidos" },
+  { key: "bingo-orders", label: "Bingos" },
   { key: "project-contributions", label: "Aportes a proyectos" },
 ];
 

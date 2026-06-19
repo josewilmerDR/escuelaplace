@@ -309,3 +309,39 @@ describe("storage: project-contribution proof", () => {
     await assertFails(getBytes(ref(storageOf(), proof)));
   });
 });
+
+describe("storage: bingo-order proof", () => {
+  const proof = "bingo-order-proofs/o1/proof";
+
+  beforeEach(async () => {
+    await seedFirestore(async (db) => {
+      await setDoc(doc(db, "bingoOrders", "o1"), {
+        buyerId: "dana",
+        schoolId: "sch1",
+      });
+      await setDoc(doc(db, "schools", "sch1"), { ownerId: "bob", editorIds: [] });
+    });
+  });
+
+  it("ALLOWS the buyer to write and read their own proof", async () => {
+    await assertSucceeds(put(storageOf("dana"), proof, PDF));
+    await assertSucceeds(getBytes(ref(storageOf("dana"), proof)));
+  });
+
+  it("ALLOWS the target school's owner to READ but NOT write the proof", async () => {
+    await seedObject(proof);
+    await assertSucceeds(getBytes(ref(storageOf("bob"), proof)));
+    await assertFails(put(storageOf("bob"), proof, PDF));
+  });
+
+  it("DENIES the buyer uploading a wrong type or an over-cap proof (write-shape)", async () => {
+    await assertFails(put(storageOf("dana"), proof, "application/octet-stream"));
+    await assertFails(put(storageOf("dana"), proof, PDF, ASSET_MAX + 1));
+  });
+
+  it("DENIES a stranger and anonymous reads of the proof", async () => {
+    await seedObject(proof);
+    await assertFails(getBytes(ref(storageOf("mallory"), proof)));
+    await assertFails(getBytes(ref(storageOf(), proof)));
+  });
+});

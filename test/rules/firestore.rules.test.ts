@@ -1255,3 +1255,163 @@ describe("public catalog — anonymous reads stay open", () => {
 it("rules file is non-empty", () => {
   expect(readFileSync("firestore.rules", "utf8").length).toBeGreaterThan(100);
 });
+
+// ── bingo cartones (cards) + bingoOrders ─────────────────────────────────────
+describe("bingo cards subcollection — public read, school-only write", () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "schools", "sch1", "tools", "tool1", "cards", "card1"), {
+        label: "001",
+        numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        status: "available",
+        createdAt: new Date(),
+      });
+    });
+  });
+
+  it("ALLOWS anyone to read a cartón (numbers aren't secret)", async () => {
+    await assertSucceeds(
+      getDoc(doc(asAnon(), "schools", "sch1", "tools", "tool1", "cards", "card1")),
+    );
+  });
+
+  it("ALLOWS the school to assign a cartón (status/owner update)", async () => {
+    await assertSucceeds(
+      updateDoc(
+        doc(asUser("bob"), "schools", "sch1", "tools", "tool1", "cards", "card1"),
+        { status: "sold", soldOrderId: "o1", ownerId: "dana" },
+      ),
+    );
+  });
+
+  it("DENIES a buyer/stranger writing a cartón (numbers are integrity-critical)", async () => {
+    await assertFails(
+      updateDoc(
+        doc(asUser("mallory"), "schools", "sch1", "tools", "tool1", "cards", "card1"),
+        { numbers: [9, 9, 9, 9, 9, 9, 9, 9, 9] },
+      ),
+    );
+  });
+});
+
+describe("bingoOrders — create when verified, school-only confirm + assign", () => {
+  const bingoOrder = (over: Record<string, unknown> = {}) => ({
+    schoolId: "sch1",
+    schoolName: "Escuela",
+    toolId: "tool1",
+    toolTitle: "Bingo",
+    buyerId: "dana",
+    quantity: 3,
+    currency: "CRC",
+    status: "pending",
+    confirmedAt: null,
+    ...over,
+  });
+
+  it("ALLOWS the buyer to create a pending order to a verified school", async () => {
+    await seed((db) =>
+      setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      ),
+    );
+    await assertSucceeds(
+      addDoc(collection(asUser("dana"), "bingoOrders"), bingoOrder()),
+    );
+  });
+
+  it("DENIES creating an order when the school is NOT verified", async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("bob")));
+    await assertFails(
+      addDoc(collection(asUser("dana"), "bingoOrders"), bingoOrder()),
+    );
+  });
+
+  it("DENIES creating an order in someone else's name", async () => {
+    await seed((db) =>
+      setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      ),
+    );
+    await assertFails(
+      addDoc(collection(asUser("mallory"), "bingoOrders"), bingoOrder()),
+    );
+  });
+
+  it("ALLOWS the school to confirm + assign cartones (pending → confirmed)", async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "bingoOrders", "o1"), bingoOrder());
+    });
+    await assertSucceeds(
+      updateDoc(doc(asUser("bob"), "bingoOrders", "o1"), {
+        status: "confirmed",
+        confirmedAt: new Date(),
+        confirmedBy: "bob",
+        cardIds: ["card1", "card2", "card3"],
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES the buyer self-confirming their order", async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "bingoOrders", "o1"), bingoOrder());
+    });
+    await assertFails(
+      updateDoc(doc(asUser("dana"), "bingoOrders", "o1"), {
+        status: "confirmed",
+        confirmedAt: new Date(),
+        confirmedBy: "dana",
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES the buyer assigning cartones to themselves (cardIds is school-only)", async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "bingoOrders", "o1"), bingoOrder());
+    });
+    await assertFails(
+      updateDoc(doc(asUser("dana"), "bingoOrders", "o1"), {
+        cardIds: ["card1", "card2", "card3"],
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("ALLOWS the buyer to write their private name+amount, DENIES a stranger reading it", async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "bingoOrders", "o1"), bingoOrder());
+    });
+    await assertSucceeds(
+      setDoc(doc(asUser("dana"), "bingoOrders", "o1", "private", "data"), {
+        buyerName: "Dana",
+        amount: 4500,
+      }),
+    );
+    await assertFails(
+      getDoc(doc(asUser("mallory"), "bingoOrders", "o1", "private", "data")),
+    );
+  });
+});

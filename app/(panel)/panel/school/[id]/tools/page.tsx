@@ -16,6 +16,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import {
+  BingoConfigFields,
+  emptyBingoForm,
+  toBingoInput,
+  type BingoFormValue,
+} from "@/components/tools/BingoConfigFields";
+import {
   RaffleConfigFields,
   emptyRaffleForm,
   toRaffleInput,
@@ -143,6 +149,7 @@ export default function SchoolToolsPage() {
   const [saleForm, setSaleForm] = useState<SaleFormValue>(emptySaleForm);
   const [serviceForm, setServiceForm] =
     useState<ServiceFormValue>(emptyServiceForm);
+  const [bingoForm, setBingoForm] = useState<BingoFormValue>(emptyBingoForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -268,6 +275,14 @@ export default function SchoolToolsPage() {
       return;
     }
     const service = serviceResult?.ok ? serviceResult.input : undefined;
+    // A bingo carries its configuration (format + winning patterns + price); the cartones (lote)
+    // are generated/imported on the edit page after creation.
+    const bingoResult = type === "bingo" ? toBingoInput(bingoForm) : null;
+    if (bingoResult && !bingoResult.ok) {
+      setError(bingoResult.error);
+      return;
+    }
+    const bingo = bingoResult?.ok ? bingoResult.input : undefined;
     setSaving(true);
     setError(null);
     try {
@@ -279,6 +294,7 @@ export default function SchoolToolsPage() {
         ...(tour ? { tour } : {}),
         ...(sale ? { sale } : {}),
         ...(service ? { service } : {}),
+        ...(bingo ? { bingo } : {}),
       });
       // Straight to the edit page (with ?created=1) so the board can add the cover, dates and
       // the call-to-action link.
@@ -365,6 +381,7 @@ export default function SchoolToolsPage() {
                 if (t !== "guided_tour") setTourForm(emptyTourForm());
                 if (t !== "sale") setSaleForm(emptySaleForm());
                 if (t !== "service") setServiceForm(emptyServiceForm());
+                if (t !== "bingo") setBingoForm(emptyBingoForm());
               }}
             />
           </div>
@@ -426,6 +443,15 @@ export default function SchoolToolsPage() {
             </div>
           )}
 
+          {type === "bingo" && (
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Configuración del bingo
+              </p>
+              <BingoConfigFields value={bingoForm} onChange={setBingoForm} />
+            </div>
+          )}
+
           <FormError message={error} />
 
           <button type="submit" disabled={saving} className="btn btn-primary">
@@ -439,7 +465,9 @@ export default function SchoolToolsPage() {
                     ? "Crear productos"
                     : type === "service"
                       ? "Crear servicios"
-                      : "Crear herramienta"}
+                      : type === "bingo"
+                        ? "Crear bingo"
+                        : "Crear herramienta"}
           </button>
         </form>
       </section>

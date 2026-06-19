@@ -33,6 +33,9 @@ import { db, storage } from "@/lib/firebase";
 import { formatDate } from "@/lib/format";
 import { safeExternalUrl } from "@/lib/url";
 import type {
+  BingoConfig,
+  BingoFormat,
+  BingoWinningPattern,
   ProjectCurrency,
   RaffleConfig,
   SaleConfig,
@@ -291,6 +294,40 @@ function buildServiceConfig(input: ServiceConfigInput): ServiceConfig {
   };
 }
 
+/** Form-shaped bingo config — dates as Date, the rest already trimmed/parsed. The cartones
+ * (lote) are NOT here; they live in a subcollection managed by lib/firestore/bingo-cards. */
+export interface BingoConfigInput {
+  format: BingoFormat;
+  /** Enabled winning patterns (≥1), each with its prize. */
+  patterns: BingoWinningPattern[];
+  pricePerCard: number;
+  currency: ProjectCurrency;
+  eventDate?: Date | null;
+  drawMethod?: string;
+  contactPhone?: string;
+}
+
+/**
+ * Build the stored BingoConfig from form input. Drops empty optional fields (Firestore rejects
+ * `undefined`): no event date / draw method / contact phone is omitted.
+ */
+function buildBingoConfig(input: BingoConfigInput): BingoConfig {
+  return {
+    format: {
+      rows: input.format.rows,
+      cols: input.format.cols,
+      poolMin: input.format.poolMin,
+      poolMax: input.format.poolMax,
+    },
+    patterns: input.patterns.map((p) => ({ pattern: p.pattern, prize: p.prize })),
+    pricePerCard: input.pricePerCard,
+    currency: input.currency,
+    ...(input.eventDate ? { eventDate: Timestamp.fromDate(input.eventDate) } : {}),
+    ...(input.drawMethod ? { drawMethod: input.drawMethod } : {}),
+    ...(input.contactPhone ? { contactPhone: input.contactPhone } : {}),
+  };
+}
+
 export interface CreateToolInput {
   type: ToolType;
   title: string;
@@ -305,6 +342,8 @@ export interface CreateToolInput {
   sale?: SaleConfigInput;
   /** Service-catalog configuration — pass only when type === 'service'. */
   service?: ServiceConfigInput;
+  /** Bingo configuration — pass only when type === 'bingo'. */
+  bingo?: BingoConfigInput;
 }
 
 /**
@@ -329,6 +368,7 @@ export async function createTool(
     ...(input.tour ? { tour: buildTourConfig(input.tour) } : {}),
     ...(input.sale ? { sale: buildSaleConfig(input.sale) } : {}),
     ...(input.service ? { service: buildServiceConfig(input.service) } : {}),
+    ...(input.bingo ? { bingo: buildBingoConfig(input.bingo) } : {}),
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -356,6 +396,8 @@ export interface ToolPatch {
   sale?: SaleConfigInput;
   /** Service-catalog config — pass only when type === 'service'; omit to leave it untouched. */
   service?: ServiceConfigInput;
+  /** Bingo config — pass only when type === 'bingo'; omit to leave it untouched. */
+  bingo?: BingoConfigInput;
 }
 
 /**
@@ -385,6 +427,7 @@ export async function updateTool(
           tour: deleteField(),
           sale: deleteField(),
           service: deleteField(),
+          bingo: deleteField(),
         }
       : patch.type === "guided_tour"
         ? {
@@ -392,6 +435,7 @@ export async function updateTool(
             raffle: deleteField(),
             sale: deleteField(),
             service: deleteField(),
+            bingo: deleteField(),
           }
         : patch.type === "sale"
           ? {
@@ -399,6 +443,7 @@ export async function updateTool(
               raffle: deleteField(),
               tour: deleteField(),
               service: deleteField(),
+              bingo: deleteField(),
             }
           : patch.type === "service"
             ? {
@@ -408,13 +453,25 @@ export async function updateTool(
                 raffle: deleteField(),
                 tour: deleteField(),
                 sale: deleteField(),
+                bingo: deleteField(),
               }
-            : {
-                raffle: deleteField(),
-                tour: deleteField(),
-                sale: deleteField(),
-                service: deleteField(),
-              }),
+            : patch.type === "bingo"
+              ? {
+                  ...(patch.bingo
+                    ? { bingo: buildBingoConfig(patch.bingo) }
+                    : {}),
+                  raffle: deleteField(),
+                  tour: deleteField(),
+                  sale: deleteField(),
+                  service: deleteField(),
+                }
+              : {
+                  raffle: deleteField(),
+                  tour: deleteField(),
+                  sale: deleteField(),
+                  service: deleteField(),
+                  bingo: deleteField(),
+                }),
     startsAt: patch.startsAt ? Timestamp.fromDate(patch.startsAt) : deleteField(),
     endsAt: patch.endsAt ? Timestamp.fromDate(patch.endsAt) : deleteField(),
     cta: cta ?? deleteField(),

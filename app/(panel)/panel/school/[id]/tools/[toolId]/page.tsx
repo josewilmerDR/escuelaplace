@@ -12,8 +12,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
+import {
+  BingoConfigFields,
+  bingoFormFromConfig,
+  emptyBingoForm,
+  toBingoInput,
+  type BingoFormValue,
+} from "@/components/tools/BingoConfigFields";
+import { BingoCardsManager } from "@/components/tools/BingoCardsManager";
 import {
   RaffleConfigFields,
   emptyRaffleForm,
@@ -77,6 +86,7 @@ import {
   TOUR_STAGE_MAX,
   TOUR_STAGE_PHOTO_MAX,
   TOUR_STAGE_TITLE_MAX,
+  type BingoConfig,
   type ProjectCurrency,
   type RaffleOrderDoc,
   type SaleConfig,
@@ -149,6 +159,12 @@ export default function EditToolPage() {
   const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
   // Raffle orders, only for the read-only grid preview shown to the board.
   const [orders, setOrders] = useState<RaffleOrderDoc[]>([]);
+  // Bingo config form. The cartones (lote) are managed by BingoCardsManager, which persists
+  // immediately and reads its own state — so there's no editable card list here. The manager
+  // reports the lote size so the format inputs lock once cartones exist (changing it would
+  // mismatch the already-generated cards).
+  const [bingoForm, setBingoForm] = useState<BingoFormValue>(emptyBingoForm);
+  const [bingoCardCount, setBingoCardCount] = useState(0);
 
   // Guided-tour editable state. Stage text + the contact phone save with the form button; stage
   // media (photos/video) persists immediately, the way the project editor handles stage media.
@@ -222,6 +238,7 @@ export default function EditToolPage() {
           setCtaLabel(t.cta?.label ?? "");
           setCtaUrl(t.cta?.url ?? "");
           if (t.raffle) setRaffleForm(raffleFormFromConfig(t.raffle));
+          if (t.bingo) setBingoForm(bingoFormFromConfig(t.bingo));
           if (t.tour) {
             setTourStages(keyTourStages(t.tour.stages));
             setTourPhone(t.tour.contactPhone ?? "");
@@ -493,6 +510,15 @@ export default function EditToolPage() {
       };
     }
 
+    // A bingo carries its configuration (format + winning patterns + price). The cartones (lote)
+    // are managed separately by BingoCardsManager; nothing about them is built here.
+    const bingoResult = type === "bingo" ? toBingoInput(bingoForm) : null;
+    if (bingoResult && !bingoResult.ok) {
+      setError(bingoResult.error);
+      return;
+    }
+    const bingo = bingoResult?.ok ? bingoResult.input : undefined;
+
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -515,6 +541,7 @@ export default function EditToolPage() {
         ...(tour ? { tour } : {}),
         ...(sale ? { sale } : {}),
         ...(service ? { service } : {}),
+        ...(bingo ? { bingo } : {}),
       });
       // The local persisted bases (the Input shapes are structurally the stored shapes).
       const savedTour: TourConfig | undefined = tour
@@ -539,6 +566,21 @@ export default function EditToolPage() {
               : {}),
           }
         : undefined;
+      // Bingo's input carries eventDate as a Date, so rebuild the stored shape (Timestamp) — the
+      // cards manager reads tool.bingo.format, so this must reflect the just-saved format.
+      const savedBingo: BingoConfig | undefined = bingo
+        ? {
+            format: bingo.format,
+            patterns: bingo.patterns,
+            pricePerCard: bingo.pricePerCard,
+            currency: bingo.currency,
+            ...(bingo.eventDate
+              ? { eventDate: Timestamp.fromDate(bingo.eventDate) }
+              : {}),
+            ...(bingo.drawMethod ? { drawMethod: bingo.drawMethod } : {}),
+            ...(bingo.contactPhone ? { contactPhone: bingo.contactPhone } : {}),
+          }
+        : undefined;
       setTool((prev) =>
         prev
           ? {
@@ -553,6 +595,7 @@ export default function EditToolPage() {
               tour: type === "guided_tour" ? savedTour : undefined,
               sale: type === "sale" ? savedSale : undefined,
               service: type === "service" ? savedService : undefined,
+              bingo: type === "bingo" ? savedBingo : undefined,
             }
           : prev,
       );
@@ -1203,6 +1246,33 @@ export default function EditToolPage() {
                 placeholder="Ej.: 8888 8888"
               />
             </Field>
+          </section>
+        )}
+
+        {type === "bingo" && (
+          <section className="flex flex-col gap-4">
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Configuración del bingo
+              </p>
+              <BingoConfigFields
+                value={bingoForm}
+                onChange={setBingoForm}
+                lockFormat={bingoCardCount > 0}
+              />
+            </div>
+            {tool.bingo ? (
+              <BingoCardsManager
+                schoolId={id}
+                toolId={toolId}
+                format={tool.bingo.format}
+                onCountChange={setBingoCardCount}
+              />
+            ) : (
+              <p className="text-xs text-muted">
+                Guardá el bingo para generar o importar los cartones.
+              </p>
+            )}
           </section>
         )}
 

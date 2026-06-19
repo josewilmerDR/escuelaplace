@@ -96,6 +96,9 @@ service cloud.firestore {
     function productOrderData(id) {
       return get(/databases/$(database)/documents/productOrders/$(id)).data;
     }
+    function bingoOrderData(id) {
+      return get(/databases/$(database)/documents/bingoOrders/$(id)).data;
+    }
 
     // ── users/{uid} ─────────────────────────────────────────────────────────
     // Each user can only read/write their own document. Admin can do everything. The `role`
@@ -300,6 +303,16 @@ service cloud.firestore {
           isOwnerOrEditor(schoolData(id)) && validToolUpdate()
         );
         allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
+
+        // Bingo cartones (cards): the lote of a `type: 'bingo'` tool. READ is public — a cartón's
+        // numbers are no secret and the player must see them. WRITE (generate/import/edit/assign
+        // on confirm/delete) is the SCHOOL's alone (owner/editors/admin); a buyer must never be
+        // able to alter a cartón's numbers. The school assigns a cartón to a buyer by updating
+        // its status/ownerId here when it confirms that buyer's bingoOrder.
+        match /cards/{cardId} {
+          allow read: if true;
+          allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
+        }
       }
     }
 
@@ -370,7 +383,7 @@ service cloud.firestore {
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
-          'raffle', 'tour', 'sale', 'service', 'ownerId', 'createdAt', 'updatedAt']) &&
+          'raffle', 'tour', 'sale', 'service', 'bingo', 'ownerId', 'createdAt', 'updatedAt']) &&
         request.resource.data.type in
           ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other'] &&
         request.resource.data.status in ['active', 'inactive'] &&
@@ -386,13 +399,15 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['sale']) ||
           request.resource.data.sale is map) &&
         (!request.resource.data.keys().hasAny(['service']) ||
-          request.resource.data['service'] is map);
+          request.resource.data['service'] is map) &&
+        (!request.resource.data.keys().hasAny(['bingo']) ||
+          request.resource.data.bingo is map);
     }
     function validToolUpdate() {
       return keepsOwner() &&
         changedKeys().hasOnly([
           'type', 'title', 'description', 'status', 'coverUrl', 'startsAt', 'endsAt',
-          'cta', 'raffle', 'tour', 'sale', 'service', 'updatedAt']) &&
+          'cta', 'raffle', 'tour', 'sale', 'service', 'bingo', 'updatedAt']) &&
         (!changedKeys().hasAny(['type']) ||
           request.resource.data.type in
             ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other']) &&
@@ -412,6 +427,8 @@ service cloud.firestore {
           request.resource.data.sale is map) &&
         (!request.resource.data.keys().hasAny(['service']) ||
           request.resource.data['service'] is map) &&
+        (!request.resource.data.keys().hasAny(['bingo']) ||
+          request.resource.data.bingo is map) &&
         (!request.resource.data.keys().hasAny(['cta']) ||
           (request.resource.data.cta is map &&
             request.resource.data.cta.label is string &&
@@ -956,6 +973,102 @@ service cloud.firestore {
     function validProductOrderUpdate() {
       return changedKeys().hasOnly([
         'status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'updatedAt']);
+    }
+
+    // ── bingoOrders/{id} ───────────────────────────────────────────────────────
+    // A buyer's reservation of N cartones from a school bingo (a tool of type 'bingo'), awaiting
+    // the school's payment confirmation. Top-level (like raffle/product orders) so its proof file
+    // + private subdoc resolve by id. The doc holds NO sensitive data — the buyer's name + amount
+    // live in the private subdoc, the proof file in Storage (bingo-order-proofs/{id}); only
+    // `proofUploaded` is public. Mirrors productOrders, with one twist: on confirmation the
+    // school also writes `cardIds` (the assigned cartones), so `cardIds` is in the allowed update
+    // set BUT the buyer arm forbids it (only the school assigns).
+    // - read: public.
+    // - create: the buyer themselves, forced 'pending', and ONLY while the target school is
+    //   'verified' — same gate as the other order kinds.
+    // - update: the buyer may edit their own pending doc (the proof flag) but may NEVER
+    //   self-confirm, assign cartones, or rewrite who/how-many; only the TARGET school's
+    //   owner/editors or admin may confirm + assign. Identity (quantity included) frozen at create.
+    // - delete: the buyer or admin.
+    match /bingoOrders/{id} {
+      allow read: if true;
+
+      allow create: if isAdmin() || (
+        isSignedIn() &&
+        request.resource.data.buyerId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.confirmedAt == null &&
+        schoolData(request.resource.data.schoolId).verificationStatus == 'verified' &&
+        validBingoOrderCreate()
+      );
+
+      allow update: if isAdmin() || (
+        keepsBingoOrderIdentity() && validBingoOrderUpdate() &&
+        confirmsBingoOrderFromPending() && (
+          isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
+          (isSignedIn() &&
+            resource.data.buyerId == request.auth.uid &&
+            !changesBingoOrderConfirmation())
+        )
+      );
+
+      allow delete: if isAdmin() ||
+        (isSignedIn() && resource.data.buyerId == request.auth.uid);
+
+      function buyerOwnsBingoOrder() {
+        return isSignedIn() && bingoOrderData(id).buyerId == request.auth.uid;
+      }
+      match /private/{doc} {
+        allow read: if isAdmin() || buyerOwnsBingoOrder() ||
+          isOwnerOrEditor(schoolData(bingoOrderData(id).schoolId));
+        allow create: if isAdmin() || (
+          buyerOwnsBingoOrder() && bingoOrderData(id).status == 'pending'
+        );
+        allow update: if isAdmin() || (
+          buyerOwnsBingoOrder() && (
+            bingoOrderData(id).status == 'pending' ||
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount'])
+          )
+        );
+        allow delete: if isAdmin() || buyerOwnsBingoOrder();
+      }
+    }
+
+    // No update may rewrite who reserved how many cartones in which bingo (frozen at create).
+    function keepsBingoOrderIdentity() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['schoolId', 'toolId', 'buyerId', 'quantity', 'currency']
+      );
+    }
+    // The buyer must not self-confirm NOR assign cartones; only the school/admin touches these.
+    function changesBingoOrderConfirmation() {
+      return request.resource.data.status != resource.data.status ||
+        request.resource.data.confirmedAt != resource.data.confirmedAt ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(
+          ['cardIds', 'confirmedBy']);
+    }
+    // Confirmed exactly once (pending → confirmed) so the school can't re-confirm (no renewal).
+    function confirmsBingoOrderFromPending() {
+      return request.resource.data.status != 'confirmed' ||
+        resource.data.status == 'pending';
+    }
+    // CREATE pins the PUBLIC field set — it OMITS buyerName/amount (those live in private/data)
+    // and cardIds (assigned later), validates the currency enum and the quantity bounds. UPDATE
+    // pins the confirmation/assignment/proof fields only.
+    function validBingoOrderCreate() {
+      return request.resource.data.keys().hasOnly([
+          'schoolId', 'schoolName', 'toolId', 'toolTitle', 'buyerId', 'quantity', 'currency',
+          'status', 'confirmedAt', 'createdAt', 'updatedAt']) &&
+        request.resource.data.currency in ['CRC', 'USD', 'NIO', 'MXN', 'EUR'] &&
+        request.resource.data.toolTitle is string &&
+        request.resource.data.toolTitle.size() <= 120 &&
+        request.resource.data.quantity is int &&
+        request.resource.data.quantity >= 1 &&
+        request.resource.data.quantity <= 100;
+    }
+    function validBingoOrderUpdate() {
+      return changedKeys().hasOnly([
+        'status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'cardIds', 'updatedAt']);
     }
 
     // ── auditEvents/{id} ──────────────────────────────────────────────────────
