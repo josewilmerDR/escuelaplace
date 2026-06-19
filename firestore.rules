@@ -275,6 +275,26 @@ service cloud.firestore {
         );
         allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
       }
+
+      // Tools ("Herramientas"): schools/{id}/tools/{toolId} — lightweight activities (rifa,
+      // venta, bingo…) shown as cards on the public "Principal" tab.
+      // - read: public (the section + detail page are SSR).
+      // - create/update/delete: the school's owner/editors or admin.
+      // Unlike projects there are NO function-maintained fields (no counters to freeze) — the
+      // school owns every field — so the only guards are the write-shape validators, which pin
+      // the field set, the type/status enums and the text caps. The optional CTA url scheme is
+      // checked on the WRITE side (safeExternalUrl — rules can't parse URLs), so here it is only
+      // shape/length-validated.
+      match /tools/{toolId} {
+        allow read: if true;
+        allow create: if isAdmin() || (
+          isOwnerOrEditor(schoolData(id)) && validToolCreate()
+        );
+        allow update: if isAdmin() || (
+          isOwnerOrEditor(schoolData(id)) && validToolUpdate()
+        );
+        allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
+      }
     }
 
     // Collection-group reads of projects (`collectionGroup(db, 'projects')`). A nested
@@ -330,6 +350,49 @@ service cloud.firestore {
           request.resource.data.status in ['active', 'completed', 'cancelled']) &&
         (!changedKeys().hasAny(['stages']) ||
           (request.resource.data.stages is list && request.resource.data.stages.size() <= 12));
+    }
+
+    // P1-b write-shape validation for tools (non-admin arm only). CREATE pins createTool's
+    // field set (cover/dates/cta are added later via UPDATE, so they are NOT in the create
+    // set) and validates the type/status enums + the text caps. UPDATE constrains the changed
+    // keys (the edit form + setToolStatus) and freezes ownerId; the optional cta/startsAt/
+    // endsAt/coverUrl are allowed but never required, so clearing them (deleteField) passes.
+    // The cta shape is validated only when the key is PRESENT in the new doc (a delete removes
+    // the key, so the guard is keyed on keys().hasAny, not changedKeys()).
+    function validToolCreate() {
+      return request.resource.data.keys().hasOnly([
+          'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
+          'ownerId', 'createdAt', 'updatedAt']) &&
+        request.resource.data.type in
+          ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other'] &&
+        request.resource.data.status in ['active', 'inactive'] &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() <= 120 &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() <= 600 &&
+        request.resource.data.ownerId is string;
+    }
+    function validToolUpdate() {
+      return keepsOwner() &&
+        changedKeys().hasOnly([
+          'type', 'title', 'description', 'status', 'coverUrl', 'startsAt', 'endsAt',
+          'cta', 'updatedAt']) &&
+        (!changedKeys().hasAny(['type']) ||
+          request.resource.data.type in
+            ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other']) &&
+        (!changedKeys().hasAny(['status']) ||
+          request.resource.data.status in ['active', 'inactive']) &&
+        (!changedKeys().hasAny(['title']) ||
+          (request.resource.data.title is string &&
+            request.resource.data.title.size() <= 120)) &&
+        (!changedKeys().hasAny(['description']) ||
+          (request.resource.data.description is string &&
+            request.resource.data.description.size() <= 600)) &&
+        (!request.resource.data.keys().hasAny(['cta']) ||
+          (request.resource.data.cta is map &&
+            request.resource.data.cta.label is string &&
+            request.resource.data.cta.label.size() <= 40 &&
+            request.resource.data.cta.url is string));
     }
 
     // True if this update would elevate the school's verification state. Owners must

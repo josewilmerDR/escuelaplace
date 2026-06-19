@@ -88,7 +88,7 @@ service firebase.storage {
       allow delete: if ownsBusinessId(businessId) || isAdmin();
     }
 
-    // ── School assets: THREE non-overlapping match blocks ───────────────────────
+    // ── School assets: FOUR non-overlapping match blocks ────────────────────────
     // Firebase Storage recursive wildcards are OR-ADDITIVE (no most-specific-wins), so a
     // school-root `{allPaths=**}` catch-all would OR-union with the projects subtree and we
     // could not keep logo/cover/gallery image-only while allowing PDF only under projects.
@@ -96,8 +96,10 @@ service firebase.storage {
     //   - schools/{id}/photo, schools/{id}/cover   → single-segment {schoolAsset}, image-only
     //   - schools/{id}/gallery/{file}              → image-only
     //   - schools/{id}/projects/{pid}/**           → image OR pdf (project stage quotes are PDF)
-    // All gated by the PARENT school doc's owner/editor (project assets inherit the school owner;
-    // the projectId is not separately gated — the school owner is the only legit writer).
+    //   - schools/{id}/tools/{toolId}/**           → image-only (tool cover photos)
+    // All gated by the PARENT school doc's owner/editor (project/tool assets inherit the school
+    // owner; the projectId/toolId is not separately gated — the school owner is the only legit
+    // writer). The single-segment {schoolAsset} block does NOT match these deeper paths.
 
     // photo & cover (exactly one segment after the school id; NOT gallery/ or projects/).
     match /schools/{schoolId}/{schoolAsset} {
@@ -117,6 +119,13 @@ service firebase.storage {
     match /schools/{schoolId}/projects/{projectId}/{allPaths=**} {
       allow read: if true;
       allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImageOrPdf();
+      allow delete: if ownsSchoolId(schoolId) || isAdmin();
+    }
+
+    // tool assets (cover photos for school "Herramientas") — image-only.
+    match /schools/{schoolId}/tools/{toolId}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImage();
       allow delete: if ownsSchoolId(schoolId) || isAdmin();
     }
 

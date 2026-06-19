@@ -14,12 +14,14 @@ export type SchoolPanelSection =
   | "edit"
   | "subscriptions"
   | "projects"
+  | "tools"
   | "project-contributions";
 
 const SECTIONS: { key: SchoolPanelSection; label: string }[] = [
   { key: "edit", label: "Editar página" },
   { key: "subscriptions", label: "Confirmar aportes" },
   { key: "projects", label: "Proyectos" },
+  { key: "tools", label: "Herramientas" },
   { key: "project-contributions", label: "Aportes a proyectos" },
 ];
 

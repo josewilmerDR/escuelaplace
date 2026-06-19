@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { GalleryManager } from "@/components/business/GalleryManager";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
@@ -56,6 +56,7 @@ type LoadState = "loading" | "error" | "loaded";
 
 export default function SchoolEditPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { user } = useAuth();
 
   const [school, setSchool] = useState<SchoolDoc | null>(null);
@@ -97,6 +98,9 @@ export default function SchoolEditPage() {
   useUnsavedChangesGuard(dirty && !saving);
 
   const locationLabelId = useId();
+  // The submit button lives at the very end of the flow, below the gallery section
+  // (which sits outside the form). It's tied back to the form via `form={formId}`.
+  const formId = useId();
 
   // Stable handlers so the memoized LocationPicker skips re-rendering the map tree on
   // every keystroke of the other fields.
@@ -280,7 +284,10 @@ export default function SchoolEditPage() {
       setPhotoFile(null);
       setCoverFile(null);
       setSaved(true);
+      // Clear dirty before navigating so the unsaved-changes guard doesn't fire on the
+      // way out, then return to wherever the board came from (the last history entry).
       setDirty(false);
+      router.back();
     } catch (err) {
       setError(userErrorMessage(err, "No se pudieron guardar los cambios."));
     } finally {
@@ -406,6 +413,7 @@ export default function SchoolEditPage() {
       </section>
 
       <form
+        id={formId}
         onSubmit={onSubmit}
         onChange={() => setDirty(true)}
         onInvalidCapture={spanishRequiredMessage}
@@ -603,20 +611,6 @@ export default function SchoolEditPage() {
             }}
           />
         </FormSection>
-
-        <FormError message={error} />
-
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            aria-busy={saving}
-            className="btn btn-primary"
-          >
-            {saving ? "Guardando…" : "Guardar cambios"}
-          </button>
-          <SavedIndicator show={saved} onHide={() => setSaved(false)} />
-        </div>
       </form>
 
       {/* Outside the form: gallery changes publish immediately (upload/remove mutate
@@ -636,9 +630,25 @@ export default function SchoolEditPage() {
         </div>
       </section>
 
-      <p className="mt-8 text-sm">
-        <BackLink href="/panel">Volver al panel</BackLink>
-      </p>
+      {/* Save sits at the very end of the flow: the board fills the form, manages the
+          gallery, and then commits the form edits. `form={formId}` ties this submit
+          button back to the form above even though it lives outside it. */}
+      <div className="mt-10 flex flex-col gap-6">
+        <FormError message={error} />
+
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            form={formId}
+            disabled={saving}
+            aria-busy={saving}
+            className="btn btn-primary"
+          >
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
+          <SavedIndicator show={saved} onHide={() => setSaved(false)} />
+        </div>
+      </div>
     </main>
   );
 }

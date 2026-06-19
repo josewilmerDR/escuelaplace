@@ -84,6 +84,12 @@ export function SchoolManageBar({
         >
           Proyectos
         </Link>
+        <Link
+          href={`/panel/school/${schoolId}/tools`}
+          className="btn btn-outline"
+        >
+          Herramientas
+        </Link>
         <button
           type="button"
           onClick={() => setAsVisitor(true)}

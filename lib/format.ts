@@ -39,6 +39,24 @@ export function formatRating(value: number): string {
   });
 }
 
+// UTC so a calendar DAY renders as the same day for every viewer (tool dates are stored at
+// UTC midnight — see toolDateFromInput). Without timeZone:'UTC' a server/reader east of UTC
+// would format the instant into the previous day.
+const dateFmt = new Intl.DateTimeFormat("es-CR", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * Format a date (ms since epoch) as "15 jun 2026", Costa Rica locale, in UTC. Used for the
+ * optional activity window of a school tool (rifa/venta/etc.), whose dates are day-granular.
+ */
+export function formatDate(ms: number): string {
+  return dateFmt.format(new Date(ms));
+}
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
