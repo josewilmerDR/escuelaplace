@@ -32,7 +32,16 @@ import {
 import { db, storage } from "@/lib/firebase";
 import { formatDate } from "@/lib/format";
 import { safeExternalUrl } from "@/lib/url";
-import type { Tool, ToolCta, ToolDoc, ToolStatus, ToolType } from "@/types";
+import type {
+  ProjectCurrency,
+  RaffleConfig,
+  Tool,
+  ToolCta,
+  ToolDoc,
+  ToolStatus,
+  ToolType,
+} from "@/types";
+import { RAFFLE_NUMBER_COUNT } from "@/types";
 import { docToTyped, snapToList } from "./converters";
 
 const SCHOOLS = "schools";
@@ -136,12 +145,36 @@ function sanitizeCta(
   return { label, url };
 }
 
+/** Form-shaped raffle config (dates as Date, prizes pre-trimmed) — see buildRaffleConfig. */
+export interface RaffleConfigInput {
+  drawDate: Date | null;
+  pricePerNumber: number;
+  currency: ProjectCurrency;
+  /** 1–3 prizes, first required; callers trim and drop empties. */
+  prizes: string[];
+  drawMethod: string;
+}
+
+/** Build the stored RaffleConfig from form input (numberCount is fixed for now). */
+function buildRaffleConfig(input: RaffleConfigInput): RaffleConfig {
+  return {
+    numberCount: RAFFLE_NUMBER_COUNT,
+    pricePerNumber: input.pricePerNumber,
+    currency: input.currency,
+    prizes: input.prizes,
+    drawMethod: input.drawMethod,
+    ...(input.drawDate ? { drawDate: Timestamp.fromDate(input.drawDate) } : {}),
+  };
+}
+
 export interface CreateToolInput {
   type: ToolType;
   title: string;
   description: string;
   /** Defaults to 'active' (visible). */
   status?: ToolStatus;
+  /** Raffle configuration — pass only when type === 'raffle'. */
+  raffle?: RaffleConfigInput;
 }
 
 /**
@@ -162,6 +195,7 @@ export async function createTool(
     title: input.title,
     description: input.description,
     status: input.status ?? "active",
+    ...(input.raffle ? { raffle: buildRaffleConfig(input.raffle) } : {}),
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -181,6 +215,8 @@ export interface ToolPatch {
   endsAt: Date | null;
   /** Call to action — null (or an unsafe/empty value) clears the field. */
   cta: { label: string; url: string } | null;
+  /** Raffle config — pass only when type === 'raffle'; omit to leave it untouched. */
+  raffle?: RaffleConfigInput;
 }
 
 /**
@@ -200,6 +236,13 @@ export async function updateTool(
     description: patch.description,
     status: patch.status,
     ...(patch.coverUrl ? { coverUrl: patch.coverUrl } : {}),
+    // Keep type and config in sync: a non-raffle tool must not carry a stale raffle config
+    // (e.g. after switching a raffle to a sale), so delete it; a raffle sets it when provided.
+    ...(patch.type !== "raffle"
+      ? { raffle: deleteField() }
+      : patch.raffle
+        ? { raffle: buildRaffleConfig(patch.raffle) }
+        : {}),
     startsAt: patch.startsAt ? Timestamp.fromDate(patch.startsAt) : deleteField(),
     endsAt: patch.endsAt ? Timestamp.fromDate(patch.endsAt) : deleteField(),
     cta: cta ?? deleteField(),

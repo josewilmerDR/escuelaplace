@@ -807,6 +807,39 @@ export interface ToolCta {
   url: string;
 }
 
+// ── Raffle (type: 'raffle') — the first kind with its own configured behavior ──
+//
+// A raffle ("rifa") sells numbered tickets (00–99) toward a draw. Its config lives on the
+// tool doc under `raffle`; the sold/reserved state of each number is DERIVED from its orders
+// (raffleOrders), never stored on the tool. PURELY INFORMATIONAL like everything else — the
+// platform never processes money; a buyer reserves numbers and pays the school directly, and
+// the school confirms the proof (same flow as donations/contributions).
+
+/** Numbers in a raffle, fixed at 100 (00–99) for now — the model carries `numberCount` so
+ * other sizes can open later. 00–99 matches the Lotería Nacional, so "en combinación con la
+ * lotería" works naturally. */
+export const RAFFLE_NUMBER_COUNT = 100;
+/** Up to three prizes (first required). */
+export const RAFFLE_PRIZES_MAX = 3;
+export const RAFFLE_PRIZE_MAX = 80;
+/** "Modalidad del sorteo" — how the winning number is determined/announced (free text). */
+export const RAFFLE_METHOD_MAX = 140;
+
+export interface RaffleConfig {
+  /** When the winning number is drawn (optional, informational). */
+  drawDate?: Timestamp;
+  /** How many numbers the raffle has (currently always RAFFLE_NUMBER_COUNT). */
+  numberCount: number;
+  /** Price the school charges per number, in `currency`. Informational — the platform never
+   * collects it; it only labels the total the buyer pays the school directly. */
+  pricePerNumber: number;
+  currency: ProjectCurrency;
+  /** 1–3 prizes; the first is required. Free text + numbers. */
+  prizes: string[];
+  /** "Modalidad del sorteo": e.g. "En combinación con la Lotería Nacional". */
+  drawMethod: string;
+}
+
 export interface Tool {
   /** Denormalized parent id (the doc lives under the school; kept for the detail page and
    * any query that starts from a tool). */
@@ -823,6 +856,8 @@ export interface Tool {
   endsAt?: Timestamp;
   /** Optional call to action (a link the school controls). */
   cta?: ToolCta;
+  /** Present only when `type === 'raffle'`: the raffle's configuration. */
+  raffle?: RaffleConfig;
   status: ToolStatus;
   /** Denormalized from the school so rules/UI resolve the board without an extra read. */
   ownerId: string;
@@ -831,6 +866,44 @@ export interface Tool {
 }
 
 export type ToolDoc = Tool & { id: string };
+
+// ── raffleOrders/{orderId} ───────────────────────────────────────────────────
+//
+// A buyer's reservation of one or more raffle numbers, awaiting the school's payment
+// confirmation. Top-level collection (like projectContributions) so its proof file and
+// private subdoc resolve by id alone. The buyer's real name and the amount live in a PRIVATE
+// subdoc (raffleOrders/{id}/private/data) — off the public doc — exactly like contributions.
+// Number state for the public grid is derived from these orders:
+//   pending  → "reservado" (gris, no seleccionable)
+//   confirmed → "vendido"  (X / color característico)
+
+export type RaffleOrderStatus = "pending" | "confirmed";
+
+export interface RaffleOrder {
+  schoolId: string;
+  schoolName: string;
+  toolId: string;
+  /** Denormalized raffle title so the confirmation queue renders without an extra read. */
+  toolTitle: string;
+  /** The buyer (must equal auth.uid on create). */
+  buyerId: string;
+  /** The reserved numbers, 0-based indices into the raffle (00–99). */
+  numbers: number[];
+  currency: ProjectCurrency;
+  status: RaffleOrderStatus;
+  confirmedAt: Timestamp | null;
+  confirmedBy?: string;
+  /** Whether a payment proof was uploaded to Storage (the file itself stays private). */
+  proofUploaded?: boolean;
+  /** Merged in CLIENT-SIDE from the private subdoc for the board's confirmation queue —
+   * NEVER stored on the public doc (firestore.rules excludes them). */
+  buyerName?: string;
+  amount?: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type RaffleOrderDoc = RaffleOrder & { id: string };
 
 // ── projectContributions/{id} ────────────────────────────────────────────────
 

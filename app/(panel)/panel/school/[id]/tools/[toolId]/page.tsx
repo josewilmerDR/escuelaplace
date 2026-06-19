@@ -14,6 +14,17 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
+import {
+  RaffleConfigFields,
+  emptyRaffleForm,
+  raffleFormFromConfig,
+  toRaffleInput,
+  type RaffleFormValue,
+} from "@/components/tools/RaffleConfigFields";
+import {
+  RaffleNumberGrid,
+  RaffleNumberLegend,
+} from "@/components/tools/RaffleNumberGrid";
 import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
 import { BackLink } from "@/components/ui/BackLink";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -28,8 +39,10 @@ import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 import { safeExternalUrl } from "@/lib/url";
 import {
   deleteTool,
+  getRaffleOrdersByTool,
   getSchoolById,
   getToolById,
+  raffleNumberStates,
   toolDateFromInput,
   toolDateInputValue,
   updateTool,
@@ -39,6 +52,7 @@ import {
   TOOL_CTA_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
+  type RaffleOrderDoc,
   type SchoolDoc,
   type ToolDoc,
   type ToolStatus,
@@ -80,6 +94,9 @@ export default function EditToolPage() {
   const [endsAt, setEndsAt] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaUrl, setCtaUrl] = useState("");
+  const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
+  // Raffle orders, only for the read-only grid preview shown to the board.
+  const [orders, setOrders] = useState<RaffleOrderDoc[]>([]);
 
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -91,10 +108,15 @@ export default function EditToolPage() {
   useUnsavedChangesGuard(dirty);
 
   const load = useCallback(() => {
-    Promise.all([getSchoolById(id), getToolById(id, toolId)])
-      .then(([s, t]) => {
+    Promise.all([
+      getSchoolById(id),
+      getToolById(id, toolId),
+      getRaffleOrdersByTool(toolId).catch(() => []),
+    ])
+      .then(([s, t, o]) => {
         setSchool(s);
         setTool(t);
+        setOrders(o);
         if (t) {
           setType(t.type);
           setTitle(t.title);
@@ -104,6 +126,7 @@ export default function EditToolPage() {
           setEndsAt(toolDateInputValue(t.endsAt));
           setCtaLabel(t.cta?.label ?? "");
           setCtaUrl(t.cta?.url ?? "");
+          if (t.raffle) setRaffleForm(raffleFormFromConfig(t.raffle));
         }
         setLoadState("loaded");
       })
@@ -208,6 +231,13 @@ export default function EditToolPage() {
       setError("La fecha de fin no puede ser anterior a la de inicio.");
       return;
     }
+    // A raffle carries its own config — validate it (only when the tool is a raffle).
+    const raffleResult = type === "raffle" ? toRaffleInput(raffleForm) : null;
+    if (raffleResult && !raffleResult.ok) {
+      setError(raffleResult.error);
+      return;
+    }
+    const raffle = raffleResult?.ok ? raffleResult.input : undefined;
 
     setSaving(true);
     setSaved(false);
@@ -227,6 +257,7 @@ export default function EditToolPage() {
         startsAt: start,
         endsAt: end,
         cta,
+        ...(raffle ? { raffle } : {}),
       });
       setTool((prev) =>
         prev
@@ -320,6 +351,15 @@ export default function EditToolPage() {
             placeholder="Contá de qué se trata la actividad."
           />
         </Field>
+
+        {type === "raffle" && (
+          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+            <p className="mb-3 text-sm font-semibold text-foreground">
+              Configuración de la rifa
+            </p>
+            <RaffleConfigFields value={raffleForm} onChange={setRaffleForm} />
+          </div>
+        )}
 
         {/* Existing cover preview (the picker only previews a NEW file). */}
         {tool.coverUrl && !coverFile && (
@@ -415,6 +455,33 @@ export default function EditToolPage() {
           </Link>
         </div>
       </form>
+
+      {type === "raffle" && tool.raffle && (
+        <section className="mt-10">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Números
+            </h2>
+            <Link
+              href={`/panel/school/${id}/raffle-orders`}
+              className="text-sm font-medium text-brand-darker hover:underline"
+            >
+              Confirmar compras
+            </Link>
+          </div>
+          <p className="mt-1 text-sm text-muted">
+            Estado actual de los números (vista previa). Los compradores los eligen
+            desde la página pública; confirmá cada pago en “Rifas”.
+          </p>
+          <div className="mt-4">
+            <RaffleNumberGrid
+              count={tool.raffle.numberCount}
+              states={raffleNumberStates(orders, tool.raffle.numberCount)}
+            />
+            <RaffleNumberLegend />
+          </div>
+        </section>
+      )}
 
       {/* Risk zone: deleting a tool is irreversible. */}
       <section className="mt-12 border-t border-border pt-6">
