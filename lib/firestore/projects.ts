@@ -117,13 +117,19 @@ export async function getSchoolIdsWithActiveProject(): Promise<Set<string>> {
   return ids;
 }
 
-/** All projects of a school (any status), newest first. */
-export async function getProjectsBySchool(
-  schoolId: string,
-): Promise<ProjectDoc[]> {
-  const snap = await getDocs(projectsCol(schoolId));
-  return snapToList<Project>(snap).sort(byCreatedAtDesc);
-}
+/**
+ * All projects of a school (any status), newest first.
+ *
+ * Wrapped in React cache(): the public school profile reads it from both the shared
+ * layout (to decide tab visibility) and the "Proyectos" page during one request — the
+ * cache dedupes that into a single Firestore read.
+ */
+export const getProjectsBySchool = cache(
+  async (schoolId: string): Promise<ProjectDoc[]> => {
+    const snap = await getDocs(projectsCol(schoolId));
+    return snapToList<Project>(snap).sort(byCreatedAtDesc);
+  },
+);
 
 /**
  * A single project by ids. Returns null if it does not exist.

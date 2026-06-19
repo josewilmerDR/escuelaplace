@@ -19,6 +19,7 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+import { cache } from "react";
 import { db } from "@/lib/firebase";
 import { SUBSCRIPTION_UNIT_CRC } from "@/types";
 import type { DonorProfile, DonorProfileDoc, DonorTier } from "@/types";
@@ -92,10 +93,13 @@ export interface SchoolDonorWall {
  * 90-day active-support window). Profiles are resolved through the rules gate — anonymous
  * readers only see opted-in ones; the rest are counted, not named. Deliberately ordered by
  * seniority, never by amount: this is gratitude, not a leaderboard.
+ *
+ * Wrapped in React cache(): the public school profile reads it from both the shared
+ * layout (to decide whether the "Agradecimientos" tab exists) and the "Agradecimientos"
+ * page during one request — the cache dedupes the underlying reads.
  */
-export async function getSchoolDonorWall(
-  schoolId: string,
-): Promise<SchoolDonorWall> {
+export const getSchoolDonorWall = cache(
+  async (schoolId: string): Promise<SchoolDonorWall> => {
   const [subs, contributions] = await Promise.all([
     getSubscriptionsBySchool(schoolId),
     getContributionsBySchool(schoolId),
@@ -128,7 +132,8 @@ export async function getSchoolDonorWall(
     );
 
   return { recognized, anonymousCount: donorIds.length - recognized.length };
-}
+  },
+);
 
 // ── Writes (donations & donor recognition) ───────────────────────────────────
 // Any signed-in user — no page needed — may donate to a school. Same entity and
