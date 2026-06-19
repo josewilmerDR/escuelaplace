@@ -15,6 +15,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
+import {
+  RaffleConfigFields,
+  emptyRaffleForm,
+  toRaffleInput,
+  type RaffleFormValue,
+} from "@/components/tools/RaffleConfigFields";
 import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
 import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
 import { Badge } from "@/components/ui/Badge";
@@ -114,6 +120,7 @@ export default function SchoolToolsPage() {
   const [type, setType] = useState<ToolType>(TOOL_TYPE_LIST[0].key);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -211,6 +218,13 @@ export default function SchoolToolsPage() {
       setError("Ingresá el título de la herramienta.");
       return;
     }
+    // A raffle carries its own configuration — validate and convert it before creating.
+    const raffleResult = type === "raffle" ? toRaffleInput(raffleForm) : null;
+    if (raffleResult && !raffleResult.ok) {
+      setError(raffleResult.error);
+      return;
+    }
+    const raffle = raffleResult?.ok ? raffleResult.input : undefined;
     setSaving(true);
     setError(null);
     try {
@@ -218,6 +232,7 @@ export default function SchoolToolsPage() {
         type,
         title: trimmedTitle,
         description: description.trim(),
+        ...(raffle ? { raffle } : {}),
       });
       // Straight to the edit page (with ?created=1) so the board can add the cover, dates and
       // the call-to-action link.
@@ -294,7 +309,15 @@ export default function SchoolToolsPage() {
             <p className="mb-3 mt-0.5 text-xs text-muted">
               Elegí qué tipo de actividad vas a crear.
             </p>
-            <ToolTypePicker value={type} onChange={setType} />
+            <ToolTypePicker
+              value={type}
+              onChange={(t) => {
+                setType(t);
+                // Drop any raffle config in progress when leaving the raffle type, so it
+                // doesn't silently reappear if the user comes back to it.
+                if (t !== "raffle") setRaffleForm(emptyRaffleForm());
+              }}
+            />
           </div>
           <Field label="Título">
             <input
@@ -318,10 +341,23 @@ export default function SchoolToolsPage() {
             />
           </Field>
 
+          {type === "raffle" && (
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Configuración de la rifa
+              </p>
+              <RaffleConfigFields value={raffleForm} onChange={setRaffleForm} />
+            </div>
+          )}
+
           <FormError message={error} />
 
           <button type="submit" disabled={saving} className="btn btn-primary">
-            {saving ? "Creando…" : "Crear herramienta"}
+            {saving
+              ? "Creando…"
+              : type === "raffle"
+                ? "Crear rifa"
+                : "Crear herramienta"}
           </button>
         </form>
       </section>

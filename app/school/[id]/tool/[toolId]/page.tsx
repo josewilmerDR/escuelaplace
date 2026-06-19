@@ -3,14 +3,24 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/BackLink";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { ToolManageBar } from "@/components/tools/ToolManageBar";
 import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
 import { cardClass } from "@/components/ui/Card";
-import { ArrowRightIcon, ClockIcon } from "@/components/ui/icons";
-import { getSchoolById, getToolById, toolWindowLabel } from "@/lib/firestore";
+import { ArrowRightIcon, ClockIcon, FlagIcon } from "@/components/ui/icons";
+import {
+  getRaffleOrdersByTool,
+  getSchoolById,
+  getToolById,
+  isSchoolVerified,
+  raffleNumberStates,
+  toolWindowLabel,
+} from "@/lib/firestore";
+import { formatDate, formatMoney } from "@/lib/format";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
 import { toolTypeMeta } from "@/lib/tools/registry";
 import { safeExternalUrl } from "@/lib/url";
+import type { SchoolDoc, ToolDoc } from "@/types";
 
 /**
  * Public tool detail: /school/[id]/tool/[toolId]
@@ -51,6 +61,11 @@ export default async function ToolPage({ params }: Props) {
     getSchoolById(id),
   ]);
   if (!tool || !school) notFound();
+
+  // A raffle has its own configured experience (prizes + the number grid + buy flow).
+  if (tool.type === "raffle" && tool.raffle) {
+    return <RaffleDetail id={id} toolId={toolId} tool={tool} school={school} />;
+  }
 
   const Icon = toolTypeMeta(tool.type).icon;
   const window = toolWindowLabel(tool);
@@ -158,6 +173,169 @@ export default async function ToolPage({ params }: Props) {
               </p>
             </div>
           )}
+        </div>
+      </article>
+    </PageContainer>
+  );
+}
+
+const PRIZE_LABELS = ["Primer premio", "Segundo premio", "Tercer premio"];
+
+/**
+ * The raffle's public experience: prizes + modalidad + the interactive 00–99 number grid. The
+ * grid state (reserved/sold) is computed here on the server from the raffle's orders and handed
+ * to the RaffleBoard client island, which owns selection and the handoff to the buy flow.
+ */
+async function RaffleDetail({
+  id,
+  toolId,
+  tool,
+  school,
+}: {
+  id: string;
+  toolId: string;
+  tool: ToolDoc;
+  school: SchoolDoc;
+}) {
+  const raffle = tool.raffle!;
+  const orders = await getRaffleOrdersByTool(toolId).catch(() => []);
+  const states = raffleNumberStates(orders, raffle.numberCount);
+  const verified = isSchoolVerified(school);
+  const Icon = toolTypeMeta(tool.type).icon;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: tool.title,
+    description: tool.description,
+    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
+    ...(tool.coverUrl ? { image: tool.coverUrl } : {}),
+    ...(raffle.drawDate
+      ? { startDate: raffle.drawDate.toDate().toISOString() }
+      : {}),
+    organizer: { "@type": "Organization", name: school.name },
+  };
+
+  return (
+    <PageContainer variant="detail">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+
+      <div className="text-sm">
+        <span className="inline-flex py-2 -my-2">
+          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
+        </span>
+      </div>
+
+      <ToolManageBar
+        schoolId={id}
+        toolId={toolId}
+        ownerId={school.ownerId}
+        editorIds={school.editorIds}
+      />
+
+      {tool.status !== "active" && (
+        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+          Esta rifa no está activa por el momento, así que no aparece en la página
+          de la escuela.
+        </div>
+      )}
+
+      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
+        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
+          {tool.coverUrl ? (
+            <Image
+              src={tool.coverUrl}
+              alt=""
+              fill
+              priority
+              sizes={PAGE_COVER_SIZES}
+              className="object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-full items-center justify-center text-brand-darker/30"
+            >
+              <Icon className="h-20 w-20" />
+            </span>
+          )}
+        </div>
+
+        <div className="p-5 sm:p-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              {tool.title}
+            </h1>
+            <ToolTypeBadge type={tool.type} />
+          </div>
+
+          <ul className="mt-3 space-y-1 text-sm text-muted">
+            <li className="flex items-start gap-2">
+              <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <span>
+                <span className="font-medium text-foreground">Modalidad:</span>{" "}
+                {raffle.drawMethod}
+              </span>
+            </li>
+            {raffle.drawDate && (
+              <li className="flex items-start gap-2">
+                <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" />
+                <span>
+                  <span className="font-medium text-foreground">Sorteo:</span>{" "}
+                  {formatDate(raffle.drawDate.toMillis())}
+                </span>
+              </li>
+            )}
+          </ul>
+
+          {tool.description && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {tool.description}
+            </p>
+          )}
+
+          {/* Prizes */}
+          <div className={`mt-6 ${cardClass("inset")}`}>
+            <h2 className="text-sm font-semibold tracking-tight text-foreground">
+              Premios
+            </h2>
+            <ol className="mt-2 space-y-1 text-sm">
+              {raffle.prizes.map((prize, i) => (
+                <li key={i}>
+                  <span className="font-medium text-foreground">
+                    {PRIZE_LABELS[i] ?? `Premio ${i + 1}`}:
+                  </span>{" "}
+                  <span className="text-muted">{prize}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Number grid + buy flow (client island) */}
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Elegí tus números
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              {formatMoney(raffle.pricePerNumber, raffle.currency)} cada número.
+            </p>
+            <div className="mt-4">
+              <RaffleBoard
+                schoolId={id}
+                toolId={toolId}
+                numberCount={raffle.numberCount}
+                states={states}
+                pricePerNumber={raffle.pricePerNumber}
+                currency={raffle.currency}
+                verified={verified}
+              />
+            </div>
+          </div>
         </div>
       </article>
     </PageContainer>

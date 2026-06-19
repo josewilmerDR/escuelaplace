@@ -12,6 +12,7 @@ export * from "./categories";
 export * from "./subscriptions";
 export * from "./projects";
 export * from "./tools";
+export * from "./raffles";
 export * from "./donors";
 export * from "./reviews";
 export * from "./audit";
