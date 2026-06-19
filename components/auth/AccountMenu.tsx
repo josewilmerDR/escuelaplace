@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { UserDoc } from "@/types";
 import { UserIcon } from "@/components/ui/icons";
+import { ActivityNavLink } from "./ActivityNavLink";
 import { useAuth } from "./AuthProvider";
 import { AdminNavLink } from "./AdminNavLink";
 import { PanelNavLink } from "./PanelNavLink";
@@ -137,6 +138,8 @@ export function AccountMenu({ user }: { user: UserDoc }) {
               aria-label="Menú de cuenta"
               className="flex flex-col gap-1 border-t border-border pt-2"
             >
+              {/* Global activity roll-up; renders nothing for users who manage no school. */}
+              <ActivityNavLink block />
               {PANEL_NAV_ITEMS.map((item) => (
                 <PanelNavLink key={item.href} {...item} block />
               ))}

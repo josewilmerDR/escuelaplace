@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { VisitorModeToast } from "@/components/ui/VisitorModeToast";
-import { getPendingSubscriptionsBySchool } from "@/lib/firestore";
+import { getPendingActivityCountBySchool } from "@/lib/firestore";
 import { useViewAsVisitor } from "@/lib/view-as";
 
 export function SchoolManageBar({
@@ -34,15 +34,16 @@ export function SchoolManageBar({
       editorIds?.includes(user.id) ||
       user.role === "admin");
 
-  // How many supports are awaiting confirmation — a nudge badge so the board sees the
-  // queue even when it's just viewing the public page. Managers only; never for visitors.
+  // How many items (supports, project aportes, tool orders) are awaiting confirmation — a nudge
+  // badge so the board sees the queue even when it's just viewing the public page. Managers only;
+  // never for visitors.
   const [pendingCount, setPendingCount] = useState(0);
   useEffect(() => {
     if (!canManage) return;
     let cancelled = false;
-    getPendingSubscriptionsBySchool(schoolId)
-      .then((subs) => {
-        if (!cancelled) setPendingCount(subs.length);
+    getPendingActivityCountBySchool(schoolId)
+      .then((count) => {
+        if (!cancelled) setPendingCount(count);
       })
       .catch(() => {});
     return () => {
@@ -68,10 +69,10 @@ export function SchoolManageBar({
           Editar página
         </Link>
         <Link
-          href={`/panel/school/${schoolId}/subscriptions`}
+          href={`/panel/school/${schoolId}/activity`}
           className="btn btn-outline"
         >
-          Confirmar aportes
+          Actividad
           {pendingCount > 0 && (
             <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-darker px-1.5 text-xs font-semibold text-white">
               {pendingCount}

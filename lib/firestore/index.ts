@@ -11,6 +11,7 @@ export * from "./schools";
 export * from "./categories";
 export * from "./subscriptions";
 export * from "./projects";
+export * from "./activity";
 export * from "./tools";
 export * from "./raffles";
 export * from "./product-orders";

@@ -20,6 +20,7 @@ export function PanelNavLink({
   exact = false,
   extraPrefixes = [],
   block = false,
+  badge,
 }: {
   href: string;
   label: string;
@@ -29,6 +30,8 @@ export function PanelNavLink({
   extraPrefixes?: string[];
   /** Render as a full-width row instead of an inline pill (for the mobile dropdown). */
   block?: boolean;
+  /** Optional count pill (e.g. pending activity). Hidden when undefined or 0. */
+  badge?: number;
 }) {
   const pathname = usePathname();
   const active = isPanelLinkActive(pathname, { href, exact, extraPrefixes });
@@ -48,6 +51,16 @@ export function PanelNavLink({
       }`}
     >
       {label}
+      {badge != null && badge > 0 && (
+        <span
+          aria-label={`${badge} pendientes`}
+          // Pushed to the row's right edge on the full-width (block) variant; a simple trailing
+          // pill on the inline desktop one.
+          className={`${block ? "ml-auto" : "ml-2"} inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-darker px-1.5 text-xs font-semibold text-white`}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 }
