@@ -36,6 +36,7 @@ import { IconTile } from "@/components/ui/IconTile";
 import {
   AcademicCapIcon,
   ArrowRightIcon,
+  BellIcon,
   EllipsisIcon,
   HeartIcon,
   PagesIcon,
@@ -48,6 +49,7 @@ import {
 import {
   getCachedPagesByUser,
   getPagesByUser,
+  getPendingActivityCountBySchool,
   removeManagedPage,
   type ResolvedPage,
 } from "@/lib/firestore";
@@ -484,6 +486,22 @@ function PageCard({
     }
   }, [highlight]);
 
+  // Pending-activity badge for schools (the bell on the action row): supports, project aportes
+  // and tool orders awaiting confirmation. Businesses have no such queue, so they skip the read.
+  const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    if (page.type !== "school" || !page.doc) return;
+    let cancelled = false;
+    getPendingActivityCountBySchool(page.doc.id)
+      .then((count) => {
+        if (!cancelled) setPendingCount(count);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [page.type, page.doc]);
+
   // Removal is async (write + reload): track the in-flight window to block a double-submit
   // and surface a remove-specific failure inline on this card.
   const [busy, setBusy] = useState(false);
@@ -634,6 +652,24 @@ function PageCard({
               <PencilIcon className="h-4 w-4" />
               Editar
             </Link>
+            {page.type === "school" && (
+              <Link
+                href={`/panel/school/${page.doc.id}/activity`}
+                aria-label={
+                  pendingCount > 0
+                    ? `Actividad, ${pendingCount} pendientes`
+                    : "Actividad"
+                }
+                className={`relative ${GLASS_ICON_ACTION}`}
+              >
+                <BellIcon className="h-5 w-5" />
+                {pendingCount > 0 && (
+                  <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-darker px-1 text-xs font-semibold text-white ring-2 ring-white">
+                    {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
+                )}
+              </Link>
+            )}
             <MoreMenu note={warning}>
               {/* A non-active business profile 404s (public reads filter by status), so the
                   public link only renders when it actually resolves. */}
@@ -666,25 +702,18 @@ function PageCard({
               {page.type === "school" && (
                 <>
                   <Link
+                    href={`/panel/school/${page.doc.id}/activity`}
+                    role="menuitem"
+                    className={MENU_ITEM}
+                  >
+                    Actividad
+                  </Link>
+                  <Link
                     href={`/panel/school/${page.doc.id}/projects`}
                     role="menuitem"
                     className={MENU_ITEM}
                   >
                     Proyectos
-                  </Link>
-                  <Link
-                    href={`/panel/school/${page.doc.id}/subscriptions`}
-                    role="menuitem"
-                    className={MENU_ITEM}
-                  >
-                    Confirmar apoyos
-                  </Link>
-                  <Link
-                    href={`/panel/school/${page.doc.id}/project-contributions`}
-                    role="menuitem"
-                    className={MENU_ITEM}
-                  >
-                    Aportes a proyectos
                   </Link>
                 </>
               )}

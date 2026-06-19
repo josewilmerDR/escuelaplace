@@ -16,6 +16,7 @@
  * returns null — signed-out visitors see only the login prompt in the content area, the same
  * behavior as when <RequireAuth> wrapped the whole layout.
  */
+import { ActivityNavLink } from "./ActivityNavLink";
 import { useAuth } from "./AuthProvider";
 import { AdminNavLink } from "./AdminNavLink";
 import { PanelNavLink } from "./PanelNavLink";
@@ -54,6 +55,8 @@ export function PanelSidebar() {
     // Desktop: persistent left column (hidden below md — see the header avatar's menu there).
     <aside className={DESKTOP_ASIDE_CLASS}>
       <nav className="flex flex-col gap-1">
+        {/* Global activity roll-up; renders nothing for users who manage no school. */}
+        <ActivityNavLink />
         {PANEL_NAV_ITEMS.map((item) => (
           <PanelNavLink key={item.href} {...item} />
         ))}

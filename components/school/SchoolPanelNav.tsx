@@ -1,36 +1,25 @@
 "use client";
 
 /**
- * Lateral nav between a school's manage screens (Editar / Confirmar aportes / Proyectos /
- * Aportes a proyectos). The panel hub (/panel) links into each section, but once inside one
- * the owner had no way to jump to a sibling without going back to the hub — this keeps them
- * one tap apart. Unlike the business nav there is no gating: all four sections are always
- * shown. The current section renders as plain text (aria-current), not a link, so it can't
+ * Lateral nav between a school's manage screens. Four tabs: the unified "Actividad" inbox
+ * (everything the board must confirm — supports, project contributions and the per-tool orders,
+ * folded into one queue) and the three configuration screens (Editar / Proyectos / Herramientas).
+ * The five old per-type confirmation tabs collapsed into Actividad (their routes now redirect
+ * there); the live bingo console is launched from inside its Bingo tool and shows under the
+ * Herramientas tab. The panel hub (/panel) links into each section; this keeps siblings one tap
+ * apart. The current section renders as plain text (aria-current), not a link, so it can't
  * navigate to itself.
  */
 import Link from "next/link";
 
-export type SchoolPanelSection =
-  | "edit"
-  | "subscriptions"
-  | "projects"
-  | "tools"
-  | "raffle-orders"
-  | "product-orders"
-  | "bingo-orders"
-  | "bingo-live"
-  | "project-contributions";
+/** The four manage sections (and the value pages pass as `current`). */
+export type SchoolPanelSection = "activity" | "edit" | "projects" | "tools";
 
 const SECTIONS: { key: SchoolPanelSection; label: string }[] = [
+  { key: "activity", label: "Actividad" },
   { key: "edit", label: "Editar página" },
-  { key: "subscriptions", label: "Confirmar aportes" },
   { key: "projects", label: "Proyectos" },
   { key: "tools", label: "Herramientas" },
-  { key: "raffle-orders", label: "Rifas" },
-  { key: "product-orders", label: "Pedidos" },
-  { key: "bingo-orders", label: "Bingos" },
-  { key: "bingo-live", label: "Bingo en vivo" },
-  { key: "project-contributions", label: "Aportes a proyectos" },
 ];
 
 export function SchoolPanelNav({

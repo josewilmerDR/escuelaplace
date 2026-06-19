@@ -1347,6 +1347,27 @@ export default function EditToolPage() {
 
         {type === "bingo" && (
           <section className="flex flex-col gap-4">
+            {/* Launch the live game from inside the tool it belongs to (only once the bingo is
+                saved — the console reads tool.bingo.format to draw the board). */}
+            {tool.bingo && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand-tint p-4 ring-1 ring-brand/10">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">
+                    Bingo en vivo
+                  </p>
+                  <p className="text-xs text-muted">
+                    Dirigí el juego: cantá los números y validá los reclamos en
+                    tiempo real.
+                  </p>
+                </div>
+                <Link
+                  href={`/panel/school/${id}/bingo-live?tool=${toolId}`}
+                  className="btn btn-primary shrink-0"
+                >
+                  Dirigir en vivo
+                </Link>
+              </div>
+            )}
             <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
               <p className="mb-3 text-sm font-semibold text-foreground">
                 Configuración del bingo

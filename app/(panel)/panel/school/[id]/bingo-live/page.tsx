@@ -9,8 +9,8 @@
  * pattern?) — the anti-cheat check. The school decides: confirm (awards the pattern) or reject.
  * The system never auto-declares a winner. No money changes hands here; this is just the board.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { BingoCalledBoard } from "@/components/tools/BingoCalledBoard";
@@ -44,13 +44,34 @@ import {
 type LoadState = "loading" | "error" | "loaded";
 
 export default function SchoolBingoLivePage() {
+  // useSearchParams needs a Suspense boundary to keep the route prerenderable.
+  return (
+    <Suspense fallback={<LiveSkeleton />}>
+      <SchoolBingoLiveInner />
+    </Suspense>
+  );
+}
+
+function LiveSkeleton() {
+  return (
+    <main>
+      <Heading />
+      <div className="mt-8 h-40 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+    </main>
+  );
+}
+
+function SchoolBingoLiveInner() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  // Deep-linked from the Bingo tool's "Dirigir en vivo" → pre-select that bingo; without the
+  // param the board picks one from the list below.
+  const toolParam = useSearchParams().get("tool");
 
   const [school, setSchool] = useState<SchoolDoc | null>(null);
   const [bingos, setBingos] = useState<ToolDoc[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
-  const [toolId, setToolId] = useState<string | null>(null);
+  const [toolId, setToolId] = useState<string | null>(toolParam);
 
   const load = useCallback(() => {
     Promise.all([getSchoolById(id), getToolsBySchool(id)])
@@ -106,7 +127,7 @@ export default function SchoolBingoLivePage() {
   return (
     <main>
       <Heading subtitle={school.name} />
-      <SchoolPanelNav schoolId={id} current="bingo-live" />
+      <SchoolPanelNav schoolId={id} current="tools" />
 
       {bingos.length === 0 ? (
         <p className="mt-8 text-sm text-muted">
@@ -154,7 +175,9 @@ export default function SchoolBingoLivePage() {
       )}
 
       <p className="mt-8 text-sm">
-        <BackLink href="/panel">Volver al panel</BackLink>
+        <BackLink href={`/panel/school/${id}/tools`}>
+          Volver a herramientas
+        </BackLink>
       </p>
     </main>
   );
