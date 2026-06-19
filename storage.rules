@@ -283,5 +283,36 @@ service firebase.storage {
       allow create, update: if (isBuyer() || isAdmin()) && isImageOrPdf();
       allow delete: if isBuyer() || isAdmin();
     }
+
+    // Bingo order proofs (sensitive): bingo-order-proofs/{orderId}/...
+    // NOT public. Ownership is resolved via Firestore: the proof belongs to a bingo order,
+    // which references its buyer (buyerId) and target school. Same shape/authz as raffle/product
+    // order proofs above.
+    // - write: the buyer or admin.   - read: the buyer, the school's owner/editors, or admin.
+    match /bingo-order-proofs/{orderId}/{allPaths=**} {
+      function order() {
+        return firestore.get(
+          /databases/(default)/documents/bingoOrders/$(orderId)
+        ).data;
+      }
+      function school() {
+        return firestore.get(
+          /databases/(default)/documents/schools/$(order().schoolId)
+        ).data;
+      }
+      function isBuyer() {
+        return isSignedIn() && order().buyerId == request.auth.uid;
+      }
+      function ownsSchool() {
+        return isSignedIn() && (
+          school().ownerId == request.auth.uid ||
+          request.auth.uid in school().get('editorIds', [])
+        );
+      }
+
+      allow read: if isBuyer() || ownsSchool() || isAdmin();
+      allow create, update: if (isBuyer() || isAdmin()) && isImageOrPdf();
+      allow delete: if isBuyer() || isAdmin();
+    }
   }
 }

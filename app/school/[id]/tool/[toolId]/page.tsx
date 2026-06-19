@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/BackLink";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -18,6 +19,9 @@ import {
 } from "@/components/ui/icons";
 import { buildWhatsAppLink } from "@/lib/contact";
 import {
+  getBingoCardAvailability,
+  getBingoCards,
+  getBingoOrdersByTool,
   getRaffleOrdersByTool,
   getSchoolById,
   getToolById,
@@ -29,7 +33,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
 import { toolTypeMeta } from "@/lib/tools/registry";
 import { safeExternalUrl } from "@/lib/url";
-import type { SchoolDoc, ToolDoc } from "@/types";
+import { BINGO_PATTERN_LABELS, type SchoolDoc, type ToolDoc } from "@/types";
 
 /**
  * Public tool detail: /school/[id]/tool/[toolId]
@@ -92,6 +96,12 @@ export default async function ToolPage({ params }: Props) {
   // (no order flow).
   if (tool.type === "service" && tool.service) {
     return <ServiceDetail id={id} toolId={toolId} tool={tool} school={school} />;
+  }
+
+  // A bingo: format + prizes per winning pattern + price + how many cartones are left + a
+  // "Comprar cartones" button (the order flow, gated on a verified school).
+  if (tool.type === "bingo" && tool.bingo) {
+    return <BingoDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   const Icon = toolTypeMeta(tool.type).icon;
@@ -759,6 +769,192 @@ async function ServiceDetail({
                 schoolName={school.name}
                 contactPhone={contactPhone}
               />
+            </div>
+          </div>
+        </div>
+      </article>
+    </PageContainer>
+  );
+}
+
+/**
+ * The bingo's public experience: the cartón format, the prize per winning pattern, the price, how
+ * many cartones are left, and a "Comprar cartones" button (the order flow, gated on a verified
+ * school — buying means paying the school directly). PURELY INFORMATIONAL: the platform never
+ * processes the money. The live event (called numbers, claims) is a later phase.
+ */
+async function BingoDetail({
+  id,
+  toolId,
+  tool,
+  school,
+}: {
+  id: string;
+  toolId: string;
+  tool: ToolDoc;
+  school: SchoolDoc;
+}) {
+  const bingo = tool.bingo!;
+  const [cards, orders] = await Promise.all([
+    getBingoCards(id, toolId).catch(() => []),
+    getBingoOrdersByTool(toolId).catch(() => []),
+  ]);
+  const availability = getBingoCardAvailability(cards, orders);
+  const verified = isSchoolVerified(school);
+  const Icon = toolTypeMeta(tool.type).icon;
+  const buyHref = `/panel/bingo-order?schoolId=${id}&toolId=${toolId}`;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: tool.title,
+    description: tool.description,
+    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
+    ...(tool.coverUrl ? { image: tool.coverUrl } : {}),
+    ...(bingo.eventDate
+      ? { startDate: bingo.eventDate.toDate().toISOString() }
+      : {}),
+    organizer: { "@type": "Organization", name: school.name },
+  };
+
+  return (
+    <PageContainer variant="detail">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+
+      <div className="text-sm">
+        <span className="inline-flex py-2 -my-2">
+          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
+        </span>
+      </div>
+
+      <ToolManageBar
+        schoolId={id}
+        toolId={toolId}
+        ownerId={school.ownerId}
+        editorIds={school.editorIds}
+      />
+
+      {tool.status !== "active" && (
+        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+          Este bingo no está activo por el momento, así que no aparece en la página
+          de la escuela.
+        </div>
+      )}
+
+      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
+        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
+          {tool.coverUrl ? (
+            <Image
+              src={tool.coverUrl}
+              alt=""
+              fill
+              priority
+              sizes={PAGE_COVER_SIZES}
+              className="object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-full items-center justify-center text-brand-darker/30"
+            >
+              <Icon className="h-20 w-20" />
+            </span>
+          )}
+        </div>
+
+        <div className="p-5 sm:p-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              {tool.title}
+            </h1>
+            <ToolTypeBadge type={tool.type} />
+          </div>
+
+          <ul className="mt-3 space-y-1 text-sm text-muted">
+            <li className="flex items-start gap-2">
+              <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <span>
+                <span className="font-medium text-foreground">Cartón:</span>{" "}
+                {bingo.format.rows}×{bingo.format.cols} · números{" "}
+                {bingo.format.poolMin}–{bingo.format.poolMax}
+              </span>
+            </li>
+            {bingo.drawMethod && (
+              <li className="flex items-start gap-2">
+                <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
+                <span>
+                  <span className="font-medium text-foreground">Modalidad:</span>{" "}
+                  {bingo.drawMethod}
+                </span>
+              </li>
+            )}
+            {bingo.eventDate && (
+              <li className="flex items-start gap-2">
+                <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" />
+                <span>
+                  <span className="font-medium text-foreground">Evento:</span>{" "}
+                  {formatDate(bingo.eventDate.toMillis())}
+                </span>
+              </li>
+            )}
+          </ul>
+
+          {tool.description && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {tool.description}
+            </p>
+          )}
+
+          {/* Prizes per winning pattern */}
+          <div className={`mt-6 ${cardClass("inset")}`}>
+            <h2 className="text-sm font-semibold tracking-tight text-foreground">
+              Formas de ganar
+            </h2>
+            <ol className="mt-2 space-y-1 text-sm">
+              {bingo.patterns.map((p) => (
+                <li key={p.pattern}>
+                  <span className="font-medium text-foreground">
+                    {BINGO_PATTERN_LABELS[p.pattern]}:
+                  </span>{" "}
+                  <span className="text-muted">{p.prize}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Price + availability + buy */}
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Comprá tus cartones
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              {formatMoney(bingo.pricePerCard, bingo.currency)} cada cartón ·{" "}
+              {availability.available > 0
+                ? `${availability.available} de ${availability.total} disponibles`
+                : availability.total > 0
+                  ? "agotados por ahora"
+                  : "todavía sin cartones"}
+            </p>
+            <div className="mt-4">
+              {!verified ? (
+                <p className="rounded-xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+                  La compra se habilita cuando la escuela esté verificada.
+                </p>
+              ) : availability.available > 0 ? (
+                <Link href={buyHref} className="btn btn-primary">
+                  Comprar cartones
+                  <ArrowRightIcon className="ml-1.5 h-5 w-5" />
+                </Link>
+              ) : (
+                <p className="rounded-xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+                  No hay cartones disponibles por el momento.
+                </p>
+              )}
             </div>
           </div>
         </div>
