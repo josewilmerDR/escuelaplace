@@ -1415,3 +1415,143 @@ describe("bingoOrders — create when verified, school-only confirm + assign", (
     );
   });
 });
+
+// ── bingo live event (state) + claims ────────────────────────────────────────
+describe("bingo live event state — public read, school-only write", () => {
+  beforeEach(async () => {
+    await seed((db) =>
+      setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      ),
+    );
+  });
+
+  it("ALLOWS anyone to read the live board", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1", "tools", "tool1", "event", "state"), {
+        status: "live",
+        calledNumbers: [5, 12],
+        awardedPatterns: [],
+        updatedAt: new Date(),
+      }),
+    );
+    await assertSucceeds(
+      getDoc(doc(asAnon(), "schools", "sch1", "tools", "tool1", "event", "state")),
+    );
+  });
+
+  it("ALLOWS the school to drive the board, DENIES a stranger", async () => {
+    await assertSucceeds(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "tools", "tool1", "event", "state"), {
+        status: "live",
+        calledNumbers: [],
+        awardedPatterns: [],
+        updatedAt: new Date(),
+      }),
+    );
+    await assertFails(
+      setDoc(
+        doc(asUser("mallory"), "schools", "sch1", "tools", "tool1", "event", "state"),
+        { status: "live", calledNumbers: [99], awardedPatterns: [], updatedAt: new Date() },
+      ),
+    );
+  });
+});
+
+describe("bingo claims — owner-only create, school-only resolve", () => {
+  const claim = (over: Record<string, unknown> = {}) => ({
+    cardId: "card1",
+    cardLabel: "001",
+    pattern: "row",
+    claimantId: "dana",
+    claimantName: "Dana",
+    status: "pending",
+    resolvedAt: null,
+    createdAt: new Date(),
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      // A cartón owned by dana (assigned on a confirmed order).
+      await setDoc(doc(db, "schools", "sch1", "tools", "tool1", "cards", "card1"), {
+        label: "001",
+        numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        status: "sold",
+        soldOrderId: "o1",
+        ownerId: "dana",
+        createdAt: new Date(),
+      });
+    });
+  });
+
+  it("ALLOWS the cartón owner to file a pending claim", async () => {
+    await assertSucceeds(
+      addDoc(
+        collection(asUser("dana"), "schools", "sch1", "tools", "tool1", "claims"),
+        claim(),
+      ),
+    );
+  });
+
+  it("DENIES someone who does not own the cartón", async () => {
+    await assertFails(
+      addDoc(
+        collection(asUser("mallory"), "schools", "sch1", "tools", "tool1", "claims"),
+        claim({ claimantId: "mallory", claimantName: "Mallory" }),
+      ),
+    );
+  });
+
+  it("DENIES creating a claim already 'confirmed' (must start pending)", async () => {
+    await assertFails(
+      addDoc(
+        collection(asUser("dana"), "schools", "sch1", "tools", "tool1", "claims"),
+        claim({ status: "confirmed" }),
+      ),
+    );
+  });
+
+  it("ALLOWS the school to resolve a claim, DENIES the claimant resolving their own", async () => {
+    await seed((db) =>
+      setDoc(
+        doc(db, "schools", "sch1", "tools", "tool1", "claims", "c1"),
+        claim(),
+      ),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asUser("bob"), "schools", "sch1", "tools", "tool1", "claims", "c1"), {
+        status: "confirmed",
+        resolvedAt: new Date(),
+        resolvedBy: "bob",
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(asUser("dana"), "schools", "sch1", "tools", "tool1", "claims", "c1"), {
+        status: "confirmed",
+        resolvedAt: new Date(),
+        resolvedBy: "dana",
+      }),
+    );
+  });
+
+  it("ALLOWS the claimant to read their own claim, DENIES a stranger", async () => {
+    await seed((db) =>
+      setDoc(
+        doc(db, "schools", "sch1", "tools", "tool1", "claims", "c1"),
+        claim(),
+      ),
+    );
+    await assertSucceeds(
+      getDoc(doc(asUser("dana"), "schools", "sch1", "tools", "tool1", "claims", "c1")),
+    );
+    await assertFails(
+      getDoc(doc(asUser("mallory"), "schools", "sch1", "tools", "tool1", "claims", "c1")),
+    );
+  });
+});

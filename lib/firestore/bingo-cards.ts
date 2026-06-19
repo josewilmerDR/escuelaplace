@@ -17,7 +17,9 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  query,
   serverTimestamp,
+  where,
   writeBatch,
   type WriteBatch,
 } from "firebase/firestore";
@@ -211,6 +213,24 @@ export const getBingoCards = cache(
     );
   },
 );
+
+/**
+ * The cartones a buyer owns in a bingo (assigned on confirmation), ordered by label. Powers the
+ * player's "mis cartones / jugar" view in the live event. Public read (the numbers are no secret),
+ * but a buyer only ever queries their own uid.
+ */
+export async function getBingoCardsByOwner(
+  schoolId: string,
+  toolId: string,
+  ownerId: string,
+): Promise<BingoCardDoc[]> {
+  const snap = await getDocs(
+    query(cardsCol(schoolId, toolId), where("ownerId", "==", ownerId)),
+  );
+  return snapToList<BingoCard>(snap).sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { numeric: true }),
+  );
+}
 
 // ── Writes (school owner/editor/admin only — enforced by rules) ────────────────
 

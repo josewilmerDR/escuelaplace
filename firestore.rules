@@ -313,6 +313,37 @@ service cloud.firestore {
           allow read: if true;
           allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
         }
+
+        // Bingo LIVE EVENT (Phase 2). The single state doc holds the called-numbers board the
+        // school drives during the game. READ is public — virtual players watch the board live
+        // (onSnapshot); only the school WRITES it (start/call/award/close). The system never
+        // auto-declares a winner; this is just the running tally of what the tómbola drew.
+        match /event/{docId} {
+          allow read: if true;
+          allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
+        }
+
+        // Bingo CLAIMS (Phase 2): a player's "¡Bingo!". CREATE by the cartón's OWNER only
+        // (card.ownerId == auth.uid), forced 'pending' with a valid pattern — a passive player
+        // who owns no cartón can't claim. RESOLVE (confirm/reject) is the school's alone; the
+        // school re-validates the win (called ∩ cartón) before awarding. READ is limited to the
+        // claimant and the school (a claim carries a display name).
+        match /claims/{claimId} {
+          allow read: if isAdmin() ||
+            isOwnerOrEditor(schoolData(id)) ||
+            (isSignedIn() && resource.data.claimantId == request.auth.uid);
+          allow create: if isAdmin() || (
+            isSignedIn() &&
+            request.resource.data.claimantId == request.auth.uid &&
+            request.resource.data.status == 'pending' &&
+            request.resource.data.pattern in ['row', 'column', 'diagonal', 'full'] &&
+            get(/databases/$(database)/documents/schools/$(id)/tools/$(toolId)/cards/$(request.resource.data.cardId)).data.ownerId == request.auth.uid
+          );
+          allow update: if isAdmin() || isOwnerOrEditor(schoolData(id));
+          allow delete: if isAdmin() ||
+            isOwnerOrEditor(schoolData(id)) ||
+            (isSignedIn() && resource.data.claimantId == request.auth.uid);
+        }
       }
     }
 

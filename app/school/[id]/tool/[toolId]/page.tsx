@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/BackLink";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { BingoLivePublic } from "@/components/tools/BingoLivePublic";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { SaleProducts } from "@/components/tools/SaleProducts";
 import { ServiceItems } from "@/components/tools/ServiceItems";
@@ -957,6 +958,14 @@ async function BingoDetail({
               )}
             </div>
           </div>
+
+          {/* Live event (streams in real time once the school starts the game). */}
+          <BingoLivePublic
+            schoolId={id}
+            toolId={toolId}
+            poolMin={bingo.format.poolMin}
+            poolMax={bingo.format.poolMax}
+          />
         </div>
       </article>
     </PageContainer>
