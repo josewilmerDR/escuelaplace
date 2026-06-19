@@ -840,6 +840,52 @@ export interface RaffleConfig {
   drawMethod: string;
 }
 
+// ── Guided tour (type: 'guided_tour') — a sequenced, media-rich activity ──────
+//
+// A guided tour ("visita guiada") is an ordered sequence of stages (etapa 1, 2, 3…), each
+// with a name, a description of what it includes, up to TOUR_STAGE_PHOTO_MAX photos and one
+// short video (≤ TOUR_VIDEO_MAX_SECONDS). Its config lives on the tool doc under `tour`. The
+// public page shows the stages in order and ends with a "Preguntar" button that opens
+// WhatsApp. PURELY INFORMATIONAL like every tool — there is nothing to pay; it only links out.
+
+/** Stages per tour, and media per stage. Enforced by the panel UI, not by rules. */
+export const TOUR_STAGE_MAX = 12;
+export const TOUR_STAGE_TITLE_MAX = 120;
+export const TOUR_STAGE_DESCRIPTION_MAX = 500;
+/** Up to five photos per stage (the user-facing cap for the guided tour). */
+export const TOUR_STAGE_PHOTO_MAX = 5;
+/** A stage's video must be at most one minute; the UI probes the file's duration before
+ * upload (a small tolerance is applied so a 60.0s clip isn't rejected on rounding). */
+export const TOUR_VIDEO_MAX_SECONDS = 60;
+/** Client-side size cap for a stage video (MB). The storage rule backstop sits above this,
+ * mirroring how images cap at 5 MB in the UI but the rule allows more headroom. */
+export const TOUR_VIDEO_MAX_MB = 64;
+
+/**
+ * One step of a guided tour, embedded in the tour config. Ordered by array position
+ * (stage 1 = stages[0]). Media (photos + a video) lives in Storage; the doc holds the
+ * public download URLs (schools/{id}/tools/{toolId}/...), same as a project stage.
+ */
+export interface TourStage {
+  title: string;
+  /** What this stage includes. */
+  description: string;
+  /** Public Storage URLs, up to TOUR_STAGE_PHOTO_MAX. */
+  photos?: string[];
+  /** Public Storage URL of a single short video (≤ TOUR_VIDEO_MAX_SECONDS). */
+  videoUrl?: string;
+}
+
+export interface TourConfig {
+  /** Ordered stages shown in sequence on the public page. */
+  stages: TourStage[];
+  /**
+   * Optional WhatsApp number for the public "Preguntar" button. Free text (the helper
+   * normalizes it); when empty the button falls back to the school's boardContact.phone.
+   */
+  contactPhone?: string;
+}
+
 export interface Tool {
   /** Denormalized parent id (the doc lives under the school; kept for the detail page and
    * any query that starts from a tool). */
@@ -858,6 +904,8 @@ export interface Tool {
   cta?: ToolCta;
   /** Present only when `type === 'raffle'`: the raffle's configuration. */
   raffle?: RaffleConfig;
+  /** Present only when `type === 'guided_tour'`: the tour's ordered stages. */
+  tour?: TourConfig;
   status: ToolStatus;
   /** Denormalized from the school so rules/UI resolve the board without an extra read. */
   ownerId: string;
