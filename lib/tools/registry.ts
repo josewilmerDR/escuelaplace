@@ -50,8 +50,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
   },
   service: {
     key: "service",
-    label: "Servicio",
-    hint: "Un servicio que ofrece la comunidad escolar.",
+    label: "Servicios",
+    hint: "Catálogo de servicios que ofrece la comunidad escolar.",
     icon: WrenchIcon,
   },
   guided_tour: {

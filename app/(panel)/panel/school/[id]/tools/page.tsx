@@ -28,6 +28,12 @@ import {
   type SaleFormValue,
 } from "@/components/tools/SaleProductsEditor";
 import {
+  ServiceItemsEditor,
+  emptyServiceForm,
+  toServiceInput,
+  type ServiceFormValue,
+} from "@/components/tools/ServiceItemsEditor";
+import {
   TourStagesEditor,
   emptyTourForm,
   toTourInput,
@@ -135,6 +141,8 @@ export default function SchoolToolsPage() {
   const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
   const [tourForm, setTourForm] = useState<TourFormValue>(emptyTourForm);
   const [saleForm, setSaleForm] = useState<SaleFormValue>(emptySaleForm);
+  const [serviceForm, setServiceForm] =
+    useState<ServiceFormValue>(emptyServiceForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -253,6 +261,13 @@ export default function SchoolToolsPage() {
       return;
     }
     const sale = saleResult?.ok ? saleResult.input : undefined;
+    // A service catalog carries its services (text + optional price); media is added on edit.
+    const serviceResult = type === "service" ? toServiceInput(serviceForm) : null;
+    if (serviceResult && !serviceResult.ok) {
+      setError(serviceResult.error);
+      return;
+    }
+    const service = serviceResult?.ok ? serviceResult.input : undefined;
     setSaving(true);
     setError(null);
     try {
@@ -263,6 +278,7 @@ export default function SchoolToolsPage() {
         ...(raffle ? { raffle } : {}),
         ...(tour ? { tour } : {}),
         ...(sale ? { sale } : {}),
+        ...(service ? { service } : {}),
       });
       // Straight to the edit page (with ?created=1) so the board can add the cover, dates and
       // the call-to-action link.
@@ -348,6 +364,7 @@ export default function SchoolToolsPage() {
                 if (t !== "raffle") setRaffleForm(emptyRaffleForm());
                 if (t !== "guided_tour") setTourForm(emptyTourForm());
                 if (t !== "sale") setSaleForm(emptySaleForm());
+                if (t !== "service") setServiceForm(emptyServiceForm());
               }}
             />
           </div>
@@ -400,6 +417,15 @@ export default function SchoolToolsPage() {
             </div>
           )}
 
+          {type === "service" && (
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Servicios del catálogo
+              </p>
+              <ServiceItemsEditor value={serviceForm} onChange={setServiceForm} />
+            </div>
+          )}
+
           <FormError message={error} />
 
           <button type="submit" disabled={saving} className="btn btn-primary">
@@ -411,7 +437,9 @@ export default function SchoolToolsPage() {
                   ? "Crear visita guiada"
                   : type === "sale"
                     ? "Crear productos"
-                    : "Crear herramienta"}
+                    : type === "service"
+                      ? "Crear servicios"
+                      : "Crear herramienta"}
           </button>
         </form>
       </section>

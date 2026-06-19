@@ -5,6 +5,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { SaleProducts } from "@/components/tools/SaleProducts";
+import { ServiceItems } from "@/components/tools/ServiceItems";
 import { ToolManageBar } from "@/components/tools/ToolManageBar";
 import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
 import { TourStages } from "@/components/tools/TourStages";
@@ -85,6 +86,12 @@ export default async function ToolPage({ params }: Props) {
   // Comprar/Consultar buttons).
   if (tool.type === "sale" && tool.sale) {
     return <SaleDetail id={id} toolId={toolId} tool={tool} school={school} />;
+  }
+
+  // A "Servicios" catalog: per-service media + optional price + a "Preguntar" WhatsApp button
+  // (no order flow).
+  if (tool.type === "service" && tool.service) {
+    return <ServiceDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   const Icon = toolTypeMeta(tool.type).icon;
@@ -622,6 +629,135 @@ async function SaleDetail({
                 schoolName={school.name}
                 contactPhone={contactPhone}
                 verified={verified}
+              />
+            </div>
+          </div>
+        </div>
+      </article>
+    </PageContainer>
+  );
+}
+
+/**
+ * The "Servicios" catalog public experience: each service (media + description + optional price)
+ * with a single "Preguntar" WhatsApp button. No order flow and no verification gate — asking is
+ * just a chat. PURELY INFORMATIONAL.
+ */
+async function ServiceDetail({
+  id,
+  toolId,
+  tool,
+  school,
+}: {
+  id: string;
+  toolId: string;
+  tool: ToolDoc;
+  school: SchoolDoc;
+}) {
+  const service = tool.service!;
+  const Icon = toolTypeMeta(tool.type).icon;
+  const contactPhone = service.contactPhone || school.boardContact?.phone || "";
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: tool.title,
+    itemListElement: service.services.map((s, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      item: {
+        "@type": "Service",
+        name: s.name,
+        ...(s.description ? { description: s.description } : {}),
+        ...(s.photos && s.photos.length > 0 ? { image: s.photos[0] } : {}),
+        provider: { "@type": "Organization", name: school.name },
+        ...(typeof s.price === "number"
+          ? {
+              offers: {
+                "@type": "Offer",
+                price: s.price,
+                priceCurrency: service.currency,
+              },
+            }
+          : {}),
+      },
+    })),
+  };
+
+  return (
+    <PageContainer variant="detail">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+
+      <div className="text-sm">
+        <span className="inline-flex py-2 -my-2">
+          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
+        </span>
+      </div>
+
+      <ToolManageBar
+        schoolId={id}
+        toolId={toolId}
+        ownerId={school.ownerId}
+        editorIds={school.editorIds}
+      />
+
+      {tool.status !== "active" && (
+        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+          Estos servicios no están activos por el momento, así que no aparecen en
+          la página de la escuela.
+        </div>
+      )}
+
+      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
+        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
+          {tool.coverUrl ? (
+            <Image
+              src={tool.coverUrl}
+              alt=""
+              fill
+              priority
+              sizes={PAGE_COVER_SIZES}
+              className="object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-full items-center justify-center text-brand-darker/30"
+            >
+              <Icon className="h-20 w-20" />
+            </span>
+          )}
+        </div>
+
+        <div className="p-5 sm:p-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              {tool.title}
+            </h1>
+            <ToolTypeBadge type={tool.type} />
+          </div>
+
+          {tool.description && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {tool.description}
+            </p>
+          )}
+
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Servicios
+            </h2>
+            <div className="mt-4">
+              <ServiceItems
+                services={service.services}
+                currency={service.currency}
+                schoolName={school.name}
+                contactPhone={contactPhone}
               />
             </div>
           </div>
