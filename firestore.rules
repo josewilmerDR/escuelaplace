@@ -93,6 +93,9 @@ service cloud.firestore {
     function raffleOrderData(id) {
       return get(/databases/$(database)/documents/raffleOrders/$(id)).data;
     }
+    function productOrderData(id) {
+      return get(/databases/$(database)/documents/productOrders/$(id)).data;
+    }
 
     // ── users/{uid} ─────────────────────────────────────────────────────────
     // Each user can only read/write their own document. Admin can do everything. The `role`
@@ -367,7 +370,7 @@ service cloud.firestore {
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
-          'raffle', 'tour', 'ownerId', 'createdAt', 'updatedAt']) &&
+          'raffle', 'tour', 'sale', 'ownerId', 'createdAt', 'updatedAt']) &&
         request.resource.data.type in
           ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other'] &&
         request.resource.data.status in ['active', 'inactive'] &&
@@ -379,13 +382,15 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['raffle']) ||
           request.resource.data.raffle is map) &&
         (!request.resource.data.keys().hasAny(['tour']) ||
-          request.resource.data.tour is map);
+          request.resource.data.tour is map) &&
+        (!request.resource.data.keys().hasAny(['sale']) ||
+          request.resource.data.sale is map);
     }
     function validToolUpdate() {
       return keepsOwner() &&
         changedKeys().hasOnly([
           'type', 'title', 'description', 'status', 'coverUrl', 'startsAt', 'endsAt',
-          'cta', 'raffle', 'tour', 'updatedAt']) &&
+          'cta', 'raffle', 'tour', 'sale', 'updatedAt']) &&
         (!changedKeys().hasAny(['type']) ||
           request.resource.data.type in
             ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other']) &&
@@ -401,6 +406,8 @@ service cloud.firestore {
           request.resource.data.raffle is map) &&
         (!request.resource.data.keys().hasAny(['tour']) ||
           request.resource.data.tour is map) &&
+        (!request.resource.data.keys().hasAny(['sale']) ||
+          request.resource.data.sale is map) &&
         (!request.resource.data.keys().hasAny(['cta']) ||
           (request.resource.data.cta is map &&
             request.resource.data.cta.label is string &&
@@ -843,6 +850,106 @@ service cloud.firestore {
         request.resource.data.numbers.size() <= 100;
     }
     function validRaffleOrderUpdate() {
+      return changedKeys().hasOnly([
+        'status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'updatedAt']);
+    }
+
+    // ── productOrders/{id} ─────────────────────────────────────────────────────
+    // A buyer's order of one product from a school "Productos" catalog (a tool of type 'sale'),
+    // awaiting the school's payment confirmation. Top-level (like raffleOrders) so its proof file
+    // + private subdoc resolve by id. The doc holds NO sensitive data — the buyer's name + amount
+    // live in the private subdoc, the proof file in Storage (product-order-proofs/{id}); only
+    // `proofUploaded` is public. Mirrors raffleOrders exactly.
+    // - read: public.
+    // - create: the buyer themselves, forced 'pending', and ONLY while the target school is
+    //   'verified' — same gate as contributions/raffle orders.
+    // - update: the buyer may edit their own pending doc (the proof flag) but may NEVER
+    //   self-confirm or rewrite who/which product; only the TARGET school's owner/editors or
+    //   admin may confirm. Identity (product + quantity included) frozen at create.
+    // - delete: the buyer or admin.
+    match /productOrders/{id} {
+      allow read: if true;
+
+      allow create: if isAdmin() || (
+        isSignedIn() &&
+        request.resource.data.buyerId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.confirmedAt == null &&
+        schoolData(request.resource.data.schoolId).verificationStatus == 'verified' &&
+        validProductOrderCreate()
+      );
+
+      allow update: if isAdmin() || (
+        keepsProductOrderIdentity() && validProductOrderUpdate() &&
+        confirmsProductOrderFromPending() && (
+          isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
+          (isSignedIn() &&
+            resource.data.buyerId == request.auth.uid &&
+            !changesProductOrderConfirmation())
+        )
+      );
+
+      allow delete: if isAdmin() ||
+        (isSignedIn() && resource.data.buyerId == request.auth.uid);
+
+      // Private: the buyer's real (proof-matching) name AND the amount — denormalized OFF the
+      // public doc so an anonymous scraper can't deanonymize nor read how much a person paid.
+      // - read: the buyer, the target school's owner/editors, or admin.
+      // - create: the buyer, while the parent is still 'pending'. - update: the buyer, but once
+      //   the school confirmed, `amount` is FROZEN.
+      function buyerOwnsProductOrder() {
+        return isSignedIn() && productOrderData(id).buyerId == request.auth.uid;
+      }
+      match /private/{doc} {
+        allow read: if isAdmin() || buyerOwnsProductOrder() ||
+          isOwnerOrEditor(schoolData(productOrderData(id).schoolId));
+        allow create: if isAdmin() || (
+          buyerOwnsProductOrder() && productOrderData(id).status == 'pending'
+        );
+        allow update: if isAdmin() || (
+          buyerOwnsProductOrder() && (
+            productOrderData(id).status == 'pending' ||
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount'])
+          )
+        );
+        allow delete: if isAdmin() || buyerOwnsProductOrder();
+      }
+    }
+
+    // No update may rewrite who ordered which product/quantity (frozen at create).
+    function keepsProductOrderIdentity() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['schoolId', 'toolId', 'buyerId', 'productId', 'quantity', 'currency']
+      );
+    }
+    // The buyer must not self-confirm; only the school/admin may touch these fields.
+    function changesProductOrderConfirmation() {
+      return request.resource.data.status != resource.data.status ||
+        request.resource.data.confirmedAt != resource.data.confirmedAt;
+    }
+    // Confirmed exactly once (pending → confirmed) so the school can't re-confirm (no renewal).
+    function confirmsProductOrderFromPending() {
+      return request.resource.data.status != 'confirmed' ||
+        resource.data.status == 'pending';
+    }
+    // CREATE pins the PUBLIC field set — it OMITS buyerName/amount (those live in private/data),
+    // validates the currency enum and the quantity bounds. UPDATE pins the confirmation/proof
+    // fields only.
+    function validProductOrderCreate() {
+      return request.resource.data.keys().hasOnly([
+          'schoolId', 'schoolName', 'toolId', 'toolTitle', 'buyerId', 'productId',
+          'productName', 'quantity', 'currency', 'status', 'confirmedAt', 'createdAt',
+          'updatedAt']) &&
+        request.resource.data.currency in ['CRC', 'USD', 'NIO', 'MXN', 'EUR'] &&
+        request.resource.data.toolTitle is string &&
+        request.resource.data.toolTitle.size() <= 120 &&
+        request.resource.data.productName is string &&
+        request.resource.data.productName.size() <= 120 &&
+        request.resource.data.quantity is int &&
+        request.resource.data.quantity >= 1 &&
+        request.resource.data.quantity <= 10000;
+    }
+    function validProductOrderUpdate() {
       return changedKeys().hasOnly([
         'status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'updatedAt']);
     }

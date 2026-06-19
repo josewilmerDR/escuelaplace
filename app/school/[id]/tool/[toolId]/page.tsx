@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/BackLink";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
+import { SaleProducts } from "@/components/tools/SaleProducts";
 import { ToolManageBar } from "@/components/tools/ToolManageBar";
 import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
 import { TourStages } from "@/components/tools/TourStages";
@@ -78,6 +79,12 @@ export default async function ToolPage({ params }: Props) {
   // + a WhatsApp "Preguntar" button).
   if (tool.type === "guided_tour" && tool.tour) {
     return <TourDetail id={id} toolId={toolId} tool={tool} school={school} />;
+  }
+
+  // A "Productos" catalog has its own configured experience (per-product media + price + the
+  // Comprar/Consultar buttons).
+  if (tool.type === "sale" && tool.sale) {
+    return <SaleDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   const Icon = toolTypeMeta(tool.type).icon;
@@ -490,6 +497,134 @@ async function TourDetail({
               </p>
             </div>
           )}
+        </div>
+      </article>
+    </PageContainer>
+  );
+}
+
+/**
+ * The "Productos" catalog public experience: each product (media + description + price) with a
+ * "Comprar" button (the raffle-style order flow, gated on the school being verified) and a
+ * "Consultar" WhatsApp button. PURELY INFORMATIONAL — the platform never processes the money.
+ */
+async function SaleDetail({
+  id,
+  toolId,
+  tool,
+  school,
+}: {
+  id: string;
+  toolId: string;
+  tool: ToolDoc;
+  school: SchoolDoc;
+}) {
+  const sale = tool.sale!;
+  const Icon = toolTypeMeta(tool.type).icon;
+  const verified = isSchoolVerified(school);
+  const contactPhone = sale.contactPhone || school.boardContact?.phone || "";
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: tool.title,
+    itemListElement: sale.products.map((p, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      item: {
+        "@type": "Product",
+        name: p.name,
+        ...(p.description ? { description: p.description } : {}),
+        ...(p.photos && p.photos.length > 0 ? { image: p.photos[0] } : {}),
+        offers: {
+          "@type": "Offer",
+          price: p.price,
+          priceCurrency: sale.currency,
+        },
+      },
+    })),
+  };
+
+  return (
+    <PageContainer variant="detail">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+
+      <div className="text-sm">
+        <span className="inline-flex py-2 -my-2">
+          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
+        </span>
+      </div>
+
+      <ToolManageBar
+        schoolId={id}
+        toolId={toolId}
+        ownerId={school.ownerId}
+        editorIds={school.editorIds}
+      />
+
+      {tool.status !== "active" && (
+        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+          Estos productos no están activos por el momento, así que no aparecen en
+          la página de la escuela.
+        </div>
+      )}
+
+      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
+        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
+          {tool.coverUrl ? (
+            <Image
+              src={tool.coverUrl}
+              alt=""
+              fill
+              priority
+              sizes={PAGE_COVER_SIZES}
+              className="object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-full items-center justify-center text-brand-darker/30"
+            >
+              <Icon className="h-20 w-20" />
+            </span>
+          )}
+        </div>
+
+        <div className="p-5 sm:p-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              {tool.title}
+            </h1>
+            <ToolTypeBadge type={tool.type} />
+          </div>
+
+          {tool.description && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {tool.description}
+            </p>
+          )}
+
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Productos
+            </h2>
+            <div className="mt-4">
+              <SaleProducts
+                products={sale.products}
+                currency={sale.currency}
+                schoolId={id}
+                toolId={toolId}
+                schoolName={school.name}
+                contactPhone={contactPhone}
+                verified={verified}
+              />
+            </div>
+          </div>
         </div>
       </article>
     </PageContainer>

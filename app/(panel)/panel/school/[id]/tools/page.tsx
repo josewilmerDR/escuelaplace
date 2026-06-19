@@ -22,6 +22,12 @@ import {
   type RaffleFormValue,
 } from "@/components/tools/RaffleConfigFields";
 import {
+  SaleProductsEditor,
+  emptySaleForm,
+  toSaleInput,
+  type SaleFormValue,
+} from "@/components/tools/SaleProductsEditor";
+import {
   TourStagesEditor,
   emptyTourForm,
   toTourInput,
@@ -128,6 +134,7 @@ export default function SchoolToolsPage() {
   const [description, setDescription] = useState("");
   const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
   const [tourForm, setTourForm] = useState<TourFormValue>(emptyTourForm);
+  const [saleForm, setSaleForm] = useState<SaleFormValue>(emptySaleForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -239,6 +246,13 @@ export default function SchoolToolsPage() {
       return;
     }
     const tour = tourResult?.ok ? tourResult.input : undefined;
+    // A product catalog carries its products (text + price); media is added on the edit page.
+    const saleResult = type === "sale" ? toSaleInput(saleForm) : null;
+    if (saleResult && !saleResult.ok) {
+      setError(saleResult.error);
+      return;
+    }
+    const sale = saleResult?.ok ? saleResult.input : undefined;
     setSaving(true);
     setError(null);
     try {
@@ -248,6 +262,7 @@ export default function SchoolToolsPage() {
         description: description.trim(),
         ...(raffle ? { raffle } : {}),
         ...(tour ? { tour } : {}),
+        ...(sale ? { sale } : {}),
       });
       // Straight to the edit page (with ?created=1) so the board can add the cover, dates and
       // the call-to-action link.
@@ -332,6 +347,7 @@ export default function SchoolToolsPage() {
                 // doesn't silently reappear if the user comes back to it.
                 if (t !== "raffle") setRaffleForm(emptyRaffleForm());
                 if (t !== "guided_tour") setTourForm(emptyTourForm());
+                if (t !== "sale") setSaleForm(emptySaleForm());
               }}
             />
           </div>
@@ -375,6 +391,15 @@ export default function SchoolToolsPage() {
             </div>
           )}
 
+          {type === "sale" && (
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Productos del catálogo
+              </p>
+              <SaleProductsEditor value={saleForm} onChange={setSaleForm} />
+            </div>
+          )}
+
           <FormError message={error} />
 
           <button type="submit" disabled={saving} className="btn btn-primary">
@@ -384,7 +409,9 @@ export default function SchoolToolsPage() {
                 ? "Crear rifa"
                 : type === "guided_tour"
                   ? "Crear visita guiada"
-                  : "Crear herramienta"}
+                  : type === "sale"
+                    ? "Crear productos"
+                    : "Crear herramienta"}
           </button>
         </form>
       </section>

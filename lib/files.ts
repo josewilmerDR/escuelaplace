@@ -26,11 +26,11 @@ export function validateProofFile(file: File): string | null {
 }
 
 /**
- * Synchronous type/size check for a stage video (guided tour). Returns a Spanish message
- * for an unusable file, or null when it's fine. Duration (≤ 1 minute) is checked separately
- * because it can only be read asynchronously from the decoded metadata, so this is the cheap
- * pre-filter that runs before that probe. The byte cap is passed in so it stays defined next
- * to the rest of the tour caps (TOUR_VIDEO_MAX_MB).
+ * Synchronous type/size check for a short tool video (guided-tour stage, sale product…).
+ * Returns a Spanish message for an unusable file, or null when it's fine. Duration (≤ 1 minute)
+ * is checked separately because it can only be read asynchronously from the decoded metadata, so
+ * this is the cheap pre-filter that runs before that probe. The byte cap is passed in by the
+ * caller (TOOL_VIDEO_MAX_MB).
  */
 export function validateVideoFile(file: File, maxMb: number): string | null {
   if (!file.type.startsWith("video/")) {
@@ -40,4 +40,27 @@ export function validateVideoFile(file: File, maxMb: number): string | null {
     return `El video no puede superar los ${maxMb} MB.`;
   }
   return null;
+}
+
+/**
+ * Read a video file's duration (seconds) from its decoded metadata, without loading the whole
+ * file. Browser-only (uses a detached <video>), so it must be called from a client handler —
+ * `document` is referenced only inside, so importing this module on the server is harmless.
+ * Rejects if the file can't be decoded. Shared by the tool editors that cap a short clip.
+ */
+export function videoDurationSeconds(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(video.duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("No se pudo leer el video."));
+    };
+    video.src = url;
+  });
 }

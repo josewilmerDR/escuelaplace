@@ -25,6 +25,7 @@ import {
   RaffleNumberGrid,
   RaffleNumberLegend,
 } from "@/components/tools/RaffleNumberGrid";
+import { newProductId } from "@/components/tools/SaleProductsEditor";
 import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
@@ -35,7 +36,7 @@ import { ImagePicker, validateImageFile } from "@/components/ui/ImagePicker";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { XMarkIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
-import { validateVideoFile } from "@/lib/files";
+import { validateVideoFile, videoDurationSeconds } from "@/lib/files";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
@@ -49,12 +50,19 @@ import {
   toolDateFromInput,
   toolDateInputValue,
   updateTool,
+  updateToolSale,
   updateToolTour,
   uploadToolCover,
   uploadToolStageAsset,
+  type SaleConfigInput,
   type TourConfigInput,
 } from "@/lib/firestore";
 import {
+  PROJECT_CURRENCIES,
+  SALE_PRODUCT_DESCRIPTION_MAX,
+  SALE_PRODUCT_MAX,
+  SALE_PRODUCT_NAME_MAX,
+  SALE_PRODUCT_PHOTO_MAX,
   TOOL_CTA_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
@@ -62,9 +70,12 @@ import {
   TOUR_STAGE_MAX,
   TOUR_STAGE_PHOTO_MAX,
   TOUR_STAGE_TITLE_MAX,
-  TOUR_VIDEO_MAX_MB,
-  TOUR_VIDEO_MAX_SECONDS,
+  TOOL_VIDEO_MAX_MB,
+  TOOL_VIDEO_MAX_SECONDS,
+  type ProjectCurrency,
   type RaffleOrderDoc,
+  type SaleConfig,
+  type SaleProduct,
   type SchoolDoc,
   type ToolDoc,
   type ToolStatus,
@@ -97,26 +108,11 @@ function Heading({ subtitle }: { subtitle?: string }) {
 type EditableTourStage = TourStage & { _key: number };
 
 /**
- * Read a video file's duration (seconds) from its decoded metadata, without loading the whole
- * file. Browser-only (uses a detached <video>), so it lives here and runs from the upload
- * handler. Rejects if the file can't be decoded.
+ * A sale product as the edit form holds it: price is a STRING while editing (a controlled
+ * number input drops the decimal point mid-type), parsed back to a number on save. The stable
+ * `id` doubles as the React key and the media/removal match key.
  */
-function videoDurationSeconds(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const video = document.createElement("video");
-    video.preload = "metadata";
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(video.duration);
-    };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("No se pudo leer el video."));
-    };
-    video.src = url;
-  });
-}
+type EditableSaleProduct = Omit<SaleProduct, "price"> & { price: string };
 
 export default function EditToolPage() {
   const { id, toolId } = useParams<{ id: string; toolId: string }>();
@@ -157,6 +153,15 @@ export default function EditToolPage() {
   // The stage pending removal confirmation (its _key), or null when no dialog is open.
   const [tourRemoveKey, setTourRemoveKey] = useState<number | null>(null);
   const [tourRemoving, setTourRemoving] = useState(false);
+
+  // Sale ("Productos") editable state. Each product carries a STABLE id, so media ops and
+  // removal match by id (no positional mapping needed, unlike tour stages). Text/price + the
+  // currency + the contact phone save with the form button; media persists immediately.
+  const [saleProducts, setSaleProducts] = useState<EditableSaleProduct[]>([]);
+  const [saleCurrency, setSaleCurrency] = useState<ProjectCurrency>("CRC");
+  const [salePhone, setSalePhone] = useState("");
+  const [saleRemoveId, setSaleRemoveId] = useState<string | null>(null);
+  const [saleRemoving, setSaleRemoving] = useState(false);
 
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -199,6 +204,13 @@ export default function EditToolPage() {
           if (t.tour) {
             setTourStages(keyTourStages(t.tour.stages));
             setTourPhone(t.tour.contactPhone ?? "");
+          }
+          if (t.sale) {
+            setSaleProducts(
+              t.sale.products.map((p) => ({ ...p, price: String(p.price) })),
+            );
+            setSaleCurrency(t.sale.currency);
+            setSalePhone(t.sale.contactPhone ?? "");
           }
         }
         setLoadState("loaded");
@@ -344,6 +356,50 @@ export default function EditToolPage() {
       tour = { stages: cleanStages, ...(phone ? { contactPhone: phone } : {}) };
     }
 
+    // A product catalog carries its products (text + price + already-uploaded media), the
+    // currency and the contact. Require at least one product with a name and a price > 0; empty
+    // products (nothing filled — e.g. an "Agregar producto" never completed) are dropped.
+    let sale: SaleConfigInput | undefined;
+    if (type === "sale") {
+      const cleanProducts = saleProducts
+        .map((p) => ({
+          id: p.id,
+          name: p.name.trim(),
+          description: p.description.trim(),
+          price: Number(p.price),
+          ...(p.photos && p.photos.length > 0 ? { photos: p.photos } : {}),
+          ...(p.videoUrl ? { videoUrl: p.videoUrl } : {}),
+        }))
+        .filter(
+          (p) =>
+            p.name ||
+            p.description ||
+            p.price > 0 ||
+            (p.photos?.length ?? 0) > 0 ||
+            Boolean(p.videoUrl),
+        );
+      if (cleanProducts.length === 0) {
+        setError("Agregá al menos un producto con su nombre y precio.");
+        return;
+      }
+      for (const p of cleanProducts) {
+        if (!p.name) {
+          setError("Cada producto necesita un nombre.");
+          return;
+        }
+        if (!Number.isFinite(p.price) || p.price <= 0) {
+          setError(`Ingresá un precio mayor a 0 para «${p.name}».`);
+          return;
+        }
+      }
+      const phone = salePhone.trim();
+      sale = {
+        products: cleanProducts,
+        currency: saleCurrency,
+        ...(phone ? { contactPhone: phone } : {}),
+      };
+    }
+
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -364,12 +420,20 @@ export default function EditToolPage() {
         cta,
         ...(raffle ? { raffle } : {}),
         ...(tour ? { tour } : {}),
+        ...(sale ? { sale } : {}),
       });
-      // The local persisted tour base (TourStageInput is structurally a TourStage).
+      // The local persisted bases (the Input shapes are structurally the stored shapes).
       const savedTour: TourConfig | undefined = tour
         ? {
             stages: tour.stages,
             ...(tour.contactPhone ? { contactPhone: tour.contactPhone } : {}),
+          }
+        : undefined;
+      const savedSale: SaleConfig | undefined = sale
+        ? {
+            products: sale.products,
+            currency: sale.currency,
+            ...(sale.contactPhone ? { contactPhone: sale.contactPhone } : {}),
           }
         : undefined;
       setTool((prev) =>
@@ -381,9 +445,10 @@ export default function EditToolPage() {
               description: description.trim(),
               status,
               ...(coverUrl ? { coverUrl } : {}),
-              // Keep the persisted tour base in sync so later media ops build on saved stages;
-              // a switch away from guided_tour drops it (updateTool deleted it on the doc).
+              // Keep the persisted bases in sync so later media ops build on saved items; a
+              // switch away from a kind drops its config (updateTool deleted it on the doc).
               tour: type === "guided_tour" ? savedTour : undefined,
+              sale: type === "sale" ? savedSale : undefined,
             }
           : prev,
       );
@@ -392,6 +457,15 @@ export default function EditToolPage() {
       if (type === "guided_tour" && savedTour) {
         setTourStages(keyTourStages(savedTour.stages));
         setTourPhone(savedTour.contactPhone ?? "");
+      }
+      // Re-sync the editable products from the saved values (drops empty/unsaved ones; every
+      // surviving product is now persisted so its media uploads unlock).
+      if (type === "sale" && savedSale) {
+        setSaleProducts(
+          savedSale.products.map((p) => ({ ...p, price: String(p.price) })),
+        );
+        setSaleCurrency(savedSale.currency);
+        setSalePhone(savedSale.contactPhone ?? "");
       }
       setCoverFile(null);
       setSaved(true);
@@ -523,11 +597,102 @@ export default function EditToolPage() {
     setDirty(true);
   };
 
+  // ── Sale ("Productos") product helpers ─────────────────────────────────────
+  // Products carry a stable id, so media ops/removal match by id directly (no positional
+  // mapping). A product is "persisted" iff its id is in tool.sale.products; media can only
+  // attach to a persisted product (a freshly-added one persists on "Guardar cambios").
+
+  /** Persist a media change on a single SAVED product immediately, from the persisted base, so
+   * an in-progress text/price edit isn't dragged along. Mirrors applyTourMedia. */
+  const applySaleMedia = async (
+    productId: string,
+    media: { photos?: string[]; videoUrl?: string | null },
+  ) => {
+    if (type !== "sale" || !tool?.sale) return;
+    if (!tool.sale.products.some((p) => p.id === productId)) return;
+    setError(null);
+    // Constrained on just the media fields so it applies to both the persisted base (SaleProduct,
+    // numeric price) and the editable copy (EditableSaleProduct, string price), preserving each
+    // one's other fields (notably the editable copy's in-progress text/price).
+    const applyDelta = <T extends { photos?: string[]; videoUrl?: string }>(
+      p: T,
+    ): T => {
+      const next = { ...p };
+      if (media.photos !== undefined) next.photos = media.photos;
+      if (media.videoUrl !== undefined) {
+        if (media.videoUrl) next.videoUrl = media.videoUrl;
+        else delete next.videoUrl;
+      }
+      return next;
+    };
+    const nextProducts: SaleProduct[] = tool.sale.products.map((p) =>
+      p.id === productId ? applyDelta(p) : p,
+    );
+    await updateToolSale(id, toolId, {
+      products: nextProducts,
+      currency: tool.sale.currency,
+      ...(tool.sale.contactPhone ? { contactPhone: tool.sale.contactPhone } : {}),
+    });
+    setTool((prev) =>
+      prev && prev.sale
+        ? { ...prev, sale: { ...prev.sale, products: nextProducts } }
+        : prev,
+    );
+    setSaleProducts((prev) =>
+      prev.map((p) => (p.id === productId ? applyDelta(p) : p)),
+    );
+  };
+
+  /** Remove a product. A persisted one is written immediately from the persisted base; an
+   * unsaved one is just dropped locally. */
+  const removeSaleProduct = async (productId: string) => {
+    if (type !== "sale") return;
+    setError(null);
+    if (!tool?.sale?.products.some((p) => p.id === productId)) {
+      setSaleProducts((prev) => prev.filter((p) => p.id !== productId));
+      setSaleRemoveId(null);
+      return;
+    }
+    const sale = tool.sale;
+    const nextProducts = sale.products.filter((p) => p.id !== productId);
+    setSaleRemoving(true);
+    try {
+      await updateToolSale(id, toolId, {
+        products: nextProducts,
+        currency: sale.currency,
+        ...(sale.contactPhone ? { contactPhone: sale.contactPhone } : {}),
+      });
+      setTool((prev) =>
+        prev && prev.sale
+          ? { ...prev, sale: { ...prev.sale, products: nextProducts } }
+          : prev,
+      );
+      setSaleProducts((prev) => prev.filter((p) => p.id !== productId));
+      setSaleRemoveId(null);
+    } catch (err) {
+      setError(userErrorMessage(err, "No se pudo quitar el producto."));
+    } finally {
+      setSaleRemoving(false);
+    }
+  };
+
+  const addSaleProduct = () => {
+    setSaleProducts((prev) => [
+      ...prev,
+      { id: newProductId(), name: "", description: "", price: "" },
+    ]);
+    setDirty(true);
+  };
+
   // The stage targeted by the open remove dialog, for its impact summary.
   const tourRemoveTarget =
     tourRemoveKey === null
       ? null
       : tourStages.find((s) => s._key === tourRemoveKey);
+  const saleRemoveTarget =
+    saleRemoveId === null
+      ? null
+      : saleProducts.find((p) => p.id === saleRemoveId);
 
   return (
     <main>
@@ -663,6 +828,101 @@ export default function EditToolPage() {
               El botón “Preguntar” de la página abrirá WhatsApp con este número. Si
               lo dejás en blanco, usa el teléfono de la junta de la escuela.
             </p>
+          </section>
+        )}
+
+        {type === "sale" && (
+          <section className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                Productos del catálogo
+              </h2>
+              {tool.sale && (
+                <Link
+                  href={`/panel/school/${id}/product-orders`}
+                  className="text-sm font-medium text-brand-darker hover:underline"
+                >
+                  Confirmar pedidos
+                </Link>
+              )}
+            </div>
+            <p className="-mt-2 text-xs text-muted">
+              El público verá cada producto con su foto, precio y un botón
+              “Comprar”. Las fotos y el video se guardan al instante; los textos y
+              el precio, al guardar los cambios.
+            </p>
+
+            <Field label="Moneda">
+              <select
+                value={saleCurrency}
+                onChange={(e) => {
+                  setSaleCurrency(e.target.value as ProjectCurrency);
+                  setDirty(true);
+                }}
+                className="input"
+              >
+                {PROJECT_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            {saleProducts.map((product, i) => (
+              <SaleProductCard
+                key={product.id}
+                product={product}
+                index={i}
+                currency={saleCurrency}
+                schoolId={id}
+                toolId={toolId}
+                canRemove={saleProducts.length > 1}
+                // An unsaved product has no slot in sale.products yet, so its media can't
+                // persist; the card disables uploads until the product is saved.
+                persisted={(tool.sale?.products ?? []).some(
+                  (p) => p.id === product.id,
+                )}
+                onText={(patch) => {
+                  setSaleProducts((prev) =>
+                    prev.map((p) =>
+                      p.id === product.id ? { ...p, ...patch } : p,
+                    ),
+                  );
+                  setDirty(true);
+                }}
+                onMedia={(media) => applySaleMedia(product.id, media)}
+                onRemove={() => setSaleRemoveId(product.id)}
+              />
+            ))}
+
+            {saleProducts.length < SALE_PRODUCT_MAX ? (
+              <button
+                type="button"
+                onClick={addSaleProduct}
+                className="btn btn-outline self-start"
+              >
+                Agregar producto
+              </button>
+            ) : (
+              <span className="text-xs text-muted">
+                Máximo {SALE_PRODUCT_MAX} productos.
+              </span>
+            )}
+
+            <Field label="WhatsApp para consultas (opcional)">
+              <input
+                type="tel"
+                inputMode="tel"
+                value={salePhone}
+                onChange={(e) => {
+                  setSalePhone(e.target.value);
+                  setDirty(true);
+                }}
+                className="input"
+                placeholder="Ej.: 8888 8888"
+              />
+            </Field>
           </section>
         )}
 
@@ -841,6 +1101,30 @@ export default function EditToolPage() {
             Tiene {tourRemoveTarget.photos?.length ?? 0}{" "}
             {(tourRemoveTarget.photos?.length ?? 0) === 1 ? "foto" : "fotos"}
             {tourRemoveTarget.videoUrl ? " y un video" : ""}. No se puede deshacer.
+          </p>
+        )}
+      </ConfirmDialog>
+
+      {/* Remove a product — confirmed, with concrete impact (its media count). */}
+      <ConfirmDialog
+        open={saleRemoveId !== null}
+        title="Quitar producto"
+        tone="destructive"
+        confirmLabel="Quitar producto"
+        cancelLabel="Cancelar"
+        busy={saleRemoving}
+        busyLabel="Quitando…"
+        onConfirm={() => {
+          if (saleRemoveId !== null) removeSaleProduct(saleRemoveId);
+        }}
+        onCancel={() => setSaleRemoveId(null)}
+      >
+        {saleRemoveTarget && (
+          <p>
+            Vas a quitar «{saleRemoveTarget.name.trim() || "Producto sin nombre"}».
+            Tiene {saleRemoveTarget.photos?.length ?? 0}{" "}
+            {(saleRemoveTarget.photos?.length ?? 0) === 1 ? "foto" : "fotos"}
+            {saleRemoveTarget.videoUrl ? " y un video" : ""}. No se puede deshacer.
           </p>
         )}
       </ConfirmDialog>
@@ -1065,7 +1349,7 @@ function TourStageCard({
                     const f = e.target.files?.[0];
                     e.target.value = "";
                     if (!f) return;
-                    const v = validateVideoFile(f, TOUR_VIDEO_MAX_MB);
+                    const v = validateVideoFile(f, TOOL_VIDEO_MAX_MB);
                     if (v) return setMediaError(v);
                     let duration: number;
                     try {
@@ -1076,9 +1360,266 @@ function TourStageCard({
                       );
                       return;
                     }
-                    if (duration > TOUR_VIDEO_MAX_SECONDS + 2) {
+                    if (duration > TOOL_VIDEO_MAX_SECONDS + 2) {
                       setMediaError(
-                        `El video debe durar máximo ${TOUR_VIDEO_MAX_SECONDS} segundos.`,
+                        `El video debe durar máximo ${TOOL_VIDEO_MAX_SECONDS} segundos.`,
+                      );
+                      return;
+                    }
+                    setVideo(f);
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        )}
+
+        {mediaError && (
+          <p role="alert" className="text-xs text-error">
+            {mediaError}
+          </p>
+        )}
+      </div>
+    </fieldset>
+  );
+}
+
+/**
+ * One sale product on the edit page: name/description/price text plus immediate photo/video
+ * uploads. Media is keyed to the persisted `sale.products` array (by the product's stable id),
+ * so an unsaved product disables uploads and shows a hint until it's saved. Mirrors
+ * TourStageCard; the price is a string here (smooth decimal typing) and parsed on save.
+ */
+function SaleProductCard({
+  product,
+  index,
+  currency,
+  schoolId,
+  toolId,
+  canRemove,
+  persisted,
+  onText,
+  onMedia,
+  onRemove,
+}: {
+  product: EditableSaleProduct;
+  index: number;
+  currency: ProjectCurrency;
+  schoolId: string;
+  toolId: string;
+  canRemove: boolean;
+  /** Whether this product is saved in Firestore; unsaved products can't receive media. */
+  persisted: boolean;
+  onText: (
+    patch: Partial<Pick<EditableSaleProduct, "name" | "description" | "price">>,
+  ) => void;
+  onMedia: (media: {
+    photos?: string[];
+    videoUrl?: string | null;
+  }) => Promise<void>;
+  onRemove: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const photos = product.photos ?? [];
+
+  const run = async (op: () => Promise<void>, fallback: string) => {
+    setMediaError(null);
+    setBusy(true);
+    try {
+      await op();
+    } catch (err) {
+      setMediaError(userErrorMessage(err, fallback));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addPhoto = (file: File) =>
+    run(async () => {
+      const url = await uploadToolStageAsset(schoolId, toolId, "photo", file);
+      await onMedia({ photos: [...photos, url] });
+    }, "No se pudo subir la foto.");
+
+  const removePhoto = (url: string) =>
+    run(
+      () => onMedia({ photos: photos.filter((p) => p !== url) }),
+      "No se pudo quitar la foto.",
+    );
+
+  const setVideo = (file: File) =>
+    run(async () => {
+      const url = await uploadToolStageAsset(schoolId, toolId, "video", file);
+      await onMedia({ videoUrl: url });
+    }, "No se pudo subir el video.");
+
+  const removeVideo = () =>
+    run(() => onMedia({ videoUrl: null }), "No se pudo quitar el video.");
+
+  return (
+    <fieldset className={`${cardClass("elevated", false)} p-4`}>
+      <div className="flex items-center justify-between">
+        <legend className="text-sm font-semibold tracking-tight text-foreground">
+          Producto {index + 1}
+        </legend>
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={busy}
+            className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
+          >
+            Quitar producto
+          </button>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3">
+        <Field label="Nombre del producto">
+          <input
+            type="text"
+            maxLength={SALE_PRODUCT_NAME_MAX}
+            value={product.name}
+            onChange={(e) => onText({ name: e.target.value })}
+            className="input"
+            placeholder="Ej.: Huevos de la granja de la escuela"
+          />
+        </Field>
+        <Field label="Descripción">
+          <textarea
+            rows={3}
+            maxLength={SALE_PRODUCT_DESCRIPTION_MAX}
+            value={product.description}
+            onChange={(e) => onText({ description: e.target.value })}
+            className="input"
+            placeholder="Contá qué es, presentación, etc."
+          />
+        </Field>
+        <Field label={`Precio (${currency})`}>
+          <input
+            type="number"
+            min={0}
+            step="any"
+            inputMode="decimal"
+            value={product.price}
+            onChange={(e) => onText({ price: e.target.value })}
+            className="input"
+            placeholder="Ej.: 2500"
+          />
+        </Field>
+
+        {/* Photos */}
+        <div>
+          <p className="text-xs font-medium">
+            Fotos ({photos.length}/{SALE_PRODUCT_PHOTO_MAX})
+          </p>
+          {photos.length > 0 && (
+            <ul className="mt-1 grid grid-cols-4 gap-2">
+              {photos.map((url, pi) => (
+                <li key={url} className="flex flex-col gap-1">
+                  <span className="relative block aspect-square overflow-hidden rounded-lg bg-surface ring-1 ring-black/5">
+                    <Image
+                      src={url}
+                      alt=""
+                      fill
+                      sizes="80px"
+                      className="object-cover"
+                    />
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Quitar foto ${pi + 1}`}
+                    disabled={busy}
+                    onClick={() => removePhoto(url)}
+                    className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
+                  >
+                    <XMarkIcon className="h-3.5 w-3.5" />
+                    Quitar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {photos.length < SALE_PRODUCT_PHOTO_MAX &&
+            (persisted ? (
+              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
+                {busy ? "Subiendo…" : "Agregar foto"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={busy}
+                  onChange={(e) => {
+                    // Persists immediately — don't let it bubble to the form's dirty-tracker.
+                    e.stopPropagation();
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const v = validateImageFile(f);
+                    if (v) return setMediaError(v);
+                    addPhoto(f);
+                  }}
+                />
+              </label>
+            ) : (
+              <p className="mt-1 text-xs text-muted">
+                Guardá el producto para poder subir fotos y un video.
+              </p>
+            ))}
+        </div>
+
+        {/* Video (at most one per product). Only shown for a saved product or when one already
+            exists; the photos hint above covers the unsaved case. */}
+        {(persisted || product.videoUrl) && (
+          <div>
+            <p className="text-xs font-medium">Video (máx. 1 min)</p>
+            {product.videoUrl ? (
+              <div className="mt-1 flex flex-col gap-1">
+                <video
+                  controls
+                  preload="metadata"
+                  className="w-full rounded-lg bg-black ring-1 ring-black/5"
+                >
+                  <source src={product.videoUrl} />
+                </video>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={removeVideo}
+                  className="inline-flex min-h-10 items-center justify-center gap-1 self-start rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
+                >
+                  <XMarkIcon className="h-3.5 w-3.5" />
+                  Quitar video
+                </button>
+              </div>
+            ) : (
+              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
+                {busy ? "Subiendo…" : "Agregar video"}
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="sr-only"
+                  disabled={busy}
+                  onChange={async (e) => {
+                    // Persists immediately — don't let it bubble to the form's dirty-tracker.
+                    e.stopPropagation();
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const v = validateVideoFile(f, TOOL_VIDEO_MAX_MB);
+                    if (v) return setMediaError(v);
+                    let duration: number;
+                    try {
+                      duration = await videoDurationSeconds(f);
+                    } catch {
+                      setMediaError(
+                        "No pudimos leer el video. Probá con otro archivo.",
+                      );
+                      return;
+                    }
+                    if (duration > TOOL_VIDEO_MAX_SECONDS + 2) {
+                      setMediaError(
+                        `El video debe durar máximo ${TOOL_VIDEO_MAX_SECONDS} segundos.`,
                       );
                       return;
                     }

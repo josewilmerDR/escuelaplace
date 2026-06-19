@@ -35,6 +35,7 @@ import { safeExternalUrl } from "@/lib/url";
 import type {
   ProjectCurrency,
   RaffleConfig,
+  SaleConfig,
   Tool,
   ToolCta,
   ToolDoc,
@@ -201,6 +202,45 @@ function buildTourConfig(input: TourConfigInput): TourConfig {
   };
 }
 
+/** One product, form-shaped. Media URLs (photos/videoUrl) are already uploaded to Storage by
+ * the time they reach here (the edit page persists them per product). `id` is stable. */
+export interface SaleProductInput {
+  id: string;
+  name: string;
+  description: string;
+  photos?: string[];
+  videoUrl?: string;
+  price: number;
+}
+
+/** Form-shaped product-catalog config — see buildSaleConfig. */
+export interface SaleConfigInput {
+  products: SaleProductInput[];
+  currency: ProjectCurrency;
+  /** Optional WhatsApp number (free text); empty falls back to the school's board phone. */
+  contactPhone?: string;
+}
+
+/**
+ * Build the stored SaleConfig from form input. Drops empty optional fields (Firestore rejects
+ * `undefined`): a product with no media omits `photos`/`videoUrl`, and an empty contact phone is
+ * omitted. Readers default `photos` to [] and treat a missing `videoUrl` as no video.
+ */
+function buildSaleConfig(input: SaleConfigInput): SaleConfig {
+  return {
+    products: input.products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price: p.price,
+      ...(p.photos && p.photos.length > 0 ? { photos: p.photos } : {}),
+      ...(p.videoUrl ? { videoUrl: p.videoUrl } : {}),
+    })),
+    currency: input.currency,
+    ...(input.contactPhone ? { contactPhone: input.contactPhone } : {}),
+  };
+}
+
 export interface CreateToolInput {
   type: ToolType;
   title: string;
@@ -211,6 +251,8 @@ export interface CreateToolInput {
   raffle?: RaffleConfigInput;
   /** Guided-tour configuration — pass only when type === 'guided_tour'. */
   tour?: TourConfigInput;
+  /** Product-catalog configuration — pass only when type === 'sale'. */
+  sale?: SaleConfigInput;
 }
 
 /**
@@ -233,6 +275,7 @@ export async function createTool(
     status: input.status ?? "active",
     ...(input.raffle ? { raffle: buildRaffleConfig(input.raffle) } : {}),
     ...(input.tour ? { tour: buildTourConfig(input.tour) } : {}),
+    ...(input.sale ? { sale: buildSaleConfig(input.sale) } : {}),
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -256,6 +299,8 @@ export interface ToolPatch {
   raffle?: RaffleConfigInput;
   /** Guided-tour config — pass only when type === 'guided_tour'; omit to leave it untouched. */
   tour?: TourConfigInput;
+  /** Product-catalog config — pass only when type === 'sale'; omit to leave it untouched. */
+  sale?: SaleConfigInput;
 }
 
 /**
@@ -276,20 +321,28 @@ export async function updateTool(
     status: patch.status,
     ...(patch.coverUrl ? { coverUrl: patch.coverUrl } : {}),
     // Keep type and its config in sync: only the matching kind's config may live on the doc.
-    // Switching a raffle to a tour (or to a generic kind) must drop the stale config so it
-    // can't silently reappear; the matching kind writes its config when provided. Deleting a
-    // field that was never there is a no-op (and not a "changed key" for the rules).
+    // Switching kinds must drop the stale config so it can't silently reappear; the matching
+    // kind writes its config when provided and deletes the other two. Deleting a field that was
+    // never there is a no-op (and not a "changed key" for the rules).
     ...(patch.type === "raffle"
       ? {
           ...(patch.raffle ? { raffle: buildRaffleConfig(patch.raffle) } : {}),
           tour: deleteField(),
+          sale: deleteField(),
         }
       : patch.type === "guided_tour"
         ? {
             ...(patch.tour ? { tour: buildTourConfig(patch.tour) } : {}),
             raffle: deleteField(),
+            sale: deleteField(),
           }
-        : { raffle: deleteField(), tour: deleteField() }),
+        : patch.type === "sale"
+          ? {
+              ...(patch.sale ? { sale: buildSaleConfig(patch.sale) } : {}),
+              raffle: deleteField(),
+              tour: deleteField(),
+            }
+          : { raffle: deleteField(), tour: deleteField(), sale: deleteField() }),
     startsAt: patch.startsAt ? Timestamp.fromDate(patch.startsAt) : deleteField(),
     endsAt: patch.endsAt ? Timestamp.fromDate(patch.endsAt) : deleteField(),
     cta: cta ?? deleteField(),
@@ -311,6 +364,23 @@ export async function updateToolTour(
 ): Promise<void> {
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
     tour: buildTourConfig(tour),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Persist ONLY the product-catalog config, leaving every other tool field untouched. Same
+ * rationale as updateToolTour: the edit page uses it to commit a per-product media change (a
+ * photo/video add or remove) immediately, without dragging along an in-progress, unsaved text
+ * edit. Touches only `sale` + `updatedAt`, which the tool update rule allows.
+ */
+export async function updateToolSale(
+  schoolId: string,
+  toolId: string,
+  sale: SaleConfigInput,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
+    sale: buildSaleConfig(sale),
     updatedAt: serverTimestamp(),
   });
 }
