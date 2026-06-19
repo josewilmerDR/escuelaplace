@@ -34,6 +34,12 @@ import {
   type SaleFormValue,
 } from "@/components/tools/SaleProductsEditor";
 import {
+  EventConfigFields,
+  emptyEventForm,
+  toEventInput,
+  type EventFormValue,
+} from "@/components/tools/EventConfigFields";
+import {
   ServiceItemsEditor,
   emptyServiceForm,
   toServiceInput,
@@ -150,6 +156,7 @@ export default function SchoolToolsPage() {
   const [serviceForm, setServiceForm] =
     useState<ServiceFormValue>(emptyServiceForm);
   const [bingoForm, setBingoForm] = useState<BingoFormValue>(emptyBingoForm);
+  const [eventForm, setEventForm] = useState<EventFormValue>(emptyEventForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -283,6 +290,13 @@ export default function SchoolToolsPage() {
       return;
     }
     const bingo = bingoResult?.ok ? bingoResult.input : undefined;
+    // An event carries its date/place/map/contact; the gallery is added on the edit page.
+    const eventResult = type === "event" ? toEventInput(eventForm) : null;
+    if (eventResult && !eventResult.ok) {
+      setError(eventResult.error);
+      return;
+    }
+    const event = eventResult?.ok ? eventResult.input : undefined;
     setSaving(true);
     setError(null);
     try {
@@ -295,6 +309,7 @@ export default function SchoolToolsPage() {
         ...(sale ? { sale } : {}),
         ...(service ? { service } : {}),
         ...(bingo ? { bingo } : {}),
+        ...(event ? { event } : {}),
       });
       // Straight to the edit page (with ?created=1) so the board can add the cover, dates and
       // the call-to-action link.
@@ -382,6 +397,7 @@ export default function SchoolToolsPage() {
                 if (t !== "sale") setSaleForm(emptySaleForm());
                 if (t !== "service") setServiceForm(emptyServiceForm());
                 if (t !== "bingo") setBingoForm(emptyBingoForm());
+                if (t !== "event") setEventForm(emptyEventForm());
               }}
             />
           </div>
@@ -452,6 +468,15 @@ export default function SchoolToolsPage() {
             </div>
           )}
 
+          {type === "event" && (
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Datos del evento
+              </p>
+              <EventConfigFields value={eventForm} onChange={setEventForm} />
+            </div>
+          )}
+
           <FormError message={error} />
 
           <button type="submit" disabled={saving} className="btn btn-primary">
@@ -467,7 +492,9 @@ export default function SchoolToolsPage() {
                       ? "Crear servicios"
                       : type === "bingo"
                         ? "Crear bingo"
-                        : "Crear herramienta"}
+                        : type === "event"
+                          ? "Crear evento"
+                          : "Crear herramienta"}
           </button>
         </form>
       </section>

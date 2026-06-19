@@ -10,6 +10,7 @@
  */
 import type { ComponentType } from "react";
 import {
+  CalendarIcon,
   GridIcon,
   MapPinIcon,
   ShoppingBagIcon,
@@ -59,6 +60,12 @@ const META: Record<ToolType, ToolTypeMeta> = {
     label: "Visita guiada",
     hint: "Un recorrido o visita abierta a la comunidad.",
     icon: MapPinIcon,
+  },
+  event: {
+    key: "event",
+    label: "Evento",
+    hint: "Una actividad puntual con fecha (feria, acto, kermés…).",
+    icon: CalendarIcon,
   },
   other: {
     key: "other",

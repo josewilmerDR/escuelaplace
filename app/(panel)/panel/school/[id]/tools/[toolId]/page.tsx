@@ -24,6 +24,13 @@ import {
 } from "@/components/tools/BingoConfigFields";
 import { BingoCardsManager } from "@/components/tools/BingoCardsManager";
 import {
+  EventConfigFields,
+  emptyEventForm,
+  eventFormFromConfig,
+  toEventInput,
+  type EventFormValue,
+} from "@/components/tools/EventConfigFields";
+import {
   RaffleConfigFields,
   emptyRaffleForm,
   raffleFormFromConfig,
@@ -58,10 +65,12 @@ import {
   toolDateFromInput,
   toolDateInputValue,
   updateTool,
+  updateToolEvent,
   updateToolSale,
   updateToolService,
   updateToolTour,
   uploadToolCover,
+  type EventConfigInput,
   type SaleConfigInput,
   type ServiceConfigInput,
   type TourConfigInput,
@@ -79,6 +88,7 @@ import {
   SERVICE_MODALITY_LABELS,
   SERVICE_NAME_MAX,
   SERVICE_PHOTO_MAX,
+  EVENT_PHOTO_MAX,
   TOOL_CTA_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
@@ -87,6 +97,7 @@ import {
   TOUR_STAGE_PHOTO_MAX,
   TOUR_STAGE_TITLE_MAX,
   type BingoConfig,
+  type EventConfig,
   type ProjectCurrency,
   type RaffleOrderDoc,
   type SaleConfig,
@@ -166,6 +177,10 @@ export default function EditToolPage() {
   const [bingoForm, setBingoForm] = useState<BingoFormValue>(emptyBingoForm);
   const [bingoCardCount, setBingoCardCount] = useState(0);
 
+  // Event ("Eventos") editable state. Date/place/map/contact save with the form button; the
+  // gallery (photos/video) persists immediately against tool.event, like the catalog kinds.
+  const [eventForm, setEventForm] = useState<EventFormValue>(emptyEventForm);
+
   // Guided-tour editable state. Stage text + the contact phone save with the form button; stage
   // media (photos/video) persists immediately, the way the project editor handles stage media.
   const [tourStages, setTourStages] = useState<EditableTourStage[]>([]);
@@ -239,6 +254,7 @@ export default function EditToolPage() {
           setCtaUrl(t.cta?.url ?? "");
           if (t.raffle) setRaffleForm(raffleFormFromConfig(t.raffle));
           if (t.bingo) setBingoForm(bingoFormFromConfig(t.bingo));
+          if (t.event) setEventForm(eventFormFromConfig(t.event));
           if (t.tour) {
             setTourStages(keyTourStages(t.tour.stages));
             setTourPhone(t.tour.contactPhone ?? "");
@@ -519,6 +535,24 @@ export default function EditToolPage() {
     }
     const bingo = bingoResult?.ok ? bingoResult.input : undefined;
 
+    // An event carries its date/place/map/contact; the gallery (already-uploaded media) is
+    // preserved from the persisted base, since it persists immediately, not through this form.
+    let event: EventConfigInput | undefined;
+    if (type === "event") {
+      const eventResult = toEventInput(eventForm);
+      if (!eventResult.ok) {
+        setError(eventResult.error);
+        return;
+      }
+      event = {
+        ...eventResult.input,
+        ...(tool.event?.photos && tool.event.photos.length > 0
+          ? { photos: tool.event.photos }
+          : {}),
+        ...(tool.event?.videoUrl ? { videoUrl: tool.event.videoUrl } : {}),
+      };
+    }
+
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -542,6 +576,7 @@ export default function EditToolPage() {
         ...(sale ? { sale } : {}),
         ...(service ? { service } : {}),
         ...(bingo ? { bingo } : {}),
+        ...(event ? { event } : {}),
       });
       // The local persisted bases (the Input shapes are structurally the stored shapes).
       const savedTour: TourConfig | undefined = tour
@@ -581,6 +616,21 @@ export default function EditToolPage() {
             ...(bingo.contactPhone ? { contactPhone: bingo.contactPhone } : {}),
           }
         : undefined;
+      // Event's input carries the date as a Date and the map link unsanitized; rebuild the stored
+      // shape (Timestamp + scheme-checked mapUrl) so the gallery media card reads the saved event.
+      const savedEventMapUrl = event?.mapUrl ? safeExternalUrl(event.mapUrl) : null;
+      const savedEvent: EventConfig | undefined = event
+        ? {
+            ...(event.date ? { date: Timestamp.fromDate(event.date) } : {}),
+            ...(event.place ? { place: event.place } : {}),
+            ...(savedEventMapUrl ? { mapUrl: savedEventMapUrl } : {}),
+            ...(event.photos && event.photos.length > 0
+              ? { photos: event.photos }
+              : {}),
+            ...(event.videoUrl ? { videoUrl: event.videoUrl } : {}),
+            ...(event.contactPhone ? { contactPhone: event.contactPhone } : {}),
+          }
+        : undefined;
       setTool((prev) =>
         prev
           ? {
@@ -596,6 +646,7 @@ export default function EditToolPage() {
               sale: type === "sale" ? savedSale : undefined,
               service: type === "service" ? savedService : undefined,
               bingo: type === "bingo" ? savedBingo : undefined,
+              event: type === "event" ? savedEvent : undefined,
             }
           : prev,
       );
@@ -623,6 +674,10 @@ export default function EditToolPage() {
         );
         setServiceCurrency(savedService.currency);
         setServicePhone(savedService.contactPhone ?? "");
+      }
+      // Re-hydrate the event form from the saved config (the gallery media card reads tool.event).
+      if (type === "event" && savedEvent) {
+        setEventForm(eventFormFromConfig(savedEvent));
       }
       setCoverFile(null);
       setSaved(true);
@@ -918,6 +973,47 @@ export default function EditToolPage() {
       { id: newServiceId(), name: "", description: "", price: "" },
     ]);
     setDirty(true);
+  };
+
+  // ── Event ("Eventos") gallery helper ───────────────────────────────────────
+  // The event has a single gallery (not a list), so its media persists immediately against the
+  // persisted base (tool.event) — an in-progress, unsaved date/place/map edit is never dragged
+  // along. Mirrors applyServiceMedia, but for one config object instead of an item in a list.
+
+  const applyEventMedia = async (media: {
+    photos?: string[];
+    videoUrl?: string | null;
+  }) => {
+    if (type !== "event" || !tool?.event) return;
+    setError(null);
+    const base = tool.event;
+    const nextPhotos =
+      media.photos !== undefined ? media.photos : (base.photos ?? []);
+    const nextVideo =
+      media.videoUrl !== undefined
+        ? media.videoUrl ?? undefined
+        : base.videoUrl;
+    // Rebuild the input from the PERSISTED base (not the live form) so unsaved text isn't written.
+    await updateToolEvent(id, toolId, {
+      date: base.date ? base.date.toDate() : null,
+      ...(base.place ? { place: base.place } : {}),
+      ...(base.mapUrl ? { mapUrl: base.mapUrl } : {}),
+      ...(base.contactPhone ? { contactPhone: base.contactPhone } : {}),
+      photos: nextPhotos,
+      ...(nextVideo ? { videoUrl: nextVideo } : {}),
+    });
+    setTool((prev) =>
+      prev && prev.event
+        ? {
+            ...prev,
+            event: {
+              ...prev.event,
+              photos: nextPhotos,
+              ...(nextVideo ? { videoUrl: nextVideo } : { videoUrl: undefined }),
+            },
+          }
+        : prev,
+    );
   };
 
   // The stage targeted by the open remove dialog, for its impact summary.
@@ -1271,6 +1367,42 @@ export default function EditToolPage() {
             ) : (
               <p className="text-xs text-muted">
                 Guardá el bingo para generar o importar los cartones.
+              </p>
+            )}
+          </section>
+        )}
+
+        {type === "event" && (
+          <section className="flex flex-col gap-4">
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Datos del evento
+              </p>
+              <EventConfigFields value={eventForm} onChange={setEventForm} />
+            </div>
+            {tool.event ? (
+              <ToolItemCard
+                title="Fotos y video del evento"
+                removeLabel=""
+                canRemove={false}
+                onRemove={() => {}}
+                photos={tool.event.photos ?? []}
+                videoUrl={tool.event.videoUrl}
+                photoMax={EVENT_PHOTO_MAX}
+                schoolId={id}
+                toolId={toolId}
+                persisted
+                unsavedHint=""
+                onMedia={applyEventMedia}
+              >
+                <p className="text-xs text-muted">
+                  Una pequeña galería para mostrar el evento (las fotos y el video se
+                  guardan al instante).
+                </p>
+              </ToolItemCard>
+            ) : (
+              <p className="text-xs text-muted">
+                Guardá el evento para subir fotos y un video.
               </p>
             )}
           </section>
