@@ -8,7 +8,7 @@
  * (Storage), like the projects edit page. PURELY INFORMATIONAL — the CTA is a link the school
  * controls (scheme-checked on write); the platform never processes money.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -27,12 +27,15 @@ import {
 } from "@/components/tools/RaffleNumberGrid";
 import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
 import { BackLink } from "@/components/ui/BackLink";
+import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
-import { ImagePicker } from "@/components/ui/ImagePicker";
+import { ImagePicker, validateImageFile } from "@/components/ui/ImagePicker";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
+import { XMarkIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
+import { validateVideoFile } from "@/lib/files";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
@@ -46,17 +49,28 @@ import {
   toolDateFromInput,
   toolDateInputValue,
   updateTool,
+  updateToolTour,
   uploadToolCover,
+  uploadToolStageAsset,
+  type TourConfigInput,
 } from "@/lib/firestore";
 import {
   TOOL_CTA_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
+  TOUR_STAGE_DESCRIPTION_MAX,
+  TOUR_STAGE_MAX,
+  TOUR_STAGE_PHOTO_MAX,
+  TOUR_STAGE_TITLE_MAX,
+  TOUR_VIDEO_MAX_MB,
+  TOUR_VIDEO_MAX_SECONDS,
   type RaffleOrderDoc,
   type SchoolDoc,
   type ToolDoc,
   type ToolStatus,
   type ToolType,
+  type TourConfig,
+  type TourStage,
 } from "@/types";
 
 type LoadState = "loading" | "error" | "loaded";
@@ -72,6 +86,36 @@ function Heading({ subtitle }: { subtitle?: string }) {
       <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
     </header>
   );
+}
+
+/**
+ * A guided-tour stage with a stable local-only id, so React keys the cards on identity rather
+ * than array index (else removing one stage would reattach a card's local state to the wrong
+ * stage). `_key` is stripped before writing — the doc only stores title/description/photos/
+ * videoUrl. Mirrors the project editor's EditableStage.
+ */
+type EditableTourStage = TourStage & { _key: number };
+
+/**
+ * Read a video file's duration (seconds) from its decoded metadata, without loading the whole
+ * file. Browser-only (uses a detached <video>), so it lives here and runs from the upload
+ * handler. Rejects if the file can't be decoded.
+ */
+function videoDurationSeconds(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(video.duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("No se pudo leer el video."));
+    };
+    video.src = url;
+  });
 }
 
 export default function EditToolPage() {
@@ -98,6 +142,22 @@ export default function EditToolPage() {
   // Raffle orders, only for the read-only grid preview shown to the board.
   const [orders, setOrders] = useState<RaffleOrderDoc[]>([]);
 
+  // Guided-tour editable state. Stage text + the contact phone save with the form button; stage
+  // media (photos/video) persists immediately, the way the project editor handles stage media.
+  const [tourStages, setTourStages] = useState<EditableTourStage[]>([]);
+  const [tourPhone, setTourPhone] = useState("");
+  // Deterministic monotonic counter for stable stage ids (no Math.random/Date.now).
+  const nextTourKey = useRef(0);
+  // Keys of stages currently persisted in Firestore — a media upload can only target a saved
+  // stage (it writes against tool.tour.stages), so a brand-new unsaved stage disables uploads
+  // until "Guardar cambios" persists and re-keys it (mirrors the project editor).
+  const [tourPersistedKeys, setTourPersistedKeys] = useState<Set<number>>(
+    new Set(),
+  );
+  // The stage pending removal confirmation (its _key), or null when no dialog is open.
+  const [tourRemoveKey, setTourRemoveKey] = useState<number | null>(null);
+  const [tourRemoving, setTourRemoving] = useState(false);
+
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -106,6 +166,15 @@ export default function EditToolPage() {
   const [deleting, setDeleting] = useState(false);
 
   useUnsavedChangesGuard(dirty);
+
+  // Attach a stable local id to each persisted stage and record the persisted set, so media can
+  // only target a saved stage (see tourPersistedKeys). Reads only a ref counter, so it needn't
+  // be a dependency of load below; load itself tracks the ids.
+  const keyTourStages = (stages: TourStage[]): EditableTourStage[] => {
+    const keyed = stages.map((s) => ({ ...s, _key: nextTourKey.current++ }));
+    setTourPersistedKeys(new Set(keyed.map((s) => s._key)));
+    return keyed;
+  };
 
   const load = useCallback(() => {
     Promise.all([
@@ -127,10 +196,15 @@ export default function EditToolPage() {
           setCtaLabel(t.cta?.label ?? "");
           setCtaUrl(t.cta?.url ?? "");
           if (t.raffle) setRaffleForm(raffleFormFromConfig(t.raffle));
+          if (t.tour) {
+            setTourStages(keyTourStages(t.tour.stages));
+            setTourPhone(t.tour.contactPhone ?? "");
+          }
         }
         setLoadState("loaded");
       })
       .catch(() => setLoadState("error"));
+    // keyTourStages reads only a ref counter, so it needn't be a dependency; load tracks the ids.
   }, [id, toolId]);
 
   useEffect(load, [load]);
@@ -239,6 +313,37 @@ export default function EditToolPage() {
     }
     const raffle = raffleResult?.ok ? raffleResult.input : undefined;
 
+    // A guided tour carries its ordered stages (text + already-uploaded media) and contact
+    // phone. Build it from the editable stages; require at least one named stage. Empty stages
+    // (no title, description or media — e.g. an "Agregar etapa" never filled) are dropped.
+    let tour: TourConfigInput | undefined;
+    if (type === "guided_tour") {
+      const cleanStages = tourStages
+        .map((s) => ({
+          title: s.title.trim(),
+          description: s.description.trim(),
+          ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
+          ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
+        }))
+        .filter(
+          (s) =>
+            s.title ||
+            s.description ||
+            (s.photos?.length ?? 0) > 0 ||
+            Boolean(s.videoUrl),
+        );
+      if (cleanStages.length === 0) {
+        setError("Agregá al menos una etapa con su nombre.");
+        return;
+      }
+      if (cleanStages.some((s) => !s.title)) {
+        setError("Cada etapa necesita un nombre.");
+        return;
+      }
+      const phone = tourPhone.trim();
+      tour = { stages: cleanStages, ...(phone ? { contactPhone: phone } : {}) };
+    }
+
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -258,7 +363,15 @@ export default function EditToolPage() {
         endsAt: end,
         cta,
         ...(raffle ? { raffle } : {}),
+        ...(tour ? { tour } : {}),
       });
+      // The local persisted tour base (TourStageInput is structurally a TourStage).
+      const savedTour: TourConfig | undefined = tour
+        ? {
+            stages: tour.stages,
+            ...(tour.contactPhone ? { contactPhone: tour.contactPhone } : {}),
+          }
+        : undefined;
       setTool((prev) =>
         prev
           ? {
@@ -268,9 +381,18 @@ export default function EditToolPage() {
               description: description.trim(),
               status,
               ...(coverUrl ? { coverUrl } : {}),
+              // Keep the persisted tour base in sync so later media ops build on saved stages;
+              // a switch away from guided_tour drops it (updateTool deleted it on the doc).
+              tour: type === "guided_tour" ? savedTour : undefined,
             }
           : prev,
       );
+      // Re-key the editable stages from the saved values (drops empty/unsaved ones, re-marks
+      // every surviving stage persisted so its media uploads unlock).
+      if (type === "guided_tour" && savedTour) {
+        setTourStages(keyTourStages(savedTour.stages));
+        setTourPhone(savedTour.contactPhone ?? "");
+      }
       setCoverFile(null);
       setSaved(true);
       setDirty(false);
@@ -293,6 +415,119 @@ export default function EditToolPage() {
       setConfirmDelete(false);
     }
   };
+
+  // ── Guided-tour stage helpers ──────────────────────────────────────────────
+
+  /**
+   * Persist a media change (photos and/or the video) on a single SAVED stage immediately,
+   * without dragging along any unsaved text edits: start from the persisted base
+   * (tool.tour.stages), apply only this stage's media delta, write just the `tour` field, then
+   * merge the new media back into the editable stage (matched by _key) so the UI updates while
+   * in-progress text stays untouched. Mirrors the project editor's applyMedia. `videoUrl: null`
+   * clears the video.
+   */
+  const applyTourMedia = async (
+    key: number,
+    media: { photos?: string[]; videoUrl?: string | null },
+  ) => {
+    if (type !== "guided_tour" || !tool?.tour || !tourPersistedKeys.has(key))
+      return;
+    setError(null);
+    // Persisted editable stages keep the same relative order as the persisted base, so the
+    // target's position among them maps onto tool.tour.stages.
+    const persistedEditable = tourStages.filter((s) =>
+      tourPersistedKeys.has(s._key),
+    );
+    const targetIndex = persistedEditable.findIndex((s) => s._key === key);
+    if (targetIndex < 0) return;
+    // Generic so it preserves a stage's extra fields (the editable stage keeps its `_key`).
+    const applyDelta = <T extends TourStage>(s: T): T => {
+      const next = { ...s };
+      if (media.photos !== undefined) next.photos = media.photos;
+      if (media.videoUrl !== undefined) {
+        if (media.videoUrl) next.videoUrl = media.videoUrl;
+        else delete next.videoUrl;
+      }
+      return next;
+    };
+    const nextStages: TourStage[] = tool.tour.stages.map((s, i) =>
+      i === targetIndex ? applyDelta(s) : s,
+    );
+    await updateToolTour(id, toolId, {
+      stages: nextStages,
+      ...(tool.tour.contactPhone ? { contactPhone: tool.tour.contactPhone } : {}),
+    });
+    // Refresh the persisted base (functional updater so a concurrent save isn't clobbered).
+    setTool((prev) =>
+      prev && prev.tour
+        ? { ...prev, tour: { ...prev.tour, stages: nextStages } }
+        : prev,
+    );
+    // Merge the media into the editable stage, preserving its live text.
+    setTourStages((prev) =>
+      prev.map((s) => (s._key === key ? applyDelta(s) : s)),
+    );
+  };
+
+  /**
+   * Remove a stage. A persisted stage is written immediately FROM the persisted base, so
+   * unsaved text on other stages isn't committed; an unsaved stage is just dropped locally.
+   */
+  const removeTourStage = async (key: number) => {
+    if (type !== "guided_tour") return;
+    setError(null);
+    if (!tourPersistedKeys.has(key)) {
+      setTourStages((prev) => prev.filter((s) => s._key !== key));
+      setTourRemoveKey(null);
+      return;
+    }
+    if (!tool?.tour) return;
+    const persistedEditable = tourStages.filter((s) =>
+      tourPersistedKeys.has(s._key),
+    );
+    const targetIndex = persistedEditable.findIndex((s) => s._key === key);
+    if (targetIndex < 0) return;
+    const nextStages = tool.tour.stages.filter((_, i) => i !== targetIndex);
+    setTourRemoving(true);
+    try {
+      await updateToolTour(id, toolId, {
+        stages: nextStages,
+        ...(tool.tour.contactPhone
+          ? { contactPhone: tool.tour.contactPhone }
+          : {}),
+      });
+      setTool((prev) =>
+        prev && prev.tour
+          ? { ...prev, tour: { ...prev.tour, stages: nextStages } }
+          : prev,
+      );
+      setTourStages((prev) => prev.filter((s) => s._key !== key));
+      setTourPersistedKeys((prev) => {
+        const n = new Set(prev);
+        n.delete(key);
+        return n;
+      });
+      setTourRemoveKey(null);
+    } catch (err) {
+      setError(userErrorMessage(err, "No se pudo quitar la etapa."));
+    } finally {
+      setTourRemoving(false);
+    }
+  };
+
+  const addTourStage = () => {
+    setTourStages((prev) => [
+      ...prev,
+      { title: "", description: "", _key: nextTourKey.current++ },
+    ]);
+    setDirty(true);
+  };
+
+  // The stage targeted by the open remove dialog, for its impact summary.
+  const tourRemoveTarget =
+    tourRemoveKey === null
+      ? null
+      : tourStages.find((s) => s._key === tourRemoveKey);
 
   return (
     <main>
@@ -359,6 +594,76 @@ export default function EditToolPage() {
             </p>
             <RaffleConfigFields value={raffleForm} onChange={setRaffleForm} />
           </div>
+        )}
+
+        {type === "guided_tour" && (
+          <section className="flex flex-col gap-4">
+            <div>
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                Etapas de la visita guiada
+              </h2>
+              <p className="text-xs text-muted">
+                El público las verá en orden. Las fotos y el video de cada etapa
+                se guardan al instante; los textos, al guardar los cambios.
+              </p>
+            </div>
+
+            {tourStages.map((stage, i) => (
+              <TourStageCard
+                key={stage._key}
+                stage={stage}
+                index={i}
+                schoolId={id}
+                toolId={toolId}
+                canRemove={tourStages.length > 1}
+                // An unsaved stage has no slot in tour.stages yet, so its media can't persist;
+                // the card disables uploads and explains why until the stage is saved.
+                persisted={tourPersistedKeys.has(stage._key)}
+                onText={(patch) => {
+                  setTourStages((prev) =>
+                    prev.map((s) =>
+                      s._key === stage._key ? { ...s, ...patch } : s,
+                    ),
+                  );
+                  setDirty(true);
+                }}
+                onMedia={(media) => applyTourMedia(stage._key, media)}
+                onRemove={() => setTourRemoveKey(stage._key)}
+              />
+            ))}
+
+            {tourStages.length < TOUR_STAGE_MAX ? (
+              <button
+                type="button"
+                onClick={addTourStage}
+                className="btn btn-outline self-start"
+              >
+                Agregar etapa
+              </button>
+            ) : (
+              <span className="text-xs text-muted">
+                Máximo {TOUR_STAGE_MAX} etapas.
+              </span>
+            )}
+
+            <Field label="WhatsApp para consultas (opcional)">
+              <input
+                type="tel"
+                inputMode="tel"
+                value={tourPhone}
+                onChange={(e) => {
+                  setTourPhone(e.target.value);
+                  setDirty(true);
+                }}
+                className="input"
+                placeholder="Ej.: 8888 8888"
+              />
+            </Field>
+            <p className="-mt-2 text-xs text-muted">
+              El botón “Preguntar” de la página abrirá WhatsApp con este número. Si
+              lo dejás en blanco, usa el teléfono de la junta de la escuela.
+            </p>
+          </section>
         )}
 
         {/* Existing cover preview (the picker only previews a NEW file). */}
@@ -516,11 +821,281 @@ export default function EditToolPage() {
         </p>
       </ConfirmDialog>
 
+      {/* Remove a tour stage — confirmed, with concrete impact (its media count). */}
+      <ConfirmDialog
+        open={tourRemoveKey !== null}
+        title="Quitar etapa"
+        tone="destructive"
+        confirmLabel="Quitar etapa"
+        cancelLabel="Cancelar"
+        busy={tourRemoving}
+        busyLabel="Quitando…"
+        onConfirm={() => {
+          if (tourRemoveKey !== null) removeTourStage(tourRemoveKey);
+        }}
+        onCancel={() => setTourRemoveKey(null)}
+      >
+        {tourRemoveTarget && (
+          <p>
+            Vas a quitar «{tourRemoveTarget.title.trim() || "Etapa sin título"}».
+            Tiene {tourRemoveTarget.photos?.length ?? 0}{" "}
+            {(tourRemoveTarget.photos?.length ?? 0) === 1 ? "foto" : "fotos"}
+            {tourRemoveTarget.videoUrl ? " y un video" : ""}. No se puede deshacer.
+          </p>
+        )}
+      </ConfirmDialog>
+
       <p className="mt-8 text-sm">
         <BackLink href={`/panel/school/${id}/tools`}>
           Volver a herramientas
         </BackLink>
       </p>
     </main>
+  );
+}
+
+/**
+ * One guided-tour stage on the edit page: the shared text fields plus immediate photo/video
+ * uploads. Media is keyed to the persisted `tour.stages` array, so an unsaved (not-yet-persisted)
+ * stage disables uploads and shows a hint until it's saved — mirrors the project editor's
+ * StageCard. Each upload validates type/size (and a video's duration ≤ 1 min) before sending.
+ */
+function TourStageCard({
+  stage,
+  index,
+  schoolId,
+  toolId,
+  canRemove,
+  persisted,
+  onText,
+  onMedia,
+  onRemove,
+}: {
+  stage: EditableTourStage;
+  index: number;
+  schoolId: string;
+  toolId: string;
+  canRemove: boolean;
+  /** Whether this stage is saved in Firestore; unsaved stages can't receive media. */
+  persisted: boolean;
+  onText: (patch: Partial<Pick<TourStage, "title" | "description">>) => void;
+  onMedia: (media: {
+    photos?: string[];
+    videoUrl?: string | null;
+  }) => Promise<void>;
+  onRemove: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const photos = stage.photos ?? [];
+
+  // Wrap a media op so upload/save failures report inline and the card's busy gate prevents a
+  // double-fire.
+  const run = async (op: () => Promise<void>, fallback: string) => {
+    setMediaError(null);
+    setBusy(true);
+    try {
+      await op();
+    } catch (err) {
+      setMediaError(userErrorMessage(err, fallback));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addPhoto = (file: File) =>
+    run(async () => {
+      const url = await uploadToolStageAsset(schoolId, toolId, "photo", file);
+      await onMedia({ photos: [...photos, url] });
+    }, "No se pudo subir la foto.");
+
+  const removePhoto = (url: string) =>
+    run(
+      () => onMedia({ photos: photos.filter((p) => p !== url) }),
+      "No se pudo quitar la foto.",
+    );
+
+  const setVideo = (file: File) =>
+    run(async () => {
+      const url = await uploadToolStageAsset(schoolId, toolId, "video", file);
+      await onMedia({ videoUrl: url });
+    }, "No se pudo subir el video.");
+
+  const removeVideo = () =>
+    run(() => onMedia({ videoUrl: null }), "No se pudo quitar el video.");
+
+  return (
+    <fieldset className={`${cardClass("elevated", false)} p-4`}>
+      <div className="flex items-center justify-between">
+        <legend className="text-sm font-semibold tracking-tight text-foreground">
+          Etapa {index + 1}
+        </legend>
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={busy}
+            className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
+          >
+            Quitar etapa
+          </button>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3">
+        <Field label="Nombre de la etapa">
+          <input
+            type="text"
+            maxLength={TOUR_STAGE_TITLE_MAX}
+            value={stage.title}
+            onChange={(e) => onText({ title: e.target.value })}
+            className="input"
+            placeholder="Ej.: Breve historia de la escuela"
+          />
+        </Field>
+        <Field label="¿Qué incluye?">
+          <textarea
+            rows={3}
+            maxLength={TOUR_STAGE_DESCRIPTION_MAX}
+            value={stage.description}
+            onChange={(e) => onText({ description: e.target.value })}
+            className="input"
+            placeholder="Contá qué se ve y se hace en esta etapa."
+          />
+        </Field>
+
+        {/* Photos */}
+        <div>
+          <p className="text-xs font-medium">
+            Fotos ({photos.length}/{TOUR_STAGE_PHOTO_MAX})
+          </p>
+          {photos.length > 0 && (
+            <ul className="mt-1 grid grid-cols-4 gap-2">
+              {photos.map((url, pi) => (
+                <li key={url} className="flex flex-col gap-1">
+                  <span className="relative block aspect-square overflow-hidden rounded-lg bg-surface ring-1 ring-black/5">
+                    <Image
+                      src={url}
+                      alt=""
+                      fill
+                      sizes="80px"
+                      className="object-cover"
+                    />
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Quitar foto ${pi + 1}`}
+                    disabled={busy}
+                    onClick={() => removePhoto(url)}
+                    className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
+                  >
+                    <XMarkIcon className="h-3.5 w-3.5" />
+                    Quitar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {photos.length < TOUR_STAGE_PHOTO_MAX &&
+            (persisted ? (
+              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
+                {busy ? "Subiendo…" : "Agregar foto"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={busy}
+                  onChange={(e) => {
+                    // This upload persists immediately, so its change event must NOT bubble to
+                    // the form's onChange dirty-tracker (that would falsely warn "unsaved
+                    // changes" though nothing is). Text fields still mark dirty as before.
+                    e.stopPropagation();
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const v = validateImageFile(f);
+                    if (v) return setMediaError(v);
+                    addPhoto(f);
+                  }}
+                />
+              </label>
+            ) : (
+              <p className="mt-1 text-xs text-muted">
+                Guardá la etapa para poder subir fotos y un video.
+              </p>
+            ))}
+        </div>
+
+        {/* Video (at most one per stage). Only shown for a saved stage or when one already
+            exists; the photos hint above covers the unsaved case. */}
+        {(persisted || stage.videoUrl) && (
+          <div>
+            <p className="text-xs font-medium">Video (máx. 1 min)</p>
+            {stage.videoUrl ? (
+              <div className="mt-1 flex flex-col gap-1">
+                <video
+                  controls
+                  preload="metadata"
+                  className="w-full rounded-lg bg-black ring-1 ring-black/5"
+                >
+                  <source src={stage.videoUrl} />
+                </video>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={removeVideo}
+                  className="inline-flex min-h-10 items-center justify-center gap-1 self-start rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
+                >
+                  <XMarkIcon className="h-3.5 w-3.5" />
+                  Quitar video
+                </button>
+              </div>
+            ) : (
+              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
+                {busy ? "Subiendo…" : "Agregar video"}
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="sr-only"
+                  disabled={busy}
+                  onChange={async (e) => {
+                    // Persists immediately — don't let it bubble to the form's dirty-tracker
+                    // (see the photo input above).
+                    e.stopPropagation();
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const v = validateVideoFile(f, TOUR_VIDEO_MAX_MB);
+                    if (v) return setMediaError(v);
+                    let duration: number;
+                    try {
+                      duration = await videoDurationSeconds(f);
+                    } catch {
+                      setMediaError(
+                        "No pudimos leer el video. Probá con otro archivo.",
+                      );
+                      return;
+                    }
+                    if (duration > TOUR_VIDEO_MAX_SECONDS + 2) {
+                      setMediaError(
+                        `El video debe durar máximo ${TOUR_VIDEO_MAX_SECONDS} segundos.`,
+                      );
+                      return;
+                    }
+                    setVideo(f);
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        )}
+
+        {mediaError && (
+          <p role="alert" className="text-xs text-error">
+            {mediaError}
+          </p>
+        )}
+      </div>
+    </fieldset>
   );
 }

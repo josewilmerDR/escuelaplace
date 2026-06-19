@@ -40,6 +40,7 @@ import type {
   ToolDoc,
   ToolStatus,
   ToolType,
+  TourConfig,
 } from "@/types";
 import { RAFFLE_NUMBER_COUNT } from "@/types";
 import { docToTyped, snapToList } from "./converters";
@@ -167,6 +168,39 @@ function buildRaffleConfig(input: RaffleConfigInput): RaffleConfig {
   };
 }
 
+/** One stage of a guided tour, form-shaped. Media URLs (photos/videoUrl) are already
+ * uploaded to Storage by the time they reach here (the edit page persists them per stage). */
+export interface TourStageInput {
+  title: string;
+  description: string;
+  photos?: string[];
+  videoUrl?: string;
+}
+
+/** Form-shaped guided-tour config — see buildTourConfig. */
+export interface TourConfigInput {
+  stages: TourStageInput[];
+  /** Optional WhatsApp number (free text); empty falls back to the school's board phone. */
+  contactPhone?: string;
+}
+
+/**
+ * Build the stored TourConfig from form input. Drops empty optional fields (Firestore rejects
+ * `undefined`): a stage with no media omits `photos`/`videoUrl`, and an empty contact phone is
+ * omitted. Readers default `photos` to [] and treat a missing `videoUrl` as no video.
+ */
+function buildTourConfig(input: TourConfigInput): TourConfig {
+  return {
+    stages: input.stages.map((s) => ({
+      title: s.title,
+      description: s.description,
+      ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
+      ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
+    })),
+    ...(input.contactPhone ? { contactPhone: input.contactPhone } : {}),
+  };
+}
+
 export interface CreateToolInput {
   type: ToolType;
   title: string;
@@ -175,6 +209,8 @@ export interface CreateToolInput {
   status?: ToolStatus;
   /** Raffle configuration — pass only when type === 'raffle'. */
   raffle?: RaffleConfigInput;
+  /** Guided-tour configuration — pass only when type === 'guided_tour'. */
+  tour?: TourConfigInput;
 }
 
 /**
@@ -196,6 +232,7 @@ export async function createTool(
     description: input.description,
     status: input.status ?? "active",
     ...(input.raffle ? { raffle: buildRaffleConfig(input.raffle) } : {}),
+    ...(input.tour ? { tour: buildTourConfig(input.tour) } : {}),
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -217,6 +254,8 @@ export interface ToolPatch {
   cta: { label: string; url: string } | null;
   /** Raffle config — pass only when type === 'raffle'; omit to leave it untouched. */
   raffle?: RaffleConfigInput;
+  /** Guided-tour config — pass only when type === 'guided_tour'; omit to leave it untouched. */
+  tour?: TourConfigInput;
 }
 
 /**
@@ -236,16 +275,42 @@ export async function updateTool(
     description: patch.description,
     status: patch.status,
     ...(patch.coverUrl ? { coverUrl: patch.coverUrl } : {}),
-    // Keep type and config in sync: a non-raffle tool must not carry a stale raffle config
-    // (e.g. after switching a raffle to a sale), so delete it; a raffle sets it when provided.
-    ...(patch.type !== "raffle"
-      ? { raffle: deleteField() }
-      : patch.raffle
-        ? { raffle: buildRaffleConfig(patch.raffle) }
-        : {}),
+    // Keep type and its config in sync: only the matching kind's config may live on the doc.
+    // Switching a raffle to a tour (or to a generic kind) must drop the stale config so it
+    // can't silently reappear; the matching kind writes its config when provided. Deleting a
+    // field that was never there is a no-op (and not a "changed key" for the rules).
+    ...(patch.type === "raffle"
+      ? {
+          ...(patch.raffle ? { raffle: buildRaffleConfig(patch.raffle) } : {}),
+          tour: deleteField(),
+        }
+      : patch.type === "guided_tour"
+        ? {
+            ...(patch.tour ? { tour: buildTourConfig(patch.tour) } : {}),
+            raffle: deleteField(),
+          }
+        : { raffle: deleteField(), tour: deleteField() }),
     startsAt: patch.startsAt ? Timestamp.fromDate(patch.startsAt) : deleteField(),
     endsAt: patch.endsAt ? Timestamp.fromDate(patch.endsAt) : deleteField(),
     cta: cta ?? deleteField(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Persist ONLY the guided-tour config (stages + contact phone), leaving every other tool
+ * field untouched. Used by the edit page to commit a per-stage media change (a photo/video
+ * add or remove) immediately — the same reason the project editor persists stage media on its
+ * own write: an in-progress, unsaved text edit elsewhere on the form must not be dragged along
+ * by the upload. Touches only `tour` + `updatedAt`, which the tool update rule allows.
+ */
+export async function updateToolTour(
+  schoolId: string,
+  toolId: string,
+  tour: TourConfigInput,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
+    tour: buildTourConfig(tour),
     updatedAt: serverTimestamp(),
   });
 }
@@ -279,6 +344,25 @@ export async function uploadToolCover(
   const ref = storageRef(
     storage,
     `schools/${schoolId}/tools/${toolId}/cover-${Date.now()}`,
+  );
+  await uploadBytes(ref, file);
+  return getDownloadURL(ref);
+}
+
+/**
+ * Upload a guided-tour stage asset (a photo or a video); returns its public download URL.
+ * Lives in the same directory as the cover and is governed by the same Storage rule
+ * (schools/{id}/tools/{toolId}/**). Timestamped so it never overwrites a previous file.
+ */
+export async function uploadToolStageAsset(
+  schoolId: string,
+  toolId: string,
+  kind: "photo" | "video",
+  file: Blob,
+): Promise<string> {
+  const ref = storageRef(
+    storage,
+    `schools/${schoolId}/tools/${toolId}/${kind}-${Date.now()}`,
   );
   await uploadBytes(ref, file);
   return getDownloadURL(ref);

@@ -24,3 +24,20 @@ export function validateProofFile(file: File): string | null {
   }
   return null;
 }
+
+/**
+ * Synchronous type/size check for a stage video (guided tour). Returns a Spanish message
+ * for an unusable file, or null when it's fine. Duration (≤ 1 minute) is checked separately
+ * because it can only be read asynchronously from the decoded metadata, so this is the cheap
+ * pre-filter that runs before that probe. The byte cap is passed in so it stays defined next
+ * to the rest of the tour caps (TOUR_VIDEO_MAX_MB).
+ */
+export function validateVideoFile(file: File, maxMb: number): string | null {
+  if (!file.type.startsWith("video/")) {
+    return "El archivo debe ser un video (MP4, MOV…).";
+  }
+  if (file.size > maxMb * 1024 * 1024) {
+    return `El video no puede superar los ${maxMb} MB.`;
+  }
+  return null;
+}

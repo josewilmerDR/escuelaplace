@@ -21,6 +21,12 @@ import {
   toRaffleInput,
   type RaffleFormValue,
 } from "@/components/tools/RaffleConfigFields";
+import {
+  TourStagesEditor,
+  emptyTourForm,
+  toTourInput,
+  type TourFormValue,
+} from "@/components/tools/TourStagesEditor";
 import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
 import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
 import { Badge } from "@/components/ui/Badge";
@@ -121,6 +127,7 @@ export default function SchoolToolsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
+  const [tourForm, setTourForm] = useState<TourFormValue>(emptyTourForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -225,6 +232,13 @@ export default function SchoolToolsPage() {
       return;
     }
     const raffle = raffleResult?.ok ? raffleResult.input : undefined;
+    // A guided tour carries its ordered stages (text); media is added on the edit page.
+    const tourResult = type === "guided_tour" ? toTourInput(tourForm) : null;
+    if (tourResult && !tourResult.ok) {
+      setError(tourResult.error);
+      return;
+    }
+    const tour = tourResult?.ok ? tourResult.input : undefined;
     setSaving(true);
     setError(null);
     try {
@@ -233,6 +247,7 @@ export default function SchoolToolsPage() {
         title: trimmedTitle,
         description: description.trim(),
         ...(raffle ? { raffle } : {}),
+        ...(tour ? { tour } : {}),
       });
       // Straight to the edit page (with ?created=1) so the board can add the cover, dates and
       // the call-to-action link.
@@ -313,9 +328,10 @@ export default function SchoolToolsPage() {
               value={type}
               onChange={(t) => {
                 setType(t);
-                // Drop any raffle config in progress when leaving the raffle type, so it
+                // Drop any kind-specific config in progress when leaving its type, so it
                 // doesn't silently reappear if the user comes back to it.
                 if (t !== "raffle") setRaffleForm(emptyRaffleForm());
+                if (t !== "guided_tour") setTourForm(emptyTourForm());
               }}
             />
           </div>
@@ -350,6 +366,15 @@ export default function SchoolToolsPage() {
             </div>
           )}
 
+          {type === "guided_tour" && (
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Etapas de la visita guiada
+              </p>
+              <TourStagesEditor value={tourForm} onChange={setTourForm} />
+            </div>
+          )}
+
           <FormError message={error} />
 
           <button type="submit" disabled={saving} className="btn btn-primary">
@@ -357,7 +382,9 @@ export default function SchoolToolsPage() {
               ? "Creando…"
               : type === "raffle"
                 ? "Crear rifa"
-                : "Crear herramienta"}
+                : type === "guided_tour"
+                  ? "Crear visita guiada"
+                  : "Crear herramienta"}
           </button>
         </form>
       </section>

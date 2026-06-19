@@ -37,6 +37,12 @@ service firebase.storage {
     // backstop keeps >2x headroom over the 5 MiB image budget and clears the 10 MiB proof budget.
     function assetMax() { return 12 * 1024 * 1024; }
 
+    // Videos are much heavier than images, so they get their own, higher backstop. A guided-tour
+    // stage clip is capped at ~1 minute and 64 MiB in the UI (TOUR_VIDEO_MAX_MB); this 80 MiB
+    // rule cap sits safely ABOVE that (same UI-cap-below-rule-cap pattern as images) so a
+    // UI-allowed clip is never rejected, while still bounding gross abuse / denial-of-wallet.
+    function videoMax() { return 80 * 1024 * 1024; }
+
     // request.resource is the INCOMING upload — it is NULL on a delete, so these matchers are
     // applied ONLY to create/update (delete gets an ownership-only condition). The `!= null`
     // guard is belt-and-suspenders so a stray reference can never error-deny a legit write.
@@ -51,6 +57,17 @@ service firebase.storage {
           request.resource.contentType.matches('image/.*') ||
           request.resource.contentType == 'application/pdf'
         );
+    }
+    // Image (under assetMax) OR video (under the higher videoMax) — for guided-tour stage media,
+    // which is a mix of photos and one short clip. Each branch carries its own size cap so a
+    // heavy video doesn't get the small image budget and a huge image doesn't get the video one.
+    function isImageOrVideo() {
+      return request.resource != null && (
+        (request.resource.contentType.matches('image/.*') &&
+          request.resource.size < assetMax()) ||
+        (request.resource.contentType.matches('video/.*') &&
+          request.resource.size < videoMax())
+      );
     }
 
     // Parent-doc ownership (the id is the Storage path segment). Mirrors firestore.rules'
@@ -96,7 +113,7 @@ service firebase.storage {
     //   - schools/{id}/photo, schools/{id}/cover   → single-segment {schoolAsset}, image-only
     //   - schools/{id}/gallery/{file}              → image-only
     //   - schools/{id}/projects/{pid}/**           → image OR pdf (project stage quotes are PDF)
-    //   - schools/{id}/tools/{toolId}/**           → image-only (tool cover photos)
+    //   - schools/{id}/tools/{toolId}/**           → image OR video (covers + tour stage media)
     // All gated by the PARENT school doc's owner/editor (project/tool assets inherit the school
     // owner; the projectId/toolId is not separately gated — the school owner is the only legit
     // writer). The single-segment {schoolAsset} block does NOT match these deeper paths.
@@ -122,10 +139,11 @@ service firebase.storage {
       allow delete: if ownsSchoolId(schoolId) || isAdmin();
     }
 
-    // tool assets (cover photos for school "Herramientas") — image-only.
+    // tool assets for school "Herramientas": the card cover (image) plus guided-tour stage
+    // media (photos AND one short video per stage) — so this block allows image OR video.
     match /schools/{schoolId}/tools/{toolId}/{allPaths=**} {
       allow read: if true;
-      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImage();
+      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImageOrVideo();
       allow delete: if ownsSchoolId(schoolId) || isAdmin();
     }
 

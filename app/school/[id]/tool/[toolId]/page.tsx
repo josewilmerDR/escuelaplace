@@ -6,8 +6,15 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { ToolManageBar } from "@/components/tools/ToolManageBar";
 import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
+import { TourStages } from "@/components/tools/TourStages";
 import { cardClass } from "@/components/ui/Card";
-import { ArrowRightIcon, ClockIcon, FlagIcon } from "@/components/ui/icons";
+import {
+  ArrowRightIcon,
+  ChatBubbleIcon,
+  ClockIcon,
+  FlagIcon,
+} from "@/components/ui/icons";
+import { buildWhatsAppLink } from "@/lib/contact";
 import {
   getRaffleOrdersByTool,
   getSchoolById,
@@ -65,6 +72,12 @@ export default async function ToolPage({ params }: Props) {
   // A raffle has its own configured experience (prizes + the number grid + buy flow).
   if (tool.type === "raffle" && tool.raffle) {
     return <RaffleDetail id={id} toolId={toolId} tool={tool} school={school} />;
+  }
+
+  // A guided tour has its own configured experience (an ordered sequence of stages with media
+  // + a WhatsApp "Preguntar" button).
+  if (tool.type === "guided_tour" && tool.tour) {
+    return <TourDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   const Icon = toolTypeMeta(tool.type).icon;
@@ -336,6 +349,147 @@ async function RaffleDetail({
               />
             </div>
           </div>
+        </div>
+      </article>
+    </PageContainer>
+  );
+}
+
+/**
+ * The guided tour's public experience: the ordered sequence of stages (name + description +
+ * photos + a short video), followed by a "Preguntar" button that opens WhatsApp. The number is
+ * the tour's own contact when set, otherwise the school's board phone; the button is omitted
+ * when neither resolves to a dialable number. PURELY INFORMATIONAL — it only opens a chat.
+ */
+async function TourDetail({
+  id,
+  toolId,
+  tool,
+  school,
+}: {
+  id: string;
+  toolId: string;
+  tool: ToolDoc;
+  school: SchoolDoc;
+}) {
+  const tour = tool.tour!;
+  const Icon = toolTypeMeta(tool.type).icon;
+  const window = toolWindowLabel(tool);
+
+  // Prefer the tour's own WhatsApp contact; fall back to the school's board phone. buildWhatsAppLink
+  // normalizes the number and returns null if it can't be dialed, so the button only shows when usable.
+  const phone = tour.contactPhone || school.boardContact?.phone || "";
+  const askMessage = `¡Hola! Vi la visita guiada "${tool.title}" de ${school.name} en escuelaplace y quiero hacer una consulta.`;
+  const whatsappUrl = phone ? buildWhatsAppLink(phone, askMessage) : null;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: tool.title,
+    description: tool.description,
+    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
+    ...(tool.coverUrl ? { image: tool.coverUrl } : {}),
+    organizer: { "@type": "Organization", name: school.name },
+  };
+
+  return (
+    <PageContainer variant="detail">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+
+      <div className="text-sm">
+        <span className="inline-flex py-2 -my-2">
+          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
+        </span>
+      </div>
+
+      <ToolManageBar
+        schoolId={id}
+        toolId={toolId}
+        ownerId={school.ownerId}
+        editorIds={school.editorIds}
+      />
+
+      {tool.status !== "active" && (
+        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+          Esta visita guiada no está activa por el momento, así que no aparece en
+          la página de la escuela.
+        </div>
+      )}
+
+      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
+        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
+          {tool.coverUrl ? (
+            <Image
+              src={tool.coverUrl}
+              alt=""
+              fill
+              priority
+              sizes={PAGE_COVER_SIZES}
+              className="object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-full items-center justify-center text-brand-darker/30"
+            >
+              <Icon className="h-20 w-20" />
+            </span>
+          )}
+        </div>
+
+        <div className="p-5 sm:p-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              {tool.title}
+            </h1>
+            <ToolTypeBadge type={tool.type} />
+          </div>
+
+          {window && (
+            <p className="mt-3 flex items-center gap-2 text-sm text-muted">
+              <ClockIcon className="h-5 w-5 shrink-0" />
+              {window}
+            </p>
+          )}
+
+          {tool.description && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {tool.description}
+            </p>
+          )}
+
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Recorrido
+            </h2>
+            <div className="mt-4">
+              <TourStages stages={tour.stages} />
+            </div>
+          </div>
+
+          {whatsappUrl && (
+            <div className="mt-8">
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
+              >
+                <ChatBubbleIcon className="mr-2 h-5 w-5" />
+                Preguntar
+              </a>
+              <p className="mt-2 text-xs text-muted">
+                Coordiná directamente con la escuela por WhatsApp. escuelaplace
+                solo da visibilidad: nunca procesa pagos ni participa en la
+                actividad.
+              </p>
+            </div>
+          )}
         </div>
       </article>
     </PageContainer>

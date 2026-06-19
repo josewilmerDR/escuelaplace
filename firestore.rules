@@ -356,16 +356,18 @@ service cloud.firestore {
     }
 
     // P1-b write-shape validation for tools (non-admin arm only). CREATE pins createTool's
-    // field set (cover/dates/cta are added later via UPDATE, so they are NOT in the create
-    // set) and validates the type/status enums + the text caps. UPDATE constrains the changed
-    // keys (the edit form + setToolStatus) and freezes ownerId; the optional cta/startsAt/
-    // endsAt/coverUrl are allowed but never required, so clearing them (deleteField) passes.
-    // The cta shape is validated only when the key is PRESENT in the new doc (a delete removes
-    // the key, so the guard is keyed on keys().hasAny, not changedKeys()).
+    // field set (cover/dates/cta are added later via UPDATE, so they are NOT in the create set;
+    // a kind's own config — `raffle`/`tour` — IS written at create) and validates the
+    // type/status enums + the text caps. UPDATE constrains the changed keys (the edit form +
+    // setToolStatus) and freezes ownerId; the optional cta/startsAt/endsAt/coverUrl/raffle/tour
+    // are allowed but never required, so clearing them (deleteField) passes. The raffle/tour/cta
+    // shapes are validated only when the key is PRESENT in the new doc (a delete removes the
+    // key, so the guard is keyed on keys().hasAny, not changedKeys()). The nested config shape
+    // (stages, prizes…) is map-only here — rules can't iterate a list — exactly like projects.
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
-          'raffle', 'ownerId', 'createdAt', 'updatedAt']) &&
+          'raffle', 'tour', 'ownerId', 'createdAt', 'updatedAt']) &&
         request.resource.data.type in
           ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other'] &&
         request.resource.data.status in ['active', 'inactive'] &&
@@ -375,13 +377,15 @@ service cloud.firestore {
         request.resource.data.description.size() <= 600 &&
         request.resource.data.ownerId is string &&
         (!request.resource.data.keys().hasAny(['raffle']) ||
-          request.resource.data.raffle is map);
+          request.resource.data.raffle is map) &&
+        (!request.resource.data.keys().hasAny(['tour']) ||
+          request.resource.data.tour is map);
     }
     function validToolUpdate() {
       return keepsOwner() &&
         changedKeys().hasOnly([
           'type', 'title', 'description', 'status', 'coverUrl', 'startsAt', 'endsAt',
-          'cta', 'raffle', 'updatedAt']) &&
+          'cta', 'raffle', 'tour', 'updatedAt']) &&
         (!changedKeys().hasAny(['type']) ||
           request.resource.data.type in
             ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other']) &&
@@ -395,6 +399,8 @@ service cloud.firestore {
             request.resource.data.description.size() <= 600)) &&
         (!request.resource.data.keys().hasAny(['raffle']) ||
           request.resource.data.raffle is map) &&
+        (!request.resource.data.keys().hasAny(['tour']) ||
+          request.resource.data.tour is map) &&
         (!request.resource.data.keys().hasAny(['cta']) ||
           (request.resource.data.cta is map &&
             request.resource.data.cta.label is string &&
