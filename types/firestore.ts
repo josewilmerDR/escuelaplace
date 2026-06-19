@@ -773,6 +773,7 @@ export type ToolType =
   | "sale"
   | "service"
   | "guided_tour"
+  | "event"
   | "other";
 
 /** Stored discriminator values, mirrored in firestore.rules (which can't import TS). */
@@ -782,6 +783,7 @@ export const TOOL_TYPES: ToolType[] = [
   "sale",
   "service",
   "guided_tour",
+  "event",
   "other",
 ];
 
@@ -1012,6 +1014,35 @@ export interface ServiceConfig {
   contactPhone?: string;
 }
 
+// ── Event / "Eventos" (type: 'event') — a one-off happening ───────────────────
+//
+// A single dated event the school announces (a feria, a graduación, una kermés): a name + rich
+// description, a gallery (photos + one short video), WHEN (date + time) and WHERE (a place + an
+// optional map link), and a single "Preguntar" button that opens WhatsApp. The public page also
+// offers an "Agregar al calendario" link and emits Event JSON-LD for search rich results. Unlike
+// the catalog kinds there is no list of items and no order flow — there is nothing to pay; it
+// only informs and links out. The config lives on the tool doc under `event`.
+
+/** Free-text place cap; the gallery reuses the tool-wide photo/video caps. */
+export const EVENT_PLACE_MAX = 140;
+export const EVENT_PHOTO_MAX = 5;
+
+export interface EventConfig {
+  /** When the event happens (date + time). Optional in storage (Firestore rejects undefined),
+   * but the panel form requires it — an event without a date isn't useful. */
+  date?: Timestamp;
+  /** Where it happens (free text, ≤ EVENT_PLACE_MAX). Omitted when blank. */
+  place?: string;
+  /** Optional map link (Google Maps / Waze). Scheme-checked on write (safeExternalUrl). */
+  mapUrl?: string;
+  /** Gallery: public Storage URLs, up to EVENT_PHOTO_MAX. */
+  photos?: string[];
+  /** A single short promo video (≤ TOOL_VIDEO_MAX_SECONDS). */
+  videoUrl?: string;
+  /** Optional WhatsApp for the "Preguntar" button; empty falls back to the school's board phone. */
+  contactPhone?: string;
+}
+
 // ── Bingo (type: 'bingo') — a card-based fundraiser game ──────────────────────
 //
 // A bingo sells cartones (cards): each a grid of distinct random numbers. The lote (often
@@ -1125,6 +1156,8 @@ export interface Tool {
   /** Present only when `type === 'bingo'`: the bingo's configuration (cartones live in a
    * subcollection, not here). */
   bingo?: BingoConfig;
+  /** Present only when `type === 'event'`: the one-off event's configuration. */
+  event?: EventConfig;
   status: ToolStatus;
   /** Denormalized from the school so rules/UI resolve the board without an extra read. */
   ownerId: string;

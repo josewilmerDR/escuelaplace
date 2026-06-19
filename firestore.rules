@@ -414,9 +414,9 @@ service cloud.firestore {
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
-          'raffle', 'tour', 'sale', 'service', 'bingo', 'ownerId', 'createdAt', 'updatedAt']) &&
+          'raffle', 'tour', 'sale', 'service', 'bingo', 'event', 'ownerId', 'createdAt', 'updatedAt']) &&
         request.resource.data.type in
-          ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other'] &&
+          ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'other'] &&
         request.resource.data.status in ['active', 'inactive'] &&
         request.resource.data.title is string &&
         request.resource.data.title.size() <= 120 &&
@@ -432,16 +432,18 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['service']) ||
           request.resource.data['service'] is map) &&
         (!request.resource.data.keys().hasAny(['bingo']) ||
-          request.resource.data.bingo is map);
+          request.resource.data.bingo is map) &&
+        (!request.resource.data.keys().hasAny(['event']) ||
+          request.resource.data.event is map);
     }
     function validToolUpdate() {
       return keepsOwner() &&
         changedKeys().hasOnly([
           'type', 'title', 'description', 'status', 'coverUrl', 'startsAt', 'endsAt',
-          'cta', 'raffle', 'tour', 'sale', 'service', 'bingo', 'updatedAt']) &&
+          'cta', 'raffle', 'tour', 'sale', 'service', 'bingo', 'event', 'updatedAt']) &&
         (!changedKeys().hasAny(['type']) ||
           request.resource.data.type in
-            ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other']) &&
+            ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'other']) &&
         (!changedKeys().hasAny(['status']) ||
           request.resource.data.status in ['active', 'inactive']) &&
         (!changedKeys().hasAny(['title']) ||
@@ -460,6 +462,8 @@ service cloud.firestore {
           request.resource.data['service'] is map) &&
         (!request.resource.data.keys().hasAny(['bingo']) ||
           request.resource.data.bingo is map) &&
+        (!request.resource.data.keys().hasAny(['event']) ||
+          request.resource.data.event is map) &&
         (!request.resource.data.keys().hasAny(['cta']) ||
           (request.resource.data.cta is map &&
             request.resource.data.cta.label is string &&

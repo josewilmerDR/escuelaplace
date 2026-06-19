@@ -36,6 +36,7 @@ import type {
   BingoConfig,
   BingoFormat,
   BingoWinningPattern,
+  EventConfig,
   ProjectCurrency,
   RaffleConfig,
   SaleConfig,
@@ -133,6 +134,27 @@ export function toolDateFromInput(value: string): Date | null {
   const [y, m, d] = value.split("-").map(Number);
   if (!y || !m || !d) return null;
   return new Date(Date.UTC(y, m - 1, d));
+}
+
+/**
+ * A Timestamp → "YYYY-MM-DDTHH:mm" for an <input type="datetime-local">, in LOCAL time (the input
+ * is timezone-naive and the school + its community share a timezone). "" when absent. Counterpart
+ * to toolDateInputValue, for the event date+time.
+ */
+export function toolDateTimeInputValue(ts?: {
+  toDate: () => Date;
+}): string {
+  if (!ts) return "";
+  const d = ts.toDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** "YYYY-MM-DDTHH:mm" (datetime-local, local time) → a Date, or null when empty/invalid. */
+export function toolDateTimeFromInput(value: string): Date | null {
+  if (!value) return null;
+  const d = new Date(value); // local time, as the datetime-local input provides
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 // ── Writes (board tool CRUD) ─────────────────────────────────────────────────
@@ -328,6 +350,34 @@ function buildBingoConfig(input: BingoConfigInput): BingoConfig {
   };
 }
 
+/** Form-shaped event config — date as a Date, the gallery URLs already uploaded to Storage. */
+export interface EventConfigInput {
+  date: Date | null;
+  place?: string;
+  /** Map link; scheme-checked here (a non-http(s) value is dropped). */
+  mapUrl?: string;
+  photos?: string[];
+  videoUrl?: string;
+  contactPhone?: string;
+}
+
+/**
+ * Build the stored EventConfig from form input. Drops empty optional fields (Firestore rejects
+ * `undefined`): no date / place / map link / media / contact phone is omitted. The map link is
+ * scheme-checked (safeExternalUrl) so a `javascript:`/`data:` value never reaches an `<a href>`.
+ */
+function buildEventConfig(input: EventConfigInput): EventConfig {
+  const mapUrl = input.mapUrl ? safeExternalUrl(input.mapUrl) : null;
+  return {
+    ...(input.date ? { date: Timestamp.fromDate(input.date) } : {}),
+    ...(input.place ? { place: input.place } : {}),
+    ...(mapUrl ? { mapUrl } : {}),
+    ...(input.photos && input.photos.length > 0 ? { photos: input.photos } : {}),
+    ...(input.videoUrl ? { videoUrl: input.videoUrl } : {}),
+    ...(input.contactPhone ? { contactPhone: input.contactPhone } : {}),
+  };
+}
+
 export interface CreateToolInput {
   type: ToolType;
   title: string;
@@ -344,6 +394,8 @@ export interface CreateToolInput {
   service?: ServiceConfigInput;
   /** Bingo configuration — pass only when type === 'bingo'. */
   bingo?: BingoConfigInput;
+  /** Event configuration — pass only when type === 'event'. */
+  event?: EventConfigInput;
 }
 
 /**
@@ -369,6 +421,7 @@ export async function createTool(
     ...(input.sale ? { sale: buildSaleConfig(input.sale) } : {}),
     ...(input.service ? { service: buildServiceConfig(input.service) } : {}),
     ...(input.bingo ? { bingo: buildBingoConfig(input.bingo) } : {}),
+    ...(input.event ? { event: buildEventConfig(input.event) } : {}),
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -398,6 +451,8 @@ export interface ToolPatch {
   service?: ServiceConfigInput;
   /** Bingo config — pass only when type === 'bingo'; omit to leave it untouched. */
   bingo?: BingoConfigInput;
+  /** Event config — pass only when type === 'event'; omit to leave it untouched. */
+  event?: EventConfigInput;
 }
 
 /**
@@ -428,6 +483,7 @@ export async function updateTool(
           sale: deleteField(),
           service: deleteField(),
           bingo: deleteField(),
+          event: deleteField(),
         }
       : patch.type === "guided_tour"
         ? {
@@ -436,6 +492,7 @@ export async function updateTool(
             sale: deleteField(),
             service: deleteField(),
             bingo: deleteField(),
+            event: deleteField(),
           }
         : patch.type === "sale"
           ? {
@@ -444,6 +501,7 @@ export async function updateTool(
               tour: deleteField(),
               service: deleteField(),
               bingo: deleteField(),
+              event: deleteField(),
             }
           : patch.type === "service"
             ? {
@@ -454,6 +512,7 @@ export async function updateTool(
                 tour: deleteField(),
                 sale: deleteField(),
                 bingo: deleteField(),
+                event: deleteField(),
               }
             : patch.type === "bingo"
               ? {
@@ -464,14 +523,27 @@ export async function updateTool(
                   tour: deleteField(),
                   sale: deleteField(),
                   service: deleteField(),
+                  event: deleteField(),
                 }
-              : {
-                  raffle: deleteField(),
-                  tour: deleteField(),
-                  sale: deleteField(),
-                  service: deleteField(),
-                  bingo: deleteField(),
-                }),
+              : patch.type === "event"
+                ? {
+                    ...(patch.event
+                      ? { event: buildEventConfig(patch.event) }
+                      : {}),
+                    raffle: deleteField(),
+                    tour: deleteField(),
+                    sale: deleteField(),
+                    service: deleteField(),
+                    bingo: deleteField(),
+                  }
+                : {
+                    raffle: deleteField(),
+                    tour: deleteField(),
+                    sale: deleteField(),
+                    service: deleteField(),
+                    bingo: deleteField(),
+                    event: deleteField(),
+                  }),
     startsAt: patch.startsAt ? Timestamp.fromDate(patch.startsAt) : deleteField(),
     endsAt: patch.endsAt ? Timestamp.fromDate(patch.endsAt) : deleteField(),
     cta: cta ?? deleteField(),
@@ -527,6 +599,23 @@ export async function updateToolService(
 ): Promise<void> {
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
     service: buildServiceConfig(service),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Persist ONLY the event config, leaving every other tool field untouched. Same rationale as
+ * updateToolService: the edit page uses it to commit a gallery change (a photo/video add or
+ * remove) immediately from the persisted base, without dragging along an in-progress, unsaved
+ * text edit (date/place/map). Touches only `event` + `updatedAt`, which the tool update rule allows.
+ */
+export async function updateToolEvent(
+  schoolId: string,
+  toolId: string,
+  event: EventConfigInput,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
+    event: buildEventConfig(event),
     updatedAt: serverTimestamp(),
   });
 }

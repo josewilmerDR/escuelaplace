@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/BackLink";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { BingoLivePublic } from "@/components/tools/BingoLivePublic";
+import { EventStatusBadge } from "@/components/tools/EventStatusBadge";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { SaleProducts } from "@/components/tools/SaleProducts";
 import { ServiceItems } from "@/components/tools/ServiceItems";
@@ -14,11 +15,14 @@ import { TourStages } from "@/components/tools/TourStages";
 import { cardClass } from "@/components/ui/Card";
 import {
   ArrowRightIcon,
+  CalendarIcon,
   ChatBubbleIcon,
   ClockIcon,
   FlagIcon,
+  MapPinIcon,
 } from "@/components/ui/icons";
 import { buildWhatsAppLink } from "@/lib/contact";
+import { googleCalendarUrl } from "@/lib/events";
 import {
   getBingoCardAvailability,
   getBingoCards,
@@ -30,7 +34,7 @@ import {
   raffleNumberStates,
   toolWindowLabel,
 } from "@/lib/firestore";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
 import { toolTypeMeta } from "@/lib/tools/registry";
 import { safeExternalUrl } from "@/lib/url";
@@ -103,6 +107,12 @@ export default async function ToolPage({ params }: Props) {
   // "Comprar cartones" button (the order flow, gated on a verified school).
   if (tool.type === "bingo" && tool.bingo) {
     return <BingoDetail id={id} toolId={toolId} tool={tool} school={school} />;
+  }
+
+  // An event: a dated one-off with a gallery, when/where, an "Agregar al calendario" link and a
+  // "Preguntar" WhatsApp button.
+  if (tool.type === "event" && tool.event) {
+    return <EventDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   const Icon = toolTypeMeta(tool.type).icon;
@@ -771,6 +781,220 @@ async function ServiceDetail({
                 contactPhone={contactPhone}
               />
             </div>
+          </div>
+        </div>
+      </article>
+    </PageContainer>
+  );
+}
+
+/**
+ * An event's public experience: the gallery (photos + video), WHEN (date + a Próximo/Hoy/Finalizó
+ * chip) and WHERE (a place + a "Cómo llegar" map link), an "Agregar al calendario" link, and a
+ * single "Preguntar" WhatsApp button. Emits Event JSON-LD for search rich results. PURELY
+ * INFORMATIONAL — nothing to pay; it only informs and links out.
+ */
+async function EventDetail({
+  id,
+  toolId,
+  tool,
+  school,
+}: {
+  id: string;
+  toolId: string;
+  tool: ToolDoc;
+  school: SchoolDoc;
+}) {
+  const event = tool.event!;
+  const Icon = toolTypeMeta(tool.type).icon;
+  const photos = event.photos ?? [];
+  const contactPhone = event.contactPhone || school.boardContact?.phone || "";
+  const dateMs = event.date ? event.date.toMillis() : null;
+  // Re-check the map link scheme at render even though it was sanitized on write (defense in depth).
+  const mapUrl = event.mapUrl ? safeExternalUrl(event.mapUrl) : null;
+  const askUrl = contactPhone
+    ? buildWhatsAppLink(
+        contactPhone,
+        `¡Hola! Vi el evento «${tool.title}» de ${school.name} en escuelaplace y quiero hacer una consulta.`,
+      )
+    : null;
+  const calendarUrl = dateMs
+    ? googleCalendarUrl({
+        title: tool.title,
+        details: tool.description,
+        location: event.place,
+        startMs: dateMs,
+      })
+    : null;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: tool.title,
+    description: tool.description,
+    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
+    ...(tool.coverUrl ? { image: tool.coverUrl } : photos[0] ? { image: photos[0] } : {}),
+    ...(dateMs ? { startDate: new Date(dateMs).toISOString() } : {}),
+    ...(event.place
+      ? { location: { "@type": "Place", name: event.place } }
+      : {}),
+    organizer: { "@type": "Organization", name: school.name },
+  };
+
+  return (
+    <PageContainer variant="detail">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+
+      <div className="text-sm">
+        <span className="inline-flex py-2 -my-2">
+          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
+        </span>
+      </div>
+
+      <ToolManageBar
+        schoolId={id}
+        toolId={toolId}
+        ownerId={school.ownerId}
+        editorIds={school.editorIds}
+      />
+
+      {tool.status !== "active" && (
+        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+          Este evento no está activo por el momento, así que no aparece en la página
+          de la escuela.
+        </div>
+      )}
+
+      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
+        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
+          {tool.coverUrl ? (
+            <Image
+              src={tool.coverUrl}
+              alt=""
+              fill
+              priority
+              sizes={PAGE_COVER_SIZES}
+              className="object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-full items-center justify-center text-brand-darker/30"
+            >
+              <Icon className="h-20 w-20" />
+            </span>
+          )}
+        </div>
+
+        <div className="p-5 sm:p-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              {tool.title}
+            </h1>
+            <ToolTypeBadge type={tool.type} />
+            {dateMs && <EventStatusBadge dateMs={dateMs} />}
+          </div>
+
+          <ul className="mt-3 space-y-1 text-sm text-muted">
+            {dateMs && (
+              <li className="flex items-start gap-2">
+                <CalendarIcon className="mt-0.5 h-5 w-5 shrink-0" />
+                <span>
+                  <span className="font-medium text-foreground">Cuándo:</span>{" "}
+                  {formatDateTime(dateMs)}
+                </span>
+              </li>
+            )}
+            {event.place && (
+              <li className="flex items-start gap-2">
+                <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0" />
+                <span>
+                  <span className="font-medium text-foreground">Dónde:</span>{" "}
+                  {event.place}
+                  {mapUrl && (
+                    <>
+                      {" · "}
+                      <a
+                        href={mapUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-brand-darker hover:underline"
+                      >
+                        Cómo llegar
+                      </a>
+                    </>
+                  )}
+                </span>
+              </li>
+            )}
+          </ul>
+
+          {tool.description && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {tool.description}
+            </p>
+          )}
+
+          {/* Gallery */}
+          {photos.length > 0 && (
+            <ul className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {photos.map((url) => (
+                <li
+                  key={url}
+                  className="relative block aspect-square overflow-hidden rounded-xl bg-surface ring-1 ring-black/5"
+                >
+                  <Image
+                    src={url}
+                    alt=""
+                    fill
+                    sizes="(min-width: 640px) 30vw, 50vw"
+                    className="object-cover"
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {event.videoUrl && (
+            <video
+              controls
+              preload="metadata"
+              className="mt-4 w-full rounded-xl bg-black ring-1 ring-black/5"
+            >
+              <source src={event.videoUrl} />
+              Tu navegador no puede reproducir este video.
+            </video>
+          )}
+
+          {/* Actions */}
+          <div className="mt-8 flex flex-wrap gap-3">
+            {askUrl && (
+              <a
+                href={askUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+              >
+                <ChatBubbleIcon className="mr-1.5 h-5 w-5" />
+                Preguntar
+              </a>
+            )}
+            {calendarUrl && (
+              <a
+                href={calendarUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-outline"
+              >
+                <CalendarIcon className="mr-1.5 h-5 w-5" />
+                Agregar al calendario
+              </a>
+            )}
           </div>
         </div>
       </article>

@@ -57,6 +57,22 @@ export function formatDate(ms: number): string {
   return dateFmt.format(new Date(ms));
 }
 
+// Date + time in LOCAL time (no forced timezone): the event's instant carries a real time-of-day,
+// unlike the day-granular tool window above. "15 jun 2026, 18:30".
+const dateTimeFmt = new Intl.DateTimeFormat("es-CR", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** Format an instant (ms since epoch) as "15 jun 2026, 18:30" in local time. Used for an event's
+ * date + time (which, unlike a tool's day-granular window, has a meaningful time-of-day). */
+export function formatDateTime(ms: number): string {
+  return dateTimeFmt.format(new Date(ms));
+}
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 

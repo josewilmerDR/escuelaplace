@@ -1555,3 +1555,60 @@ describe("bingo claims — owner-only create, school-only resolve", () => {
     );
   });
 });
+
+// ── event tool (type: 'event') doc write-shape ───────────────────────────────
+describe("event tool — owner-only create with an event config map", () => {
+  const eventTool = (over: Record<string, unknown> = {}) => ({
+    schoolId: "sch1",
+    schoolName: "Escuela",
+    type: "event",
+    title: "Feria de la escuela",
+    description: "¡Vení!",
+    status: "active",
+    event: { place: "Gimnasio" },
+    ownerId: "bob",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("bob")));
+  });
+
+  it("ALLOWS the school owner to create an event tool", async () => {
+    await assertSucceeds(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "tools", "tool1"), eventTool()),
+    );
+  });
+
+  it("DENIES a stranger creating an event tool", async () => {
+    await assertFails(
+      setDoc(
+        doc(asUser("mallory"), "schools", "sch1", "tools", "tool1"),
+        eventTool(),
+      ),
+    );
+  });
+
+  it("DENIES an unknown extra field (write-shape pin)", async () => {
+    await assertFails(
+      setDoc(
+        doc(asUser("bob"), "schools", "sch1", "tools", "tool1"),
+        eventTool({ bogus: true }),
+      ),
+    );
+  });
+
+  it("ALLOWS the owner to update the event config map", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1", "tools", "tool1"), eventTool()),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asUser("bob"), "schools", "sch1", "tools", "tool1"), {
+        event: { place: "Patio", photos: ["https://x/p.jpg"] },
+        updatedAt: new Date(),
+      }),
+    );
+  });
+});
