@@ -844,7 +844,7 @@ export interface RaffleConfig {
 //
 // A guided tour ("visita guiada") is an ordered sequence of stages (etapa 1, 2, 3…), each
 // with a name, a description of what it includes, up to TOUR_STAGE_PHOTO_MAX photos and one
-// short video (≤ TOUR_VIDEO_MAX_SECONDS). Its config lives on the tool doc under `tour`. The
+// short video (≤ TOOL_VIDEO_MAX_SECONDS). Its config lives on the tool doc under `tour`. The
 // public page shows the stages in order and ends with a "Preguntar" button that opens
 // WhatsApp. PURELY INFORMATIONAL like every tool — there is nothing to pay; it only links out.
 
@@ -854,12 +854,16 @@ export const TOUR_STAGE_TITLE_MAX = 120;
 export const TOUR_STAGE_DESCRIPTION_MAX = 500;
 /** Up to five photos per stage (the user-facing cap for the guided tour). */
 export const TOUR_STAGE_PHOTO_MAX = 5;
-/** A stage's video must be at most one minute; the UI probes the file's duration before
- * upload (a small tolerance is applied so a 60.0s clip isn't rejected on rounding). */
-export const TOUR_VIDEO_MAX_SECONDS = 60;
-/** Client-side size cap for a stage video (MB). The storage rule backstop sits above this,
- * mirroring how images cap at 5 MB in the UI but the rule allows more headroom. */
-export const TOUR_VIDEO_MAX_MB = 64;
+
+/**
+ * Short-video caps shared by every tool kind that attaches one (guided-tour stages, sale
+ * products…). A tool's video must be at most one minute; the UI probes the file's duration
+ * before upload (a small tolerance is applied so a 60.0s clip isn't rejected on rounding), and
+ * caps the size client-side. The storage rule backstop (videoMax) sits above TOOL_VIDEO_MAX_MB,
+ * mirroring how images cap at 5 MB in the UI but the rule allows more headroom.
+ */
+export const TOOL_VIDEO_MAX_SECONDS = 60;
+export const TOOL_VIDEO_MAX_MB = 64;
 
 /**
  * One step of a guided tour, embedded in the tour config. Ordered by array position
@@ -872,7 +876,7 @@ export interface TourStage {
   description: string;
   /** Public Storage URLs, up to TOUR_STAGE_PHOTO_MAX. */
   photos?: string[];
-  /** Public Storage URL of a single short video (≤ TOUR_VIDEO_MAX_SECONDS). */
+  /** Public Storage URL of a single short video (≤ TOOL_VIDEO_MAX_SECONDS). */
   videoUrl?: string;
 }
 
@@ -881,6 +885,54 @@ export interface TourConfig {
   stages: TourStage[];
   /**
    * Optional WhatsApp number for the public "Preguntar" button. Free text (the helper
+   * normalizes it); when empty the button falls back to the school's boardContact.phone.
+   */
+  contactPhone?: string;
+}
+
+// ── Sale / "Productos" (type: 'sale') — a small product catalog ───────────────
+//
+// A school's product catalog: a list of products (e.g. "Huevos de la granja de la escuela"),
+// each with a name, a description, up to TOOL/SALE photos and one short video, and a price. The
+// config lives on the tool doc under `sale`. The public page shows each product with a "Comprar"
+// button (the raffle-style order flow: reserve → pay the school → school confirms the proof) and
+// a "Consultar" button that opens WhatsApp. PURELY INFORMATIONAL: the platform never processes
+// the money. One currency for the whole catalog (the school's), like a project.
+
+/** Products per catalog, and the per-product text caps (photos reuse SALE_PRODUCT_PHOTO_MAX,
+ * the video reuses the tool-wide TOOL_VIDEO_MAX_*). Enforced by the panel UI, not by rules. */
+export const SALE_PRODUCT_MAX = 24;
+export const SALE_PRODUCT_NAME_MAX = 120;
+export const SALE_PRODUCT_DESCRIPTION_MAX = 500;
+export const SALE_PRODUCT_PHOTO_MAX = 5;
+/** Defensive cap on a single order's quantity (anti-typo; the platform never moves money). */
+export const PRODUCT_ORDER_QTY_MAX = 10_000;
+
+/**
+ * One product in a sale catalog, embedded in the tool's `sale` config. `id` is a STABLE id
+ * (assigned at creation, preserved across edits) so a product order can reference the exact
+ * product even as the catalog is reordered/edited — unlike a tour stage, which is positional.
+ */
+export interface SaleProduct {
+  /** Stable id, referenced by product orders. */
+  id: string;
+  name: string;
+  description: string;
+  /** Public Storage URLs, up to SALE_PRODUCT_PHOTO_MAX. */
+  photos?: string[];
+  /** Public Storage URL of a single short video (≤ TOOL_VIDEO_MAX_SECONDS). */
+  videoUrl?: string;
+  /** Price per unit, in the catalog's `currency`. */
+  price: number;
+}
+
+export interface SaleConfig {
+  /** The products on offer. */
+  products: SaleProduct[];
+  /** One currency for the whole catalog. */
+  currency: ProjectCurrency;
+  /**
+   * Optional WhatsApp number for the per-product "Consultar" button. Free text (the helper
    * normalizes it); when empty the button falls back to the school's boardContact.phone.
    */
   contactPhone?: string;
@@ -906,6 +958,8 @@ export interface Tool {
   raffle?: RaffleConfig;
   /** Present only when `type === 'guided_tour'`: the tour's ordered stages. */
   tour?: TourConfig;
+  /** Present only when `type === 'sale'`: the product catalog. */
+  sale?: SaleConfig;
   status: ToolStatus;
   /** Denormalized from the school so rules/UI resolve the board without an extra read. */
   ownerId: string;
@@ -952,6 +1006,45 @@ export interface RaffleOrder {
 }
 
 export type RaffleOrderDoc = RaffleOrder & { id: string };
+
+// ── productOrders/{orderId} ──────────────────────────────────────────────────
+//
+// A buyer's order of one product from a school's "Productos" catalog (a tool of `type: 'sale'`),
+// awaiting the school's payment confirmation. Top-level (like raffleOrders/projectContributions)
+// so its proof file and private subdoc resolve by id alone. The buyer's real name and the amount
+// live in a PRIVATE subdoc (productOrders/{id}/private/data) — off the public doc — exactly like
+// raffle orders. Products aren't limited inventory, so nothing is derived back onto the catalog.
+
+export type ProductOrderStatus = "pending" | "confirmed";
+
+export interface ProductOrder {
+  schoolId: string;
+  schoolName: string;
+  toolId: string;
+  /** Denormalized catalog (tool) title so the confirmation queue renders without an extra read. */
+  toolTitle: string;
+  /** Which product was ordered (SaleProduct.id) + a denormalized name snapshot. */
+  productId: string;
+  productName: string;
+  /** Units ordered (integer ≥ 1). */
+  quantity: number;
+  currency: ProjectCurrency;
+  /** The buyer (must equal auth.uid on create). */
+  buyerId: string;
+  status: ProductOrderStatus;
+  confirmedAt: Timestamp | null;
+  confirmedBy?: string;
+  /** Whether a payment proof was uploaded to Storage (the file itself stays private). */
+  proofUploaded?: boolean;
+  /** Merged in CLIENT-SIDE from the private subdoc for the board's queue — NEVER on the public
+   * doc (firestore.rules excludes them). */
+  buyerName?: string;
+  amount?: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type ProductOrderDoc = ProductOrder & { id: string };
 
 // ── projectContributions/{id} ────────────────────────────────────────────────
 

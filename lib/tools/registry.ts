@@ -44,8 +44,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
   },
   sale: {
     key: "sale",
-    label: "Venta",
-    hint: "Venta de comida, productos o entradas.",
+    label: "Productos",
+    hint: "Catálogo de productos a la venta (comida, artículos…).",
     icon: ShoppingBagIcon,
   },
   service: {
