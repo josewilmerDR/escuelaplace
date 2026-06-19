@@ -370,7 +370,7 @@ service cloud.firestore {
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
-          'raffle', 'tour', 'sale', 'ownerId', 'createdAt', 'updatedAt']) &&
+          'raffle', 'tour', 'sale', 'service', 'ownerId', 'createdAt', 'updatedAt']) &&
         request.resource.data.type in
           ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other'] &&
         request.resource.data.status in ['active', 'inactive'] &&
@@ -384,13 +384,15 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['tour']) ||
           request.resource.data.tour is map) &&
         (!request.resource.data.keys().hasAny(['sale']) ||
-          request.resource.data.sale is map);
+          request.resource.data.sale is map) &&
+        (!request.resource.data.keys().hasAny(['service']) ||
+          request.resource.data['service'] is map);
     }
     function validToolUpdate() {
       return keepsOwner() &&
         changedKeys().hasOnly([
           'type', 'title', 'description', 'status', 'coverUrl', 'startsAt', 'endsAt',
-          'cta', 'raffle', 'tour', 'sale', 'updatedAt']) &&
+          'cta', 'raffle', 'tour', 'sale', 'service', 'updatedAt']) &&
         (!changedKeys().hasAny(['type']) ||
           request.resource.data.type in
             ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'other']) &&
@@ -408,6 +410,8 @@ service cloud.firestore {
           request.resource.data.tour is map) &&
         (!request.resource.data.keys().hasAny(['sale']) ||
           request.resource.data.sale is map) &&
+        (!request.resource.data.keys().hasAny(['service']) ||
+          request.resource.data['service'] is map) &&
         (!request.resource.data.keys().hasAny(['cta']) ||
           (request.resource.data.cta is map &&
             request.resource.data.cta.label is string &&

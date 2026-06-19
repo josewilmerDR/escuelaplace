@@ -26,6 +26,7 @@ import {
   RaffleNumberLegend,
 } from "@/components/tools/RaffleNumberGrid";
 import { newProductId } from "@/components/tools/SaleProductsEditor";
+import { newServiceId } from "@/components/tools/ServiceItemsEditor";
 import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
@@ -51,10 +52,12 @@ import {
   toolDateInputValue,
   updateTool,
   updateToolSale,
+  updateToolService,
   updateToolTour,
   uploadToolCover,
   uploadToolStageAsset,
   type SaleConfigInput,
+  type ServiceConfigInput,
   type TourConfigInput,
 } from "@/lib/firestore";
 import {
@@ -63,6 +66,10 @@ import {
   SALE_PRODUCT_MAX,
   SALE_PRODUCT_NAME_MAX,
   SALE_PRODUCT_PHOTO_MAX,
+  SERVICE_DESCRIPTION_MAX,
+  SERVICE_ITEM_MAX,
+  SERVICE_NAME_MAX,
+  SERVICE_PHOTO_MAX,
   TOOL_CTA_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
@@ -77,6 +84,8 @@ import {
   type SaleConfig,
   type SaleProduct,
   type SchoolDoc,
+  type ServiceConfig,
+  type ServiceItem,
   type ToolDoc,
   type ToolStatus,
   type ToolType,
@@ -113,6 +122,10 @@ type EditableTourStage = TourStage & { _key: number };
  * `id` doubles as the React key and the media/removal match key.
  */
 type EditableSaleProduct = Omit<SaleProduct, "price"> & { price: string };
+
+/** A sale service as the edit form holds it: same string-price design as EditableSaleProduct,
+ * but the price is genuinely OPTIONAL (blank = quote-based). */
+type EditableServiceItem = Omit<ServiceItem, "price"> & { price: string };
 
 export default function EditToolPage() {
   const { id, toolId } = useParams<{ id: string; toolId: string }>();
@@ -163,6 +176,15 @@ export default function EditToolPage() {
   const [saleRemoveId, setSaleRemoveId] = useState<string | null>(null);
   const [saleRemoving, setSaleRemoving] = useState(false);
 
+  // Service ("Servicios") editable state — same shape as sale, minus the order flow. Price is
+  // optional per service.
+  const [serviceItems, setServiceItems] = useState<EditableServiceItem[]>([]);
+  const [serviceCurrency, setServiceCurrency] =
+    useState<ProjectCurrency>("CRC");
+  const [servicePhone, setServicePhone] = useState("");
+  const [serviceRemoveId, setServiceRemoveId] = useState<string | null>(null);
+  const [serviceRemoving, setServiceRemoving] = useState(false);
+
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -211,6 +233,16 @@ export default function EditToolPage() {
             );
             setSaleCurrency(t.sale.currency);
             setSalePhone(t.sale.contactPhone ?? "");
+          }
+          if (t.service) {
+            setServiceItems(
+              t.service.services.map((s) => ({
+                ...s,
+                price: typeof s.price === "number" ? String(s.price) : "",
+              })),
+            );
+            setServiceCurrency(t.service.currency);
+            setServicePhone(t.service.contactPhone ?? "");
           }
         }
         setLoadState("loaded");
@@ -400,6 +432,60 @@ export default function EditToolPage() {
       };
     }
 
+    // A service catalog: like sale, but the price is optional (blank = quote-based).
+    let service: ServiceConfigInput | undefined;
+    if (type === "service") {
+      const cleaned = serviceItems
+        .map((s) => ({
+          id: s.id,
+          name: s.name.trim(),
+          description: s.description.trim(),
+          priceStr: s.price.trim(),
+          photos: s.photos,
+          videoUrl: s.videoUrl,
+        }))
+        .filter(
+          (s) =>
+            s.name ||
+            s.description ||
+            s.priceStr ||
+            (s.photos?.length ?? 0) > 0 ||
+            Boolean(s.videoUrl),
+        );
+      if (cleaned.length === 0) {
+        setError("Agregá al menos un servicio con su nombre.");
+        return;
+      }
+      for (const s of cleaned) {
+        if (!s.name) {
+          setError("Cada servicio necesita un nombre.");
+          return;
+        }
+        if (s.priceStr) {
+          const price = Number(s.priceStr);
+          if (!Number.isFinite(price) || price <= 0) {
+            setError(
+              `El precio de «${s.name}» debe ser mayor a 0 (o dejalo en blanco).`,
+            );
+            return;
+          }
+        }
+      }
+      const phone = servicePhone.trim();
+      service = {
+        services: cleaned.map((s) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          ...(s.priceStr ? { price: Number(s.priceStr) } : {}),
+          ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
+          ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
+        })),
+        currency: serviceCurrency,
+        ...(phone ? { contactPhone: phone } : {}),
+      };
+    }
+
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -421,6 +507,7 @@ export default function EditToolPage() {
         ...(raffle ? { raffle } : {}),
         ...(tour ? { tour } : {}),
         ...(sale ? { sale } : {}),
+        ...(service ? { service } : {}),
       });
       // The local persisted bases (the Input shapes are structurally the stored shapes).
       const savedTour: TourConfig | undefined = tour
@@ -436,6 +523,15 @@ export default function EditToolPage() {
             ...(sale.contactPhone ? { contactPhone: sale.contactPhone } : {}),
           }
         : undefined;
+      const savedService: ServiceConfig | undefined = service
+        ? {
+            services: service.services,
+            currency: service.currency,
+            ...(service.contactPhone
+              ? { contactPhone: service.contactPhone }
+              : {}),
+          }
+        : undefined;
       setTool((prev) =>
         prev
           ? {
@@ -449,6 +545,7 @@ export default function EditToolPage() {
               // switch away from a kind drops its config (updateTool deleted it on the doc).
               tour: type === "guided_tour" ? savedTour : undefined,
               sale: type === "sale" ? savedSale : undefined,
+              service: type === "service" ? savedService : undefined,
             }
           : prev,
       );
@@ -466,6 +563,16 @@ export default function EditToolPage() {
         );
         setSaleCurrency(savedSale.currency);
         setSalePhone(savedSale.contactPhone ?? "");
+      }
+      if (type === "service" && savedService) {
+        setServiceItems(
+          savedService.services.map((s) => ({
+            ...s,
+            price: typeof s.price === "number" ? String(s.price) : "",
+          })),
+        );
+        setServiceCurrency(savedService.currency);
+        setServicePhone(savedService.contactPhone ?? "");
       }
       setCoverFile(null);
       setSaved(true);
@@ -684,6 +791,85 @@ export default function EditToolPage() {
     setDirty(true);
   };
 
+  // ── Service ("Servicios") helpers — mirror the sale helpers (id-matched media). ─────────
+
+  const applyServiceMedia = async (
+    serviceId: string,
+    media: { photos?: string[]; videoUrl?: string | null },
+  ) => {
+    if (type !== "service" || !tool?.service) return;
+    if (!tool.service.services.some((s) => s.id === serviceId)) return;
+    setError(null);
+    const applyDelta = <T extends { photos?: string[]; videoUrl?: string }>(
+      s: T,
+    ): T => {
+      const next = { ...s };
+      if (media.photos !== undefined) next.photos = media.photos;
+      if (media.videoUrl !== undefined) {
+        if (media.videoUrl) next.videoUrl = media.videoUrl;
+        else delete next.videoUrl;
+      }
+      return next;
+    };
+    const nextServices: ServiceItem[] = tool.service.services.map((s) =>
+      s.id === serviceId ? applyDelta(s) : s,
+    );
+    await updateToolService(id, toolId, {
+      services: nextServices,
+      currency: tool.service.currency,
+      ...(tool.service.contactPhone
+        ? { contactPhone: tool.service.contactPhone }
+        : {}),
+    });
+    setTool((prev) =>
+      prev && prev.service
+        ? { ...prev, service: { ...prev.service, services: nextServices } }
+        : prev,
+    );
+    setServiceItems((prev) =>
+      prev.map((s) => (s.id === serviceId ? applyDelta(s) : s)),
+    );
+  };
+
+  const removeServiceItem = async (serviceId: string) => {
+    if (type !== "service") return;
+    setError(null);
+    if (!tool?.service?.services.some((s) => s.id === serviceId)) {
+      setServiceItems((prev) => prev.filter((s) => s.id !== serviceId));
+      setServiceRemoveId(null);
+      return;
+    }
+    const svc = tool.service;
+    const nextServices = svc.services.filter((s) => s.id !== serviceId);
+    setServiceRemoving(true);
+    try {
+      await updateToolService(id, toolId, {
+        services: nextServices,
+        currency: svc.currency,
+        ...(svc.contactPhone ? { contactPhone: svc.contactPhone } : {}),
+      });
+      setTool((prev) =>
+        prev && prev.service
+          ? { ...prev, service: { ...prev.service, services: nextServices } }
+          : prev,
+      );
+      setServiceItems((prev) => prev.filter((s) => s.id !== serviceId));
+      setServiceRemoveId(null);
+    } catch (err) {
+      setError(userErrorMessage(err, "No se pudo quitar el servicio."));
+    } finally {
+      setServiceRemoving(false);
+    }
+  };
+
+  const addServiceItem = () => {
+    setServiceItems((prev) => [
+      ...prev,
+      { id: newServiceId(), name: "", description: "", price: "" },
+    ]);
+    setDirty(true);
+  };
+
   // The stage targeted by the open remove dialog, for its impact summary.
   const tourRemoveTarget =
     tourRemoveKey === null
@@ -693,6 +879,10 @@ export default function EditToolPage() {
     saleRemoveId === null
       ? null
       : saleProducts.find((p) => p.id === saleRemoveId);
+  const serviceRemoveTarget =
+    serviceRemoveId === null
+      ? null
+      : serviceItems.find((s) => s.id === serviceRemoveId);
 
   return (
     <main>
@@ -926,6 +1116,89 @@ export default function EditToolPage() {
           </section>
         )}
 
+        {type === "service" && (
+          <section className="flex flex-col gap-4">
+            <h2 className="text-sm font-semibold tracking-tight text-foreground">
+              Servicios del catálogo
+            </h2>
+            <p className="-mt-2 text-xs text-muted">
+              El público verá cada servicio con su foto y un botón “Preguntar” por
+              WhatsApp. Las fotos y el video se guardan al instante; los textos y el
+              precio, al guardar los cambios.
+            </p>
+
+            <Field label="Moneda">
+              <select
+                value={serviceCurrency}
+                onChange={(e) => {
+                  setServiceCurrency(e.target.value as ProjectCurrency);
+                  setDirty(true);
+                }}
+                className="input"
+              >
+                {PROJECT_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            {serviceItems.map((service, i) => (
+              <ServiceItemCard
+                key={service.id}
+                service={service}
+                index={i}
+                currency={serviceCurrency}
+                schoolId={id}
+                toolId={toolId}
+                canRemove={serviceItems.length > 1}
+                persisted={(tool.service?.services ?? []).some(
+                  (s) => s.id === service.id,
+                )}
+                onText={(patch) => {
+                  setServiceItems((prev) =>
+                    prev.map((s) =>
+                      s.id === service.id ? { ...s, ...patch } : s,
+                    ),
+                  );
+                  setDirty(true);
+                }}
+                onMedia={(media) => applyServiceMedia(service.id, media)}
+                onRemove={() => setServiceRemoveId(service.id)}
+              />
+            ))}
+
+            {serviceItems.length < SERVICE_ITEM_MAX ? (
+              <button
+                type="button"
+                onClick={addServiceItem}
+                className="btn btn-outline self-start"
+              >
+                Agregar servicio
+              </button>
+            ) : (
+              <span className="text-xs text-muted">
+                Máximo {SERVICE_ITEM_MAX} servicios.
+              </span>
+            )}
+
+            <Field label="WhatsApp para consultas (opcional)">
+              <input
+                type="tel"
+                inputMode="tel"
+                value={servicePhone}
+                onChange={(e) => {
+                  setServicePhone(e.target.value);
+                  setDirty(true);
+                }}
+                className="input"
+                placeholder="Ej.: 8888 8888"
+              />
+            </Field>
+          </section>
+        )}
+
         {/* Existing cover preview (the picker only previews a NEW file). */}
         {tool.coverUrl && !coverFile && (
           <div>
@@ -1125,6 +1398,32 @@ export default function EditToolPage() {
             Tiene {saleRemoveTarget.photos?.length ?? 0}{" "}
             {(saleRemoveTarget.photos?.length ?? 0) === 1 ? "foto" : "fotos"}
             {saleRemoveTarget.videoUrl ? " y un video" : ""}. No se puede deshacer.
+          </p>
+        )}
+      </ConfirmDialog>
+
+      {/* Remove a service — confirmed, with concrete impact (its media count). */}
+      <ConfirmDialog
+        open={serviceRemoveId !== null}
+        title="Quitar servicio"
+        tone="destructive"
+        confirmLabel="Quitar servicio"
+        cancelLabel="Cancelar"
+        busy={serviceRemoving}
+        busyLabel="Quitando…"
+        onConfirm={() => {
+          if (serviceRemoveId !== null) removeServiceItem(serviceRemoveId);
+        }}
+        onCancel={() => setServiceRemoveId(null)}
+      >
+        {serviceRemoveTarget && (
+          <p>
+            Vas a quitar «
+            {serviceRemoveTarget.name.trim() || "Servicio sin nombre"}». Tiene{" "}
+            {serviceRemoveTarget.photos?.length ?? 0}{" "}
+            {(serviceRemoveTarget.photos?.length ?? 0) === 1 ? "foto" : "fotos"}
+            {serviceRemoveTarget.videoUrl ? " y un video" : ""}. No se puede
+            deshacer.
           </p>
         )}
       </ConfirmDialog>
@@ -1581,6 +1880,262 @@ function SaleProductCard({
                   className="w-full rounded-lg bg-black ring-1 ring-black/5"
                 >
                   <source src={product.videoUrl} />
+                </video>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={removeVideo}
+                  className="inline-flex min-h-10 items-center justify-center gap-1 self-start rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
+                >
+                  <XMarkIcon className="h-3.5 w-3.5" />
+                  Quitar video
+                </button>
+              </div>
+            ) : (
+              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
+                {busy ? "Subiendo…" : "Agregar video"}
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="sr-only"
+                  disabled={busy}
+                  onChange={async (e) => {
+                    // Persists immediately — don't let it bubble to the form's dirty-tracker.
+                    e.stopPropagation();
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const v = validateVideoFile(f, TOOL_VIDEO_MAX_MB);
+                    if (v) return setMediaError(v);
+                    let duration: number;
+                    try {
+                      duration = await videoDurationSeconds(f);
+                    } catch {
+                      setMediaError(
+                        "No pudimos leer el video. Probá con otro archivo.",
+                      );
+                      return;
+                    }
+                    if (duration > TOOL_VIDEO_MAX_SECONDS + 2) {
+                      setMediaError(
+                        `El video debe durar máximo ${TOOL_VIDEO_MAX_SECONDS} segundos.`,
+                      );
+                      return;
+                    }
+                    setVideo(f);
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        )}
+
+        {mediaError && (
+          <p role="alert" className="text-xs text-error">
+            {mediaError}
+          </p>
+        )}
+      </div>
+    </fieldset>
+  );
+}
+
+/**
+ * One service on the edit page: name/description/optional-price text plus immediate photo/video
+ * uploads. Mirrors SaleProductCard (a service is a product without the order flow); the price is
+ * optional here ("a consultar" when blank). Media is keyed to the persisted `service.services`
+ * array by the service's stable id, so an unsaved service disables uploads until it's saved.
+ */
+function ServiceItemCard({
+  service,
+  index,
+  currency,
+  schoolId,
+  toolId,
+  canRemove,
+  persisted,
+  onText,
+  onMedia,
+  onRemove,
+}: {
+  service: EditableServiceItem;
+  index: number;
+  currency: ProjectCurrency;
+  schoolId: string;
+  toolId: string;
+  canRemove: boolean;
+  /** Whether this service is saved in Firestore; unsaved services can't receive media. */
+  persisted: boolean;
+  onText: (
+    patch: Partial<Pick<EditableServiceItem, "name" | "description" | "price">>,
+  ) => void;
+  onMedia: (media: {
+    photos?: string[];
+    videoUrl?: string | null;
+  }) => Promise<void>;
+  onRemove: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const photos = service.photos ?? [];
+
+  const run = async (op: () => Promise<void>, fallback: string) => {
+    setMediaError(null);
+    setBusy(true);
+    try {
+      await op();
+    } catch (err) {
+      setMediaError(userErrorMessage(err, fallback));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addPhoto = (file: File) =>
+    run(async () => {
+      const url = await uploadToolStageAsset(schoolId, toolId, "photo", file);
+      await onMedia({ photos: [...photos, url] });
+    }, "No se pudo subir la foto.");
+
+  const removePhoto = (url: string) =>
+    run(
+      () => onMedia({ photos: photos.filter((p) => p !== url) }),
+      "No se pudo quitar la foto.",
+    );
+
+  const setVideo = (file: File) =>
+    run(async () => {
+      const url = await uploadToolStageAsset(schoolId, toolId, "video", file);
+      await onMedia({ videoUrl: url });
+    }, "No se pudo subir el video.");
+
+  const removeVideo = () =>
+    run(() => onMedia({ videoUrl: null }), "No se pudo quitar el video.");
+
+  return (
+    <fieldset className={`${cardClass("elevated", false)} p-4`}>
+      <div className="flex items-center justify-between">
+        <legend className="text-sm font-semibold tracking-tight text-foreground">
+          Servicio {index + 1}
+        </legend>
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={busy}
+            className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
+          >
+            Quitar servicio
+          </button>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3">
+        <Field label="Nombre del servicio">
+          <input
+            type="text"
+            maxLength={SERVICE_NAME_MAX}
+            value={service.name}
+            onChange={(e) => onText({ name: e.target.value })}
+            className="input"
+            placeholder="Ej.: Clases de repaso de matemática"
+          />
+        </Field>
+        <Field label="Descripción">
+          <textarea
+            rows={3}
+            maxLength={SERVICE_DESCRIPTION_MAX}
+            value={service.description}
+            onChange={(e) => onText({ description: e.target.value })}
+            className="input"
+            placeholder="Contá en qué consiste el servicio."
+          />
+        </Field>
+        <Field label={`Precio (${currency}) — opcional`}>
+          <input
+            type="number"
+            min={0}
+            step="any"
+            inputMode="decimal"
+            value={service.price}
+            onChange={(e) => onText({ price: e.target.value })}
+            className="input"
+            placeholder="Dejalo en blanco si es a consultar"
+          />
+        </Field>
+
+        {/* Photos */}
+        <div>
+          <p className="text-xs font-medium">
+            Fotos ({photos.length}/{SERVICE_PHOTO_MAX})
+          </p>
+          {photos.length > 0 && (
+            <ul className="mt-1 grid grid-cols-4 gap-2">
+              {photos.map((url, pi) => (
+                <li key={url} className="flex flex-col gap-1">
+                  <span className="relative block aspect-square overflow-hidden rounded-lg bg-surface ring-1 ring-black/5">
+                    <Image
+                      src={url}
+                      alt=""
+                      fill
+                      sizes="80px"
+                      className="object-cover"
+                    />
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Quitar foto ${pi + 1}`}
+                    disabled={busy}
+                    onClick={() => removePhoto(url)}
+                    className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
+                  >
+                    <XMarkIcon className="h-3.5 w-3.5" />
+                    Quitar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {photos.length < SERVICE_PHOTO_MAX &&
+            (persisted ? (
+              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
+                {busy ? "Subiendo…" : "Agregar foto"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={busy}
+                  onChange={(e) => {
+                    // Persists immediately — don't let it bubble to the form's dirty-tracker.
+                    e.stopPropagation();
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const v = validateImageFile(f);
+                    if (v) return setMediaError(v);
+                    addPhoto(f);
+                  }}
+                />
+              </label>
+            ) : (
+              <p className="mt-1 text-xs text-muted">
+                Guardá el servicio para poder subir fotos y un video.
+              </p>
+            ))}
+        </div>
+
+        {/* Video (at most one per service). */}
+        {(persisted || service.videoUrl) && (
+          <div>
+            <p className="text-xs font-medium">Video (máx. 1 min)</p>
+            {service.videoUrl ? (
+              <div className="mt-1 flex flex-col gap-1">
+                <video
+                  controls
+                  preload="metadata"
+                  className="w-full rounded-lg bg-black ring-1 ring-black/5"
+                >
+                  <source src={service.videoUrl} />
                 </video>
                 <button
                   type="button"

@@ -938,6 +938,52 @@ export interface SaleConfig {
   contactPhone?: string;
 }
 
+// ── Service / "Servicios" (type: 'service') — a service catalog ───────────────
+//
+// Essentially "Productos" WITHOUT the order flow: a list of services the school community
+// offers (e.g. "Clases de repaso", "Corte de cabello"), each with a name, a description, up to
+// SERVICE_PHOTO_MAX photos and one short video, and an OPTIONAL price (many services are
+// quote-based — leave it blank for "consultar"). The only public action is a per-service
+// "Preguntar" button that opens WhatsApp; there is no "Comprar", no order, no payment data —
+// nothing the platform could process. The config lives on the tool doc under `service`.
+
+/** Services per catalog, and the per-service text caps (photos reuse SERVICE_PHOTO_MAX, the
+ * video reuses the tool-wide TOOL_VIDEO_MAX_*). Enforced by the panel UI, not by rules. */
+export const SERVICE_ITEM_MAX = 24;
+export const SERVICE_NAME_MAX = 120;
+export const SERVICE_DESCRIPTION_MAX = 500;
+export const SERVICE_PHOTO_MAX = 5;
+
+/**
+ * One service in a catalog, embedded in the tool's `service` config. `id` is a stable id
+ * (assigned at creation, preserved across edits) so the edit page can match a service's media
+ * by identity. Unlike a product it is referenced by nothing external (there is no order flow).
+ */
+export interface ServiceItem {
+  /** Stable id (React key + edit-page media match). */
+  id: string;
+  name: string;
+  description: string;
+  /** Public Storage URLs, up to SERVICE_PHOTO_MAX. */
+  photos?: string[];
+  /** Public Storage URL of a single short video (≤ TOOL_VIDEO_MAX_SECONDS). */
+  videoUrl?: string;
+  /** Optional price per service, in the catalog's `currency`. Omitted when quote-based. */
+  price?: number;
+}
+
+export interface ServiceConfig {
+  /** The services on offer. */
+  services: ServiceItem[];
+  /** One currency for the whole catalog (used only to format the prices that are set). */
+  currency: ProjectCurrency;
+  /**
+   * Optional WhatsApp number for the per-service "Preguntar" button. Free text (the helper
+   * normalizes it); when empty the button falls back to the school's boardContact.phone.
+   */
+  contactPhone?: string;
+}
+
 export interface Tool {
   /** Denormalized parent id (the doc lives under the school; kept for the detail page and
    * any query that starts from a tool). */
@@ -960,6 +1006,8 @@ export interface Tool {
   tour?: TourConfig;
   /** Present only when `type === 'sale'`: the product catalog. */
   sale?: SaleConfig;
+  /** Present only when `type === 'service'`: the service catalog. */
+  service?: ServiceConfig;
   status: ToolStatus;
   /** Denormalized from the school so rules/UI resolve the board without an extra read. */
   ownerId: string;

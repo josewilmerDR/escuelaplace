@@ -36,6 +36,7 @@ import type {
   ProjectCurrency,
   RaffleConfig,
   SaleConfig,
+  ServiceConfig,
   Tool,
   ToolCta,
   ToolDoc,
@@ -241,6 +242,44 @@ function buildSaleConfig(input: SaleConfigInput): SaleConfig {
   };
 }
 
+/** One service, form-shaped. Media URLs are already uploaded by the time they reach here (the
+ * edit page persists them per service). `id` is stable; `price` is optional (quote-based). */
+export interface ServiceItemInput {
+  id: string;
+  name: string;
+  description: string;
+  photos?: string[];
+  videoUrl?: string;
+  price?: number;
+}
+
+/** Form-shaped service-catalog config — see buildServiceConfig. */
+export interface ServiceConfigInput {
+  services: ServiceItemInput[];
+  currency: ProjectCurrency;
+  contactPhone?: string;
+}
+
+/**
+ * Build the stored ServiceConfig from form input. Drops empty optional fields (Firestore rejects
+ * `undefined`): a service with no media omits `photos`/`videoUrl`, a quote-based service omits
+ * `price`, and an empty contact phone is omitted.
+ */
+function buildServiceConfig(input: ServiceConfigInput): ServiceConfig {
+  return {
+    services: input.services.map((s) => ({
+      id: s.id,
+      name: s.name,
+      description: s.description,
+      ...(typeof s.price === "number" ? { price: s.price } : {}),
+      ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
+      ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
+    })),
+    currency: input.currency,
+    ...(input.contactPhone ? { contactPhone: input.contactPhone } : {}),
+  };
+}
+
 export interface CreateToolInput {
   type: ToolType;
   title: string;
@@ -253,6 +292,8 @@ export interface CreateToolInput {
   tour?: TourConfigInput;
   /** Product-catalog configuration — pass only when type === 'sale'. */
   sale?: SaleConfigInput;
+  /** Service-catalog configuration — pass only when type === 'service'. */
+  service?: ServiceConfigInput;
 }
 
 /**
@@ -276,6 +317,7 @@ export async function createTool(
     ...(input.raffle ? { raffle: buildRaffleConfig(input.raffle) } : {}),
     ...(input.tour ? { tour: buildTourConfig(input.tour) } : {}),
     ...(input.sale ? { sale: buildSaleConfig(input.sale) } : {}),
+    ...(input.service ? { service: buildServiceConfig(input.service) } : {}),
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -301,6 +343,8 @@ export interface ToolPatch {
   tour?: TourConfigInput;
   /** Product-catalog config — pass only when type === 'sale'; omit to leave it untouched. */
   sale?: SaleConfigInput;
+  /** Service-catalog config — pass only when type === 'service'; omit to leave it untouched. */
+  service?: ServiceConfigInput;
 }
 
 /**
@@ -329,20 +373,37 @@ export async function updateTool(
           ...(patch.raffle ? { raffle: buildRaffleConfig(patch.raffle) } : {}),
           tour: deleteField(),
           sale: deleteField(),
+          service: deleteField(),
         }
       : patch.type === "guided_tour"
         ? {
             ...(patch.tour ? { tour: buildTourConfig(patch.tour) } : {}),
             raffle: deleteField(),
             sale: deleteField(),
+            service: deleteField(),
           }
         : patch.type === "sale"
           ? {
               ...(patch.sale ? { sale: buildSaleConfig(patch.sale) } : {}),
               raffle: deleteField(),
               tour: deleteField(),
+              service: deleteField(),
             }
-          : { raffle: deleteField(), tour: deleteField(), sale: deleteField() }),
+          : patch.type === "service"
+            ? {
+                ...(patch.service
+                  ? { service: buildServiceConfig(patch.service) }
+                  : {}),
+                raffle: deleteField(),
+                tour: deleteField(),
+                sale: deleteField(),
+              }
+            : {
+                raffle: deleteField(),
+                tour: deleteField(),
+                sale: deleteField(),
+                service: deleteField(),
+              }),
     startsAt: patch.startsAt ? Timestamp.fromDate(patch.startsAt) : deleteField(),
     endsAt: patch.endsAt ? Timestamp.fromDate(patch.endsAt) : deleteField(),
     cta: cta ?? deleteField(),
@@ -381,6 +442,23 @@ export async function updateToolSale(
 ): Promise<void> {
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
     sale: buildSaleConfig(sale),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Persist ONLY the service-catalog config, leaving every other tool field untouched. Same
+ * rationale as updateToolSale/updateToolTour: the edit page uses it to commit a per-service
+ * media change immediately, without dragging along an in-progress, unsaved text edit. Touches
+ * only `service` + `updatedAt`, which the tool update rule allows.
+ */
+export async function updateToolService(
+  schoolId: string,
+  toolId: string,
+  service: ServiceConfigInput,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
+    service: buildServiceConfig(service),
     updatedAt: serverTimestamp(),
   });
 }
