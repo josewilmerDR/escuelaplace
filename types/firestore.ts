@@ -746,6 +746,92 @@ export interface Project {
 
 export type ProjectDoc = Project & { id: string };
 
+// ── schools/{schoolId}/tools/{toolId} ───────────────────────────────────────
+
+/**
+ * "Herramientas": lightweight activities a school runs that don't warrant their own tab —
+ * a raffle, a bingo, a sale, a service, a guided tour, etc. Each is a card the school
+ * publishes on its public "Principal" tab (plus a detail page). PURELY INFORMATIONAL: like
+ * every other surface the platform never processes money — a tool may carry an optional
+ * call to action (a link the school controls, e.g. a WhatsApp or a form), nothing more.
+ *
+ * The concrete kinds live in a registry (lib/tools/registry) keyed by `type`; adding a kind
+ * is editing that registry (+ this union and the rules list), not the storage shape — the
+ * create/edit/render flow is identical for every kind. Lives in
+ * `schools/{schoolId}/tools/{toolId}` (public read). No function-maintained fields: the
+ * school owns every field.
+ */
+
+/**
+ * Kinds of tool. The keys are the stored discriminator; the Spanish labels and icons live in
+ * the registry (lib/tools/registry). Open-ended and country-agnostic — extend here, in
+ * TOOL_TYPES, in the registry, and in the firestore.rules allow-list together.
+ */
+export type ToolType =
+  | "raffle"
+  | "bingo"
+  | "sale"
+  | "service"
+  | "guided_tour"
+  | "other";
+
+/** Stored discriminator values, mirrored in firestore.rules (which can't import TS). */
+export const TOOL_TYPES: ToolType[] = [
+  "raffle",
+  "bingo",
+  "sale",
+  "service",
+  "guided_tour",
+  "other",
+];
+
+/**
+ * A tool's visibility: `active` shows on the public page, `inactive` hides it (a draft, or a
+ * finished activity the school keeps around to re-activate later).
+ */
+export type ToolStatus = "active" | "inactive";
+
+/** UI caps for the tool form. Enforced by the panel inputs and the rules. */
+export const TOOL_TITLE_MAX = 120;
+export const TOOL_DESCRIPTION_MAX = 600;
+export const TOOL_CTA_LABEL_MAX = 40;
+
+/**
+ * Optional call to action: a button the school controls. `url` is scheme-checked on write
+ * (safeExternalUrl) — the platform never processes money, this only links out (a WhatsApp
+ * chat, a form, an external page).
+ */
+export interface ToolCta {
+  label: string;
+  /** Absolute http(s) URL. */
+  url: string;
+}
+
+export interface Tool {
+  /** Denormalized parent id (the doc lives under the school; kept for the detail page and
+   * any query that starts from a tool). */
+  schoolId: string;
+  /** Denormalized so the detail page renders without an extra read. */
+  schoolName: string;
+  type: ToolType;
+  title: string;
+  description: string;
+  /** Header image of the tool card/detail. */
+  coverUrl?: string;
+  /** Optional activity window (purely informational). */
+  startsAt?: Timestamp;
+  endsAt?: Timestamp;
+  /** Optional call to action (a link the school controls). */
+  cta?: ToolCta;
+  status: ToolStatus;
+  /** Denormalized from the school so rules/UI resolve the board without an extra read. */
+  ownerId: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type ToolDoc = Tool & { id: string };
+
 // ── projectContributions/{id} ────────────────────────────────────────────────
 
 /**

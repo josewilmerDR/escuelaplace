@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DonorWallManagerHint } from "@/components/donors/DonorWallManagerHint";
+import { ToolCard } from "@/components/tools/ToolCard";
 import { Section } from "@/components/ui/Section";
 import { MapPinIcon, UsersIcon } from "@/components/ui/icons";
 import { buildDirectionsUrl } from "@/lib/contact";
 import {
   getSchoolById,
   getSchoolDonorWall,
+  getToolsBySchool,
+  publicTools,
   schoolCover,
 } from "@/lib/firestore";
 import { locationParts } from "@/lib/location";
@@ -63,14 +66,31 @@ export default async function SchoolInfoPage({ params }: Props) {
 
   // Managers should always be able to reach the donor-wall setup; when the wall is empty
   // there is no "Agradecimientos" tab, so the nudge lives here on the school's landing tab.
-  const wall = await getSchoolDonorWall(id).catch(() => ({
-    recognized: [],
-    anonymousCount: 0,
-  }));
+  // Active "Herramientas" (rifas/ventas/etc.) lead the landing — they are the timely calls to
+  // action the school wants seen first; both reads degrade to empty on a transient failure.
+  const [wall, tools] = await Promise.all([
+    getSchoolDonorWall(id).catch(() => ({ recognized: [], anonymousCount: 0 })),
+    getToolsBySchool(id).catch(() => []),
+  ]);
   const hasWall = wall.recognized.length > 0 || wall.anonymousCount > 0;
+  const liveTools = publicTools(tools);
 
   return (
     <>
+      {liveTools.length > 0 && (
+        <Section
+          id="actividades"
+          title="Actividades de la escuela"
+          description="Rifas, ventas y otras actividades que la escuela está organizando."
+        >
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {liveTools.map((tool) => (
+              <ToolCard key={tool.id} tool={tool} />
+            ))}
+          </div>
+        </Section>
+      )}
+
       {hasInfo && (
         <Section id="informacion" title="Información">
           {/* pre-line: the description is captured in a textarea — keep its line breaks.
