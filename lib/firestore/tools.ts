@@ -37,6 +37,7 @@ import type {
   RaffleConfig,
   SaleConfig,
   ServiceConfig,
+  ServiceModality,
   Tool,
   ToolCta,
   ToolDoc,
@@ -251,6 +252,10 @@ export interface ServiceItemInput {
   photos?: string[];
   videoUrl?: string;
   price?: number;
+  /** Marks `price` as a starting point ("Desde ₡X"); meaningful only when a price is set. */
+  priceFrom?: boolean;
+  modalities?: ServiceModality[];
+  availability?: string;
 }
 
 /** Form-shaped service-catalog config — see buildServiceConfig. */
@@ -263,7 +268,8 @@ export interface ServiceConfigInput {
 /**
  * Build the stored ServiceConfig from form input. Drops empty optional fields (Firestore rejects
  * `undefined`): a service with no media omits `photos`/`videoUrl`, a quote-based service omits
- * `price`, and an empty contact phone is omitted.
+ * `price` (and `priceFrom`, which is meaningless without one), an empty modality set or blank
+ * availability is omitted, and an empty contact phone is omitted.
  */
 function buildServiceConfig(input: ServiceConfigInput): ServiceConfig {
   return {
@@ -272,6 +278,11 @@ function buildServiceConfig(input: ServiceConfigInput): ServiceConfig {
       name: s.name,
       description: s.description,
       ...(typeof s.price === "number" ? { price: s.price } : {}),
+      ...(typeof s.price === "number" && s.priceFrom ? { priceFrom: true } : {}),
+      ...(s.modalities && s.modalities.length > 0
+        ? { modalities: s.modalities }
+        : {}),
+      ...(s.availability ? { availability: s.availability } : {}),
       ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
       ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
     })),

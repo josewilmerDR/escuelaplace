@@ -27,17 +27,15 @@ import {
 } from "@/components/tools/RaffleNumberGrid";
 import { newProductId } from "@/components/tools/SaleProductsEditor";
 import { newServiceId } from "@/components/tools/ServiceItemsEditor";
+import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
 import { BackLink } from "@/components/ui/BackLink";
-import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
-import { ImagePicker, validateImageFile } from "@/components/ui/ImagePicker";
+import { ImagePicker } from "@/components/ui/ImagePicker";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
-import { XMarkIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
-import { validateVideoFile, videoDurationSeconds } from "@/lib/files";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
@@ -55,7 +53,6 @@ import {
   updateToolService,
   updateToolTour,
   uploadToolCover,
-  uploadToolStageAsset,
   type SaleConfigInput,
   type ServiceConfigInput,
   type TourConfigInput,
@@ -66,8 +63,11 @@ import {
   SALE_PRODUCT_MAX,
   SALE_PRODUCT_NAME_MAX,
   SALE_PRODUCT_PHOTO_MAX,
+  SERVICE_AVAILABILITY_MAX,
   SERVICE_DESCRIPTION_MAX,
   SERVICE_ITEM_MAX,
+  SERVICE_MODALITIES,
+  SERVICE_MODALITY_LABELS,
   SERVICE_NAME_MAX,
   SERVICE_PHOTO_MAX,
   TOOL_CTA_LABEL_MAX,
@@ -77,8 +77,6 @@ import {
   TOUR_STAGE_MAX,
   TOUR_STAGE_PHOTO_MAX,
   TOUR_STAGE_TITLE_MAX,
-  TOOL_VIDEO_MAX_MB,
-  TOOL_VIDEO_MAX_SECONDS,
   type ProjectCurrency,
   type RaffleOrderDoc,
   type SaleConfig,
@@ -86,6 +84,7 @@ import {
   type SchoolDoc,
   type ServiceConfig,
   type ServiceItem,
+  type ServiceModality,
   type ToolDoc,
   type ToolStatus,
   type ToolType,
@@ -441,6 +440,9 @@ export default function EditToolPage() {
           name: s.name.trim(),
           description: s.description.trim(),
           priceStr: s.price.trim(),
+          priceFrom: Boolean(s.priceFrom),
+          modalities: s.modalities ?? [],
+          availability: (s.availability ?? "").trim(),
           photos: s.photos,
           videoUrl: s.videoUrl,
         }))
@@ -449,6 +451,8 @@ export default function EditToolPage() {
             s.name ||
             s.description ||
             s.priceStr ||
+            s.modalities.length > 0 ||
+            s.availability ||
             (s.photos?.length ?? 0) > 0 ||
             Boolean(s.videoUrl),
         );
@@ -478,6 +482,9 @@ export default function EditToolPage() {
           name: s.name,
           description: s.description,
           ...(s.priceStr ? { price: Number(s.priceStr) } : {}),
+          ...(s.priceStr && s.priceFrom ? { priceFrom: true } : {}),
+          ...(s.modalities.length > 0 ? { modalities: s.modalities } : {}),
+          ...(s.availability ? { availability: s.availability } : {}),
           ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
           ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
         })),
@@ -1438,10 +1445,10 @@ export default function EditToolPage() {
 }
 
 /**
- * One guided-tour stage on the edit page: the shared text fields plus immediate photo/video
- * uploads. Media is keyed to the persisted `tour.stages` array, so an unsaved (not-yet-persisted)
- * stage disables uploads and shows a hint until it's saved — mirrors the project editor's
- * StageCard. Each upload validates type/size (and a video's duration ≤ 1 min) before sending.
+ * One guided-tour stage on the edit page: the stage's text fields inside the shared ToolItemCard
+ * (which carries the media block + immediate, validated photo/video uploads). Media is keyed to
+ * the persisted `tour.stages` array, so an unsaved stage shows the hint until it's saved — mirrors
+ * the project editor's StageCard.
  */
 function TourStageCard({
   stage,
@@ -1468,226 +1475,49 @@ function TourStageCard({
   }) => Promise<void>;
   onRemove: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [mediaError, setMediaError] = useState<string | null>(null);
-  const photos = stage.photos ?? [];
-
-  // Wrap a media op so upload/save failures report inline and the card's busy gate prevents a
-  // double-fire.
-  const run = async (op: () => Promise<void>, fallback: string) => {
-    setMediaError(null);
-    setBusy(true);
-    try {
-      await op();
-    } catch (err) {
-      setMediaError(userErrorMessage(err, fallback));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const addPhoto = (file: File) =>
-    run(async () => {
-      const url = await uploadToolStageAsset(schoolId, toolId, "photo", file);
-      await onMedia({ photos: [...photos, url] });
-    }, "No se pudo subir la foto.");
-
-  const removePhoto = (url: string) =>
-    run(
-      () => onMedia({ photos: photos.filter((p) => p !== url) }),
-      "No se pudo quitar la foto.",
-    );
-
-  const setVideo = (file: File) =>
-    run(async () => {
-      const url = await uploadToolStageAsset(schoolId, toolId, "video", file);
-      await onMedia({ videoUrl: url });
-    }, "No se pudo subir el video.");
-
-  const removeVideo = () =>
-    run(() => onMedia({ videoUrl: null }), "No se pudo quitar el video.");
-
   return (
-    <fieldset className={`${cardClass("elevated", false)} p-4`}>
-      <div className="flex items-center justify-between">
-        <legend className="text-sm font-semibold tracking-tight text-foreground">
-          Etapa {index + 1}
-        </legend>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={busy}
-            className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
-          >
-            Quitar etapa
-          </button>
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-col gap-3">
-        <Field label="Nombre de la etapa">
-          <input
-            type="text"
-            maxLength={TOUR_STAGE_TITLE_MAX}
-            value={stage.title}
-            onChange={(e) => onText({ title: e.target.value })}
-            className="input"
-            placeholder="Ej.: Breve historia de la escuela"
-          />
-        </Field>
-        <Field label="¿Qué incluye?">
-          <textarea
-            rows={3}
-            maxLength={TOUR_STAGE_DESCRIPTION_MAX}
-            value={stage.description}
-            onChange={(e) => onText({ description: e.target.value })}
-            className="input"
-            placeholder="Contá qué se ve y se hace en esta etapa."
-          />
-        </Field>
-
-        {/* Photos */}
-        <div>
-          <p className="text-xs font-medium">
-            Fotos ({photos.length}/{TOUR_STAGE_PHOTO_MAX})
-          </p>
-          {photos.length > 0 && (
-            <ul className="mt-1 grid grid-cols-4 gap-2">
-              {photos.map((url, pi) => (
-                <li key={url} className="flex flex-col gap-1">
-                  <span className="relative block aspect-square overflow-hidden rounded-lg bg-surface ring-1 ring-black/5">
-                    <Image
-                      src={url}
-                      alt=""
-                      fill
-                      sizes="80px"
-                      className="object-cover"
-                    />
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Quitar foto ${pi + 1}`}
-                    disabled={busy}
-                    onClick={() => removePhoto(url)}
-                    className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
-                  >
-                    <XMarkIcon className="h-3.5 w-3.5" />
-                    Quitar
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {photos.length < TOUR_STAGE_PHOTO_MAX &&
-            (persisted ? (
-              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
-                {busy ? "Subiendo…" : "Agregar foto"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  disabled={busy}
-                  onChange={(e) => {
-                    // This upload persists immediately, so its change event must NOT bubble to
-                    // the form's onChange dirty-tracker (that would falsely warn "unsaved
-                    // changes" though nothing is). Text fields still mark dirty as before.
-                    e.stopPropagation();
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f) return;
-                    const v = validateImageFile(f);
-                    if (v) return setMediaError(v);
-                    addPhoto(f);
-                  }}
-                />
-              </label>
-            ) : (
-              <p className="mt-1 text-xs text-muted">
-                Guardá la etapa para poder subir fotos y un video.
-              </p>
-            ))}
-        </div>
-
-        {/* Video (at most one per stage). Only shown for a saved stage or when one already
-            exists; the photos hint above covers the unsaved case. */}
-        {(persisted || stage.videoUrl) && (
-          <div>
-            <p className="text-xs font-medium">Video (máx. 1 min)</p>
-            {stage.videoUrl ? (
-              <div className="mt-1 flex flex-col gap-1">
-                <video
-                  controls
-                  preload="metadata"
-                  className="w-full rounded-lg bg-black ring-1 ring-black/5"
-                >
-                  <source src={stage.videoUrl} />
-                </video>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={removeVideo}
-                  className="inline-flex min-h-10 items-center justify-center gap-1 self-start rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
-                >
-                  <XMarkIcon className="h-3.5 w-3.5" />
-                  Quitar video
-                </button>
-              </div>
-            ) : (
-              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
-                {busy ? "Subiendo…" : "Agregar video"}
-                <input
-                  type="file"
-                  accept="video/*"
-                  className="sr-only"
-                  disabled={busy}
-                  onChange={async (e) => {
-                    // Persists immediately — don't let it bubble to the form's dirty-tracker
-                    // (see the photo input above).
-                    e.stopPropagation();
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f) return;
-                    const v = validateVideoFile(f, TOOL_VIDEO_MAX_MB);
-                    if (v) return setMediaError(v);
-                    let duration: number;
-                    try {
-                      duration = await videoDurationSeconds(f);
-                    } catch {
-                      setMediaError(
-                        "No pudimos leer el video. Probá con otro archivo.",
-                      );
-                      return;
-                    }
-                    if (duration > TOOL_VIDEO_MAX_SECONDS + 2) {
-                      setMediaError(
-                        `El video debe durar máximo ${TOOL_VIDEO_MAX_SECONDS} segundos.`,
-                      );
-                      return;
-                    }
-                    setVideo(f);
-                  }}
-                />
-              </label>
-            )}
-          </div>
-        )}
-
-        {mediaError && (
-          <p role="alert" className="text-xs text-error">
-            {mediaError}
-          </p>
-        )}
-      </div>
-    </fieldset>
+    <ToolItemCard
+      title={`Etapa ${index + 1}`}
+      removeLabel="Quitar etapa"
+      canRemove={canRemove}
+      onRemove={onRemove}
+      photos={stage.photos ?? []}
+      videoUrl={stage.videoUrl}
+      photoMax={TOUR_STAGE_PHOTO_MAX}
+      schoolId={schoolId}
+      toolId={toolId}
+      persisted={persisted}
+      unsavedHint="Guardá la etapa para poder subir fotos y un video."
+      onMedia={onMedia}
+    >
+      <Field label="Nombre de la etapa">
+        <input
+          type="text"
+          maxLength={TOUR_STAGE_TITLE_MAX}
+          value={stage.title}
+          onChange={(e) => onText({ title: e.target.value })}
+          className="input"
+          placeholder="Ej.: Breve historia de la escuela"
+        />
+      </Field>
+      <Field label="¿Qué incluye?">
+        <textarea
+          rows={3}
+          maxLength={TOUR_STAGE_DESCRIPTION_MAX}
+          value={stage.description}
+          onChange={(e) => onText({ description: e.target.value })}
+          className="input"
+          placeholder="Contá qué se ve y se hace en esta etapa."
+        />
+      </Field>
+    </ToolItemCard>
   );
 }
 
 /**
- * One sale product on the edit page: name/description/price text plus immediate photo/video
- * uploads. Media is keyed to the persisted `sale.products` array (by the product's stable id),
- * so an unsaved product disables uploads and shows a hint until it's saved. Mirrors
- * TourStageCard; the price is a string here (smooth decimal typing) and parsed on save.
+ * One sale product on the edit page: name/description/price inside the shared ToolItemCard. The
+ * price is a string here (a controlled number input drops the decimal point mid-type) and parsed
+ * back on save.
  */
 function SaleProductCard({
   product,
@@ -1718,233 +1548,62 @@ function SaleProductCard({
   }) => Promise<void>;
   onRemove: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [mediaError, setMediaError] = useState<string | null>(null);
-  const photos = product.photos ?? [];
-
-  const run = async (op: () => Promise<void>, fallback: string) => {
-    setMediaError(null);
-    setBusy(true);
-    try {
-      await op();
-    } catch (err) {
-      setMediaError(userErrorMessage(err, fallback));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const addPhoto = (file: File) =>
-    run(async () => {
-      const url = await uploadToolStageAsset(schoolId, toolId, "photo", file);
-      await onMedia({ photos: [...photos, url] });
-    }, "No se pudo subir la foto.");
-
-  const removePhoto = (url: string) =>
-    run(
-      () => onMedia({ photos: photos.filter((p) => p !== url) }),
-      "No se pudo quitar la foto.",
-    );
-
-  const setVideo = (file: File) =>
-    run(async () => {
-      const url = await uploadToolStageAsset(schoolId, toolId, "video", file);
-      await onMedia({ videoUrl: url });
-    }, "No se pudo subir el video.");
-
-  const removeVideo = () =>
-    run(() => onMedia({ videoUrl: null }), "No se pudo quitar el video.");
-
   return (
-    <fieldset className={`${cardClass("elevated", false)} p-4`}>
-      <div className="flex items-center justify-between">
-        <legend className="text-sm font-semibold tracking-tight text-foreground">
-          Producto {index + 1}
-        </legend>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={busy}
-            className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
-          >
-            Quitar producto
-          </button>
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-col gap-3">
-        <Field label="Nombre del producto">
-          <input
-            type="text"
-            maxLength={SALE_PRODUCT_NAME_MAX}
-            value={product.name}
-            onChange={(e) => onText({ name: e.target.value })}
-            className="input"
-            placeholder="Ej.: Huevos de la granja de la escuela"
-          />
-        </Field>
-        <Field label="Descripción">
-          <textarea
-            rows={3}
-            maxLength={SALE_PRODUCT_DESCRIPTION_MAX}
-            value={product.description}
-            onChange={(e) => onText({ description: e.target.value })}
-            className="input"
-            placeholder="Contá qué es, presentación, etc."
-          />
-        </Field>
-        <Field label={`Precio (${currency})`}>
-          <input
-            type="number"
-            min={0}
-            step="any"
-            inputMode="decimal"
-            value={product.price}
-            onChange={(e) => onText({ price: e.target.value })}
-            className="input"
-            placeholder="Ej.: 2500"
-          />
-        </Field>
-
-        {/* Photos */}
-        <div>
-          <p className="text-xs font-medium">
-            Fotos ({photos.length}/{SALE_PRODUCT_PHOTO_MAX})
-          </p>
-          {photos.length > 0 && (
-            <ul className="mt-1 grid grid-cols-4 gap-2">
-              {photos.map((url, pi) => (
-                <li key={url} className="flex flex-col gap-1">
-                  <span className="relative block aspect-square overflow-hidden rounded-lg bg-surface ring-1 ring-black/5">
-                    <Image
-                      src={url}
-                      alt=""
-                      fill
-                      sizes="80px"
-                      className="object-cover"
-                    />
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Quitar foto ${pi + 1}`}
-                    disabled={busy}
-                    onClick={() => removePhoto(url)}
-                    className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
-                  >
-                    <XMarkIcon className="h-3.5 w-3.5" />
-                    Quitar
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {photos.length < SALE_PRODUCT_PHOTO_MAX &&
-            (persisted ? (
-              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
-                {busy ? "Subiendo…" : "Agregar foto"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  disabled={busy}
-                  onChange={(e) => {
-                    // Persists immediately — don't let it bubble to the form's dirty-tracker.
-                    e.stopPropagation();
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f) return;
-                    const v = validateImageFile(f);
-                    if (v) return setMediaError(v);
-                    addPhoto(f);
-                  }}
-                />
-              </label>
-            ) : (
-              <p className="mt-1 text-xs text-muted">
-                Guardá el producto para poder subir fotos y un video.
-              </p>
-            ))}
-        </div>
-
-        {/* Video (at most one per product). Only shown for a saved product or when one already
-            exists; the photos hint above covers the unsaved case. */}
-        {(persisted || product.videoUrl) && (
-          <div>
-            <p className="text-xs font-medium">Video (máx. 1 min)</p>
-            {product.videoUrl ? (
-              <div className="mt-1 flex flex-col gap-1">
-                <video
-                  controls
-                  preload="metadata"
-                  className="w-full rounded-lg bg-black ring-1 ring-black/5"
-                >
-                  <source src={product.videoUrl} />
-                </video>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={removeVideo}
-                  className="inline-flex min-h-10 items-center justify-center gap-1 self-start rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
-                >
-                  <XMarkIcon className="h-3.5 w-3.5" />
-                  Quitar video
-                </button>
-              </div>
-            ) : (
-              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
-                {busy ? "Subiendo…" : "Agregar video"}
-                <input
-                  type="file"
-                  accept="video/*"
-                  className="sr-only"
-                  disabled={busy}
-                  onChange={async (e) => {
-                    // Persists immediately — don't let it bubble to the form's dirty-tracker.
-                    e.stopPropagation();
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f) return;
-                    const v = validateVideoFile(f, TOOL_VIDEO_MAX_MB);
-                    if (v) return setMediaError(v);
-                    let duration: number;
-                    try {
-                      duration = await videoDurationSeconds(f);
-                    } catch {
-                      setMediaError(
-                        "No pudimos leer el video. Probá con otro archivo.",
-                      );
-                      return;
-                    }
-                    if (duration > TOOL_VIDEO_MAX_SECONDS + 2) {
-                      setMediaError(
-                        `El video debe durar máximo ${TOOL_VIDEO_MAX_SECONDS} segundos.`,
-                      );
-                      return;
-                    }
-                    setVideo(f);
-                  }}
-                />
-              </label>
-            )}
-          </div>
-        )}
-
-        {mediaError && (
-          <p role="alert" className="text-xs text-error">
-            {mediaError}
-          </p>
-        )}
-      </div>
-    </fieldset>
+    <ToolItemCard
+      title={`Producto ${index + 1}`}
+      removeLabel="Quitar producto"
+      canRemove={canRemove}
+      onRemove={onRemove}
+      photos={product.photos ?? []}
+      videoUrl={product.videoUrl}
+      photoMax={SALE_PRODUCT_PHOTO_MAX}
+      schoolId={schoolId}
+      toolId={toolId}
+      persisted={persisted}
+      unsavedHint="Guardá el producto para poder subir fotos y un video."
+      onMedia={onMedia}
+    >
+      <Field label="Nombre del producto">
+        <input
+          type="text"
+          maxLength={SALE_PRODUCT_NAME_MAX}
+          value={product.name}
+          onChange={(e) => onText({ name: e.target.value })}
+          className="input"
+          placeholder="Ej.: Huevos de la granja de la escuela"
+        />
+      </Field>
+      <Field label="Descripción">
+        <textarea
+          rows={3}
+          maxLength={SALE_PRODUCT_DESCRIPTION_MAX}
+          value={product.description}
+          onChange={(e) => onText({ description: e.target.value })}
+          className="input"
+          placeholder="Contá qué es, presentación, etc."
+        />
+      </Field>
+      <Field label={`Precio (${currency})`}>
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          value={product.price}
+          onChange={(e) => onText({ price: e.target.value })}
+          className="input"
+          placeholder="Ej.: 2500"
+        />
+      </Field>
+    </ToolItemCard>
   );
 }
 
 /**
- * One service on the edit page: name/description/optional-price text plus immediate photo/video
- * uploads. Mirrors SaleProductCard (a service is a product without the order flow); the price is
- * optional here ("a consultar" when blank). Media is keyed to the persisted `service.services`
- * array by the service's stable id, so an unsaved service disables uploads until it's saved.
+ * One service on the edit page: name/description/optional-price plus the service-only extras
+ * (delivery modality chips, a free-text schedule, and a "Desde" price toggle) inside the shared
+ * ToolItemCard. A service is a product without the order flow; the price is optional here ("a
+ * consultar" when blank), and "Desde" only matters once a price is set.
  */
 function ServiceItemCard({
   service,
@@ -1967,7 +1626,12 @@ function ServiceItemCard({
   /** Whether this service is saved in Firestore; unsaved services can't receive media. */
   persisted: boolean;
   onText: (
-    patch: Partial<Pick<EditableServiceItem, "name" | "description" | "price">>,
+    patch: Partial<
+      Pick<
+        EditableServiceItem,
+        "name" | "description" | "price" | "priceFrom" | "modalities" | "availability"
+      >
+    >,
   ) => void;
   onMedia: (media: {
     photos?: string[];
@@ -1975,223 +1639,116 @@ function ServiceItemCard({
   }) => Promise<void>;
   onRemove: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [mediaError, setMediaError] = useState<string | null>(null);
-  const photos = service.photos ?? [];
-
-  const run = async (op: () => Promise<void>, fallback: string) => {
-    setMediaError(null);
-    setBusy(true);
-    try {
-      await op();
-    } catch (err) {
-      setMediaError(userErrorMessage(err, fallback));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const addPhoto = (file: File) =>
-    run(async () => {
-      const url = await uploadToolStageAsset(schoolId, toolId, "photo", file);
-      await onMedia({ photos: [...photos, url] });
-    }, "No se pudo subir la foto.");
-
-  const removePhoto = (url: string) =>
-    run(
-      () => onMedia({ photos: photos.filter((p) => p !== url) }),
-      "No se pudo quitar la foto.",
-    );
-
-  const setVideo = (file: File) =>
-    run(async () => {
-      const url = await uploadToolStageAsset(schoolId, toolId, "video", file);
-      await onMedia({ videoUrl: url });
-    }, "No se pudo subir el video.");
-
-  const removeVideo = () =>
-    run(() => onMedia({ videoUrl: null }), "No se pudo quitar el video.");
+  const modalities = service.modalities ?? [];
+  const hasPrice = service.price.trim() !== "";
+  const toggleModality = (m: ServiceModality) =>
+    onText({
+      modalities: modalities.includes(m)
+        ? modalities.filter((x) => x !== m)
+        : [...modalities, m],
+    });
 
   return (
-    <fieldset className={`${cardClass("elevated", false)} p-4`}>
-      <div className="flex items-center justify-between">
-        <legend className="text-sm font-semibold tracking-tight text-foreground">
-          Servicio {index + 1}
+    <ToolItemCard
+      title={`Servicio ${index + 1}`}
+      removeLabel="Quitar servicio"
+      canRemove={canRemove}
+      onRemove={onRemove}
+      photos={service.photos ?? []}
+      videoUrl={service.videoUrl}
+      photoMax={SERVICE_PHOTO_MAX}
+      schoolId={schoolId}
+      toolId={toolId}
+      persisted={persisted}
+      unsavedHint="Guardá el servicio para poder subir fotos y un video."
+      onMedia={onMedia}
+    >
+      <Field label="Nombre del servicio">
+        <input
+          type="text"
+          maxLength={SERVICE_NAME_MAX}
+          value={service.name}
+          onChange={(e) => onText({ name: e.target.value })}
+          className="input"
+          placeholder="Ej.: Clases de repaso de matemática"
+        />
+      </Field>
+      <Field label="Descripción">
+        <textarea
+          rows={3}
+          maxLength={SERVICE_DESCRIPTION_MAX}
+          value={service.description}
+          onChange={(e) => onText({ description: e.target.value })}
+          className="input"
+          placeholder="Contá en qué consiste el servicio."
+        />
+      </Field>
+
+      {/* Modality: a service may offer more than one (presencial + virtual). */}
+      <fieldset>
+        <legend className="text-sm font-medium text-foreground">
+          Modalidad (opcional)
         </legend>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={busy}
-            className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
-          >
-            Quitar servicio
-          </button>
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-col gap-3">
-        <Field label="Nombre del servicio">
-          <input
-            type="text"
-            maxLength={SERVICE_NAME_MAX}
-            value={service.name}
-            onChange={(e) => onText({ name: e.target.value })}
-            className="input"
-            placeholder="Ej.: Clases de repaso de matemática"
-          />
-        </Field>
-        <Field label="Descripción">
-          <textarea
-            rows={3}
-            maxLength={SERVICE_DESCRIPTION_MAX}
-            value={service.description}
-            onChange={(e) => onText({ description: e.target.value })}
-            className="input"
-            placeholder="Contá en qué consiste el servicio."
-          />
-        </Field>
-        <Field label={`Precio (${currency}) — opcional`}>
-          <input
-            type="number"
-            min={0}
-            step="any"
-            inputMode="decimal"
-            value={service.price}
-            onChange={(e) => onText({ price: e.target.value })}
-            className="input"
-            placeholder="Dejalo en blanco si es a consultar"
-          />
-        </Field>
-
-        {/* Photos */}
-        <div>
-          <p className="text-xs font-medium">
-            Fotos ({photos.length}/{SERVICE_PHOTO_MAX})
-          </p>
-          {photos.length > 0 && (
-            <ul className="mt-1 grid grid-cols-4 gap-2">
-              {photos.map((url, pi) => (
-                <li key={url} className="flex flex-col gap-1">
-                  <span className="relative block aspect-square overflow-hidden rounded-lg bg-surface ring-1 ring-black/5">
-                    <Image
-                      src={url}
-                      alt=""
-                      fill
-                      sizes="80px"
-                      className="object-cover"
-                    />
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Quitar foto ${pi + 1}`}
-                    disabled={busy}
-                    onClick={() => removePhoto(url)}
-                    className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
-                  >
-                    <XMarkIcon className="h-3.5 w-3.5" />
-                    Quitar
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {photos.length < SERVICE_PHOTO_MAX &&
-            (persisted ? (
-              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
-                {busy ? "Subiendo…" : "Agregar foto"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  disabled={busy}
-                  onChange={(e) => {
-                    // Persists immediately — don't let it bubble to the form's dirty-tracker.
-                    e.stopPropagation();
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f) return;
-                    const v = validateImageFile(f);
-                    if (v) return setMediaError(v);
-                    addPhoto(f);
-                  }}
-                />
-              </label>
-            ) : (
-              <p className="mt-1 text-xs text-muted">
-                Guardá el servicio para poder subir fotos y un video.
-              </p>
-            ))}
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {SERVICE_MODALITIES.map((m) => {
+            const on = modalities.includes(m);
+            return (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggleModality(m)}
+                className={`inline-flex min-h-10 items-center rounded-full px-3 text-xs font-medium ring-1 transition-colors ${
+                  on
+                    ? "bg-brand-tint text-brand-darker ring-brand-darker/30"
+                    : "bg-surface text-muted ring-black/5 hover:text-foreground"
+                }`}
+              >
+                {SERVICE_MODALITY_LABELS[m]}
+              </button>
+            );
+          })}
         </div>
+      </fieldset>
 
-        {/* Video (at most one per service). */}
-        {(persisted || service.videoUrl) && (
-          <div>
-            <p className="text-xs font-medium">Video (máx. 1 min)</p>
-            {service.videoUrl ? (
-              <div className="mt-1 flex flex-col gap-1">
-                <video
-                  controls
-                  preload="metadata"
-                  className="w-full rounded-lg bg-black ring-1 ring-black/5"
-                >
-                  <source src={service.videoUrl} />
-                </video>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={removeVideo}
-                  className="inline-flex min-h-10 items-center justify-center gap-1 self-start rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
-                >
-                  <XMarkIcon className="h-3.5 w-3.5" />
-                  Quitar video
-                </button>
-              </div>
-            ) : (
-              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
-                {busy ? "Subiendo…" : "Agregar video"}
-                <input
-                  type="file"
-                  accept="video/*"
-                  className="sr-only"
-                  disabled={busy}
-                  onChange={async (e) => {
-                    // Persists immediately — don't let it bubble to the form's dirty-tracker.
-                    e.stopPropagation();
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f) return;
-                    const v = validateVideoFile(f, TOOL_VIDEO_MAX_MB);
-                    if (v) return setMediaError(v);
-                    let duration: number;
-                    try {
-                      duration = await videoDurationSeconds(f);
-                    } catch {
-                      setMediaError(
-                        "No pudimos leer el video. Probá con otro archivo.",
-                      );
-                      return;
-                    }
-                    if (duration > TOOL_VIDEO_MAX_SECONDS + 2) {
-                      setMediaError(
-                        `El video debe durar máximo ${TOOL_VIDEO_MAX_SECONDS} segundos.`,
-                      );
-                      return;
-                    }
-                    setVideo(f);
-                  }}
-                />
-              </label>
-            )}
-          </div>
-        )}
+      <Field label="Horario / disponibilidad (opcional)">
+        <input
+          type="text"
+          maxLength={SERVICE_AVAILABILITY_MAX}
+          value={service.availability ?? ""}
+          onChange={(e) => onText({ availability: e.target.value })}
+          className="input"
+          placeholder="Ej.: Lun a vie, 2–6 pm"
+        />
+      </Field>
 
-        {mediaError && (
-          <p role="alert" className="text-xs text-error">
-            {mediaError}
-          </p>
-        )}
-      </div>
-    </fieldset>
+      <Field label={`Precio (${currency}) — opcional`}>
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          value={service.price}
+          onChange={(e) => onText({ price: e.target.value })}
+          className="input"
+          placeholder="Dejalo en blanco si es a consultar"
+        />
+      </Field>
+      {/* "Desde" only makes sense with a price; disabled (and visually off) when blank. */}
+      <label
+        className={`flex items-center gap-2 text-xs ${
+          hasPrice ? "text-foreground" : "text-muted"
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={hasPrice && Boolean(service.priceFrom)}
+          disabled={!hasPrice}
+          onChange={(e) => onText({ priceFrom: e.target.checked })}
+          className="h-4 w-4 rounded border-black/20 text-brand-darker focus:ring-brand"
+        />
+        Mostrar como precio “desde” (orientativo)
+      </label>
+    </ToolItemCard>
   );
 }
