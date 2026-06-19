@@ -1,20 +1,28 @@
 /**
- * A single bingo cartón rendered as a grid (read-only). Reused by the edit-page lote manager,
- * the public bingo page, and (phase 2) the live play view — where `marked` highlights the numbers
- * the player has tapped. `numbers` is row-major; `cols` sets the grid width.
+ * A single bingo cartón rendered as a grid. Reused by the edit-page lote manager, the public bingo
+ * page, and the live play view — where `marked` highlights the numbers the player has tapped. Pass
+ * `onToggle` to make cells interactive (play): a cell is tappable only if its number is in
+ * `markable` (the numbers actually called), which is what forces a player to mark MANUALLY and
+ * only legitimately-drawn numbers. `numbers` is row-major; `cols` sets the grid width.
  */
 export function BingoCardGrid({
   label,
   numbers,
   cols,
   marked,
+  markable,
+  onToggle,
 }: {
   /** Optional cartón serial shown above the grid. */
   label?: string;
   numbers: number[];
   cols: number;
-  /** Numbers to render as marked (phase-2 play); omitted = none marked. */
+  /** Numbers to render as marked; omitted = none marked. */
   marked?: Set<number>;
+  /** Numbers the player is allowed to mark (the called set). Required for interactivity. */
+  markable?: Set<number>;
+  /** Play mode: toggle a cell's mark. A cell only fires when its number is in `markable`. */
+  onToggle?: (n: number) => void;
 }) {
   const pad = numbers.length
     ? String(Math.max(...numbers)).length
@@ -30,16 +38,27 @@ export function BingoCardGrid({
       >
         {numbers.map((n, i) => {
           const isMarked = marked?.has(n) ?? false;
-          return (
-            <span
+          const canMark = onToggle != null && (markable?.has(n) ?? false);
+          const cls = `flex aspect-square items-center justify-center rounded-md text-xs font-semibold tabular-nums ring-1 ${
+            isMarked
+              ? "bg-brand-darker text-white ring-brand-darker"
+              : "bg-surface text-foreground ring-black/5"
+          }`;
+          const value = String(n).padStart(pad, "0");
+          return onToggle ? (
+            <button
               key={i}
-              className={`flex aspect-square items-center justify-center rounded-md text-xs font-semibold tabular-nums ring-1 ${
-                isMarked
-                  ? "bg-brand-darker text-white ring-brand-darker"
-                  : "bg-surface text-foreground ring-black/5"
-              }`}
+              type="button"
+              onClick={() => onToggle(n)}
+              disabled={!canMark && !isMarked}
+              aria-pressed={isMarked}
+              className={`${cls} ${canMark || isMarked ? "hover:opacity-90" : "cursor-not-allowed opacity-60"}`}
             >
-              {String(n).padStart(pad, "0")}
+              {value}
+            </button>
+          ) : (
+            <span key={i} className={cls}>
+              {value}
             </span>
           );
         })}

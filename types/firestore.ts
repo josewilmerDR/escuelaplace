@@ -1250,6 +1250,61 @@ export interface BingoOrder {
 
 export type BingoOrderDoc = BingoOrder & { id: string };
 
+// ── Bingo live event (Phase 2) ───────────────────────────────────────────────
+//
+// The live game: the school "calls" numbers one by one; virtual players watch the board in
+// real time (onSnapshot) and MANUALLY mark the called numbers on their owned cartones. A player
+// who completes an enabled pattern cants "¡Bingo!" → a CLAIM doc. The school re-validates the
+// claim (called ∩ cartón forms the pattern) and awards it. The system never auto-declares a
+// winner, and a passive player who never marks can't claim — the "precio a pagar" that keeps
+// the live experience. No money, no function-maintained fields: the school owns every write.
+
+/** Cap on a claimant's denormalized display name (the only screen-visible PII on a claim). */
+export const BINGO_CLAIM_NAME_MAX = 80;
+
+/** The live event's lifecycle: not started → calling numbers → finished. */
+export type BingoEventStatus = "idle" | "live" | "closed";
+
+/**
+ * The single live-event state doc of a bingo: schools/{id}/tools/{toolId}/event/state. Read is
+ * public (virtual players watch the board live); only the school writes it. `calledNumbers` is
+ * append-order (the order the tómbola drew them); `awardedPatterns` are the patterns already won
+ * this event, so the board (and players) can see which prizes are still open.
+ */
+export interface BingoEventState {
+  status: BingoEventStatus;
+  /** Numbers drawn so far, in call order (distinct, within the format's pool). */
+  calledNumbers: number[];
+  /** Patterns already awarded this event (so won prizes show as closed). */
+  awardedPatterns: BingoPattern[];
+  startedAt?: Timestamp;
+  closedAt?: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type BingoClaimStatus = "pending" | "confirmed" | "rejected";
+
+/**
+ * A player's "¡Bingo!" — a doc in schools/{id}/tools/{toolId}/claims/{claimId}. Created by the
+ * cartón's OWNER (claimantId == auth.uid == card.ownerId) naming the pattern they completed. The
+ * school re-validates (the truth is calledNumbers ∩ cartón) and confirms or rejects; the system
+ * never auto-awards. Read is limited to the claimant and the school (it carries a name).
+ */
+export interface BingoClaim {
+  cardId: string;
+  /** Denormalized cartón serial so the board's queue renders without an extra read. */
+  cardLabel: string;
+  pattern: BingoPattern;
+  claimantId: string;
+  claimantName: string;
+  status: BingoClaimStatus;
+  resolvedAt?: Timestamp | null;
+  resolvedBy?: string;
+  createdAt: Timestamp;
+}
+
+export type BingoClaimDoc = BingoClaim & { id: string };
+
 // ── projectContributions/{id} ────────────────────────────────────────────────
 
 /**
