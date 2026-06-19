@@ -253,7 +253,7 @@ export default async function ProjectPage({ params }: Props) {
                 </h2>
                 {hasMoreProjects && (
                   <Link
-                    href={`/school/${id}#proyectos`}
+                    href={`/school/${id}/projects`}
                     className="text-sm font-medium text-brand-darker hover:underline"
                   >
                     Ver todos

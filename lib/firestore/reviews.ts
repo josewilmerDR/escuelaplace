@@ -4,6 +4,7 @@
  * read; writes require Google sign-in and the author can't own the business (firestore.rules).
  * Aggregated into the business's `reviewStats` by a Cloud Function (onReviewWritten).
  */
+import { cache } from "react";
 import {
   collection,
   deleteDoc,
@@ -27,14 +28,23 @@ function reviewsCol(businessId: string) {
   return collection(db, BUSINESSES, businessId, REVIEWS);
 }
 
-/** Reviews of a business, newest first. */
-export async function getReviewsByBusiness(
-  businessId: string,
-  max = 50,
-): Promise<ReviewDoc[]> {
-  const q = query(reviewsCol(businessId), orderBy("createdAt", "desc"), fbLimit(max));
-  return snapToList<Review>(await getDocs(q));
-}
+/**
+ * Reviews of a business, newest first.
+ *
+ * Wrapped in React cache(): the public business profile reads it from both the shared
+ * layout (review stats live on the doc, but the list feeds the "Reseñas" page) and the
+ * "Reseñas" page during one request — the cache dedupes the read.
+ */
+export const getReviewsByBusiness = cache(
+  async (businessId: string, max = 50): Promise<ReviewDoc[]> => {
+    const q = query(
+      reviewsCol(businessId),
+      orderBy("createdAt", "desc"),
+      fbLimit(max),
+    );
+    return snapToList<Review>(await getDocs(q));
+  },
+);
 
 /** The signed-in user's own review of a business, or null if they haven't reviewed it. */
 export async function getMyReview(

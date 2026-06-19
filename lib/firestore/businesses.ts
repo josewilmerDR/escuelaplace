@@ -42,20 +42,25 @@ import { linkPageToUser } from "./users";
 
 const BUSINESSES = "businesses";
 
-/** Businesses of a school, ordered by ranking.score (desc). Active only. */
-export async function getBusinessesBySchool(
-  schoolId: string,
-  max = 50,
-): Promise<BusinessDoc[]> {
-  const q = query(
-    collection(db, BUSINESSES),
-    where("schoolId", "==", schoolId),
-    where("status", "==", "active"),
-    orderBy("ranking.score", "desc"),
-    fbLimit(max),
-  );
-  return snapToList<Business>(await getDocs(q));
-}
+/**
+ * Businesses of a school, ordered by ranking.score (desc). Active only.
+ *
+ * Wrapped in React cache(): the public school profile reads it from both the shared
+ * layout (to decide tab visibility) and the "Comercios" page during one request — the
+ * cache dedupes that into a single Firestore query.
+ */
+export const getBusinessesBySchool = cache(
+  async (schoolId: string, max = 50): Promise<BusinessDoc[]> => {
+    const q = query(
+      collection(db, BUSINESSES),
+      where("schoolId", "==", schoolId),
+      where("status", "==", "active"),
+      orderBy("ranking.score", "desc"),
+      fbLimit(max),
+    );
+    return snapToList<Business>(await getDocs(q));
+  },
+);
 
 /**
  * An active business by its unique slug. Returns null if it does not exist OR is not

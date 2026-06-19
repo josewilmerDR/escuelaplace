@@ -27,7 +27,14 @@ import {
   type SupportTier,
 } from "@/lib/firestore";
 
-export function SupportBadge({ businessId }: { businessId: string }) {
+export function SupportBadge({
+  businessId,
+  schoolsHref,
+}: {
+  businessId: string;
+  /** Route of the profile's "Escuelas" section — where the collapsed "+N más" links. */
+  schoolsHref: string;
+}) {
   const { prefs, ready } = useBuyerPreferences();
   const [tier, setTier] = useState<SupportTier | null>(null);
   // Schools the business genuinely supports (counting subscriptions only), most
@@ -85,17 +92,17 @@ export function SupportBadge({ businessId }: { businessId: string }) {
             {supportedSchools[0].name}
           </Link>
           {supportedSchools.length > 1 && (
-            // Links down to the full "Escuelas que apoya" section on the same profile,
-            // so the collapsed "+N" is no longer a dead end (the other schools were
-            // otherwise unreachable from here).
+            // Links to the full "Escuelas que apoya" section (its own route), so the
+            // collapsed "+N" is no longer a dead end (the other schools were otherwise
+            // unreachable from here).
             <>
               {" y "}
-              <a
-                href="#escuelas"
+              <Link
+                href={schoolsHref}
                 className="font-medium text-brand-darker hover:underline"
               >
                 {supportedSchools.length - 1} más
-              </a>
+              </Link>
             </>
           )}
         </p>

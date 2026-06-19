@@ -92,16 +92,22 @@ export async function getSubscriptionById(
   return docToTyped<Subscription>(await getDoc(doc(db, SUBSCRIPTIONS, id)));
 }
 
-/** All subscriptions of a business (any status), newest first. */
-export async function getSubscriptionsByBusiness(
-  businessId: string,
-): Promise<SubscriptionDoc[]> {
-  const q = query(
-    collection(db, SUBSCRIPTIONS),
-    where("businessId", "==", businessId),
-  );
-  return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
-}
+/**
+ * All subscriptions of a business (any status), newest first.
+ *
+ * Wrapped in React cache(): the public business profile reads it from both the shared
+ * layout (to decide whether the "Escuelas" tab exists) and the "Escuelas" page during
+ * one request — the cache dedupes that into a single Firestore query.
+ */
+export const getSubscriptionsByBusiness = cache(
+  async (businessId: string): Promise<SubscriptionDoc[]> => {
+    const q = query(
+      collection(db, SUBSCRIPTIONS),
+      where("businessId", "==", businessId),
+    );
+    return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
+  },
+);
 
 /**
  * All personal donations of a user (any status), newest first. The donor's own history shows
@@ -186,19 +192,18 @@ const CONFIRMED_STATUSES = ["confirmed", "expiring", "expired"] as const;
  * Requires a composite index on subscriptions:
  * (schoolId ASC, status ASC, confirmedAt DESC) — the `in` on status plus orderBy.
  */
-export async function getConfirmedSubscriptionsBySchool(
-  schoolId: string,
-  max = 200,
-): Promise<SubscriptionDoc[]> {
-  const q = query(
-    collection(db, SUBSCRIPTIONS),
-    where("schoolId", "==", schoolId),
-    where("status", "in", CONFIRMED_STATUSES),
-    orderBy("confirmedAt", "desc"),
-    fbLimit(max),
-  );
-  return snapToList<Subscription>(await getDocs(q));
-}
+export const getConfirmedSubscriptionsBySchool = cache(
+  async (schoolId: string, max = 200): Promise<SubscriptionDoc[]> => {
+    const q = query(
+      collection(db, SUBSCRIPTIONS),
+      where("schoolId", "==", schoolId),
+      where("status", "in", CONFIRMED_STATUSES),
+      orderBy("confirmedAt", "desc"),
+      fbLimit(max),
+    );
+    return snapToList<Subscription>(await getDocs(q));
+  },
+);
 
 /**
  * Pending subscriptions targeting a school — the queue the school's board confirms (the
