@@ -953,6 +953,28 @@ export const SERVICE_ITEM_MAX = 24;
 export const SERVICE_NAME_MAX = 120;
 export const SERVICE_DESCRIPTION_MAX = 500;
 export const SERVICE_PHOTO_MAX = 5;
+/** Short free-text schedule/availability per service ("Lun a vie, 2–6 pm"). */
+export const SERVICE_AVAILABILITY_MAX = 120;
+
+/**
+ * How a service is delivered. A service may offer more than one (a tutor could be both
+ * presencial and virtual), so it's stored as a set. Purely descriptive — shown as chips.
+ */
+export type ServiceModality = "in_person" | "at_home" | "virtual";
+
+/** The modalities in display order, for rendering the editor toggles + the public chips. */
+export const SERVICE_MODALITIES: ServiceModality[] = [
+  "in_person",
+  "at_home",
+  "virtual",
+];
+
+/** Spanish labels for the modality chips (the only screen-visible part of the enum). */
+export const SERVICE_MODALITY_LABELS: Record<ServiceModality, string> = {
+  in_person: "Presencial",
+  at_home: "A domicilio",
+  virtual: "Virtual",
+};
 
 /**
  * One service in a catalog, embedded in the tool's `service` config. `id` is a stable id
@@ -970,6 +992,12 @@ export interface ServiceItem {
   videoUrl?: string;
   /** Optional price per service, in the catalog's `currency`. Omitted when quote-based. */
   price?: number;
+  /** When true (and a `price` is set), the price is a starting point — shown as "Desde ₡X". */
+  priceFrom?: boolean;
+  /** How the service is delivered (presencial / a domicilio / virtual). Omitted when unset. */
+  modalities?: ServiceModality[];
+  /** Free-text schedule/availability (≤ SERVICE_AVAILABILITY_MAX). Omitted when blank. */
+  availability?: string;
 }
 
 export interface ServiceConfig {

@@ -2,7 +2,12 @@ import Image from "next/image";
 import { ChatBubbleIcon } from "@/components/ui/icons";
 import { buildWhatsAppLink } from "@/lib/contact";
 import { formatMoney } from "@/lib/format";
-import type { ProjectCurrency, ServiceItem } from "@/types";
+import {
+  SERVICE_MODALITIES,
+  SERVICE_MODALITY_LABELS,
+  type ProjectCurrency,
+  type ServiceItem,
+} from "@/types";
 
 /**
  * Public, server-rendered service catalog. Each service shows its media (photo grid + an optional
@@ -27,6 +32,10 @@ export function ServiceItems({
     <ul className="grid gap-6 sm:grid-cols-2">
       {services.map((service) => {
         const photos = service.photos ?? [];
+        // Canonical order regardless of how the school toggled them.
+        const modalities = SERVICE_MODALITIES.filter((m) =>
+          service.modalities?.includes(m),
+        );
         const askUrl = contactPhone
           ? buildWhatsAppLink(
               contactPhone,
@@ -64,14 +73,41 @@ export function ServiceItems({
                 </h3>
                 {typeof service.price === "number" && (
                   <p className="mt-1 text-lg font-semibold text-brand-darker tabular-nums">
+                    {service.priceFrom && (
+                      <span className="mr-1 text-sm font-medium text-muted">
+                        Desde
+                      </span>
+                    )}
                     {formatMoney(service.price, currency)}
                   </p>
                 )}
               </div>
 
+              {modalities.length > 0 && (
+                <ul className="flex flex-wrap gap-1.5">
+                  {modalities.map((m) => (
+                    <li
+                      key={m}
+                      className="inline-flex items-center rounded-full bg-brand-tint px-2.5 py-0.5 text-xs font-medium text-brand-darker"
+                    >
+                      {SERVICE_MODALITY_LABELS[m]}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
               {service.description && (
                 <p className="whitespace-pre-line text-sm text-muted">
                   {service.description}
+                </p>
+              )}
+
+              {service.availability && (
+                <p className="text-xs text-muted">
+                  <span className="font-medium text-foreground">
+                    Disponibilidad:
+                  </span>{" "}
+                  {service.availability}
                 </p>
               )}
 

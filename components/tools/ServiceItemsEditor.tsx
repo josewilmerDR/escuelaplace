@@ -14,10 +14,14 @@
 import { Field } from "@/components/ui/Field";
 import {
   PROJECT_CURRENCIES,
+  SERVICE_AVAILABILITY_MAX,
   SERVICE_DESCRIPTION_MAX,
   SERVICE_ITEM_MAX,
+  SERVICE_MODALITIES,
+  SERVICE_MODALITY_LABELS,
   SERVICE_NAME_MAX,
   type ProjectCurrency,
+  type ServiceModality,
 } from "@/types";
 import type { ServiceConfigInput } from "@/lib/firestore";
 
@@ -27,10 +31,23 @@ export interface ServiceItemDraft {
   description: string;
   /** Price as the input holds it (string); optional (blank = quote-based). */
   price: string;
+  /** Show the price as a starting point ("Desde ₡X"); only used when a price is set. */
+  priceFrom: boolean;
+  /** How the service is delivered (presencial / a domicilio / virtual). */
+  modalities: ServiceModality[];
+  /** Free-text schedule/availability. */
+  availability: string;
 }
 
 export function emptyServiceItem(): ServiceItemDraft {
-  return { name: "", description: "", price: "" };
+  return {
+    name: "",
+    description: "",
+    price: "",
+    priceFrom: false,
+    modalities: [],
+    availability: "",
+  };
 }
 
 /** The full create-form value: services + the catalog currency + the optional WhatsApp. */
@@ -65,8 +82,18 @@ export function toServiceInput(
       name: s.name.trim(),
       description: s.description.trim(),
       priceStr: s.price.trim(),
+      priceFrom: s.priceFrom,
+      modalities: s.modalities,
+      availability: s.availability.trim(),
     }))
-    .filter((s) => s.name || s.description || s.priceStr);
+    .filter(
+      (s) =>
+        s.name ||
+        s.description ||
+        s.priceStr ||
+        s.modalities.length > 0 ||
+        s.availability,
+    );
   if (services.length === 0) {
     return { ok: false, error: "Agregá al menos un servicio con su nombre." };
   }
@@ -91,6 +118,9 @@ export function toServiceInput(
         name: s.name,
         description: s.description,
         ...(s.priceStr ? { price: Number(s.priceStr) } : {}),
+        ...(s.priceStr && s.priceFrom ? { priceFrom: true } : {}),
+        ...(s.modalities.length > 0 ? { modalities: s.modalities } : {}),
+        ...(s.availability ? { availability: s.availability } : {}),
       })),
       currency: value.currency,
       ...(contactPhone ? { contactPhone } : {}),
@@ -180,6 +210,52 @@ export function ServiceItemsEditor({
                 placeholder="Contá en qué consiste el servicio."
               />
             </Field>
+
+            <fieldset>
+              <legend className="text-sm font-medium text-foreground">
+                Modalidad (opcional)
+              </legend>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {SERVICE_MODALITIES.map((m) => {
+                  const on = service.modalities.includes(m);
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        updateItem(i, {
+                          modalities: on
+                            ? service.modalities.filter((x) => x !== m)
+                            : [...service.modalities, m],
+                        })
+                      }
+                      className={`inline-flex min-h-10 items-center rounded-full px-3 text-xs font-medium ring-1 transition-colors ${
+                        on
+                          ? "bg-brand-tint text-brand-darker ring-brand-darker/30"
+                          : "bg-surface text-muted ring-black/5 hover:text-foreground"
+                      }`}
+                    >
+                      {SERVICE_MODALITY_LABELS[m]}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <Field label="Horario / disponibilidad (opcional)">
+              <input
+                type="text"
+                maxLength={SERVICE_AVAILABILITY_MAX}
+                value={service.availability}
+                onChange={(e) =>
+                  updateItem(i, { availability: e.target.value })
+                }
+                className="input"
+                placeholder="Ej.: Lun a vie, 2–6 pm"
+              />
+            </Field>
+
             <Field label={`Precio (${value.currency}) — opcional`}>
               <input
                 type="number"
@@ -192,6 +268,21 @@ export function ServiceItemsEditor({
                 placeholder="Dejalo en blanco si es a consultar"
               />
             </Field>
+            {/* "Desde" only makes sense with a price; disabled (and off) when blank. */}
+            <label
+              className={`flex items-center gap-2 text-xs ${
+                service.price.trim() ? "text-foreground" : "text-muted"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={Boolean(service.price.trim()) && service.priceFrom}
+                disabled={!service.price.trim()}
+                onChange={(e) => updateItem(i, { priceFrom: e.target.checked })}
+                className="h-4 w-4 rounded border-black/20 text-brand-darker focus:ring-brand"
+              />
+              Mostrar como precio “desde” (orientativo)
+            </label>
           </div>
         </fieldset>
       ))}
