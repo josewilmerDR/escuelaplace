@@ -3,14 +3,19 @@
 /**
  * The service-catalog inputs for the CREATE form (the seam the ToolTypePicker opens, like
  * SaleProductsEditor). Essentially the products editor without a required price: it collects each
- * service as TEXT — name, description, an OPTIONAL price — plus the catalog currency and the
- * optional WhatsApp number for the per-service "Preguntar" button. Per-service media (photos + a
- * short video) is added later on the edit page. There is no order flow.
+ * service's name, description, an OPTIONAL price, its delivery/availability extras AND its media
+ * (photos + a short video), plus the catalog currency and the optional WhatsApp number for the
+ * per-service "Preguntar" button. Media uploads immediately to the tool's Storage path (the create
+ * page pre-allocates the tool id) and the URLs ride along in the single `createTool` write, so the
+ * whole catalog is filled here. There is no order flow. The per-service card is the shared
+ * <ToolItemCard>, the same media block the edit page uses.
  *
  * Controlled: the parent owns a ServiceFormValue (value + onChange). Validation/conversion to the
- * data-layer ServiceConfigInput lives here too; the stable service `id` is assigned at that point
- * (in an event handler — never during render — so it's SSR-safe and persists across edits).
+ * data-layer ServiceConfigInput lives here too; the stable service `id` is minted when a service
+ * is ADDED (in an event handler — never during render — so it's SSR-safe) and carried through.
  */
+import type { Dispatch, SetStateAction } from "react";
+import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { Field } from "@/components/ui/Field";
 import {
   PROJECT_CURRENCIES,
@@ -20,13 +25,16 @@ import {
   SERVICE_MODALITIES,
   SERVICE_MODALITY_LABELS,
   SERVICE_NAME_MAX,
+  SERVICE_PHOTO_MAX,
   type ProjectCurrency,
   type ServiceModality,
 } from "@/types";
 import type { ServiceConfigInput } from "@/lib/firestore";
 
-/** A service as the create form holds it (text only; media + the stable id come later). */
+/** A service as the create form holds it: text + media URLs + a stable id. */
 export interface ServiceItemDraft {
+  /** Stable id (minted on add); the media match key. */
+  id: string;
   name: string;
   description: string;
   /** Price as the input holds it (string); optional (blank = quote-based). */
@@ -37,10 +45,22 @@ export interface ServiceItemDraft {
   modalities: ServiceModality[];
   /** Free-text schedule/availability. */
   availability: string;
+  /** Photos already uploaded to Storage (URLs). */
+  photos?: string[];
+  /** A short video already uploaded to Storage (URL). */
+  videoUrl?: string;
+}
+
+/** A stable id for a service, generated in an event handler (SSR-safe). Shared with the edit
+ * page, which mints ids for services added there. */
+export function newServiceId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function emptyServiceItem(): ServiceItemDraft {
   return {
+    id: newServiceId(),
     name: "",
     description: "",
     price: "",
@@ -61,30 +81,27 @@ export function emptyServiceForm(): ServiceFormValue {
   return { services: [emptyServiceItem()], currency: "CRC", contactPhone: "" };
 }
 
-/** A stable id for a service, generated in an event handler (SSR-safe). Shared with the edit
- * page, which mints ids for services added there. */
-export function newServiceId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 /**
  * Validate + convert the create form to a data-layer ServiceConfigInput. Returns a Spanish error
- * when invalid. Trailing empty services (no name, description or price) are dropped; at least one
- * service is required, and every service with content needs a name. The price is OPTIONAL, but
- * when present it must be a number > 0 (a blank price means "consultar").
+ * when invalid. Trailing empty services (no name, description, price, extras OR media) are dropped;
+ * at least one service is required, and every service with content needs a name. The price is
+ * OPTIONAL, but when present it must be a number > 0 (a blank price means "consultar"). Each
+ * surviving service keeps its stable id and its media.
  */
 export function toServiceInput(
   value: ServiceFormValue,
 ): { ok: true; input: ServiceConfigInput } | { ok: false; error: string } {
   const services = value.services
     .map((s) => ({
+      id: s.id,
       name: s.name.trim(),
       description: s.description.trim(),
       priceStr: s.price.trim(),
       priceFrom: s.priceFrom,
       modalities: s.modalities,
       availability: s.availability.trim(),
+      photos: s.photos,
+      videoUrl: s.videoUrl,
     }))
     .filter(
       (s) =>
@@ -92,7 +109,9 @@ export function toServiceInput(
         s.description ||
         s.priceStr ||
         s.modalities.length > 0 ||
-        s.availability,
+        s.availability ||
+        (s.photos?.length ?? 0) > 0 ||
+        Boolean(s.videoUrl),
     );
   if (services.length === 0) {
     return { ok: false, error: "Agregá al menos un servicio con su nombre." };
@@ -114,13 +133,15 @@ export function toServiceInput(
     ok: true,
     input: {
       services: services.map((s) => ({
-        id: newServiceId(),
+        id: s.id,
         name: s.name,
         description: s.description,
         ...(s.priceStr ? { price: Number(s.priceStr) } : {}),
         ...(s.priceStr && s.priceFrom ? { priceFrom: true } : {}),
         ...(s.modalities.length > 0 ? { modalities: s.modalities } : {}),
         ...(s.availability ? { availability: s.availability } : {}),
+        ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
+        ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
       })),
       currency: value.currency,
       ...(contactPhone ? { contactPhone } : {}),
@@ -131,33 +152,46 @@ export function toServiceInput(
 export function ServiceItemsEditor({
   value,
   onChange,
+  schoolId,
+  toolId,
 }: {
   value: ServiceFormValue;
-  onChange: (v: ServiceFormValue) => void;
+  // A functional setter (the page passes setServiceForm directly). Every mutation computes from
+  // the LATEST state via the prev updater, so an async per-service media upload that resolves
+  // after the board edited text (or after another card's upload) merges its delta instead of
+  // reverting the form to the stale snapshot captured when the upload began.
+  onChange: Dispatch<SetStateAction<ServiceFormValue>>;
+  /** School id + the create page's pre-allocated tool id — the per-service media upload path. */
+  schoolId: string;
+  toolId: string;
 }) {
-  const updateItem = (i: number, patch: Partial<ServiceItemDraft>) =>
-    onChange({
-      ...value,
-      services: value.services.map((s, idx) =>
-        idx === i ? { ...s, ...patch } : s,
+  const updateItem = (id: string, patch: Partial<ServiceItemDraft>) =>
+    onChange((prev) => ({
+      ...prev,
+      services: prev.services.map((s) =>
+        s.id === id ? { ...s, ...patch } : s,
       ),
-    });
-  const removeItem = (i: number) =>
-    onChange({
-      ...value,
-      services: value.services.filter((_, idx) => idx !== i),
-    });
+    }));
+  const removeItem = (id: string) =>
+    onChange((prev) => ({
+      ...prev,
+      services: prev.services.filter((s) => s.id !== id),
+    }));
   const addItem = () =>
-    onChange({ ...value, services: [...value.services, emptyServiceItem()] });
+    onChange((prev) => ({
+      ...prev,
+      services: [...prev.services, emptyServiceItem()],
+    }));
 
   return (
     <div className="flex flex-col gap-4">
       <Field label="Moneda">
         <select
           value={value.currency}
-          onChange={(e) =>
-            onChange({ ...value, currency: e.target.value as ProjectCurrency })
-          }
+          onChange={(e) => {
+            const currency = e.target.value as ProjectCurrency;
+            onChange((prev) => ({ ...prev, currency }));
+          }}
           className="input"
         >
           {PROJECT_CURRENCIES.map((c) => (
@@ -168,32 +202,37 @@ export function ServiceItemsEditor({
         </select>
       </Field>
 
-      {value.services.map((service, i) => (
-        <fieldset
-          key={i}
-          className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5"
-        >
-          <div className="flex items-center justify-between">
-            <legend className="text-sm font-semibold tracking-tight text-foreground">
-              Servicio {i + 1}
-            </legend>
-            {value.services.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeItem(i)}
-                className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
-              >
-                Quitar
-              </button>
-            )}
-          </div>
-          <div className="mt-3 flex flex-col gap-3">
+      {value.services.map((service, i) => {
+        const hasPrice = service.price.trim() !== "";
+        return (
+          <ToolItemCard
+            key={service.id}
+            title={`Servicio ${i + 1}`}
+            removeLabel="Quitar servicio"
+            canRemove={value.services.length > 1}
+            onRemove={() => removeItem(service.id)}
+            photos={service.photos ?? []}
+            videoUrl={service.videoUrl}
+            photoMax={SERVICE_PHOTO_MAX}
+            schoolId={schoolId}
+            toolId={toolId}
+            persisted
+            unsavedHint=""
+            onMedia={async (media) =>
+              updateItem(service.id, {
+                ...(media.photos !== undefined ? { photos: media.photos } : {}),
+                ...(media.videoUrl !== undefined
+                  ? { videoUrl: media.videoUrl ?? undefined }
+                  : {}),
+              })
+            }
+          >
             <Field label="Nombre del servicio">
               <input
                 type="text"
                 maxLength={SERVICE_NAME_MAX}
                 value={service.name}
-                onChange={(e) => updateItem(i, { name: e.target.value })}
+                onChange={(e) => updateItem(service.id, { name: e.target.value })}
                 className="input"
                 placeholder="Ej.: Clases de repaso de matemática"
               />
@@ -204,7 +243,7 @@ export function ServiceItemsEditor({
                 maxLength={SERVICE_DESCRIPTION_MAX}
                 value={service.description}
                 onChange={(e) =>
-                  updateItem(i, { description: e.target.value })
+                  updateItem(service.id, { description: e.target.value })
                 }
                 className="input"
                 placeholder="Contá en qué consiste el servicio."
@@ -224,7 +263,7 @@ export function ServiceItemsEditor({
                       type="button"
                       aria-pressed={on}
                       onClick={() =>
-                        updateItem(i, {
+                        updateItem(service.id, {
                           modalities: on
                             ? service.modalities.filter((x) => x !== m)
                             : [...service.modalities, m],
@@ -249,7 +288,7 @@ export function ServiceItemsEditor({
                 maxLength={SERVICE_AVAILABILITY_MAX}
                 value={service.availability}
                 onChange={(e) =>
-                  updateItem(i, { availability: e.target.value })
+                  updateItem(service.id, { availability: e.target.value })
                 }
                 className="input"
                 placeholder="Ej.: Lun a vie, 2–6 pm"
@@ -263,7 +302,7 @@ export function ServiceItemsEditor({
                 step="any"
                 inputMode="decimal"
                 value={service.price}
-                onChange={(e) => updateItem(i, { price: e.target.value })}
+                onChange={(e) => updateItem(service.id, { price: e.target.value })}
                 className="input"
                 placeholder="Dejalo en blanco si es a consultar"
               />
@@ -271,21 +310,23 @@ export function ServiceItemsEditor({
             {/* "Desde" only makes sense with a price; disabled (and off) when blank. */}
             <label
               className={`flex items-center gap-2 text-xs ${
-                service.price.trim() ? "text-foreground" : "text-muted"
+                hasPrice ? "text-foreground" : "text-muted"
               }`}
             >
               <input
                 type="checkbox"
-                checked={Boolean(service.price.trim()) && service.priceFrom}
-                disabled={!service.price.trim()}
-                onChange={(e) => updateItem(i, { priceFrom: e.target.checked })}
+                checked={hasPrice && service.priceFrom}
+                disabled={!hasPrice}
+                onChange={(e) =>
+                  updateItem(service.id, { priceFrom: e.target.checked })
+                }
                 className="h-4 w-4 rounded border-black/20 text-brand-darker focus:ring-brand"
               />
               Mostrar como precio “desde” (orientativo)
             </label>
-          </div>
-        </fieldset>
-      ))}
+          </ToolItemCard>
+        );
+      })}
 
       {value.services.length < SERVICE_ITEM_MAX ? (
         <button
@@ -306,15 +347,17 @@ export function ServiceItemsEditor({
           type="tel"
           inputMode="tel"
           value={value.contactPhone}
-          onChange={(e) => onChange({ ...value, contactPhone: e.target.value })}
+          onChange={(e) => {
+            const contactPhone = e.target.value;
+            onChange((prev) => ({ ...prev, contactPhone }));
+          }}
           className="input"
           placeholder="Ej.: 8888 8888"
         />
       </Field>
       <p className="-mt-2 text-xs text-muted">
         El botón “Preguntar” de cada servicio abrirá WhatsApp con este número. Si lo
-        dejás en blanco, usa el teléfono de la junta de la escuela. Las fotos y el
-        video de cada servicio se agregan al editar la herramienta.
+        dejás en blanco, usa el teléfono de la junta de la escuela.
       </p>
     </div>
   );

@@ -21,6 +21,7 @@ import {
   getDoc,
   getDocs,
   serverTimestamp,
+  setDoc,
   Timestamp,
   updateDoc,
 } from "firebase/firestore";
@@ -415,17 +416,33 @@ export interface CreateToolInput {
 }
 
 /**
- * Create a tool, forced 'active' by default. Mirrors createProject: the cover, dates and CTA
- * are added on the edit page after creation (so the board lands there with the tool already
- * persisted). Returns the new id.
+ * Pre-allocate a tool's id WITHOUT writing the doc. The creation page needs the id up front so
+ * its per-item media (a product/service/stage photo or video) can upload to the tool's Storage
+ * path — `schools/{schoolId}/tools/{toolId}/…`, gated only by school ownership, NOT by the doc
+ * existing — while the board is still filling the form. The collected URLs then ride along in
+ * the single `createTool` write (pass this id as its `toolId`). Pure ref construction; no I/O.
+ */
+export function newToolId(schoolId: string): string {
+  return doc(toolsCol(schoolId)).id;
+}
+
+/**
+ * Create a tool, forced 'active' by default. Every kind's own config — including any per-item
+ * media (photos/video) already uploaded to Storage — is written here in one go, then the board
+ * returns to the hub (mirrors the rifa flow for every kind). Pass a pre-allocated `toolId`
+ * (newToolId) when media was uploaded to that path during the form; otherwise an id is minted.
+ * The COVER is NOT written here — `validToolCreate` (firestore.rules) pins the create field set
+ * and excludes `coverUrl`, so the cover is added by a follow-up `setToolCover` update. Returns
+ * the tool id.
  */
 export async function createTool(
   schoolId: string,
   schoolName: string,
   ownerId: string,
   input: CreateToolInput,
+  toolId?: string,
 ): Promise<string> {
-  const created = await addDoc(toolsCol(schoolId), {
+  const data = {
     schoolId,
     schoolName,
     type: input.type,
@@ -441,8 +458,14 @@ export async function createTool(
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
-  return created.id;
+  };
+  // A pre-allocated id is written with setDoc (the board already uploaded media under its path);
+  // without one, addDoc mints the id. Both hit the same `create` rule.
+  if (toolId) {
+    await setDoc(doc(toolsCol(schoolId), toolId), data);
+    return toolId;
+  }
+  return (await addDoc(toolsCol(schoolId), data)).id;
 }
 
 export interface ToolPatch {
