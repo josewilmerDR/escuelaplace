@@ -52,9 +52,19 @@ export function ProfileTabs({ tabs }: { tabs: ProfileTab[] }) {
   }, [recomputeFades, tabs]);
 
   // Keep the active tab visible — a deep link to an overflowed section would otherwise open
-  // with that tab off-screen.
+  // with that tab off-screen. Scroll ONLY the strip horizontally, never the page: an earlier
+  // scrollIntoView({ block: "nearest" }) also moved the document vertically, jumping visitors
+  // down to the tab strip (which sits below the fold under the tall cover/avatar header) instead
+  // of landing them at the top of the page.
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const scroller = scrollerRef.current;
+    const active = activeRef.current;
+    if (scroller && active) {
+      const a = active.getBoundingClientRect();
+      const s = scroller.getBoundingClientRect();
+      if (a.left < s.left) scroller.scrollBy({ left: a.left - s.left - 8 });
+      else if (a.right > s.right) scroller.scrollBy({ left: a.right - s.right + 8 });
+    }
     recomputeFades();
   }, [pathname, recomputeFades]);
 

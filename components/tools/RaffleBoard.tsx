@@ -12,6 +12,7 @@
  */
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
 import {
   RaffleNumberGrid,
   RaffleNumberLegend,
@@ -40,6 +41,7 @@ export function RaffleBoard({
   verified: boolean;
 }) {
   const router = useRouter();
+  const { user } = useAuth();
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const toggle = (n: number) => {
@@ -131,8 +133,11 @@ export function RaffleBoard({
           </button>
         )}
         <p className="mt-2 text-xs text-muted">
-          Para comprar iniciás sesión con Google. El pago va directo a la escuela
-          por los medios que ella publica; escuelaplace nunca procesa pagos.
+          {!verified
+            ? "Para comprar iniciás sesión con Google. El pago va directo a la escuela por los medios que ella publica; escuelaplace nunca procesa pagos."
+            : user
+              ? "El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero."
+              : "Iniciás sesión con Google para comprar. El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero."}
         </p>
       </div>
     </div>

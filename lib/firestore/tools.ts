@@ -113,6 +113,22 @@ export function toolWindowLabel(
   return null;
 }
 
+/**
+ * The tool's own WhatsApp contact, across the kinds that carry one (tour/sale/service/bingo/
+ * event). A raffle has none. Empty string when the tool sets no contact — callers fall back to
+ * the school's board phone. Used by the feed card's "Consultar" action.
+ */
+export function toolContactPhone(tool: ToolDoc): string {
+  return (
+    tool.tour?.contactPhone ||
+    tool.sale?.contactPhone ||
+    tool.service?.contactPhone ||
+    tool.bingo?.contactPhone ||
+    tool.event?.contactPhone ||
+    ""
+  );
+}
+
 // ── Date <-> <input type="date"> helpers (day-granular, UTC) ─────────────────
 // A tool date is a calendar DAY, not an instant — it must read back as the same day for
 // every viewer. So the round-trip is anchored at UTC midnight (store) and read with UTC
@@ -637,6 +653,22 @@ export async function deleteTool(
   toolId: string,
 ): Promise<void> {
   await deleteDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId));
+}
+
+/**
+ * Set just a tool's cover URL (after uploading the image with uploadToolCover). A minimal
+ * write — unlike updateTool it touches only `coverUrl`, so it never disturbs the kind config.
+ * Used by the creation page, where a raffle can add its cover without leaving for the edit page.
+ */
+export async function setToolCover(
+  schoolId: string,
+  toolId: string,
+  coverUrl: string,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
+    coverUrl,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /** Upload a tool cover image; returns its public download URL. Timestamped so it never

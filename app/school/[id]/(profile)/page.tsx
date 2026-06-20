@@ -62,19 +62,30 @@ export default async function SchoolLandingPage({ params }: Props) {
   const liveTools = publicTools(tools);
 
   return (
-    <>
+    // The "Principal" tab is the school's activity FEED: a single centered column of stacked
+    // post cards (Facebook-style), narrower than the full-width header above. Wrapping the whole
+    // body keeps the empty state and the manager hint aligned to the same column.
+    <div className="mx-auto max-w-2xl">
       {liveTools.length > 0 ? (
-        <Section
-          id="actividades"
-          title="Actividades de la escuela"
-          description="Rifas, ventas y otras actividades que la escuela está organizando."
-        >
-          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        // Un-nested from a Section card on purpose: the posts float as their own cards on the
+        // gray canvas (the feed look), led by a plain section heading rather than a card title.
+        <section id="actividades" className="mt-4 scroll-mt-6">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Actividades de la escuela
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Rifas, ventas y otras actividades que la escuela está organizando.
+          </p>
+          <div className="mt-5 flex flex-col gap-5">
             {liveTools.map((tool) => (
-              <ToolCard key={tool.id} tool={tool} />
+              <ToolCard
+                key={tool.id}
+                tool={tool}
+                boardPhone={school.boardContact?.phone}
+              />
             ))}
           </div>
-        </Section>
+        </section>
       ) : (
         // No live activity yet: rather than an empty landing, point visitors to the school's
         // identity and the ways they can help.
@@ -99,6 +110,6 @@ export default async function SchoolLandingPage({ params }: Props) {
           editorIds={school.editorIds}
         />
       )}
-    </>
+    </div>
   );
 }

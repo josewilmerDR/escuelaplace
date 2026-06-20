@@ -1,86 +1,43 @@
 "use client";
 
 /**
- * Tool ("Herramientas") management for a school (/panel/school/[id]/tools).
+ * Tool ("Herramientas") hub for a school (/panel/school/[id]/tools).
  *
- * The board lists its tools (rifas, ventas, bingos, servicios, visitas guiadas…) and creates
- * new ones. A tool is a lightweight activity that doesn't warrant its own tab — it shows as a
- * card on the school's public "Principal" page. The cover, dates and call-to-action link are
- * added on the per-tool edit page after creation (mirrors the projects flow). PURELY
- * INFORMATIONAL — the platform never processes money.
+ * A pure catalog. It leads with one card per kind (rifa, venta, bingo…) to start a new
+ * activity — that's what a board navigating here is after — and below shows the activities
+ * already created, as a compact card grid (Activas / Ocultas). Each create card links to the
+ * dedicated creation page (./new?type=…); each created-tool card links to its edit page. A
+ * tool shows as a card on the school's public "Principal" page. PURELY INFORMATIONAL — the
+ * platform never processes money.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import {
-  BingoConfigFields,
-  emptyBingoForm,
-  toBingoInput,
-  type BingoFormValue,
-} from "@/components/tools/BingoConfigFields";
-import {
-  RaffleConfigFields,
-  emptyRaffleForm,
-  toRaffleInput,
-  type RaffleFormValue,
-} from "@/components/tools/RaffleConfigFields";
-import {
-  SaleProductsEditor,
-  emptySaleForm,
-  toSaleInput,
-  type SaleFormValue,
-} from "@/components/tools/SaleProductsEditor";
-import {
-  EventConfigFields,
-  emptyEventForm,
-  toEventInput,
-  type EventFormValue,
-} from "@/components/tools/EventConfigFields";
-import {
-  ServiceItemsEditor,
-  emptyServiceForm,
-  toServiceInput,
-  type ServiceFormValue,
-} from "@/components/tools/ServiceItemsEditor";
-import {
-  TourStagesEditor,
-  emptyTourForm,
-  toTourInput,
-  type TourFormValue,
-} from "@/components/tools/TourStagesEditor";
 import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
-import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
+import { ToolTypeMenu } from "@/components/tools/ToolTypeMenu";
 import { Badge } from "@/components/ui/Badge";
 import { BackLink } from "@/components/ui/BackLink";
 import { SmartBackLink } from "@/components/ui/SmartBackLink";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Field } from "@/components/ui/Field";
-import { FormError } from "@/components/ui/FormError";
 import { WrenchIcon } from "@/components/ui/icons";
-import { userErrorMessage } from "@/lib/errors";
-import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
-import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
-import { TOOL_TYPE_LIST } from "@/lib/tools/registry";
-import { createTool, getSchoolById, getToolsBySchool } from "@/lib/firestore";
-import {
-  TOOL_DESCRIPTION_MAX,
-  TOOL_TITLE_MAX,
-  type SchoolDoc,
-  type ToolDoc,
-  type ToolType,
-} from "@/types";
+import { CARD_COVER_ASPECT } from "@/lib/layout";
+import { toolTypeMeta } from "@/lib/tools/registry";
+import { getSchoolById, getToolsBySchool } from "@/lib/firestore";
+import { type SchoolDoc, type ToolDoc } from "@/types";
 
 /** Lifecycle of the school + tools fetch the page depends on. */
 type LoadState = "loading" | "error" | "loaded";
 
 const LOADING_TEXT = "Cargando herramientas…";
 
-/** Quiet, low-emphasis card action (the public link beside the lead "Editar"). */
-const CHIP_ACTION =
-  "inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground";
+/** The compact created-tool grid: 2 per row on phones, up to 6 on desktop. */
+const TOOL_GRID = "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6";
+
+/** Cover `sizes` for a grid cell — at most ~150px wide on desktop, ~half the row on phones. */
+const TOOL_GRID_SIZES = "(min-width: 1024px) 150px, (min-width: 640px) 30vw, 50vw";
 
 /**
  * Page heading, rendered identically in every state so the title never shifts. The back link
@@ -104,45 +61,55 @@ function Heading({ schoolId, subtitle }: { schoolId: string; subtitle?: string }
   );
 }
 
-/** One tool row, shared by the Activas and Ocultas sections. */
-function ToolRow({ schoolId, tool }: { schoolId: string; tool: ToolDoc }) {
+/**
+ * Compact management card for one created tool, shared by the Activas and Ocultas grids. The
+ * whole card links to the tool's edit page (the board's primary action here); the cover falls
+ * back to the kind's icon (mirroring the public ToolCard) and a "Oculta" chip overlays a hidden
+ * tool. Kept small so the grid packs many at a glance.
+ */
+function ToolGridCard({ schoolId, tool }: { schoolId: string; tool: ToolDoc }) {
+  const Icon = toolTypeMeta(tool.type).icon;
   return (
-    <li className={`${cardClass("elevated", false)} overflow-hidden`}>
-      {tool.coverUrl && (
-        <span className={`relative block w-full bg-surface ${CARD_COVER_ASPECT}`}>
-          <Image
-            src={tool.coverUrl}
-            alt=""
-            fill
-            sizes={CARD_COVER_SIZES}
-            className="object-cover"
-          />
-        </span>
-      )}
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-semibold tracking-tight text-foreground">
-              {tool.title}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
+    <li>
+      <Link
+        href={`/panel/school/${schoolId}/tools/${tool.id}`}
+        className={`group flex h-full flex-col overflow-hidden ${cardClass(
+          "elevated",
+          false,
+        )} transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand`}
+      >
+        <div className={`relative w-full bg-brand-tint ${CARD_COVER_ASPECT}`}>
+          {tool.coverUrl ? (
+            <Image
+              src={tool.coverUrl}
+              alt=""
+              fill
+              sizes={TOOL_GRID_SIZES}
+              className="object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-full items-center justify-center text-brand-darker/30"
+            >
+              <Icon className="h-8 w-8" />
+            </span>
+          )}
+          {tool.status === "inactive" && (
+            <span className="absolute left-2 top-2">
+              <Badge tone="neutral">Oculta</Badge>
+            </span>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col gap-2 p-3">
+          <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-brand-darker">
+            {tool.title}
+          </h3>
+          <div className="mt-auto">
             <ToolTypeBadge type={tool.type} />
-            {tool.status === "inactive" && <Badge tone="neutral">Oculta</Badge>}
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-4 text-sm">
-          <Link
-            href={`/panel/school/${schoolId}/tools/${tool.id}`}
-            className="btn btn-primary mr-1"
-          >
-            Editar
-          </Link>
-          <Link href={`/school/${schoolId}/tool/${tool.id}`} className={CHIP_ACTION}>
-            Ver público
-          </Link>
-        </div>
-      </div>
+      </Link>
     </li>
   );
 }
@@ -150,25 +117,10 @@ function ToolRow({ schoolId, tool }: { schoolId: string; tool: ToolDoc }) {
 export default function SchoolToolsPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const router = useRouter();
 
   const [school, setSchool] = useState<SchoolDoc | null>(null);
   const [tools, setTools] = useState<ToolDoc[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
-
-  // Create-form state
-  const [type, setType] = useState<ToolType>(TOOL_TYPE_LIST[0].key);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
-  const [tourForm, setTourForm] = useState<TourFormValue>(emptyTourForm);
-  const [saleForm, setSaleForm] = useState<SaleFormValue>(emptySaleForm);
-  const [serviceForm, setServiceForm] =
-    useState<ServiceFormValue>(emptyServiceForm);
-  const [bingoForm, setBingoForm] = useState<BingoFormValue>(emptyBingoForm);
-  const [eventForm, setEventForm] = useState<EventFormValue>(emptyEventForm);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     Promise.all([getSchoolById(id), getToolsBySchool(id)])
@@ -200,9 +152,13 @@ export default function SchoolToolsPage() {
     return (
       <main>
         <Heading schoolId={id} />
-        <ul className="mt-8 flex flex-col gap-4" aria-hidden="true">
-          <li className="h-28 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
-          <li className="h-28 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        <ul className={`mt-8 ${TOOL_GRID}`} aria-hidden="true">
+          {["a", "b", "c", "d", "e", "f"].map((k) => (
+            <li
+              key={k}
+              className={`${CARD_COVER_ASPECT} animate-pulse rounded-2xl bg-surface ring-1 ring-black/5`}
+            />
+          ))}
         </ul>
         <p className="sr-only" role="status">
           {LOADING_TEXT}
@@ -256,92 +212,24 @@ export default function SchoolToolsPage() {
     );
   }
 
-  const onCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle) {
-      setError("Ingresá el título de la herramienta.");
-      return;
-    }
-    // A raffle carries its own configuration — validate and convert it before creating.
-    const raffleResult = type === "raffle" ? toRaffleInput(raffleForm) : null;
-    if (raffleResult && !raffleResult.ok) {
-      setError(raffleResult.error);
-      return;
-    }
-    const raffle = raffleResult?.ok ? raffleResult.input : undefined;
-    // A guided tour carries its ordered stages (text); media is added on the edit page.
-    const tourResult = type === "guided_tour" ? toTourInput(tourForm) : null;
-    if (tourResult && !tourResult.ok) {
-      setError(tourResult.error);
-      return;
-    }
-    const tour = tourResult?.ok ? tourResult.input : undefined;
-    // A product catalog carries its products (text + price); media is added on the edit page.
-    const saleResult = type === "sale" ? toSaleInput(saleForm) : null;
-    if (saleResult && !saleResult.ok) {
-      setError(saleResult.error);
-      return;
-    }
-    const sale = saleResult?.ok ? saleResult.input : undefined;
-    // A service catalog carries its services (text + optional price); media is added on edit.
-    const serviceResult = type === "service" ? toServiceInput(serviceForm) : null;
-    if (serviceResult && !serviceResult.ok) {
-      setError(serviceResult.error);
-      return;
-    }
-    const service = serviceResult?.ok ? serviceResult.input : undefined;
-    // A bingo carries its configuration (format + winning patterns + price); the cartones (lote)
-    // are generated/imported on the edit page after creation.
-    const bingoResult = type === "bingo" ? toBingoInput(bingoForm) : null;
-    if (bingoResult && !bingoResult.ok) {
-      setError(bingoResult.error);
-      return;
-    }
-    const bingo = bingoResult?.ok ? bingoResult.input : undefined;
-    // An event carries its date/place/map/contact; the gallery is added on the edit page.
-    const eventResult = type === "event" ? toEventInput(eventForm) : null;
-    if (eventResult && !eventResult.ok) {
-      setError(eventResult.error);
-      return;
-    }
-    const event = eventResult?.ok ? eventResult.input : undefined;
-    setSaving(true);
-    setError(null);
-    try {
-      const newId = await createTool(id, school.name, user.id, {
-        type,
-        title: trimmedTitle,
-        description: description.trim(),
-        ...(raffle ? { raffle } : {}),
-        ...(tour ? { tour } : {}),
-        ...(sale ? { sale } : {}),
-        ...(service ? { service } : {}),
-        ...(bingo ? { bingo } : {}),
-        ...(event ? { event } : {}),
-      });
-      // Straight to the edit page (with ?created=1) so the board can add the cover, dates and
-      // the call-to-action link.
-      router.push(`/panel/school/${id}/tools/${newId}?created=1`);
-    } catch (err) {
-      setError(userErrorMessage(err, "No se pudo crear la herramienta."));
-      setSaving(false);
-    }
-  };
-
   return (
     <main>
       <Heading schoolId={id} subtitle={school.name} />
 
       <p className="mt-6 text-sm text-muted">
-        Las herramientas son actividades puntuales de la escuela (rifas, ventas,
-        bingos, servicios, visitas guiadas…). Cada una aparece como tarjeta en la
-        pestaña “Principal” de la escuela. escuelaplace solo da visibilidad: nunca
-        procesa pagos.
+        Usá las herramientas para crear o anunciar una actividad puntual:
+        rifas, ventas, bingos, servicios, visitas guiadas… Quienes visiten la
+        página de tu escuela las verán en la pestaña “Principal” y podrán
+        interactuar con ellas.
       </p>
 
+      {/* Create options first — that's what a board navigating here is after. */}
       <section className="mt-8">
+        <ToolTypeMenu schoolId={id} />
+      </section>
+
+      {/* Then the activities already created, compact so many fit at a glance. */}
+      <section className="mt-12">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
           Activas ({activeTools.length})
         </h2>
@@ -350,15 +238,15 @@ export default function SchoolToolsPage() {
             <EmptyState
               icon={<WrenchIcon className="h-7 w-7" />}
               title="Todavía no creaste ninguna herramienta"
-              description="Creá tu primera actividad con el formulario de abajo: elegí su tipo, ponele un título y una descripción."
+              description="Elegí un tipo de actividad arriba para crear la primera: una rifa, una venta, un bingo…"
             />
           </div>
         ) : activeTools.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No tenés herramientas activas.</p>
         ) : (
-          <ul className="mt-4 flex flex-col gap-4">
+          <ul className={`mt-4 ${TOOL_GRID}`}>
             {activeTools.map((t) => (
-              <ToolRow key={t.id} schoolId={id} tool={t} />
+              <ToolGridCard key={t.id} schoolId={id} tool={t} />
             ))}
           </ul>
         )}
@@ -369,143 +257,13 @@ export default function SchoolToolsPage() {
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
             Ocultas
           </h2>
-          <ul className="mt-4 flex flex-col gap-4">
+          <ul className={`mt-4 ${TOOL_GRID}`}>
             {hiddenTools.map((t) => (
-              <ToolRow key={t.id} schoolId={id} tool={t} />
+              <ToolGridCard key={t.id} schoolId={id} tool={t} />
             ))}
           </ul>
         </section>
       )}
-
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Crear una herramienta
-        </h2>
-        <form
-          onSubmit={onCreate}
-          onInvalidCapture={spanishRequiredMessage}
-          onInputCapture={clearValidationMessage}
-          className="mt-3 flex flex-col gap-4"
-        >
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              Tipo de herramienta
-            </p>
-            <p className="mb-3 mt-0.5 text-xs text-muted">
-              Elegí qué tipo de actividad vas a crear.
-            </p>
-            <ToolTypePicker
-              value={type}
-              onChange={(t) => {
-                setType(t);
-                // Drop any kind-specific config in progress when leaving its type, so it
-                // doesn't silently reappear if the user comes back to it.
-                if (t !== "raffle") setRaffleForm(emptyRaffleForm());
-                if (t !== "guided_tour") setTourForm(emptyTourForm());
-                if (t !== "sale") setSaleForm(emptySaleForm());
-                if (t !== "service") setServiceForm(emptyServiceForm());
-                if (t !== "bingo") setBingoForm(emptyBingoForm());
-                if (t !== "event") setEventForm(emptyEventForm());
-              }}
-            />
-          </div>
-          <Field label="Título">
-            <input
-              type="text"
-              required
-              maxLength={TOOL_TITLE_MAX}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="input"
-              placeholder="Ej.: Rifa pro fondos para la gira"
-            />
-          </Field>
-          <Field label="Descripción">
-            <textarea
-              rows={3}
-              maxLength={TOOL_DESCRIPTION_MAX}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="input"
-              placeholder="Contá de qué se trata la actividad."
-            />
-          </Field>
-
-          {type === "raffle" && (
-            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-              <p className="mb-3 text-sm font-semibold text-foreground">
-                Configuración de la rifa
-              </p>
-              <RaffleConfigFields value={raffleForm} onChange={setRaffleForm} />
-            </div>
-          )}
-
-          {type === "guided_tour" && (
-            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-              <p className="mb-3 text-sm font-semibold text-foreground">
-                Etapas de la visita guiada
-              </p>
-              <TourStagesEditor value={tourForm} onChange={setTourForm} />
-            </div>
-          )}
-
-          {type === "sale" && (
-            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-              <p className="mb-3 text-sm font-semibold text-foreground">
-                Productos del catálogo
-              </p>
-              <SaleProductsEditor value={saleForm} onChange={setSaleForm} />
-            </div>
-          )}
-
-          {type === "service" && (
-            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-              <p className="mb-3 text-sm font-semibold text-foreground">
-                Servicios del catálogo
-              </p>
-              <ServiceItemsEditor value={serviceForm} onChange={setServiceForm} />
-            </div>
-          )}
-
-          {type === "bingo" && (
-            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-              <p className="mb-3 text-sm font-semibold text-foreground">
-                Configuración del bingo
-              </p>
-              <BingoConfigFields value={bingoForm} onChange={setBingoForm} />
-            </div>
-          )}
-
-          {type === "event" && (
-            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-              <p className="mb-3 text-sm font-semibold text-foreground">
-                Datos del evento
-              </p>
-              <EventConfigFields value={eventForm} onChange={setEventForm} />
-            </div>
-          )}
-
-          <FormError message={error} />
-
-          <button type="submit" disabled={saving} className="btn btn-primary">
-            {saving
-              ? "Creando…"
-              : type === "raffle"
-                ? "Crear rifa"
-                : type === "guided_tour"
-                  ? "Crear visita guiada"
-                  : type === "sale"
-                    ? "Crear productos"
-                    : type === "service"
-                      ? "Crear servicios"
-                      : type === "bingo"
-                        ? "Crear bingo"
-                        : type === "event"
-                          ? "Crear evento"
-                          : "Crear herramienta"}
-          </button>
-        </form>
-      </section>
 
       <p className="mt-8 text-sm">
         <BackLink href="/panel">Volver al panel</BackLink>
