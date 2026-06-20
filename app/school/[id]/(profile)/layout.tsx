@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { ProfileHeader } from "@/components/layout/ProfileHeader";
 import { ProfileTabs } from "@/components/layout/ProfileTabs";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { ScrollTopOnOpen } from "@/components/layout/ScrollTopOnOpen";
+import { DonateHint } from "@/components/school/DonateHint";
 import { SchoolManageBar } from "@/components/school/SchoolManageBar";
 import { StatChip } from "@/components/ui/StatChip";
 import {
@@ -161,6 +163,10 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
 
   return (
     <PageContainer variant="detail">
+      {/* Open on the cover/avatar, not scrolled down to a section — even if the browser restored
+          a prior scroll or a client island nudged it. Honors #section deep-links. */}
+      <ScrollTopOnOpen dep={id} />
+
       {/* "<" escaped so owner-controlled text can't close the script tag. */}
       <script
         type="application/ld+json"
@@ -252,11 +258,7 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
             </a>
           )}
         </div>
-        <p className="mt-2 text-center text-xs text-muted sm:text-left">
-          {unverified
-            ? "Podrás donar cuando el equipo de escuelaplace verifique esta escuela y publique sus medios de pago."
-            : "Iniciás sesión con Google para registrar tu aporte, que va directo a la escuela por los medios de pago que ella misma publica; la plataforma nunca toca el dinero."}
-        </p>
+        <DonateHint unverified={unverified} />
 
         {/* Edit/queue shortcuts — only the page's managers see this. */}
         <SchoolManageBar
