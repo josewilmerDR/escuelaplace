@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DonorWallManagerHint } from "@/components/donors/DonorWallManagerHint";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { Section } from "@/components/ui/Section";
-import { MapPinIcon, UsersIcon } from "@/components/ui/icons";
-import { buildDirectionsUrl } from "@/lib/contact";
 import {
   getSchoolById,
   getSchoolDonorWall,
@@ -12,12 +11,13 @@ import {
   publicTools,
   schoolCover,
 } from "@/lib/firestore";
-import { locationParts } from "@/lib/location";
 
 /**
- * School profile index (/school/[id]) — the "Información" section: description, locality and
- * board contact. The shared (profile) layout renders the header, tabs and unverified banner;
- * this page renders only the section body.
+ * School profile index (/school/[id]) — the "Principal" landing tab: the school's live
+ * "Herramientas" (rifas/ventas/etc.), the timely calls to action it wants seen first. The
+ * school's identity (description, locality, board contact) now lives in its own stable
+ * "Información" tab so it isn't pushed down as activity accumulates. The shared (profile)
+ * layout renders the header, tabs and unverified banner; this page renders only the body.
  */
 
 interface Props {
@@ -45,24 +45,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function SchoolInfoPage({ params }: Props) {
+export default async function SchoolLandingPage({ params }: Props) {
   const { id } = await params;
   const school = await getSchoolById(id);
   if (!school) notFound();
-
-  const placeParts = locationParts(school.location);
-  const directionsUrl = school.location?.geopoint
-    ? buildDirectionsUrl(
-        school.location.geopoint.latitude,
-        school.location.geopoint.longitude,
-      )
-    : null;
-  // The "Información" card holds description, locality and the board contact. With all three
-  // empty it would render as an empty card, so it is dropped entirely (the header still
-  // carries the name + locality).
-  const hasInfo = Boolean(
-    school.description || placeParts.length > 0 || school.boardContact?.name,
-  );
 
   // Managers should always be able to reach the donor-wall setup; when the wall is empty
   // there is no "Agradecimientos" tab, so the nudge lives here on the school's landing tab.
@@ -77,7 +63,7 @@ export default async function SchoolInfoPage({ params }: Props) {
 
   return (
     <>
-      {liveTools.length > 0 && (
+      {liveTools.length > 0 ? (
         <Section
           id="actividades"
           title="Actividades de la escuela"
@@ -89,56 +75,20 @@ export default async function SchoolInfoPage({ params }: Props) {
             ))}
           </div>
         </Section>
-      )}
-
-      {hasInfo && (
-        <Section id="informacion" title="Información">
-          {/* pre-line: the description is captured in a textarea — keep its line breaks.
-              Guard for "" so an empty description doesn't leave a blank paragraph. */}
-          {school.description && (
-            <p className="mt-3 whitespace-pre-line text-muted">
-              {school.description}
-            </p>
-          )}
-
-          <ul className="mt-4 space-y-3 text-sm text-muted">
-            {placeParts.length > 0 && (
-              <li className="flex items-start gap-3">
-                <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
-                <span>
-                  {placeParts.join(", ")}
-                  {directionsUrl && (
-                    <>
-                      {" · "}
-                      <a
-                        href={directionsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-brand-darker hover:underline"
-                      >
-                        Cómo llegar
-                      </a>
-                    </>
-                  )}
-                </span>
-              </li>
-            )}
-            {/* The board is the public face of the page: who receives the help. */}
-            {school.boardContact?.name && (
-              <li className="flex items-start gap-3">
-                <UsersIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
-                <span>
-                  Comité escolar: {school.boardContact.name}
-                  {school.boardContact.phone && (
-                    <> · {school.boardContact.phone}</>
-                  )}
-                  {school.boardContact.email && (
-                    <> · {school.boardContact.email}</>
-                  )}
-                </span>
-              </li>
-            )}
-          </ul>
+      ) : (
+        // No live activity yet: rather than an empty landing, point visitors to the school's
+        // identity and the ways they can help.
+        <Section id="actividades" title="Actividades de la escuela">
+          <p className="mt-3 text-muted">
+            Esta escuela todavía no tiene actividades en curso. Conocé más en{" "}
+            <Link
+              href={`/school/${id}/info`}
+              className="font-medium text-brand-darker hover:underline"
+            >
+              Información
+            </Link>{" "}
+            o apoyala con una donación.
+          </p>
         </Section>
       )}
 

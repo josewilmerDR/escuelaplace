@@ -15,9 +15,12 @@
  * Visual treatment: each page is a full-bleed cover card (the same photo ladder the public
  * profile uses — cover → first gallery photo → logo/avatar — falling back to a brand
  * gradient + type glyph when the page has no image yet). The page type, role and
- * status/verification badge float over the top on frosted chips; the name and the two
- * controls — a solid white "Editar" and a glass "más" overflow menu — sit over a bottom
- * scrim that keeps them legible on any photo. The cards lay out in a responsive grid (1
+ * status/verification badge float over the top on frosted chips; the name sits over a bottom
+ * scrim that keeps it legible on any photo. Schools: the whole card is a stretched link to the
+ * public profile (where the SchoolManageBar carries the management actions), with the
+ * verification badge top-left and an Actividad bell top-right raised above the link. Businesses:
+ * a solid white "Editar" primary plus a glass "más" overflow menu, over the bottom scrim.
+ * The cards lay out in a responsive grid (1
  * column on phones, up to 3 on wide screens) like the public catalog's card grids. All of
  * it composes the existing design tokens (--brand/--surface) — no new palette.
  */
@@ -57,12 +60,13 @@ import {
 const LOADING_TEXT = "Cargando tus páginas…";
 
 /**
- * The two on-photo controls of a page card, frosted so they integrate with the cover image
- * instead of sitting on it like a sticker. "Editar" is the solid white primary (the only
- * action valid for both page types in every state — a draft business 404s its public link,
- * its metrics are empty, etc.); everything else lives behind the glass ellipsis trigger.
+ * The solid white primary action button, frosted so it integrates with the cover image instead
+ * of sitting on it like a sticker. Only businesses use it now — for "Editar" (a draft 404s its
+ * public link, so the public profile isn't a safe default), paired with a glass "más" overflow
+ * menu for the secondary actions. Schools have no button row: the whole card is a stretched link
+ * to the public profile, with just the Actividad bell raised above it.
  */
-const EDIT_ACTION =
+const PRIMARY_ACTION =
   "inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-brand-darker shadow-sm transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70";
 const GLASS_ICON_ACTION =
   "inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-white/15 text-white ring-1 ring-inset ring-white/30 backdrop-blur transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70";
@@ -624,9 +628,21 @@ function PageCard({
       </div>
 
       {/* Content layer: above the cover and NOT clipped, so the overflow menu can escape. The
-          aspect ratio gives the card its height; justify-between pins the chips to the top and
-          the name + actions to the bottom. */}
+          aspect ratio gives the card its height; justify-between pins the top row (chips +,
+          for schools, the controls) to the top and the name (plus the business action row) to
+          the bottom. */}
       <div className="relative flex aspect-[3/2] flex-col justify-between p-4">
+        {/* Schools: the whole card is a link to the public profile (stretched-link pattern).
+            It overlays the static content (chips, name) so a click anywhere opens the profile,
+            while the interactive control — the Actividad bell — is raised above it (z-20) so it
+            keeps its own behaviour. Nesting it as a real wrapping <a> would be invalid HTML. */}
+        {page.type === "school" && (
+          <Link
+            href={href}
+            aria-label={`Ver página de ${page.doc.name}`}
+            className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70"
+          />
+        )}
         <div className="flex items-start justify-between gap-2">
           <span className="flex flex-wrap items-center gap-1.5">
             <span className={OVERLAY_CHIP}>
@@ -634,25 +650,17 @@ function PageCard({
               {typeLabel}
             </span>
             {page.role === "editor" && <span className={OVERLAY_CHIP}>Editor</span>}
+            {/* Schools surface their verification badge here (top-left), so the top-right
+                corner can host the controls and the name keeps the bottom to itself. */}
+            {page.type === "school" && (
+              <VerificationBadge status={page.doc.verificationStatus} />
+            )}
           </span>
           {page.type === "school" ? (
-            <VerificationBadge status={page.doc.verificationStatus} />
-          ) : (
-            <BusinessStatusBadge status={page.doc.status} />
-          )}
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <h2 className="line-clamp-2 text-lg font-semibold tracking-tight text-white drop-shadow-sm">
-            {page.doc.name}
-          </h2>
-          {/* Two controls on one line: the solid "Editar" primary + the glass "más" menu. */}
-          <div className="flex items-center justify-end gap-2">
-            <Link href={`/panel/${page.type}/${page.doc.id}/edit`} className={EDIT_ACTION}>
-              <PencilIcon className="h-4 w-4" />
-              Editar
-            </Link>
-            {page.type === "school" && (
+            // The Actividad bell, raised above the card-wide stretched link (z-20) so it stays
+            // its own target. There's no "Ver página" button anymore — the whole card is the
+            // link to the public profile.
+            <span className="relative z-20 flex shrink-0 items-center gap-2">
               <Link
                 href={`/panel/school/${page.doc.id}/activity`}
                 aria-label={
@@ -669,56 +677,54 @@ function PageCard({
                   </span>
                 )}
               </Link>
-            )}
-            <MoreMenu note={warning}>
-              {/* A non-active business profile 404s (public reads filter by status), so the
-                  public link only renders when it actually resolves. */}
-              {(page.type === "school" || page.doc.status === "active") && (
-                <Link href={href} role="menuitem" className={MENU_ITEM}>
-                  Ver página pública
+            </span>
+          ) : (
+            <BusinessStatusBadge status={page.doc.status} />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <h2 className="line-clamp-2 text-lg font-semibold tracking-tight text-white drop-shadow-sm">
+            {page.doc.name}
+          </h2>
+          {/* Business action row: "Editar" primary + the glass "más" overflow menu. Schools
+              moved their controls to the top-right, so for them the name owns the bottom. */}
+          {page.type === "business" && (
+            <div className="flex items-center justify-end gap-2">
+              <Link
+                href={`/panel/business/${page.doc.id}/edit`}
+                className={PRIMARY_ACTION}
+              >
+                <PencilIcon className="h-4 w-4" />
+                Editar
+              </Link>
+              <MoreMenu note={warning}>
+                {/* A non-active business 404s its public link, so it renders only when active. */}
+                {page.doc.status === "active" && (
+                  <Link href={href} role="menuitem" className={MENU_ITEM}>
+                    Ver página pública
+                  </Link>
+                )}
+                <Link
+                  href={`/panel/business/${page.doc.id}/subscribe`}
+                  role="menuitem"
+                  className={MENU_ITEM}
+                >
+                  Apoyar una escuela
                 </Link>
-              )}
-              {page.type === "business" && (
-                <>
+                {/* Drafts have no public traffic yet, so metrics would be empty. */}
+                {page.doc.status === "active" && (
                   <Link
-                    href={`/panel/business/${page.doc.id}/subscribe`}
+                    href={`/panel/business/${page.doc.id}/metrics`}
                     role="menuitem"
                     className={MENU_ITEM}
                   >
-                    Apoyar una escuela
+                    Ver métricas
                   </Link>
-                  {/* Drafts have no public traffic yet, so metrics would be empty. */}
-                  {page.doc.status === "active" && (
-                    <Link
-                      href={`/panel/business/${page.doc.id}/metrics`}
-                      role="menuitem"
-                      className={MENU_ITEM}
-                    >
-                      Ver métricas
-                    </Link>
-                  )}
-                </>
-              )}
-              {page.type === "school" && (
-                <>
-                  <Link
-                    href={`/panel/school/${page.doc.id}/activity`}
-                    role="menuitem"
-                    className={MENU_ITEM}
-                  >
-                    Actividad
-                  </Link>
-                  <Link
-                    href={`/panel/school/${page.doc.id}/projects`}
-                    role="menuitem"
-                    className={MENU_ITEM}
-                  >
-                    Proyectos
-                  </Link>
-                </>
-              )}
-            </MoreMenu>
-          </div>
+                )}
+              </MoreMenu>
+            </div>
+          )}
         </div>
       </div>
     </li>
