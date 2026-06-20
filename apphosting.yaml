@@ -51,3 +51,10 @@ env:
   - variable: NEXT_PUBLIC_TRACK_INTERACTION_URL
     value: "https://us-central1-escuelaplace.cloudfunctions.net/trackInteraction"
     availability: [BUILD, RUNTIME]
+  # Public origin used to build absolute OG/canonical URLs (notably og:image, which
+  # WhatsApp/Facebook must be able to fetch). MUST match the origin the site is served from.
+  # Points at the live App Hosting URL until the custom domain (escuelaplace.com) is
+  # connected — switch this to https://escuelaplace.com once that domain resolves.
+  - variable: NEXT_PUBLIC_SITE_URL
+    value: "https://escuelaplace--escuelaplace.us-central1.hosted.app"
+    availability: [BUILD, RUNTIME]
