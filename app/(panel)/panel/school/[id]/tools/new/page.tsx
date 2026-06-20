@@ -4,10 +4,14 @@
  * Create one school tool (/panel/school/[id]/tools/new).
  *
  * The dedicated home for the creation form. The board lands here from a kind card on the tools
- * hub, which fixes the kind via ?type=…. A raffle uploads its cover and, once created, returns
- * to the hub (it publishes to the school's "Principal" feed on creation, where it then appears).
- * Every other kind goes straight to its edit page (with ?created=1) to add the cover, dates and
- * call-to-action link (mirrors the projects flow). PURELY INFORMATIONAL — the platform never
+ * hub, which fixes the kind via ?type=…. EVERY kind is created in one self-contained page — its
+ * configuration, its per-item media (a product/service/stage photo or video, an event gallery)
+ * AND its cover — and then returns to the hub, where the just-published tool now appears in the
+ * school's "Principal" feed (the same flow the rifa already followed; the other kinds no longer
+ * detour through the edit page). To make the media uploadable before the doc exists, the page
+ * pre-allocates the tool id (newToolId) so per-item uploads land on the tool's Storage path; the
+ * cover is uploaded and set right after the create write (validToolCreate excludes coverUrl from
+ * the create field set, so it's a follow-up update). PURELY INFORMATIONAL — the platform never
  * processes money.
  */
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -49,6 +53,7 @@ import {
   toTourInput,
   type TourFormValue,
 } from "@/components/tools/TourStagesEditor";
+import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -59,10 +64,12 @@ import { TOOL_TYPE_LIST, toolTypeMeta } from "@/lib/tools/registry";
 import {
   createTool,
   getSchoolById,
+  newToolId,
   setToolCover,
   uploadToolCover,
 } from "@/lib/firestore";
 import {
+  EVENT_PHOTO_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
   type SchoolDoc,
@@ -175,6 +182,13 @@ function NewToolContent() {
   // The kind-specific page title, reused by the heading (every state) and the submit button.
   const heading = createToolTitle(type);
 
+  // The tool's id, pre-allocated once (newToolId is pure ref construction, no write) so the
+  // per-item media (a product/service/stage photo or video, the event gallery) can upload to the
+  // tool's Storage path while the form is still being filled. It rides along as createTool's id
+  // on submit. Lazy initializer → stable across re-renders; the id is never rendered to the DOM,
+  // so the SSR/CSR values differing is invisible (no hydration mismatch).
+  const [toolId] = useState(() => newToolId(id));
+
   // Create-form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -185,8 +199,15 @@ function NewToolContent() {
     useState<ServiceFormValue>(emptyServiceForm);
   const [bingoForm, setBingoForm] = useState<BingoFormValue>(emptyBingoForm);
   const [eventForm, setEventForm] = useState<EventFormValue>(emptyEventForm);
-  // Cover image for the raffle (the one kind created without leaving for the edit page, so its
-  // cover has to be set here). Local-only until submit; uploaded once the tool doc exists.
+  // The event's gallery (photos + one short video). Unlike a catalog's per-item media it isn't a
+  // list, so it lives here and is merged into the event config on submit. Uploaded immediately to
+  // the pre-allocated tool path, like every other kind's media.
+  const [eventMedia, setEventMedia] = useState<{
+    photos: string[];
+    videoUrl?: string;
+  }>({ photos: [] });
+  // Cover image, set on the creation page for EVERY kind now. Local-only until submit; uploaded
+  // and set right after the tool doc is created.
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -270,21 +291,21 @@ function NewToolContent() {
       return;
     }
     const raffle = raffleResult?.ok ? raffleResult.input : undefined;
-    // A guided tour carries its ordered stages (text); media is added on the edit page.
+    // A guided tour carries its ordered stages (text + the media already uploaded per stage).
     const tourResult = type === "guided_tour" ? toTourInput(tourForm) : null;
     if (tourResult && !tourResult.ok) {
       setError(tourResult.error);
       return;
     }
     const tour = tourResult?.ok ? tourResult.input : undefined;
-    // A product catalog carries its products (text + price); media is added on the edit page.
+    // A product catalog carries its products (text + price + the media already uploaded per item).
     const saleResult = type === "sale" ? toSaleInput(saleForm) : null;
     if (saleResult && !saleResult.ok) {
       setError(saleResult.error);
       return;
     }
     const sale = saleResult?.ok ? saleResult.input : undefined;
-    // A service catalog carries its services (text + optional price); media is added on edit.
+    // A service catalog carries its services (text + optional price + the media already uploaded).
     const serviceResult = type === "service" ? toServiceInput(serviceForm) : null;
     if (serviceResult && !serviceResult.ok) {
       setError(serviceResult.error);
@@ -299,46 +320,55 @@ function NewToolContent() {
       return;
     }
     const bingo = bingoResult?.ok ? bingoResult.input : undefined;
-    // An event carries its date/place/map/contact; the gallery is added on the edit page.
+    // An event carries its date/place/map/contact plus its gallery (photos + video) — merged in
+    // here, since the gallery isn't part of the EventConfigFields form.
     const eventResult = type === "event" ? toEventInput(eventForm) : null;
     if (eventResult && !eventResult.ok) {
       setError(eventResult.error);
       return;
     }
-    const event = eventResult?.ok ? eventResult.input : undefined;
+    const event = eventResult?.ok
+      ? {
+          ...eventResult.input,
+          ...(eventMedia.photos.length > 0 ? { photos: eventMedia.photos } : {}),
+          ...(eventMedia.videoUrl ? { videoUrl: eventMedia.videoUrl } : {}),
+        }
+      : undefined;
     setSaving(true);
     setError(null);
     try {
-      const newId = await createTool(id, school.name, user.id, {
-        type,
-        title: trimmedTitle,
-        description: description.trim(),
-        ...(raffle ? { raffle } : {}),
-        ...(tour ? { tour } : {}),
-        ...(sale ? { sale } : {}),
-        ...(service ? { service } : {}),
-        ...(bingo ? { bingo } : {}),
-        ...(event ? { event } : {}),
-      });
-      // A raffle uploads its cover here (it never visits the edit page in this flow) and then
-      // returns to the tools hub, where the just-published raffle now appears. The cover upload
-      // is best-effort: the raffle is already published, so a failed upload neither blocks the
-      // return nor risks a duplicate on retry (the cover can still be added from its edit page).
-      if (type === "raffle") {
-        if (coverFile) {
-          try {
-            const coverUrl = await uploadToolCover(id, newId, coverFile);
-            await setToolCover(id, newId, coverUrl);
-          } catch {
-            // ignore — the raffle is created; the cover can be added later from the edit page
-          }
+      // One write creates the tool with its kind config AND any per-item media already uploaded
+      // to the pre-allocated path (passed as the doc id).
+      await createTool(
+        id,
+        school.name,
+        user.id,
+        {
+          type,
+          title: trimmedTitle,
+          description: description.trim(),
+          ...(raffle ? { raffle } : {}),
+          ...(tour ? { tour } : {}),
+          ...(sale ? { sale } : {}),
+          ...(service ? { service } : {}),
+          ...(bingo ? { bingo } : {}),
+          ...(event ? { event } : {}),
+        },
+        toolId,
+      );
+      // Every kind sets its cover here and returns to the tools hub, where the just-published
+      // tool now appears. The cover is a follow-up update (validToolCreate excludes coverUrl) and
+      // best-effort: the tool is already published, so a failed upload neither blocks the return
+      // nor risks a duplicate on retry (the cover can still be added later from the edit page).
+      if (coverFile) {
+        try {
+          const coverUrl = await uploadToolCover(id, toolId, coverFile);
+          await setToolCover(id, toolId, coverUrl);
+        } catch {
+          // ignore — the tool is created; the cover can be added later from the edit page
         }
-        router.push(`/panel/school/${id}/tools`);
-        return;
       }
-      // Other tools go straight to the edit page (with ?created=1) so the board can add the
-      // cover, dates and the call-to-action link.
-      router.push(`/panel/school/${id}/tools/${newId}?created=1`);
+      router.push(`/panel/school/${id}/tools`);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo crear la herramienta."));
       setSaving(false);
@@ -391,7 +421,12 @@ function NewToolContent() {
             <p className="mb-3 text-sm font-semibold text-foreground">
               Etapas de la visita guiada
             </p>
-            <TourStagesEditor value={tourForm} onChange={setTourForm} />
+            <TourStagesEditor
+              value={tourForm}
+              onChange={setTourForm}
+              schoolId={id}
+              toolId={toolId}
+            />
           </div>
         )}
 
@@ -400,7 +435,12 @@ function NewToolContent() {
             <p className="mb-3 text-sm font-semibold text-foreground">
               Productos del catálogo
             </p>
-            <SaleProductsEditor value={saleForm} onChange={setSaleForm} />
+            <SaleProductsEditor
+              value={saleForm}
+              onChange={setSaleForm}
+              schoolId={id}
+              toolId={toolId}
+            />
           </div>
         )}
 
@@ -409,7 +449,12 @@ function NewToolContent() {
             <p className="mb-3 text-sm font-semibold text-foreground">
               Servicios del catálogo
             </p>
-            <ServiceItemsEditor value={serviceForm} onChange={setServiceForm} />
+            <ServiceItemsEditor
+              value={serviceForm}
+              onChange={setServiceForm}
+              schoolId={id}
+              toolId={toolId}
+            />
           </div>
         )}
 
@@ -423,25 +468,53 @@ function NewToolContent() {
         )}
 
         {type === "event" && (
-          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-            <p className="mb-3 text-sm font-semibold text-foreground">
-              Datos del evento
-            </p>
-            <EventConfigFields value={eventForm} onChange={setEventForm} />
-          </div>
+          <>
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Datos del evento
+              </p>
+              <EventConfigFields value={eventForm} onChange={setEventForm} />
+            </div>
+            {/* The event's gallery (one card, not a list), mirroring the edit page. Media uploads
+                immediately to the pre-allocated tool path and is merged into the event config on
+                submit. */}
+            <ToolItemCard
+              title="Fotos y video del evento"
+              removeLabel=""
+              canRemove={false}
+              onRemove={() => {}}
+              photos={eventMedia.photos}
+              videoUrl={eventMedia.videoUrl}
+              photoMax={EVENT_PHOTO_MAX}
+              schoolId={id}
+              toolId={toolId}
+              persisted
+              unsavedHint=""
+              onMedia={async (media) =>
+                setEventMedia((prev) => ({
+                  photos: media.photos ?? prev.photos,
+                  videoUrl:
+                    media.videoUrl !== undefined
+                      ? (media.videoUrl ?? undefined)
+                      : prev.videoUrl,
+                }))
+              }
+            >
+              <p className="text-xs text-muted">
+                Una pequeña galería para mostrar el evento (opcional).
+              </p>
+            </ToolItemCard>
+          </>
         )}
 
-        {/* A raffle never visits the edit page in this flow, so its cover is set here. Other
-            kinds add the cover on the edit page they're sent to right after creation. */}
-        {type === "raffle" && (
-          <ImagePicker
-            label="Portada (opcional)"
-            hint="Imagen horizontal que se muestra en la tarjeta de la rifa."
-            variant="cover"
-            value={coverFile}
-            onChange={setCoverFile}
-          />
-        )}
+        {/* The cover is set here for every kind, then the board returns to the hub. */}
+        <ImagePicker
+          label="Portada (opcional)"
+          hint="Imagen horizontal que se muestra en la tarjeta de la herramienta."
+          variant="cover"
+          value={coverFile}
+          onChange={setCoverFile}
+        />
 
         <FormError message={error} />
 
