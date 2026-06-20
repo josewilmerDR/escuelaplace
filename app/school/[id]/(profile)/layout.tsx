@@ -145,11 +145,14 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
       : {}),
   };
 
-  // Tabs: "Principal" (the index, holding Información) and Comercios always exist; the rest
-  // only when they have content. Routes are English segments; labels are the Spanish UI copy.
+  // Tabs: "Principal" (the activity landing), "Información" (the school's identity) and
+  // Comercios always exist; the rest only when they have content. The tab strip is a
+  // single-row carousel that scrolls horizontally instead of wrapping, so adding tabs never
+  // pushes them to a second line. Routes are English segments; labels are the Spanish UI copy.
   const base = `/school/${id}`;
   const tabs = [
     { href: base, label: "Principal" },
+    { href: `${base}/info`, label: "Información" },
     ...(hasProjects ? [{ href: `${base}/projects`, label: "Proyectos" }] : []),
     ...(gallery.length > 0 ? [{ href: `${base}/photos`, label: "Fotos" }] : []),
     { href: `${base}/businesses`, label: "Comercios" },

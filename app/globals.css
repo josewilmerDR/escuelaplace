@@ -67,6 +67,16 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* Hide the scrollbar on horizontal carousels (e.g. the profile tab strip) while keeping
+   the element scrollable — the fade edges hint there is more content off-screen. */
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

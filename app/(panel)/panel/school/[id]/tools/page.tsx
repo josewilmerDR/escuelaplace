@@ -14,7 +14,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import {
   BingoConfigFields,
   emptyBingoForm,
@@ -55,6 +54,7 @@ import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
 import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
 import { Badge } from "@/components/ui/Badge";
 import { BackLink } from "@/components/ui/BackLink";
+import { SmartBackLink } from "@/components/ui/SmartBackLink";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
@@ -82,15 +82,25 @@ const LOADING_TEXT = "Cargando herramientas…";
 const CHIP_ACTION =
   "inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground";
 
-/** Page heading, rendered identically in every state so the title never shifts. */
-function Heading({ subtitle }: { subtitle?: string }) {
+/**
+ * Page heading, rendered identically in every state so the title never shifts. The back link
+ * is the page's first element: it returns to wherever the board came from, falling back to the
+ * school's public page. The cross-section nav (Actividad/Editar/Proyectos) is intentionally
+ * not shown here — from a tool the board's expected move is back, not sideways.
+ */
+function Heading({ schoolId, subtitle }: { schoolId: string; subtitle?: string }) {
   return (
-    <header>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Herramientas
-      </h1>
-      <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-    </header>
+    <>
+      <p className="text-sm">
+        <SmartBackLink fallbackHref={`/school/${schoolId}`}>Volver</SmartBackLink>
+      </p>
+      <header className="mt-3">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Herramientas
+        </h1>
+        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
+      </header>
+    </>
   );
 }
 
@@ -189,7 +199,7 @@ export default function SchoolToolsPage() {
   if (loadState === "loading") {
     return (
       <main>
-        <Heading />
+        <Heading schoolId={id} />
         <ul className="mt-8 flex flex-col gap-4" aria-hidden="true">
           <li className="h-28 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
           <li className="h-28 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -204,7 +214,7 @@ export default function SchoolToolsPage() {
   if (loadState === "error") {
     return (
       <main>
-        <Heading />
+        <Heading schoolId={id} />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar las herramientas. Revisá tu conexión e intentá de
           nuevo.
@@ -219,7 +229,7 @@ export default function SchoolToolsPage() {
   if (!school) {
     return (
       <main>
-        <Heading />
+        <Heading schoolId={id} />
         <p className="mt-4 text-sm text-muted">Escuela no encontrada.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -237,7 +247,7 @@ export default function SchoolToolsPage() {
   if (!isManager) {
     return (
       <main>
-        <Heading subtitle={school.name} />
+        <Heading schoolId={id} subtitle={school.name} />
         <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -322,9 +332,7 @@ export default function SchoolToolsPage() {
 
   return (
     <main>
-      <Heading subtitle={school.name} />
-
-      <SchoolPanelNav schoolId={id} current="tools" />
+      <Heading schoolId={id} subtitle={school.name} />
 
       <p className="mt-6 text-sm text-muted">
         Las herramientas son actividades puntuales de la escuela (rifas, ventas,
