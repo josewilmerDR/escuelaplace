@@ -5,6 +5,7 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,7 +18,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://escuelaplace.com"),
+  // Absolute base for OG/canonical URLs. Must be the origin the site is actually served from
+  // (see SITE_URL) so link-preview scrapers can fetch og:image — a hardcoded not-yet-live
+  // domain breaks every share preview.
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "escuelaplace — comercios que apoyan a las escuelas de Costa Rica",
     template: "%s | escuelaplace",
