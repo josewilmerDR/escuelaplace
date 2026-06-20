@@ -26,6 +26,7 @@ export function ProfileHeader({
   verified = false,
   verifiedLabel,
   meta,
+  coverOverlay,
   children,
 }: {
   /**
@@ -51,6 +52,12 @@ export function ProfileHeader({
   verifiedLabel?: string;
   /** Lines under the name (rating, categories, locality…); each brings its own `mt-1`. */
   meta?: ReactNode;
+  /**
+   * Controls floated on top of the cover band (the cover div is `relative`, so the overlay
+   * positions itself with `absolute`). Used by the school's manage controls — bell + gear
+   * pinned to the cover corners. Renders nothing for visitors.
+   */
+  coverOverlay?: ReactNode;
   /** Rows below the identity row: actions, manage bar, tabs, CTA, trust chips. */
   children?: ReactNode;
 }) {
@@ -83,6 +90,7 @@ export function ProfileHeader({
             {initial}
           </span>
         )}
+        {coverOverlay}
       </div>
 
       <div className="px-5 pb-4 sm:px-8">
