@@ -62,13 +62,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: tool.description,
     // An inactive (hidden) tool stays reachable by direct URL but should not be indexed.
     ...(tool.status !== "active" ? { robots: { index: false } } : {}),
+    // The shared preview image is the colocated dynamic OG card (opengraph-image.tsx), which
+    // composes the cover photo + title + a CTA — image-dominant by design. Next wires it in
+    // automatically, so we must NOT set openGraph.images here (that would override it).
     openGraph: {
       title: tool.title,
       description: tool.description,
       type: "website",
-      ...(tool.coverUrl ? { images: [tool.coverUrl] } : {}),
     },
-    twitter: { card: tool.coverUrl ? "summary_large_image" : "summary" },
+    twitter: { card: "summary_large_image" },
   };
 }
 
