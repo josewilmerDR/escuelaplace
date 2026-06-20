@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
@@ -151,7 +151,6 @@ export default function EditToolPage() {
   const { id, toolId } = useParams<{ id: string; toolId: string }>();
   const { user } = useAuth();
   const router = useRouter();
-  const justCreated = useSearchParams().get("created") === "1";
 
   const [school, setSchool] = useState<SchoolDoc | null>(null);
   const [tool, setTool] = useState<ToolDoc | null>(null);
@@ -1035,13 +1034,6 @@ export default function EditToolPage() {
       <Heading subtitle={school.name} />
 
       <SchoolPanelNav schoolId={id} current="tools" />
-
-      {justCreated && (
-        <p className="mt-6 rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10">
-          Herramienta creada. Agregale una portada, fechas y un botón si querés, y
-          guardá los cambios.
-        </p>
-      )}
 
       <form
         onSubmit={onSave}
