@@ -13,11 +13,11 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { BingoCalledBoard } from "@/components/tools/BingoCalledBoard";
+import { BingoCalledStrip } from "@/components/tools/BingoCalledStrip";
 import { BingoCardGrid } from "@/components/tools/BingoCardGrid";
+import { BingoPatternHint } from "@/components/tools/BingoPatternHint";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
-import { satisfiedPatterns } from "@/lib/bingo-patterns";
 import { userErrorMessage } from "@/lib/errors";
 import {
   createBingoClaim,
@@ -31,7 +31,6 @@ import {
   type BingoCardDoc,
   type BingoClaimDoc,
   type BingoEventState,
-  type BingoPattern,
   type ToolDoc,
 } from "@/types";
 
@@ -117,6 +116,16 @@ function BingoPlayContent() {
     [state?.calledNumbers],
   );
 
+  // Round identity — stable within a round, changes only when the director starts a new one.
+  const roundStartMs = state?.startedAt?.toMillis?.() ?? 0;
+  // Reset local marks on a new round (fresh board) via the "adjust state during render" pattern
+  // (React-endorsed; NOT an effect) so last round's marks don't linger on the cartones.
+  const [marksRound, setMarksRound] = useState(roundStartMs);
+  if (roundStartMs !== marksRound) {
+    setMarksRound(roundStartMs);
+    setMarks({});
+  }
+
   if (!user || !loaded) return <PlaySkeleton />;
 
   const bingo = tool?.bingo;
@@ -136,17 +145,28 @@ function BingoPlayContent() {
     );
   }
 
-  const enabledPatterns = bingo.patterns.map((p) => p.pattern);
-  const awarded = new Set(state?.awardedPatterns ?? []);
   const status = state?.status ?? "idle";
   const lastCalled = state?.calledNumbers?.at(-1);
-
-  // Patterns the player has already claimed on a given cartón (so we don't re-offer them).
-  const claimedKey = (cardId: string, pattern: BingoPattern) => `${cardId}:${pattern}`;
-  const claimedSet = new Set(
+  // The round's winning shape + the single prize it plays for (frozen snapshot) — the "cómo ganar"
+  // the player aims for. `reviewing`/`winner` are the public round-status signals the console keeps.
+  const activePattern = state?.activePattern ?? null;
+  const activePrize = state?.activePrize ?? null;
+  const reviewing = state?.reviewing ?? false;
+  const winner = state?.winner ?? null;
+  // Once the round has a winner it's decided — marking/claiming stops until a fresh round; status
+  // 'closed' also ends play.
+  const playable = status === "live" && winner == null;
+  // Cartones already claimed THIS round: scope by the event's startedAt so a claim from a previous
+  // round doesn't keep the button hidden after the director restarts. One pattern per round → key by
+  // cardId alone.
+  const claimedCards = new Set(
     myClaims
-      .filter((c) => c.status !== "rejected")
-      .map((c) => claimedKey(c.cardId, c.pattern)),
+      .filter(
+        (c) =>
+          c.status !== "rejected" &&
+          (c.createdAt?.toMillis?.() ?? 0) >= roundStartMs,
+      )
+      .map((c) => c.cardId),
   );
 
   const toggleMark = (cardId: string, n: number) => {
@@ -160,17 +180,20 @@ function BingoPlayContent() {
     });
   };
 
-  const claim = (card: BingoCardDoc, pattern: BingoPattern) =>
-    runClaim(claimedKey(card.id, pattern), async () => {
+  const claim = (card: BingoCardDoc) => {
+    if (!activePattern) return;
+    return runClaim(card.id, async () => {
       await createBingoClaim(schoolId, toolId, {
         cardId: card.id,
         cardLabel: card.label,
-        pattern,
+        patternId: activePattern.id,
+        patternName: activePattern.name,
         claimantId: user.id,
         claimantName: user.name,
       });
       refreshClaims();
     });
+  };
 
   const runClaim = async (key: string, op: () => Promise<void>) => {
     setBusyKey(key);
@@ -194,7 +217,9 @@ function BingoPlayContent() {
       </h1>
       <p className="mt-1 text-sm text-muted">
         {status === "live"
-          ? "El bingo está en vivo. Marcá los números cantados en tus cartones."
+          ? winner != null
+            ? "Esta ronda ya tiene ganador."
+            : "El bingo está en vivo. Marcá los números cantados en tus cartones."
           : status === "closed"
             ? "Este bingo ya cerró."
             : "El bingo aún no comenzó. Esperá a que la escuela lo inicie."}
@@ -206,8 +231,46 @@ function BingoPlayContent() {
         </p>
       )}
 
-      {/* Live board */}
-      <section className={`mt-6 ${cardClass("inset")}`}>
+      {/* How to win this round — first, so the player knows the goal before the called board. */}
+      {status === "live" && activePattern && (
+        <section className={`mt-6 ${cardClass("inset")}`}>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
+            Cómo ganar esta ronda
+          </h2>
+          {activePrize && (
+            <p className="mt-1 text-sm">
+              <span className="text-muted">Premio:</span>{" "}
+              <span className="font-medium text-foreground">
+                {activePrize.label}
+              </span>
+              {activePrize.isGrand && (
+                <span className="text-muted"> · premio mayor</span>
+              )}
+            </p>
+          )}
+          <div className="mt-3">
+            <BingoPatternHint pattern={activePattern} />
+          </div>
+        </section>
+      )}
+
+      {/* Live but the round's shape isn't set yet (legacy/no-pattern doc) — explain why there's no
+          "cómo ganar" and no claim button, so the player isn't left tapping with no way to win. */}
+      {status === "live" && !activePattern && (
+        <section className={`mt-6 ${cardClass("inset")}`}>
+          <p className="text-sm text-muted">
+            La escuela aún no definió la forma de ganar de esta ronda.
+          </p>
+        </section>
+      )}
+
+      {/* Live board — pinned just under the sticky site header (h-16) so the called numbers stay
+          visible while the player scrolls their cartones. z-20 keeps it below the header (z-40) and
+          any modal (z-50) but above the cards that scroll under it; the opaque inset bg + shadow
+          make it read as floating over them. */}
+      <section
+        className={`sticky top-16 z-20 mt-6 shadow-sm ${cardClass("inset")}`}
+      >
         <div className="flex items-baseline justify-between">
           <h2 className="text-sm font-semibold tracking-tight text-foreground">
             Números cantados
@@ -224,12 +287,24 @@ function BingoPlayContent() {
             )}
           </p>
         </div>
+
+        {/* Round status, by cartón label only (never a name). Winner takes priority over review. */}
+        {winner ? (
+          <p className="mt-2 rounded-lg bg-success-tint p-2 text-sm font-medium text-success ring-1 ring-success/10">
+            {winner.isGrand
+              ? `🏆 ¡El cartón #${winner.cardLabel} ganó el premio mayor! El bingo terminó.`
+              : `🎉 ¡Ganó el cartón #${winner.cardLabel}${winner.prizeLabel ? ` — ${winner.prizeLabel}` : ""}! Esperá la próxima ronda.`}
+          </p>
+        ) : reviewing ? (
+          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm font-medium text-amber-800 ring-1 ring-amber-200">
+            🔔 Alguien cantó «¡Bingo!» — la escuela está revisando.
+          </p>
+        ) : null}
+
         <div className="mt-3">
-          <BingoCalledBoard
-            poolMin={bingo.format.poolMin}
-            poolMax={bingo.format.poolMax}
-            called={called}
-            lastCalled={lastCalled}
+          <BingoCalledStrip
+            called={state?.calledNumbers ?? []}
+            pad={String(bingo.format.poolMax).length}
           />
         </div>
       </section>
@@ -254,51 +329,48 @@ function BingoPlayContent() {
           <ul className="mt-4 grid gap-6 sm:grid-cols-2">
             {cards.map((card) => {
               const cardMarks = marks[card.id] ?? new Set<number>();
-              // Only marks that are STILL called count toward a win — if the school undoes a
-              // number, a stale mark can't keep a "¡Bingo!" button lit (the board would reject it
-              // anyway, since it validates against the called set).
-              const liveMarks = new Set(
-                [...cardMarks].filter((n) => called.has(n)),
-              );
-              // Patterns the marks complete, still open (not yet awarded), not already claimed.
-              const winnable = satisfiedPatterns(
-                card.numbers,
-                bingo.format,
-                enabledPatterns,
-                liveMarks,
-              ).filter(
-                (p) => !awarded.has(p) && !claimedSet.has(claimedKey(card.id, p)),
-              );
+              // The "¡Bingo!" button is ALWAYS offered while the round is live and this cartón hasn't
+              // an open claim — the system deliberately does NOT check whether the marks complete the
+              // pattern. The player decides when they've won (and the school validates), so a virtual
+              // player gets no edge over someone playing on paper. A rejected claim re-opens it
+              // (claimedCards excludes rejected).
+              const canClaim =
+                playable && activePattern != null && !claimedCards.has(card.id);
+              // Celebrate the winning cartón when it's mine (the winner is public by label).
+              const isWinnerCard =
+                winner != null && card.label === winner.cardLabel;
               return (
-                <li key={card.id} className={cardClass("elevated", false) + " p-4"}>
+                <li
+                  key={card.id}
+                  className={
+                    cardClass("elevated", false) +
+                    " p-4" +
+                    (isWinnerCard ? " ring-2 ring-amber-400" : "")
+                  }
+                >
                   <BingoCardGrid
                     label={card.label}
                     numbers={card.numbers}
                     cols={bingo.format.cols}
                     marked={cardMarks}
                     markable={called}
-                    onToggle={
-                      status === "live"
-                        ? (n) => toggleMark(card.id, n)
-                        : undefined
-                    }
+                    onToggle={playable ? (n) => toggleMark(card.id, n) : undefined}
                   />
                   <div className="mt-3 flex flex-col gap-2">
-                    {status === "live" && winnable.length > 0 ? (
-                      winnable.map((p) => (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => claim(card, p)}
-                          disabled={busyKey === claimedKey(card.id, p)}
-                          className="btn btn-primary"
-                        >
-                          ¡Bingo! — {BINGO_PATTERN_LABELS[p]}
-                        </button>
-                      ))
-                    ) : (
-                      <ClaimStatus cardId={card.id} claims={myClaims} />
+                    {canClaim && (
+                      <button
+                        type="button"
+                        onClick={() => claim(card)}
+                        disabled={busyKey === card.id}
+                        className="btn btn-primary w-full"
+                      >
+                        ¡Bingo!
+                      </button>
                     )}
+                    {/* The outcome of this cartón's own claims (en revisión / ganador / rechazado);
+                        renders nothing until the player has filed one. Shown alongside the button so a
+                        rejected claim can be re-filed. */}
+                    <ClaimStatus cardId={card.id} claims={myClaims} />
                   </div>
                 </li>
               );
@@ -324,7 +396,9 @@ function ClaimStatus({
     <ul className="space-y-1 text-xs">
       {mine.map((c) => (
         <li key={c.id} className="text-muted">
-          {BINGO_PATTERN_LABELS[c.pattern]}:{" "}
+          {c.patternName ??
+            (c.pattern ? BINGO_PATTERN_LABELS[c.pattern] : "Bingo")}
+          :{" "}
           {c.status === "pending" ? (
             <span className="font-medium text-foreground">en revisión</span>
           ) : c.status === "confirmed" ? (

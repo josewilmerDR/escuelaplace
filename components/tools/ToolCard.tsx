@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ToolCardActions } from "@/components/tools/ToolCardActions";
 import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
-import { toolTypeMeta } from "@/lib/tools/registry";
+import { toolBuyHref, toolBuyLabel, toolTypeMeta } from "@/lib/tools/registry";
 import { toolContactPhone, toolWindowLabel } from "@/lib/firestore";
 import { buildWhatsAppLink } from "@/lib/contact";
 import { CARD_COVER_ASPECT } from "@/lib/layout";
@@ -34,6 +34,16 @@ export function ToolCard({
   const Icon = toolTypeMeta(tool.type).icon;
   const window = toolWindowLabel(tool);
   const detailHref = `/school/${tool.schoolId}/tool/${tool.id}`;
+  // Buyable kinds (rifa/bingo/venta) get an explicit "Comprar" CTA. Bingo (quantity only, no
+  // per-cartón pick) goes straight to the order/payment page; rifa/venta need their in-page
+  // selection first, so they jump to the detail page's buy section. Either destination re-checks
+  // the gating (verified school + availability). Other kinds show only "Consultar"/"Compartir".
+  const buyLabel = toolBuyLabel(tool.type);
+  const buyHref = toolBuyHref(tool.type, {
+    schoolId: tool.schoolId,
+    toolId: tool.id,
+    detailHref,
+  });
 
   // "Consultar" opens a prefilled chat on the tool's own contact, falling back to the board phone.
   // buildWhatsAppLink normalizes the number and returns null when it can't be dialed, so the button
@@ -84,7 +94,15 @@ export function ToolCard({
           <p className="line-clamp-2 text-sm text-muted">{tool.description}</p>
         )}
         {window && <p className="text-xs text-muted">{window}</p>}
-        <div className="relative z-10 mt-auto pt-1">
+        <div className="relative z-10 mt-auto flex flex-col gap-2 pt-1">
+          {buyLabel && buyHref && (
+            <Link
+              href={buyHref}
+              className="btn btn-primary w-full justify-center"
+            >
+              {buyLabel}
+            </Link>
+          )}
           <ToolCardActions
             whatsappUrl={whatsappUrl}
             sharePath={detailHref}

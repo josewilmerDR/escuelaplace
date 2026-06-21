@@ -336,7 +336,10 @@ service cloud.firestore {
             isSignedIn() &&
             request.resource.data.claimantId == request.auth.uid &&
             request.resource.data.status == 'pending' &&
-            request.resource.data.pattern in ['row', 'column', 'diagonal', 'full'] &&
+            request.resource.data.patternId is string &&
+            request.resource.data.patternId.size() <= 60 &&
+            request.resource.data.patternName is string &&
+            request.resource.data.patternName.size() <= 80 &&
             get(/databases/$(database)/documents/schools/$(id)/tools/$(toolId)/cards/$(request.resource.data.cardId)).data.ownerId == request.auth.uid
           );
           allow update: if isAdmin() || isOwnerOrEditor(schoolData(id));
@@ -344,6 +347,26 @@ service cloud.firestore {
             isOwnerOrEditor(schoolData(id)) ||
             (isSignedIn() && resource.data.claimantId == request.auth.uid);
         }
+      }
+
+      // Bingo custom-pattern catalog: schools/{id}/bingoPatterns/{patternId} — the school's
+      // reusable winning shapes ("formas de ganar") for its bingos. READ is public (the live
+      // pattern picker AND the public "forma de ganar" guide resolve them); WRITE is the school's
+      // owner/editors (or admin), shape-capped to a name + a cell list (1..25 cells of the fixed
+      // 5×5 grid). No money, no function-maintained signal — the anti-cheat truth is the frozen
+      // pattern snapshot on the event/claim, never this catalog.
+      match /bingoPatterns/{patternId} {
+        allow read: if true;
+        allow create, update: if isAdmin() || (
+          isOwnerOrEditor(schoolData(id)) &&
+          request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() <= 40 &&
+          request.resource.data.cells is list &&
+          request.resource.data.cells.size() >= 1 &&
+          request.resource.data.cells.size() <= 25
+        );
+        allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
       }
     }
 

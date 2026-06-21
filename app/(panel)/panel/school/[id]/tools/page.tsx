@@ -19,7 +19,6 @@ import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
 import { ToolTypeMenu } from "@/components/tools/ToolTypeMenu";
 import { Badge } from "@/components/ui/Badge";
 import { BackLink } from "@/components/ui/BackLink";
-import { SmartBackLink } from "@/components/ui/SmartBackLink";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { WrenchIcon } from "@/components/ui/icons";
@@ -41,15 +40,15 @@ const TOOL_GRID_SIZES = "(min-width: 1024px) 150px, (min-width: 640px) 30vw, 50v
 
 /**
  * Page heading, rendered identically in every state so the title never shifts. The back link
- * is the page's first element: it returns to wherever the board came from, falling back to the
- * school's public page. The cross-section nav (Actividad/Editar/Proyectos) is intentionally
- * not shown here — from a tool the board's expected move is back, not sideways.
+ * is the page's first element: it always returns to the school's public profile (not wherever
+ * the board happened to come from). The cross-section nav (Actividad/Editar/Proyectos) is
+ * intentionally not shown here — from a tool the board's expected move is back, not sideways.
  */
 function Heading({ schoolId, subtitle }: { schoolId: string; subtitle?: string }) {
   return (
     <>
       <p className="text-sm">
-        <SmartBackLink fallbackHref={`/school/${schoolId}`}>Volver</SmartBackLink>
+        <BackLink href={`/school/${schoolId}`}>Principal</BackLink>
       </p>
       <header className="mt-3">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
@@ -264,10 +263,6 @@ export default function SchoolToolsPage() {
           </ul>
         </section>
       )}
-
-      <p className="mt-8 text-sm">
-        <BackLink href="/panel">Volver al panel</BackLink>
-      </p>
     </main>
   );
 }

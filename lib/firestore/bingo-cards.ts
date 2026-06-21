@@ -49,7 +49,9 @@ function cardsCol(schoolId: string, toolId: string) {
 /**
  * Validate a card format. Returns a Spanish error message, or null when valid. A format is valid
  * when the grid is within bounds and the number pool is at least as large as the grid (so every
- * cell can hold a distinct number).
+ * cell can hold a distinct number). Note: `poolSize >= rows*cols` also guarantees that the
+ * even per-column split (see `columnRange`) leaves every column at least `rows` numbers, so a
+ * column can always be filled with distinct values.
  */
 export function bingoFormatError(format: BingoFormat): string | null {
   const { rows, cols, poolMin, poolMax } = format;
@@ -78,19 +80,43 @@ export function bingoFormatError(format: BingoFormat): string | null {
 }
 
 /**
- * One cartón's numbers: rows*cols DISTINCT values from [poolMin, poolMax], row-major. Uses a
- * partial Fisher–Yates shuffle over the pool. The caller must validate the format first
- * (bingoFormatError) so the pool is big enough.
+ * The `[lo, hi]` (inclusive) number range that column `col` (0-based) draws from — the classic
+ * B-I-N-G-O rule, where each column holds its own band of the pool (column 1 the lowest numbers,
+ * the last column the highest). The pool `[poolMin, poolMax]` is split into `cols` contiguous
+ * segments; any remainder is handed to the earliest columns. With the standard 5×5 / 0–75 bingo
+ * this yields 0–15, 16–30, 31–45, 46–60, 61–75. Assumes a format that passed `bingoFormatError`.
+ */
+export function columnRange(format: BingoFormat, col: number): [number, number] {
+  const poolSize = format.poolMax - format.poolMin + 1;
+  const base = Math.floor(poolSize / format.cols);
+  const remainder = poolSize % format.cols;
+  // Earliest `remainder` columns get one extra number; `Math.min(col, remainder)` is how many of
+  // those wider columns precede this one (their +1s shift this column's start up).
+  const lo = format.poolMin + col * base + Math.min(col, remainder);
+  const size = base + (col < remainder ? 1 : 0);
+  return [lo, lo + size - 1];
+}
+
+/**
+ * One cartón's numbers: each COLUMN holds `rows` DISTINCT values from its own range (see
+ * `columnRange` — the B-I-N-G-O bands), laid out row-major (index = row*cols + col). Uses a partial
+ * Fisher–Yates shuffle per column. The caller must validate the format first (bingoFormatError) so
+ * every column band is big enough.
  */
 export function randomCardNumbers(format: BingoFormat): number[] {
-  const size = format.rows * format.cols;
-  const pool: number[] = [];
-  for (let n = format.poolMin; n <= format.poolMax; n++) pool.push(n);
-  for (let i = 0; i < size && i < pool.length; i++) {
-    const j = i + Math.floor(Math.random() * (pool.length - i));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+  const { rows, cols } = format;
+  const numbers = new Array<number>(rows * cols);
+  for (let col = 0; col < cols; col++) {
+    const [lo, hi] = columnRange(format, col);
+    const band: number[] = [];
+    for (let n = lo; n <= hi; n++) band.push(n);
+    for (let i = 0; i < rows && i < band.length; i++) {
+      const j = i + Math.floor(Math.random() * (band.length - i));
+      [band[i], band[j]] = [band[j], band[i]];
+    }
+    for (let row = 0; row < rows; row++) numbers[row * cols + col] = band[row];
   }
-  return pool.slice(0, size);
+  return numbers;
 }
 
 export interface ParsedBingoCard {
@@ -143,12 +169,17 @@ export function parseImportedCards(
     }
     const numbers: number[] = [];
     const seen = new Set<number>();
-    for (const t of tokens) {
+    for (let pos = 0; pos < tokens.length; pos++) {
+      const t = tokens[pos];
       const n = Number(t);
-      if (!Number.isInteger(n) || n < format.poolMin || n > format.poolMax) {
+      // Each cell must fall in ITS column's band (B-I-N-G-O), not just the whole pool — so an
+      // imported cartón lines up with the generated ones. Column = position within the row.
+      const col = pos % format.cols;
+      const [lo, hi] = columnRange(format, col);
+      if (!Number.isInteger(n) || n < lo || n > hi) {
         return {
           ok: false,
-          error: `La línea ${i + 1} tiene un valor fuera de rango (${format.poolMin}–${format.poolMax}): «${t}».`,
+          error: `La línea ${i + 1}, columna ${col + 1}: «${t}» está fuera del rango de esa columna (${lo}–${hi}).`,
         };
       }
       if (seen.has(n)) {

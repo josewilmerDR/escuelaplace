@@ -31,11 +31,12 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type {
+  BingoActivePattern,
+  BingoActivePrize,
   BingoClaim,
   BingoClaimDoc,
   BingoClaimStatus,
   BingoEventState,
-  BingoPattern,
 } from "@/types";
 import { snapToList } from "./converters";
 
@@ -52,6 +53,58 @@ function claimsCol(schoolId: string, toolId: string) {
   return collection(db, SCHOOLS, schoolId, TOOLS, toolId, CLAIMS);
 }
 
+// ── activePattern (de)serialization ─────────────────────────────────────────────
+//
+// Firestore rejects ARRAYS OF ARRAYS, and a pattern's `arrangements` is number[][]. These two
+// helpers are the ONLY place that knows the wire shape: on the doc each arrangement rides as a
+// `{ cells }` map (an array of maps is allowed); the rest of the app keeps using number[][]. The
+// flat `preview` array needs no encoding.
+
+function encodeActivePattern(p: BingoActivePattern): Record<string, unknown> {
+  return {
+    id: p.id,
+    name: p.name,
+    arrangements: p.arrangements.map((cells) => ({ cells })),
+    preview: p.preview,
+    ...(p.caption ? { caption: p.caption } : {}),
+  };
+}
+
+function decodeActivePattern(raw: unknown): BingoActivePattern | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as {
+    id?: string;
+    name?: string;
+    arrangements?: unknown;
+    preview?: unknown;
+    caption?: string;
+  };
+  const arrangements = Array.isArray(p.arrangements)
+    ? p.arrangements.map((a) => {
+        const cells = (a as { cells?: unknown })?.cells;
+        return Array.isArray(cells) ? (cells as number[]) : [];
+      })
+    : [];
+  return {
+    id: p.id ?? "",
+    name: p.name ?? "",
+    arrangements,
+    preview: Array.isArray(p.preview) ? (p.preview as number[]) : [],
+    ...(p.caption ? { caption: p.caption } : {}),
+  };
+}
+
+/** Decode a raw event-state doc into BingoEventState (turning the wire activePattern back into
+ * number[][] arrangements). Legacy docs without activePattern decode to null. */
+function decodeEventState(data: Record<string, unknown>): BingoEventState {
+  return {
+    ...(data as unknown as BingoEventState),
+    activePattern: data.activePattern
+      ? decodeActivePattern(data.activePattern)
+      : null,
+  };
+}
+
 // ── Event state: reads + live subscription ─────────────────────────────────────
 
 /** One-shot read of the live-event state (null before the school first starts it). Public. */
@@ -60,7 +113,7 @@ export async function getBingoEventState(
   toolId: string,
 ): Promise<BingoEventState | null> {
   const snap = await getDoc(eventStateRef(schoolId, toolId));
-  return snap.exists() ? (snap.data() as BingoEventState) : null;
+  return snap.exists() ? decodeEventState(snap.data()) : null;
 }
 
 /**
@@ -74,24 +127,119 @@ export function subscribeBingoEventState(
 ): Unsubscribe {
   return onSnapshot(
     eventStateRef(schoolId, toolId),
-    (snap) => cb(snap.exists() ? (snap.data() as BingoEventState) : null),
+    (snap) => cb(snap.exists() ? decodeEventState(snap.data()) : null),
     () => cb(null),
   );
 }
 
 // ── Event state: writes (school owner/editor/admin only — enforced by rules) ────
 
-/** Start (or restart) the event: status 'live', a clean board, no awarded patterns yet. */
+/**
+ * Start (or restart) a round: status 'live', a clean board, the frozen `activePattern` snapshot
+ * (the "cómo ganar"), the round's single `activePrize` (one prize per round, minor → major), and a
+ * fresh `startedAt` that scopes the round. The director picks both in the picker BEFORE this fires.
+ * `setDoc` REPLACES the doc, so a restart naturally clears the previous round's `winner`/`reviewing`
+ * (set explicitly here for a clean shape).
+ */
 export async function startBingoEvent(
   schoolId: string,
   toolId: string,
+  active: BingoActivePattern,
+  prize: BingoActivePrize | null,
 ): Promise<void> {
-  await setDoc(eventStateRef(schoolId, toolId), {
+  const ref = eventStateRef(schoolId, toolId);
+  // Carry forward which prizes were already won THIS bingo so the picker can skip them — but RESET
+  // when the previous doc was 'closed' (that was the END of a bingo; this start is a brand-new one).
+  const prev = await getDoc(ref);
+  const awardedPrizes =
+    prev.exists() && prev.data().status !== "closed"
+      ? ((prev.data().awardedPrizes as string[] | undefined) ?? [])
+      : [];
+  await setDoc(ref, {
     status: "live",
     calledNumbers: [],
-    awardedPatterns: [],
+    activePattern: encodeActivePattern(active),
+    // null for legacy bingos with no configured prizes (the round still runs, just unlabeled).
+    activePrize: prize,
+    reviewing: false,
+    winner: null,
+    awardedPrizes,
     startedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Flag/unflag that a current-round "¡Bingo!" is pending the school's review. The console
+ * (owner/editor) writes this off the pending claims it already watches, so every PUBLIC watcher can
+ * show "alguien cantó — revisando" without reading the private claims. Idempotent.
+ */
+export async function setBingoReviewing(
+  schoolId: string,
+  toolId: string,
+  reviewing: boolean,
+): Promise<void> {
+  await updateDoc(eventStateRef(schoolId, toolId), {
+    reviewing,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Confirm a round's winning claim AND announce it publicly — ATOMICALLY, in one transaction over the
+ * claim doc + the event-state doc, so the two can never split (a confirmed claim with no public
+ * winner would leave players marking a decided round forever). The public winner carries the CARTÓN
+ * LABEL only, never a name. The prize is read from the event doc's AUTHORITATIVE `activePrize` (not a
+ * stale client snapshot), and the claim is verified to belong to the CURRENT round (defends against a
+ * mid-review restart). On the premio-mayor round (`activePrize.isGrand`) it also closes the whole
+ * bingo and clears the round so the terminal doc reads cleanly. The school's human verdict (called ∩
+ * cartón vs the round's pattern, shown in the queue) is the win check; this records that decision.
+ */
+export async function confirmBingoWinner(
+  schoolId: string,
+  toolId: string,
+  claimId: string,
+  confirmedBy: string,
+): Promise<void> {
+  const eventRef = eventStateRef(schoolId, toolId);
+  const claimRef = doc(db, SCHOOLS, schoolId, TOOLS, toolId, CLAIMS, claimId);
+  await runTransaction(db, async (tx) => {
+    const eventSnap = await tx.get(eventRef);
+    const claimSnap = await tx.get(claimRef);
+    if (!claimSnap.exists()) throw new Error("El reclamo ya no existe.");
+    if (!eventSnap.exists()) throw new Error("La ronda no está activa.");
+    const event = eventSnap.data();
+    const claim = claimSnap.data();
+    if (event.status !== "live") throw new Error("La ronda no está en vivo.");
+    const startedMs =
+      (event.startedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ??
+      0;
+    const claimMs =
+      (claim.createdAt as { toMillis?: () => number } | undefined)?.toMillis?.() ??
+      0;
+    // The claim must belong to the CURRENT round (a mid-review restart rolls startedAt forward).
+    if (claimMs < startedMs) {
+      throw new Error("La ronda cambió; el reclamo es de una ronda anterior.");
+    }
+    // The round's prize is read here from the doc — authoritative, never a stale client value.
+    const prize =
+      (event.activePrize as BingoActivePrize | null | undefined) ?? null;
+    const prizeLabel = prize?.label ?? "";
+    const isGrand = prize?.isGrand ?? false;
+    tx.update(claimRef, {
+      status: "confirmed",
+      resolvedAt: serverTimestamp(),
+      resolvedBy: confirmedBy,
+    });
+    tx.update(eventRef, {
+      winner: { cardLabel: (claim.cardLabel as string) ?? "", prizeLabel, isGrand },
+      reviewing: false,
+      ...(prizeLabel ? { awardedPrizes: arrayUnion(prizeLabel) } : {}),
+      ...(isGrand
+        ? { status: "closed", closedAt: serverTimestamp(), activePrize: null }
+        : {}),
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
@@ -128,18 +276,6 @@ export async function undoLastCalledNumber(
       calledNumbers: called.slice(0, -1),
       updatedAt: serverTimestamp(),
     });
-  });
-}
-
-/** Mark a pattern as awarded (its prize has been won) — closes it for further claims in the UI. */
-export async function awardBingoPattern(
-  schoolId: string,
-  toolId: string,
-  pattern: BingoPattern,
-): Promise<void> {
-  await updateDoc(eventStateRef(schoolId, toolId), {
-    awardedPatterns: arrayUnion(pattern),
-    updatedAt: serverTimestamp(),
   });
 }
 
@@ -200,14 +336,18 @@ export async function getMyBingoClaims(
 export interface CreateBingoClaimInput {
   cardId: string;
   cardLabel: string;
-  pattern: BingoPattern;
+  /** The round's pattern id + name, denormalized for the queue label. The win is re-validated by
+   * the school against the event's authoritative activePattern, NOT a claim-carried geometry. */
+  patternId: string;
+  patternName: string;
   claimantId: string;
   claimantName: string;
 }
 
 /**
  * File a "¡Bingo!" claim. The caller must own the cartón (rules check card.ownerId == auth.uid).
- * Returns the new claim id. The claim starts 'pending'; the school validates + resolves it.
+ * Returns the new claim id. The claim starts 'pending'; the school re-validates the win against the
+ * round's activePattern (called ∩ cartón) and confirms or rejects it.
  */
 export async function createBingoClaim(
   schoolId: string,
@@ -218,7 +358,8 @@ export async function createBingoClaim(
   await setDoc(ref, {
     cardId: input.cardId,
     cardLabel: input.cardLabel,
-    pattern: input.pattern,
+    patternId: input.patternId,
+    patternName: input.patternName,
     claimantId: input.claimantId,
     claimantName: input.claimantName,
     status: "pending",

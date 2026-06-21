@@ -36,6 +36,7 @@ import { safeExternalUrl } from "@/lib/url";
 import type {
   BingoConfig,
   BingoFormat,
+  BingoPrizes,
   BingoWinningPattern,
   EventConfig,
   ProjectCurrency,
@@ -50,7 +51,7 @@ import type {
   ToolType,
   TourConfig,
 } from "@/types";
-import { RAFFLE_NUMBER_COUNT } from "@/types";
+import { BINGO_PATTERNS, RAFFLE_NUMBER_COUNT } from "@/types";
 import { docToTyped, snapToList } from "./converters";
 
 const SCHOOLS = "schools";
@@ -337,8 +338,11 @@ function buildServiceConfig(input: ServiceConfigInput): ServiceConfig {
  * (lote) are NOT here; they live in a subcollection managed by lib/firestore/bingo-cards. */
 export interface BingoConfigInput {
   format: BingoFormat;
-  /** Enabled winning patterns (≥1), each with its prize. */
-  patterns: BingoWinningPattern[];
+  /** Prizes the school offers (premio mayor + optional 2nd/3rd + extras), already trimmed. */
+  prizes: BingoPrizes;
+  /** Enabled winning patterns (≥1), each with its prize. Optional: the board no longer sets
+   * these, so when omitted buildBingoConfig defaults to all shapes for the live event. */
+  patterns?: BingoWinningPattern[];
   pricePerCard: number;
   currency: ProjectCurrency;
   eventDate?: Date | null;
@@ -346,11 +350,19 @@ export interface BingoConfigInput {
   contactPhone?: string;
 }
 
+/** All winning shapes enabled, prize-less — the default the board gets now that prizes are no
+ * longer tied to a shape. The live event still reads these; the director will narrow them per
+ * round (deferred). */
+const DEFAULT_BINGO_PATTERNS: BingoWinningPattern[] = BINGO_PATTERNS.map(
+  (pattern) => ({ pattern, prize: "" }),
+);
+
 /**
  * Build the stored BingoConfig from form input. Drops empty optional fields (Firestore rejects
- * `undefined`): no event date / draw method / contact phone is omitted.
+ * `undefined`): no second/third prize, event date, draw method or contact phone is omitted.
  */
 function buildBingoConfig(input: BingoConfigInput): BingoConfig {
+  const { first, second, third, others } = input.prizes;
   return {
     format: {
       rows: input.format.rows,
@@ -358,7 +370,16 @@ function buildBingoConfig(input: BingoConfigInput): BingoConfig {
       poolMin: input.format.poolMin,
       poolMax: input.format.poolMax,
     },
-    patterns: input.patterns.map((p) => ({ pattern: p.pattern, prize: p.prize })),
+    prizes: {
+      first,
+      ...(second ? { second } : {}),
+      ...(third ? { third } : {}),
+      others,
+    },
+    patterns: (input.patterns ?? DEFAULT_BINGO_PATTERNS).map((p) => ({
+      pattern: p.pattern,
+      prize: p.prize,
+    })),
     pricePerCard: input.pricePerCard,
     currency: input.currency,
     ...(input.eventDate ? { eventDate: Timestamp.fromDate(input.eventDate) } : {}),

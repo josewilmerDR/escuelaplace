@@ -18,6 +18,7 @@ export * from "./product-orders";
 export * from "./bingo-cards";
 export * from "./bingo-orders";
 export * from "./bingo-event";
+export * from "./bingo-patterns-catalog";
 export * from "./donors";
 export * from "./reviews";
 export * from "./audit";

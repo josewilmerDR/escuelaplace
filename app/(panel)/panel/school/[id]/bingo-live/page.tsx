@@ -9,24 +9,34 @@
  * pattern?) — the anti-cheat check. The school decides: confirm (awards the pattern) or reject.
  * The system never auto-declares a winner. No money changes hands here; this is just the board.
  */
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { BingoCalledBoard } from "@/components/tools/BingoCalledBoard";
 import { BingoCardGrid } from "@/components/tools/BingoCardGrid";
+import { BingoPatternPicker } from "@/components/tools/BingoPatternPicker";
+import { BingoPatternPreview } from "@/components/tools/BingoPatternPreview";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
-import { cardSatisfiesPattern } from "@/lib/bingo-patterns";
+import { maskSatisfied, winningLineIndices } from "@/lib/bingo-patterns";
 import { userErrorMessage } from "@/lib/errors";
 import {
-  awardBingoPattern,
   callBingoNumber,
   closeBingoEvent,
+  confirmBingoWinner,
   getBingoCards,
   getSchoolById,
   getToolsBySchool,
   resolveBingoClaim,
+  setBingoReviewing,
   startBingoEvent,
   subscribeBingoClaims,
   subscribeBingoEventState,
@@ -34,6 +44,8 @@ import {
 } from "@/lib/firestore";
 import {
   BINGO_PATTERN_LABELS,
+  type BingoActivePattern,
+  type BingoActivePrize,
   type BingoCardDoc,
   type BingoClaimDoc,
   type BingoEventState,
@@ -212,7 +224,11 @@ function BingoConsole({
   const [claims, setClaims] = useState<BingoClaimDoc[]>([]);
   const [cardsById, setCardsById] = useState<Map<string, BingoCardDoc>>(new Map());
   const [busy, setBusy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Synchronous in-flight lock: `busy` (state) only disables buttons after the next commit, so a
+  // fast double-tap could fire an action twice before that. This drops the second tap immediately.
+  const inFlight = useRef(false);
 
   // Live subscriptions — the board and the claims queue update without a manual reload.
   useEffect(() => {
@@ -249,11 +265,52 @@ function BingoConsole({
     [state?.calledNumbers],
   );
   const lastCalled = state?.calledNumbers?.at(-1);
-  const awarded = new Set(state?.awardedPatterns ?? []);
   const status = state?.status ?? "idle";
-  const pendingClaims = claims.filter((c) => c.status === "pending");
+  // The round's frozen winning shape + the single prize it plays for (one prize per round, minor →
+  // major — the Costa Rica dynamic). Legacy live docs have neither; `winner` is the public result.
+  const activePattern = state?.activePattern ?? null;
+  const activePrize = state?.activePrize ?? null;
+  const winner = state?.winner ?? null;
+  // This round's claims only: scope by the event's startedAt so claims from earlier rounds (the
+  // claims subcollection persists across restarts) don't leak into the queue.
+  const roundStartMs = state?.startedAt?.toMillis?.() ?? 0;
+  const roundClaims = claims.filter(
+    (c) => (c.createdAt?.toMillis?.() ?? 0) >= roundStartMs,
+  );
+  // One prize per round → the round has at most ONE winner: the first confirmed claim. Once it
+  // exists the round is decided and the rest of the queue is moot.
+  const roundWinnerClaim =
+    roundClaims.find((c) => c.status === "confirmed") ?? null;
+  // Pending claims to review (one entry per cartón) — only meaningful before the round is won.
+  const pendingClaims = (() => {
+    const seen = new Set<string>();
+    const out: BingoClaimDoc[] = [];
+    for (const c of roundClaims) {
+      if (c.status !== "pending") continue;
+      if (seen.has(c.cardId)) continue;
+      seen.add(c.cardId);
+      out.push(c);
+    }
+    return out;
+  })();
+  // The per-round modalidades are defined on the fixed 5×5 grid, so a live round only makes sense on
+  // a 5×5 cartón (legacy bingos may be other sizes).
+  const isStandardGrid = bingo.format.rows === 5 && bingo.format.cols === 5;
+
+  // Reflect "a claim is under review" onto the PUBLIC event state so every watcher can show "alguien
+  // cantó — revisando" (they can't read the private claims). Only while live and not yet won; guarded
+  // so it writes only on change (no write loop).
+  const shouldReview =
+    status === "live" && !roundWinnerClaim && pendingClaims.length > 0;
+  useEffect(() => {
+    if (status !== "live") return;
+    if ((state?.reviewing ?? false) === shouldReview) return;
+    setBingoReviewing(schoolId, toolId, shouldReview).catch(() => {});
+  }, [shouldReview, status, state?.reviewing, schoolId, toolId]);
 
   const run = async (op: () => Promise<void>) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -261,6 +318,7 @@ function BingoConsole({
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo completar la acción."));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
@@ -280,11 +338,24 @@ function BingoConsole({
     resolution: "confirmed" | "rejected",
   ) =>
     run(async () => {
-      await resolveBingoClaim(schoolId, toolId, claim.id, resolution, confirmedBy);
       if (resolution === "confirmed") {
-        await awardBingoPattern(schoolId, toolId, claim.pattern);
+        // Confirm + announce the winner ATOMICALLY (one transaction): ends the round, and closes the
+        // bingo if this was the premio-mayor round. The prize is read authoritatively inside the tx,
+        // so it can't desync from the claim or use a stale snapshot.
+        await confirmBingoWinner(schoolId, toolId, claim.id, confirmedBy);
+      } else {
+        await resolveBingoClaim(schoolId, toolId, claim.id, "rejected", confirmedBy);
       }
     });
+
+  // Start/restart a round with the prize + pattern the director chose in the picker.
+  const onStartRound = (
+    active: BingoActivePattern,
+    prize: BingoActivePrize | null,
+  ) => {
+    setPickerOpen(false);
+    run(() => startBingoEvent(schoolId, toolId, active, prize));
+  };
 
   return (
     <section className="mt-8 flex flex-col gap-6">
@@ -303,7 +374,7 @@ function BingoConsole({
           </p>
         </div>
         <button type="button" onClick={onBack} className="btn btn-outline">
-          Cambiar bingo
+          Salir del en vivo
         </button>
       </div>
 
@@ -313,34 +384,79 @@ function BingoConsole({
         </p>
       )}
 
-      {/* Lifecycle controls */}
-      <div className="flex flex-wrap gap-2">
-        {status !== "live" ? (
-          <button
-            type="button"
-            onClick={() => run(() => startBingoEvent(schoolId, toolId))}
-            disabled={busy}
-            className="btn btn-primary"
-          >
-            {status === "closed" ? "Reiniciar bingo" : "Iniciar bingo"}
-          </button>
-        ) : (
+      {!isStandardGrid && (
+        <p className="rounded-xl bg-surface p-3 text-sm text-muted ring-1 ring-black/5">
+          El bingo en vivo con modalidades por ronda requiere un cartón de 5×5. Este
+          bingo usa {bingo.format.rows}×{bingo.format.cols}; no se puede iniciar.
+        </p>
+      )}
+
+      {/* Lifecycle + round outcome. One prize per round: a confirmed winner ends the round (the
+          premio-mayor round ends the whole bingo). */}
+      <div className="flex flex-col gap-3">
+        {status === "live" && roundWinnerClaim ? (
+          activePrize?.isGrand ? (
+            // Premio-mayor round won → the bingo is ending (the confirm tx flips status to 'closed').
+            // No "próxima ronda": there isn't one.
+            <p className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10">
+              🏆 ¡El cartón #{roundWinnerClaim.cardLabel} ganó el premio mayor! El
+              bingo terminó.
+            </p>
+          ) : (
+            <>
+              <p className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10">
+                🎉 Ronda ganada por el cartón #{roundWinnerClaim.cardLabel}
+                {activePrize ? ` — ${activePrize.label}` : ""}.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  disabled={busy || !isStandardGrid}
+                  className="btn btn-primary"
+                >
+                  Iniciar próxima ronda
+                </button>
+                <button
+                  type="button"
+                  onClick={() => run(() => closeBingoEvent(schoolId, toolId))}
+                  disabled={busy}
+                  className="btn btn-outline"
+                >
+                  Cerrar bingo
+                </button>
+              </div>
+            </>
+          )
+        ) : status === "live" ? (
           <button
             type="button"
             onClick={() => run(() => closeBingoEvent(schoolId, toolId))}
             disabled={busy}
-            className="btn btn-outline"
+            className="btn btn-outline self-start"
           >
             Cerrar bingo
           </button>
+        ) : (
+          <>
+            {status === "closed" && (
+              <p className="rounded-xl bg-surface p-3 text-sm text-muted ring-1 ring-black/5">
+                {winner?.isGrand
+                  ? `🏆 El bingo terminó: el premio mayor lo ganó el cartón #${winner.cardLabel}. Reiniciá para jugar otro bingo (se limpia el tablero).`
+                  : "Bingo cerrado. Reiniciá para jugar otra ronda (se limpia el tablero)."}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              disabled={busy || !isStandardGrid}
+              className="btn btn-primary self-start"
+            >
+              {status === "closed" ? "Reiniciar bingo" : "Iniciar bingo"}
+            </button>
+          </>
         )}
       </div>
-
-      {status === "closed" && (
-        <p className="rounded-xl bg-surface p-3 text-sm text-muted ring-1 ring-black/5">
-          Este bingo está cerrado. Reiniciá para jugar otra ronda (se limpia el tablero).
-        </p>
-      )}
 
       {/* The board */}
       <div className={cardClass("inset")}>
@@ -382,35 +498,44 @@ function BingoConsole({
         )}
       </div>
 
-      {/* Awarded patterns */}
-      <div className={cardClass("inset")}>
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">
-          Premios
-        </h3>
-        <ul className="mt-2 space-y-1 text-sm">
-          {bingo.patterns.map((p) => (
-            <li key={p.pattern} className="flex items-center justify-between gap-2">
-              <span>
-                <span className="font-medium text-foreground">
-                  {BINGO_PATTERN_LABELS[p.pattern]}:
-                </span>{" "}
-                <span className="text-muted">{p.prize}</span>
+      {/* The round in play: its single prize + winning shape (what players also see). */}
+      {status === "live" && (activePrize || activePattern) && (
+        <div className={cardClass("inset")}>
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">
+            Ronda actual
+          </h3>
+          {activePrize && (
+            <p className="mt-1 text-sm">
+              <span className="text-muted">Premio:</span>{" "}
+              <span className="font-medium text-foreground">
+                {activePrize.label}
               </span>
-              {awarded.has(p.pattern) && (
-                <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                  Entregado
-                </span>
+              {activePrize.isGrand && (
+                <span className="text-muted"> · premio mayor (última ronda)</span>
               )}
-            </li>
-          ))}
-        </ul>
-      </div>
+            </p>
+          )}
+          {activePattern && (
+            <div className="mt-3 flex items-center gap-4">
+              <BingoPatternPreview
+                cells={activePattern.preview}
+                caption={activePattern.caption}
+                ariaLabel={activePattern.name}
+              />
+              <p className="text-sm font-medium text-foreground">
+                {activePattern.name}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Claims queue */}
-      <div>
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">
-          Reclamos pendientes ({pendingClaims.length})
-        </h3>
+      {/* Claims queue — only while the round is live and not yet decided (one prize per round). */}
+      {status === "live" && !roundWinnerClaim && (
+        <div>
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">
+            Reclamos pendientes ({pendingClaims.length})
+          </h3>
         {pendingClaims.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
             Sin reclamos por ahora. Aparecen acá cuando alguien canta «¡Bingo!».
@@ -419,10 +544,14 @@ function BingoConsole({
           <ul className="mt-3 flex flex-col gap-3">
             {pendingClaims.map((claim) => {
               const card = cardsById.get(claim.cardId);
-              // The anti-cheat verdict: does called ∩ cartón actually complete the claimed pattern?
-              const valid = card
-                ? cardSatisfiesPattern(card.numbers, bingo.format, claim.pattern, called)
-                : null;
+              // The anti-cheat verdict validates against the ROUND's authoritative pattern (the
+              // school set it via the picker) — NOT the player-supplied claim.arrangements, which a
+              // tampered client could forge to look winning. Legacy claims (no activePattern) fall
+              // back to their enum geometry.
+              const truth =
+                activePattern?.arrangements ??
+                (claim.pattern ? winningLineIndices(bingo.format, claim.pattern) : []);
+              const valid = card ? maskSatisfied(card.numbers, truth, called) : null;
               return (
                 <li
                   key={claim.id}
@@ -434,7 +563,13 @@ function BingoConsole({
                         {claim.claimantName} · cartón #{claim.cardLabel}
                       </p>
                       <p className="text-sm text-muted">
-                        Canta «{BINGO_PATTERN_LABELS[claim.pattern]}»
+                        Canta «
+                        {activePattern?.name ??
+                          claim.patternName ??
+                          (claim.pattern
+                            ? BINGO_PATTERN_LABELS[claim.pattern]
+                            : "Bingo")}
+                        »
                       </p>
                       {valid === true && (
                         <p className="mt-1 text-xs font-medium text-success">
@@ -472,7 +607,9 @@ function BingoConsole({
                       disabled={busy}
                       className="btn btn-primary"
                     >
-                      Confirmar ganador
+                      {activePrize?.isGrand
+                        ? "Confirmar ganador y cerrar bingo"
+                        : "Confirmar ganador"}
                     </button>
                     <button
                       type="button"
@@ -487,8 +624,24 @@ function BingoConsole({
               );
             })}
           </ul>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+
+      {pickerOpen && (
+        <BingoPatternPicker
+          open
+          onClose={() => setPickerOpen(false)}
+          onStart={onStartRound}
+          prizes={bingo.prizes}
+          // Prizes already won THIS bingo (so the picker skips them). Empty when starting a brand-new
+          // bingo (idle/closed) — a fresh bingo re-offers every prize.
+          awardedPrizes={status === "live" ? (state?.awardedPrizes ?? []) : []}
+          schoolId={schoolId}
+          createdBy={confirmedBy}
+          reopening={status === "closed"}
+        />
+      )}
     </section>
   );
 }

@@ -156,6 +156,13 @@ export function BingoCardsManager({
         </p>
       </div>
 
+      {!loading && total === 0 && (
+        <p className="rounded-xl bg-brand-tint p-3 text-sm text-brand-darker ring-1 ring-brand-darker/10">
+          Generá (o importá) el lote de cartones para habilitar la compra: sin cartones,
+          el público no puede comprar este bingo.
+        </p>
+      )}
+
       {/* Generate */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <Field label="Generar cartones (aleatorios)">
@@ -195,7 +202,7 @@ export function BingoCardsManager({
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
               className="input font-mono text-xs"
-              placeholder={`Un cartón por línea (${format.rows * format.cols} números separados por coma o espacio).\nOpcional: un identificador y dos puntos al inicio.\nEj.: 001: 5, 12, 33, ...`}
+              placeholder={`Un cartón por línea (${format.rows * format.cols} números separados por coma o espacio).\nCada columna usa su propio rango (col. 1: ${format.poolMin}–…, como el bingo tradicional).\nOpcional: un identificador y dos puntos al inicio.\nEj.: 001: 5, 12, 33, ...`}
             />
             <button
               type="button"

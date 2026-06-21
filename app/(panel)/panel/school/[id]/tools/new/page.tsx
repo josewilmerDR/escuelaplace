@@ -393,7 +393,7 @@ function NewToolContent() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="input"
-            placeholder="Ej.: Rifa pro fondos para la gira"
+            placeholder={toolTypeMeta(type).titlePlaceholder}
           />
         </Field>
         <Field label="Descripción">
@@ -463,7 +463,7 @@ function NewToolContent() {
             <p className="mb-3 text-sm font-semibold text-foreground">
               Configuración del bingo
             </p>
-            <BingoConfigFields value={bingoForm} onChange={setBingoForm} />
+            <BingoConfigFields value={bingoForm} onChange={setBingoForm} hideFormat />
           </div>
         )}
 
