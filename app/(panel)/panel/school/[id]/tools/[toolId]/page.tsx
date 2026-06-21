@@ -44,6 +44,7 @@ import { newProductId } from "@/components/tools/SaleProductsEditor";
 import { newServiceId } from "@/components/tools/ServiceItemsEditor";
 import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
+import { toolTypeMeta } from "@/lib/tools/registry";
 import { BackLink } from "@/components/ui/BackLink";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
@@ -1061,7 +1062,7 @@ export default function EditToolPage() {
           />
         </div>
 
-        <Field label="Título">
+        <Field label={toolTypeMeta(type).titleLabel}>
           <input
             type="text"
             required

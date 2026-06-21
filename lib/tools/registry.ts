@@ -30,6 +30,9 @@ export interface ToolTypeMeta {
   pluralLabel: string;
   /** One-line helper shown under the picker so the board knows what each kind is for. */
   hint: string;
+  /** Label for the create/edit form's title field, phrased for this kind. Most kinds keep the
+   * generic "Título"; the product catalog reads better as "Nombre del producto". */
+  titleLabel: string;
   /** Example title shown as the create form's placeholder, phrased for this kind. */
   titlePlaceholder: string;
   /** Icon used as the card's image fallback and the badge mark. */
@@ -42,6 +45,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
     label: "Rifa",
     pluralLabel: "Rifas",
     hint: "Sorteo de un premio entre quienes participan.",
+    titleLabel: "Título",
     titlePlaceholder: "Ej.: Rifa pro fondos para la gira",
     icon: TicketIcon,
   },
@@ -50,6 +54,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
     label: "Bingo",
     pluralLabel: "Bingos",
     hint: "Juego de cartones para recaudar fondos.",
+    titleLabel: "Título",
     titlePlaceholder: "Ej.: Bingo familiar pro fondos para la gira",
     icon: GridIcon,
   },
@@ -58,7 +63,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
     label: "Productos",
     pluralLabel: "Productos",
     hint: "Catálogo de productos a la venta (comida, artículos…).",
-    titlePlaceholder: "Ej.: Venta de comidas para la kermés",
+    titleLabel: "Nombre del producto",
+    titlePlaceholder: "Ej.: Huevos de la granja de la escuela",
     icon: ShoppingBagIcon,
   },
   service: {
@@ -66,6 +72,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
     label: "Servicios",
     pluralLabel: "Servicios",
     hint: "Catálogo de servicios que ofrece la comunidad escolar.",
+    titleLabel: "Título",
     titlePlaceholder: "Ej.: Clases de repaso de la comunidad escolar",
     icon: WrenchIcon,
   },
@@ -74,6 +81,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
     label: "Visita guiada",
     pluralLabel: "Visitas guiadas",
     hint: "Un recorrido o visita abierta a la comunidad.",
+    titleLabel: "Título",
     titlePlaceholder: "Ej.: Visita guiada a la huerta escolar",
     icon: MapPinIcon,
   },
@@ -82,6 +90,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
     label: "Evento",
     pluralLabel: "Eventos",
     hint: "Una actividad puntual con fecha (feria, acto, kermés…).",
+    titleLabel: "Título",
     titlePlaceholder: "Ej.: Feria de fin de año",
     icon: CalendarIcon,
   },
@@ -90,6 +99,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
     label: "Otro",
     pluralLabel: "Otras herramientas",
     hint: "Cualquier otra actividad puntual.",
+    titleLabel: "Título",
     titlePlaceholder: "Ej.: Actividad pro fondos para la gira",
     icon: SparklesIcon,
   },

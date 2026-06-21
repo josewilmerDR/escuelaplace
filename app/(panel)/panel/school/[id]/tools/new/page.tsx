@@ -392,8 +392,15 @@ function NewToolContent() {
       return;
     }
     const tour = tourResult?.ok ? tourResult.input : undefined;
-    // A product catalog carries its products (text + price + the media already uploaded per item).
-    const saleResult = type === "sale" ? toSaleInput(saleForm) : null;
+    // A "Productos" tool is a single product: its name/description are the tool's own
+    // title/description (the top-level fields); the editor adds price + currency + media + contact.
+    const saleResult =
+      type === "sale"
+        ? toSaleInput(saleForm, {
+            name: trimmedTitle,
+            description: description.trim(),
+          })
+        : null;
     if (saleResult && !saleResult.ok) {
       setError(saleResult.error);
       return;
@@ -510,7 +517,7 @@ function NewToolContent() {
         onInputCapture={clearValidationMessage}
         className="mt-8 flex flex-col gap-4"
       >
-        <Field label="Título">
+        <Field label={toolTypeMeta(type).titleLabel}>
           <input
             type="text"
             required
@@ -558,7 +565,7 @@ function NewToolContent() {
         {type === "sale" && (
           <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
             <p className="mb-3 text-sm font-semibold text-foreground">
-              Productos del catálogo
+              Detalles del producto
             </p>
             <SaleProductsEditor
               value={saleForm}
