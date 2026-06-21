@@ -62,7 +62,7 @@ import { FormError } from "@/components/ui/FormError";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
-import { TOOL_TYPE_LIST, toolTypeMeta } from "@/lib/tools/registry";
+import { TOOL_TYPE_LIST, createToolTitle, toolTypeMeta } from "@/lib/tools/registry";
 import {
   copyDeckToTool,
   createTool,
@@ -95,17 +95,6 @@ function initialType(typeParam: string | null): ToolType {
 }
 
 /**
- * Page title for the kind being created — "Crear rifa", "Crear bingo"… — so the heading and
- * the submit button name the actual tool, not a generic "herramienta". Built from the registry
- * label (the single source of truth); the catch-all "Otro" kind keeps the generic wording.
- */
-function createToolTitle(type: ToolType): string {
-  return type === "other"
-    ? "Crear herramienta"
-    : `Crear ${toolTypeMeta(type).label.toLowerCase()}`;
-}
-
-/**
  * Loading shell — the static heading plus a skeleton, used by BOTH the Suspense fallback
  * (NewToolContent reads useSearchParams, which needs a boundary) and the in-component
  * `loading` state, so the two are pixel-identical and navigating here never flashes blank.
@@ -115,13 +104,22 @@ function createToolTitle(type: ToolType): string {
 function NewToolSkeleton({
   schoolId,
   title,
+  backHref,
+  backLabel,
 }: {
   schoolId: string;
   title?: string;
+  backHref?: string;
+  backLabel?: string;
 }) {
   return (
     <main>
-      <Heading schoolId={schoolId} title={title} />
+      <Heading
+        schoolId={schoolId}
+        title={title}
+        backHref={backHref}
+        backLabel={backLabel}
+      />
       <div
         className="mt-8 h-64 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5"
         aria-hidden="true"
@@ -134,21 +132,26 @@ function NewToolSkeleton({
 }
 
 /** Page heading. The title names the kind being created ("Crear rifa"…); it falls back to the
- * generic wording only for the brief, kind-unaware Suspense fallback. */
+ * generic wording only for the brief, kind-unaware Suspense fallback. The back link returns to
+ * the kind's manage page once the kind is known, falling back to the tools hub in that fallback. */
 function Heading({
   schoolId,
   title = "Crear una herramienta",
   subtitle,
+  backHref,
+  backLabel,
 }: {
   schoolId: string;
   title?: string;
   subtitle?: string;
+  backHref?: string;
+  backLabel?: string;
 }) {
   return (
     <>
       <p className="text-sm">
-        <BackLink href={`/panel/school/${schoolId}/tools`}>
-          Volver a herramientas
+        <BackLink href={backHref ?? `/panel/school/${schoolId}/tools`}>
+          {backLabel ?? "Volver a herramientas"}
         </BackLink>
       </p>
       <header className="mt-3">
@@ -187,6 +190,10 @@ function NewToolContent() {
   const [type] = useState<ToolType>(() => initialType(typeParam));
   // The kind-specific page title, reused by the heading (every state) and the submit button.
   const heading = createToolTitle(type);
+  // Back link target: the kind's manage page (where this form's result lands), so "back" and the
+  // post-create redirect agree. The kind-unaware Suspense fallback keeps the hub default.
+  const backHref = `/panel/school/${id}/tools/manage/${type}`;
+  const backLabel = `Volver a ${toolTypeMeta(type).pluralLabel}`;
 
   // The tool's id, pre-allocated once (newToolId is pure ref construction, no write) so the
   // per-item media (a product/service/stage photo or video, the event gallery) can upload to the
@@ -293,13 +300,25 @@ function NewToolContent() {
   };
 
   if (loadState === "loading") {
-    return <NewToolSkeleton schoolId={id} title={heading} />;
+    return (
+      <NewToolSkeleton
+        schoolId={id}
+        title={heading}
+        backHref={backHref}
+        backLabel={backLabel}
+      />
+    );
   }
 
   if (loadState === "error") {
     return (
       <main>
-        <Heading schoolId={id} title={heading} />
+        <Heading
+          schoolId={id}
+          title={heading}
+          backHref={backHref}
+          backLabel={backLabel}
+        />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar la escuela. Revisá tu conexión e intentá de nuevo.
         </p>
@@ -313,7 +332,12 @@ function NewToolContent() {
   if (!school) {
     return (
       <main>
-        <Heading schoolId={id} title={heading} />
+        <Heading
+          schoolId={id}
+          title={heading}
+          backHref={backHref}
+          backLabel={backLabel}
+        />
         <p className="mt-4 text-sm text-muted">Escuela no encontrada.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -331,7 +355,13 @@ function NewToolContent() {
   if (!isManager) {
     return (
       <main>
-        <Heading schoolId={id} title={heading} subtitle={school.name} />
+        <Heading
+          schoolId={id}
+          title={heading}
+          subtitle={school.name}
+          backHref={backHref}
+          backLabel={backLabel}
+        />
         <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -445,8 +475,8 @@ function NewToolContent() {
       // When a bingo is created from a deck, copy the deck's cartones into the new bingo's lote and
       // land on the edit page so the board sees the populated lote. Best-effort, like the cover: the
       // bingo already exists, so a failed copy must neither block the flow nor risk a duplicate lote
-      // on a form retry — the board can generate/import from the edit page. No deck → the documented
-      // return to the hub, where the bingo (with cartones still pending) now appears.
+      // on a form retry — the board can generate/import from the edit page. Every other kind falls
+      // through to the kind's manage page, where the just-created tool now appears in the list.
       if (type === "bingo" && selectedDeckId) {
         try {
           await copyDeckToTool(id, selectedDeckId, toolId);
@@ -456,7 +486,8 @@ function NewToolContent() {
         router.push(`/panel/school/${id}/tools/${toolId}`);
         return;
       }
-      router.push(`/panel/school/${id}/tools`);
+      // Land on the kind's manage page, where the just-created tool now appears in the list.
+      router.push(`/panel/school/${id}/tools/manage/${type}`);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo crear la herramienta."));
       setSaving(false);
@@ -465,7 +496,13 @@ function NewToolContent() {
 
   return (
     <main>
-      <Heading schoolId={id} title={heading} subtitle={school.name} />
+      <Heading
+        schoolId={id}
+        title={heading}
+        subtitle={school.name}
+        backHref={backHref}
+        backLabel={backLabel}
+      />
 
       <form
         onSubmit={onCreate}

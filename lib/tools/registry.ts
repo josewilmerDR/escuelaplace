@@ -24,6 +24,10 @@ export interface ToolTypeMeta {
   key: ToolType;
   /** Spanish label shown on the card badge, the editor picker and the panel list. */
   label: string;
+  /** Plural label, for the per-kind manage page heading ("Rifas", "Visitas guiadas"…). Spanish
+   * plurals aren't derivable from `label` (some labels are already plural, "Otro" → "Otras
+   * herramientas"), so each kind spells out its own. */
+  pluralLabel: string;
   /** One-line helper shown under the picker so the board knows what each kind is for. */
   hint: string;
   /** Example title shown as the create form's placeholder, phrased for this kind. */
@@ -36,6 +40,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
   raffle: {
     key: "raffle",
     label: "Rifa",
+    pluralLabel: "Rifas",
     hint: "Sorteo de un premio entre quienes participan.",
     titlePlaceholder: "Ej.: Rifa pro fondos para la gira",
     icon: TicketIcon,
@@ -43,6 +48,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
   bingo: {
     key: "bingo",
     label: "Bingo",
+    pluralLabel: "Bingos",
     hint: "Juego de cartones para recaudar fondos.",
     titlePlaceholder: "Ej.: Bingo familiar pro fondos para la gira",
     icon: GridIcon,
@@ -50,6 +56,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
   sale: {
     key: "sale",
     label: "Productos",
+    pluralLabel: "Productos",
     hint: "Catálogo de productos a la venta (comida, artículos…).",
     titlePlaceholder: "Ej.: Venta de comidas para la kermés",
     icon: ShoppingBagIcon,
@@ -57,6 +64,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
   service: {
     key: "service",
     label: "Servicios",
+    pluralLabel: "Servicios",
     hint: "Catálogo de servicios que ofrece la comunidad escolar.",
     titlePlaceholder: "Ej.: Clases de repaso de la comunidad escolar",
     icon: WrenchIcon,
@@ -64,6 +72,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
   guided_tour: {
     key: "guided_tour",
     label: "Visita guiada",
+    pluralLabel: "Visitas guiadas",
     hint: "Un recorrido o visita abierta a la comunidad.",
     titlePlaceholder: "Ej.: Visita guiada a la huerta escolar",
     icon: MapPinIcon,
@@ -71,6 +80,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
   event: {
     key: "event",
     label: "Evento",
+    pluralLabel: "Eventos",
     hint: "Una actividad puntual con fecha (feria, acto, kermés…).",
     titlePlaceholder: "Ej.: Feria de fin de año",
     icon: CalendarIcon,
@@ -78,6 +88,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
   other: {
     key: "other",
     label: "Otro",
+    pluralLabel: "Otras herramientas",
     hint: "Cualquier otra actividad puntual.",
     titlePlaceholder: "Ej.: Actividad pro fondos para la gira",
     icon: SparklesIcon,
@@ -90,6 +101,18 @@ export const TOOL_TYPE_LIST: ToolTypeMeta[] = Object.values(META);
 /** Presentation for a stored type, falling back to "Otro" for unknown/legacy values. */
 export function toolTypeMeta(type: ToolType | string): ToolTypeMeta {
   return META[type as ToolType] ?? META.other;
+}
+
+/**
+ * Page title / button label for creating a kind — "Crear rifa", "Crear bingo"… — built from the
+ * registry label (the single source of truth). The catch-all "Otro" kind keeps the generic
+ * wording ("Crear herramienta") rather than the awkward "Crear otro". Shared by the creation page
+ * heading/submit button and the per-kind manage page's "Crear" CTA.
+ */
+export function createToolTitle(type: ToolType): string {
+  return type === "other"
+    ? "Crear herramienta"
+    : `Crear ${toolTypeMeta(type).label.toLowerCase()}`;
 }
 
 /**
