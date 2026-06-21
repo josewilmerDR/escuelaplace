@@ -385,11 +385,6 @@ export function BingoConfigFields({
           </span>
         </label>
       </div>
-
-      <p className="text-xs text-muted">
-        Después de crear el bingo, generá o importá los cartones desde la página de
-        edición. El público compra cartones y vos confirmás cada pago.
-      </p>
     </div>
   );
 }
