@@ -1523,6 +1523,107 @@ describe("bingoOrders — create when verified, school-only confirm + assign", (
   });
 });
 
+describe("order shared invariants (raffle/product/bingo, P1-b)", () => {
+  // The three buyable kinds share ONE rules skeleton (orderCreateGate / validOrderUpdateFields /
+  // orderUpdateActor / orderPrivate*). These assert the cross-cutting money-boundary invariants on
+  // EACH kind so the shared logic can't silently regress for one of them — the verified-school
+  // create gate and the "no money on the public doc" rule (#5).
+  const KINDS: { name: string; order: (over?: Record<string, unknown>) => Record<string, unknown> }[] = [
+    {
+      name: "raffleOrders",
+      order: (over = {}) => ({
+        schoolId: "sch1", schoolName: "Escuela", toolId: "tool1", toolTitle: "Rifa",
+        buyerId: "dana", numbers: [1, 2], currency: "CRC",
+        status: "pending", confirmedAt: null, ...over,
+      }),
+    },
+    {
+      name: "productOrders",
+      order: (over = {}) => ({
+        schoolId: "sch1", schoolName: "Escuela", toolId: "tool1", toolTitle: "Productos",
+        buyerId: "dana", productId: "p1", productName: "Huevos", quantity: 2, currency: "CRC",
+        status: "pending", confirmedAt: null, ...over,
+      }),
+    },
+    {
+      name: "bingoOrders",
+      order: (over = {}) => ({
+        schoolId: "sch1", schoolName: "Escuela", toolId: "tool1", toolTitle: "Bingo",
+        buyerId: "dana", quantity: 3, currency: "CRC",
+        status: "pending", confirmedAt: null, ...over,
+      }),
+    },
+  ];
+
+  const seedSchool = (over: Record<string, unknown>) =>
+    seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("bob", over)));
+  const VERIFIED = { verified: true, verificationStatus: "verified" };
+
+  for (const k of KINDS) {
+    describe(k.name, () => {
+      it("DENIES create when the school is NOT verified (shared verified gate)", async () => {
+        await seedSchool({});
+        await assertFails(addDoc(collection(asUser("dana"), k.name), k.order()));
+      });
+
+      it("DENIES create that puts money on the public doc (amount / buyerName)", async () => {
+        await seedSchool(VERIFIED);
+        await assertFails(
+          addDoc(collection(asUser("dana"), k.name), k.order({ amount: 5000 })),
+        );
+        await assertFails(
+          addDoc(collection(asUser("dana"), k.name), k.order({ buyerName: "Dana" })),
+        );
+      });
+
+      it("DENIES create forced to a non-pending / pre-confirmed state", async () => {
+        await seedSchool(VERIFIED);
+        await assertFails(
+          addDoc(collection(asUser("dana"), k.name), k.order({ status: "confirmed" })),
+        );
+        await assertFails(
+          addDoc(collection(asUser("dana"), k.name), k.order({ confirmedAt: new Date() })),
+        );
+      });
+
+      it("DENIES the buyer self-confirming; ALLOWS the target school to confirm", async () => {
+        await seed(async (db) => {
+          await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob", VERIFIED));
+          await setDoc(doc(db, k.name, "o1"), k.order());
+        });
+        await assertFails(
+          updateDoc(doc(asUser("dana"), k.name, "o1"), {
+            status: "confirmed", confirmedAt: new Date(), confirmedBy: "dana", updatedAt: new Date(),
+          }),
+        );
+        await assertSucceeds(
+          updateDoc(doc(asUser("bob"), k.name, "o1"), {
+            status: "confirmed", confirmedAt: new Date(), confirmedBy: "bob", updatedAt: new Date(),
+          }),
+        );
+      });
+
+      it("private name+amount: buyer writes, target school reads, stranger denied", async () => {
+        await seed(async (db) => {
+          await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob", VERIFIED));
+          await setDoc(doc(db, k.name, "o1"), k.order());
+        });
+        await assertSucceeds(
+          setDoc(doc(asUser("dana"), k.name, "o1", "private", "data"), {
+            buyerName: "Dana", amount: 4500,
+          }),
+        );
+        await assertSucceeds(
+          getDoc(doc(asUser("bob"), k.name, "o1", "private", "data")),
+        );
+        await assertFails(
+          getDoc(doc(asUser("mallory"), k.name, "o1", "private", "data")),
+        );
+      });
+    });
+  }
+});
+
 // ── bingo live event (state) + claims ────────────────────────────────────────
 describe("bingo live event state — public read, school-only write", () => {
   beforeEach(async () => {

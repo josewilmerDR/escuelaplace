@@ -1,111 +1,47 @@
 /**
- * Typed reads AND writes of raffle orders (`raffleOrders/{orderId}`, top-level) — a buyer's
- * reservation of one or more numbers in a school raffle (a tool of `type: 'raffle'`). Public
- * read (the number grid needs each order's `numbers`+`status`); the buyer's real name and the
- * amount live in a PRIVATE subdoc (`raffleOrders/{id}/private/data`), and the payment proof in
- * Storage — exactly the privacy model of projectContributions.
+ * Raffle orders (`raffleOrders/{orderId}`, top-level) — a buyer's reservation of one or more
+ * numbers in a school raffle (a tool of `type: 'raffle'`). Thin typed wrappers over the shared
+ * "informational order" skeleton in ./orders (the pending create + private name/amount split +
+ * proof + confirm-from-pending privacy model). What is raffle-SPECIFIC and lives here: the public
+ * `numbers` field on create, and `raffleNumberStates` (the number grid derives reserved/sold from
+ * each order's numbers+status — derived, never stored on the tool).
  *
- * Top-level (not a subcollection of the tool) so the proof file and the private subdoc resolve
- * by order id alone in storage.rules/firestore.rules. The number state shown on the grid is
- * DERIVED from these orders, never stored on the tool: pending → reserved, confirmed → sold.
- *
- * PURELY INFORMATIONAL: the platform never processes the money. The buyer pays the school
- * directly by the methods it publishes; the school confirms the proof, same as donations.
+ * PURELY INFORMATIONAL: the platform never processes the money. The buyer pays the school directly
+ * by the methods it publishes; the school confirms the proof, same as donations.
  */
 import { cache } from "react";
+import type { ProjectCurrency, RaffleOrder, RaffleOrderDoc } from "@/types";
 import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-import {
-  getDownloadURL,
-  ref as storageRef,
-  uploadBytes,
-} from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
-import type {
-  ProjectCurrency,
-  RaffleOrder,
-  RaffleOrderDoc,
-} from "@/types";
-import { snapToList } from "./converters";
+  confirmOrder,
+  createOrder,
+  deleteOrder,
+  getOrderProofUrl,
+  getOrdersBySchool,
+  getOrdersByTool,
+  orderProofPath,
+  uploadOrderProof,
+  type OrderCollection,
+} from "./orders";
 
-const RAFFLE_ORDERS = "raffleOrders";
-
-/** Sort by createdAt (desc) in JS to avoid a composite index (matches the other domains). */
-function byCreatedAtDesc(
-  a: { createdAt?: { toMillis?: () => number } },
-  b: { createdAt?: { toMillis?: () => number } },
-): number {
-  return (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0);
-}
+const RAFFLE_ORDERS: OrderCollection = {
+  name: "raffleOrders",
+  proofPrefix: "raffle-order-proofs",
+};
 
 /**
- * Every order of one raffle (any status), newest first. PUBLIC, anonymous-safe — used to
- * derive the number grid, so it does NOT merge the private fields (buyerName/amount). Wrapped
- * in cache() to dedupe the detail page's reads in one request.
+ * Every order of one raffle (any status), newest first. PUBLIC, anonymous-safe — used to derive
+ * the number grid. Wrapped in cache() to dedupe the detail page's reads in one request.
  */
 export const getRaffleOrdersByTool = cache(
-  async (toolId: string): Promise<RaffleOrderDoc[]> => {
-    const q = query(
-      collection(db, RAFFLE_ORDERS),
-      where("toolId", "==", toolId),
-    );
-    return snapToList<RaffleOrder>(await getDocs(q)).sort(byCreatedAtDesc);
-  },
+  (toolId: string): Promise<RaffleOrderDoc[]> =>
+    getOrdersByTool<RaffleOrder>(RAFFLE_ORDERS, toolId),
 );
 
-/**
- * Every raffle order targeting a school (any status, any raffle), newest first — the board's
- * confirmation queue. CLIENT-ONLY merges the private buyerName/amount back in (the board is
- * authorized to read them); on the server the merge is skipped.
- */
+/** Every raffle order targeting a school (any status), newest first — the board's queue. */
 export const getRaffleOrdersBySchool = cache(
-  async (schoolId: string): Promise<RaffleOrderDoc[]> => {
-    const q = query(
-      collection(db, RAFFLE_ORDERS),
-      where("schoolId", "==", schoolId),
-    );
-    const orders = snapToList<RaffleOrder>(await getDocs(q)).sort(byCreatedAtDesc);
-    return mergePrivateFields(orders);
-  },
+  (schoolId: string): Promise<RaffleOrderDoc[]> =>
+    getOrdersBySchool<RaffleOrder>(RAFFLE_ORDERS, schoolId),
 );
-
-/**
- * Merge each order's PRIVATE fields (buyerName + amount) back onto the doc — CLIENT-ONLY and
- * best-effort (same pattern as subscriptions/contributions). Those fields live in a private
- * subdoc so an anonymous scraper can't deanonymize a buyer nor read how much they paid; the
- * board (or admin) is authorized and needs them for the confirmation queue.
- */
-async function mergePrivateFields(
-  orders: RaffleOrderDoc[],
-): Promise<RaffleOrderDoc[]> {
-  if (typeof window === "undefined") return orders; // SSR doesn't need them
-  await Promise.all(
-    orders.map(async (o) => {
-      try {
-        const data = (
-          await getDoc(doc(db, RAFFLE_ORDERS, o.id, "private", "data"))
-        ).data();
-        if (!data) return;
-        if (typeof data.buyerName === "string") o.buyerName = data.buyerName;
-        if (typeof data.amount === "number") o.amount = data.amount;
-      } catch {
-        // Unauthorized/missing — leave as-is; authorized callers (board/admin) won't hit this.
-      }
-    }),
-  );
-  return orders;
-}
 
 /** The derived state of a single raffle number. */
 export type RaffleNumberState = "available" | "reserved" | "sold";
@@ -136,9 +72,6 @@ export function raffleNumberStates(
   return states;
 }
 
-// ── Buyer's name fields on the buyer's own orders are merged client-side too (history). ──
-// (No buyer-history surface is built yet in this draft; the school queue is the consumer.)
-
 // ── Writes ───────────────────────────────────────────────────────────────────
 
 export interface CreateRaffleOrderInput {
@@ -157,74 +90,45 @@ export interface CreateRaffleOrderInput {
 
 /**
  * Create a `pending` raffle order. Must be called by the signed-in buyer (rules enforce
- * buyerId == auth.uid) and only against a verified school. The buyer's real name + amount go
- * to the private subdoc (off the public doc), exactly like a project contribution. Returns the
- * new order id (for the proof upload).
+ * buyerId == auth.uid) and only against a verified school. The buyer's real name + amount go to
+ * the private subdoc (off the public doc). Returns the new order id (for the proof upload).
  */
-export async function createRaffleOrder(
-  input: CreateRaffleOrderInput,
-): Promise<string> {
-  const created = await addDoc(collection(db, RAFFLE_ORDERS), {
-    schoolId: input.schoolId,
-    schoolName: input.schoolName,
-    toolId: input.toolId,
-    toolTitle: input.toolTitle,
-    buyerId: input.buyerId,
-    numbers: input.numbers,
-    currency: input.currency,
-    status: "pending",
-    confirmedAt: null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  await setDoc(doc(db, RAFFLE_ORDERS, created.id, "private", "data"), {
-    buyerName: input.buyerName,
-    amount: input.amount,
-  });
-  return created.id;
+export function createRaffleOrder(input: CreateRaffleOrderInput): Promise<string> {
+  return createOrder(
+    RAFFLE_ORDERS,
+    {
+      schoolId: input.schoolId,
+      schoolName: input.schoolName,
+      toolId: input.toolId,
+      toolTitle: input.toolTitle,
+      buyerId: input.buyerId,
+      numbers: input.numbers,
+      currency: input.currency,
+    },
+    { buyerName: input.buyerName, amount: input.amount },
+  );
 }
 
 /** Storage path of an order's payment proof (the file never appears in the public doc). */
 export function raffleOrderProofPath(orderId: string): string {
-  return `raffle-order-proofs/${orderId}/proof`;
+  return orderProofPath(RAFFLE_ORDERS, orderId);
 }
 
-export async function uploadRaffleOrderProof(
-  orderId: string,
-  file: Blob,
-): Promise<void> {
-  await uploadBytes(storageRef(storage, raffleOrderProofPath(orderId)), file);
-  await updateDoc(doc(db, RAFFLE_ORDERS, orderId), {
-    proofUploaded: true,
-    updatedAt: serverTimestamp(),
-  });
+export function uploadRaffleOrderProof(orderId: string, file: Blob): Promise<void> {
+  return uploadOrderProof(RAFFLE_ORDERS, orderId, file);
 }
 
 /** Temporary download URL for the board to view a proof. null if missing/unauthorized. */
-export async function getRaffleOrderProofUrl(
-  orderId: string,
-): Promise<string | null> {
-  try {
-    return await getDownloadURL(storageRef(storage, raffleOrderProofPath(orderId)));
-  } catch {
-    return null;
-  }
+export function getRaffleOrderProofUrl(orderId: string): Promise<string | null> {
+  return getOrderProofUrl(RAFFLE_ORDERS, orderId);
 }
 
 /** Confirm a pending order — its numbers become "sold". School/admin only (rules). */
-export async function confirmRaffleOrder(
-  orderId: string,
-  confirmedBy: string,
-): Promise<void> {
-  await updateDoc(doc(db, RAFFLE_ORDERS, orderId), {
-    status: "confirmed",
-    confirmedAt: serverTimestamp(),
-    confirmedBy,
-    updatedAt: serverTimestamp(),
-  });
+export function confirmRaffleOrder(orderId: string, confirmedBy: string): Promise<void> {
+  return confirmOrder(RAFFLE_ORDERS, orderId, confirmedBy);
 }
 
 /** Delete an order (the buyer cancels, or admin). */
-export async function deleteRaffleOrder(orderId: string): Promise<void> {
-  await deleteDoc(doc(db, RAFFLE_ORDERS, orderId));
+export function deleteRaffleOrder(orderId: string): Promise<void> {
+  return deleteOrder(RAFFLE_ORDERS, orderId);
 }
