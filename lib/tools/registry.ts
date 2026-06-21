@@ -126,6 +126,17 @@ export function createToolTitle(type: ToolType): string {
 }
 
 /**
+ * Page title for editing a kind — "Editar rifa", "Editar producto"… — the edit-page counterpart of
+ * `createToolTitle`, built from the same registry label. The catch-all "Otro" kind keeps the
+ * generic "Editar herramienta" rather than the awkward "Editar otro".
+ */
+export function editToolTitle(type: ToolType): string {
+  return type === "other"
+    ? "Editar herramienta"
+    : `Editar ${toolTypeMeta(type).label.toLowerCase()}`;
+}
+
+/**
  * The buy CTA label for the kinds that have a purchase flow (rifa/bingo/venta), or null for kinds
  * that don't (tour/servicio/evento/otro — those use "Consultar" instead). Drives the optional
  * "Comprar" button on the feed card. Keep its non-null kinds in sync with `toolBuyHref`.
