@@ -406,8 +406,16 @@ function NewToolContent() {
       return;
     }
     const sale = saleResult?.ok ? saleResult.input : undefined;
-    // A service catalog carries its services (text + optional price + the media already uploaded).
-    const serviceResult = type === "service" ? toServiceInput(serviceForm) : null;
+    // A "Servicios" tool is a single service: its name/description are the tool's own
+    // title/description (the top-level fields); the editor adds the price + currency + modality +
+    // availability + media + contact.
+    const serviceResult =
+      type === "service"
+        ? toServiceInput(serviceForm, {
+            name: trimmedTitle,
+            description: description.trim(),
+          })
+        : null;
     if (serviceResult && !serviceResult.ok) {
       setError(serviceResult.error);
       return;
@@ -579,7 +587,7 @@ function NewToolContent() {
         {type === "service" && (
           <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
             <p className="mb-3 text-sm font-semibold text-foreground">
-              Servicios del catálogo
+              Detalles del servicio
             </p>
             <ServiceItemsEditor
               value={serviceForm}

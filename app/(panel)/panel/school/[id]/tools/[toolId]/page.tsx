@@ -14,7 +14,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import {
   BingoConfigFields,
   bingoFormFromConfig,
@@ -40,11 +39,20 @@ import {
   RaffleNumberGrid,
   RaffleNumberLegend,
 } from "@/components/tools/RaffleNumberGrid";
-import { newProductId } from "@/components/tools/SaleProductsEditor";
-import { newServiceId } from "@/components/tools/ServiceItemsEditor";
+import {
+  SaleProductsEditor,
+  emptySaleForm,
+  toSaleInput,
+  type SaleFormValue,
+} from "@/components/tools/SaleProductsEditor";
+import {
+  ServiceItemsEditor,
+  emptyServiceForm,
+  toServiceInput,
+  type ServiceFormValue,
+} from "@/components/tools/ServiceItemsEditor";
 import { ToolItemCard } from "@/components/tools/ToolItemCard";
-import { ToolTypePicker } from "@/components/tools/ToolTypePicker";
-import { toolTypeMeta } from "@/lib/tools/registry";
+import { editToolTitle, toolTypeMeta } from "@/lib/tools/registry";
 import { BackLink } from "@/components/ui/BackLink";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
@@ -66,29 +74,13 @@ import {
   toolDateInputValue,
   updateTool,
   updateToolEvent,
-  updateToolSale,
-  updateToolService,
   updateToolTour,
   uploadToolCover,
   type EventConfigInput,
-  type SaleConfigInput,
-  type ServiceConfigInput,
   type TourConfigInput,
 } from "@/lib/firestore";
 import {
   BINGO_PATTERNS,
-  PROJECT_CURRENCIES,
-  SALE_PRODUCT_DESCRIPTION_MAX,
-  SALE_PRODUCT_MAX,
-  SALE_PRODUCT_NAME_MAX,
-  SALE_PRODUCT_PHOTO_MAX,
-  SERVICE_AVAILABILITY_MAX,
-  SERVICE_DESCRIPTION_MAX,
-  SERVICE_ITEM_MAX,
-  SERVICE_MODALITIES,
-  SERVICE_MODALITY_LABELS,
-  SERVICE_NAME_MAX,
-  SERVICE_PHOTO_MAX,
   EVENT_PHOTO_MAX,
   TOOL_CTA_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
@@ -99,14 +91,10 @@ import {
   TOUR_STAGE_TITLE_MAX,
   type BingoConfig,
   type EventConfig,
-  type ProjectCurrency,
   type RaffleOrderDoc,
   type SaleConfig,
-  type SaleProduct,
   type SchoolDoc,
   type ServiceConfig,
-  type ServiceItem,
-  type ServiceModality,
   type ToolDoc,
   type ToolStatus,
   type ToolType,
@@ -118,14 +106,36 @@ type LoadState = "loading" | "error" | "loaded";
 
 const LOADING_TEXT = "Cargando herramienta…";
 
-function Heading({ subtitle }: { subtitle?: string }) {
+/** Page heading with a back link. The link returns to the kind's manage page once the kind is
+ * known (the loaded state), falling back to the tools hub in the brief load/error states where the
+ * kind isn't read yet. Mirrors the creation page's heading. */
+function Heading({
+  schoolId,
+  title = "Editar herramienta",
+  subtitle,
+  backHref,
+  backLabel,
+}: {
+  schoolId: string;
+  title?: string;
+  subtitle?: string;
+  backHref?: string;
+  backLabel?: string;
+}) {
   return (
-    <header>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Editar herramienta
-      </h1>
-      <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-    </header>
+    <>
+      <p className="text-sm">
+        <BackLink href={backHref ?? `/panel/school/${schoolId}/tools`}>
+          {backLabel ?? "Volver a herramientas"}
+        </BackLink>
+      </p>
+      <header className="mt-3">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          {title}
+        </h1>
+        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
+      </header>
+    </>
   );
 }
 
@@ -136,17 +146,6 @@ function Heading({ subtitle }: { subtitle?: string }) {
  * videoUrl. Mirrors the project editor's EditableStage.
  */
 type EditableTourStage = TourStage & { _key: number };
-
-/**
- * A sale product as the edit form holds it: price is a STRING while editing (a controlled
- * number input drops the decimal point mid-type), parsed back to a number on save. The stable
- * `id` doubles as the React key and the media/removal match key.
- */
-type EditableSaleProduct = Omit<SaleProduct, "price"> & { price: string };
-
-/** A sale service as the edit form holds it: same string-price design as EditableSaleProduct,
- * but the price is genuinely OPTIONAL (blank = quote-based). */
-type EditableServiceItem = Omit<ServiceItem, "price"> & { price: string };
 
 export default function EditToolPage() {
   const { id, toolId } = useParams<{ id: string; toolId: string }>();
@@ -195,23 +194,21 @@ export default function EditToolPage() {
   const [tourRemoveKey, setTourRemoveKey] = useState<number | null>(null);
   const [tourRemoving, setTourRemoving] = useState(false);
 
-  // Sale ("Productos") editable state. Each product carries a STABLE id, so media ops and
-  // removal match by id (no positional mapping needed, unlike tour stages). Text/price + the
-  // currency + the contact phone save with the form button; media persists immediately.
-  const [saleProducts, setSaleProducts] = useState<EditableSaleProduct[]>([]);
-  const [saleCurrency, setSaleCurrency] = useState<ProjectCurrency>("CRC");
-  const [salePhone, setSalePhone] = useState("");
-  const [saleRemoveId, setSaleRemoveId] = useState<string | null>(null);
-  const [saleRemoving, setSaleRemoving] = useState(false);
+  // Sale ("Productos") editable state. A "Productos" tool is a SINGLE product, so editing mirrors
+  // creation exactly: the tool's title/description ARE the product's name/description (the top-level
+  // fields), and this form holds only the price/currency/contact/media — the same SaleFormValue the
+  // create page uses, edited through the shared SaleProductsEditor. Everything saves with the form
+  // button (the media files already uploaded to Storage; the form persists their URLs).
+  const [saleForm, setSaleForm] = useState<SaleFormValue>(emptySaleForm);
 
-  // Service ("Servicios") editable state — same shape as sale, minus the order flow. Price is
-  // optional per service.
-  const [serviceItems, setServiceItems] = useState<EditableServiceItem[]>([]);
-  const [serviceCurrency, setServiceCurrency] =
-    useState<ProjectCurrency>("CRC");
-  const [servicePhone, setServicePhone] = useState("");
-  const [serviceRemoveId, setServiceRemoveId] = useState<string | null>(null);
-  const [serviceRemoving, setServiceRemoving] = useState(false);
+  // Service ("Servicios") editable state. A "Servicios" tool is a SINGLE service, so editing mirrors
+  // creation exactly: the tool's title/description ARE the service's name/description (the top-level
+  // fields), and this form holds only the price/currency/modality/availability/contact/media — the
+  // same ServiceFormValue the create page uses, edited through the shared ServiceItemsEditor.
+  // Everything saves with the form button (the media files already uploaded to Storage; the form
+  // persists their URLs).
+  const [serviceForm, setServiceForm] =
+    useState<ServiceFormValue>(emptyServiceForm);
 
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -257,22 +254,35 @@ export default function EditToolPage() {
             setTourStages(keyTourStages(t.tour.stages));
             setTourPhone(t.tour.contactPhone ?? "");
           }
-          if (t.sale) {
-            setSaleProducts(
-              t.sale.products.map((p) => ({ ...p, price: String(p.price) })),
-            );
-            setSaleCurrency(t.sale.currency);
-            setSalePhone(t.sale.contactPhone ?? "");
+          if (t.sale && t.sale.products.length > 0) {
+            // A "Productos" tool is a single product: its name/description are the tool's
+            // title/description (set above), so the form holds only price/currency/contact/media.
+            const p = t.sale.products[0];
+            setSaleForm({
+              id: p.id,
+              price: String(p.price),
+              currency: t.sale.currency,
+              contactPhone: t.sale.contactPhone ?? "",
+              ...(p.photos && p.photos.length > 0 ? { photos: p.photos } : {}),
+              ...(p.videoUrl ? { videoUrl: p.videoUrl } : {}),
+            });
           }
-          if (t.service) {
-            setServiceItems(
-              t.service.services.map((s) => ({
-                ...s,
-                price: typeof s.price === "number" ? String(s.price) : "",
-              })),
-            );
-            setServiceCurrency(t.service.currency);
-            setServicePhone(t.service.contactPhone ?? "");
+          if (t.service && t.service.services.length > 0) {
+            // A "Servicios" tool is a single service: its name/description are the tool's
+            // title/description (set above), so the form holds only the
+            // price/currency/modality/availability/contact/media.
+            const s = t.service.services[0];
+            setServiceForm({
+              id: s.id,
+              price: typeof s.price === "number" ? String(s.price) : "",
+              priceFrom: Boolean(s.priceFrom),
+              modalities: s.modalities ?? [],
+              availability: s.availability ?? "",
+              currency: t.service.currency,
+              contactPhone: t.service.contactPhone ?? "",
+              ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
+              ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
+            });
           }
         }
         setLoadState("loaded");
@@ -291,7 +301,7 @@ export default function EditToolPage() {
   if (loadState === "loading") {
     return (
       <main>
-        <Heading />
+        <Heading schoolId={id} />
         <div
           className="mt-8 h-64 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5"
           aria-hidden="true"
@@ -306,7 +316,7 @@ export default function EditToolPage() {
   if (loadState === "error") {
     return (
       <main>
-        <Heading />
+        <Heading schoolId={id} />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar la herramienta. Revisá tu conexión e intentá de nuevo.
         </p>
@@ -320,7 +330,7 @@ export default function EditToolPage() {
   if (!school || !tool) {
     return (
       <main>
-        <Heading />
+        <Heading schoolId={id} />
         <p className="mt-4 text-sm text-muted">
           {!school ? "Escuela no encontrada." : "Herramienta no encontrada."}
         </p>
@@ -342,7 +352,7 @@ export default function EditToolPage() {
   if (!isManager) {
     return (
       <main>
-        <Heading subtitle={school.name} />
+        <Heading schoolId={id} subtitle={school.name} />
         <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -418,111 +428,38 @@ export default function EditToolPage() {
       tour = { stages: cleanStages, ...(phone ? { contactPhone: phone } : {}) };
     }
 
-    // A product catalog carries its products (text + price + already-uploaded media), the
-    // currency and the contact. Require at least one product with a name and a price > 0; empty
-    // products (nothing filled — e.g. an "Agregar producto" never completed) are dropped.
-    let sale: SaleConfigInput | undefined;
-    if (type === "sale") {
-      const cleanProducts = saleProducts
-        .map((p) => ({
-          id: p.id,
-          name: p.name.trim(),
-          description: p.description.trim(),
-          price: Number(p.price),
-          ...(p.photos && p.photos.length > 0 ? { photos: p.photos } : {}),
-          ...(p.videoUrl ? { videoUrl: p.videoUrl } : {}),
-        }))
-        .filter(
-          (p) =>
-            p.name ||
-            p.description ||
-            p.price > 0 ||
-            (p.photos?.length ?? 0) > 0 ||
-            Boolean(p.videoUrl),
-        );
-      if (cleanProducts.length === 0) {
-        setError("Agregá al menos un producto con su nombre y precio.");
-        return;
-      }
-      for (const p of cleanProducts) {
-        if (!p.name) {
-          setError("Cada producto necesita un nombre.");
-          return;
-        }
-        if (!Number.isFinite(p.price) || p.price <= 0) {
-          setError(`Ingresá un precio mayor a 0 para «${p.name}».`);
-          return;
-        }
-      }
-      const phone = salePhone.trim();
-      sale = {
-        products: cleanProducts,
-        currency: saleCurrency,
-        ...(phone ? { contactPhone: phone } : {}),
-      };
+    // A "Productos" tool is a single product: its name/description are the tool's own
+    // title/description (the top-level fields); the form folds in the price/currency/media/contact.
+    // Validated and converted exactly like the creation page (shared toSaleInput).
+    const saleResult =
+      type === "sale"
+        ? toSaleInput(saleForm, {
+            name: trimmedTitle,
+            description: description.trim(),
+          })
+        : null;
+    if (saleResult && !saleResult.ok) {
+      setError(saleResult.error);
+      return;
     }
+    const sale = saleResult?.ok ? saleResult.input : undefined;
 
-    // A service catalog: like sale, but the price is optional (blank = quote-based).
-    let service: ServiceConfigInput | undefined;
-    if (type === "service") {
-      const cleaned = serviceItems
-        .map((s) => ({
-          id: s.id,
-          name: s.name.trim(),
-          description: s.description.trim(),
-          priceStr: s.price.trim(),
-          priceFrom: Boolean(s.priceFrom),
-          modalities: s.modalities ?? [],
-          availability: (s.availability ?? "").trim(),
-          photos: s.photos,
-          videoUrl: s.videoUrl,
-        }))
-        .filter(
-          (s) =>
-            s.name ||
-            s.description ||
-            s.priceStr ||
-            s.modalities.length > 0 ||
-            s.availability ||
-            (s.photos?.length ?? 0) > 0 ||
-            Boolean(s.videoUrl),
-        );
-      if (cleaned.length === 0) {
-        setError("Agregá al menos un servicio con su nombre.");
-        return;
-      }
-      for (const s of cleaned) {
-        if (!s.name) {
-          setError("Cada servicio necesita un nombre.");
-          return;
-        }
-        if (s.priceStr) {
-          const price = Number(s.priceStr);
-          if (!Number.isFinite(price) || price <= 0) {
-            setError(
-              `El precio de «${s.name}» debe ser mayor a 0 (o dejalo en blanco).`,
-            );
-            return;
-          }
-        }
-      }
-      const phone = servicePhone.trim();
-      service = {
-        services: cleaned.map((s) => ({
-          id: s.id,
-          name: s.name,
-          description: s.description,
-          ...(s.priceStr ? { price: Number(s.priceStr) } : {}),
-          ...(s.priceStr && s.priceFrom ? { priceFrom: true } : {}),
-          ...(s.modalities.length > 0 ? { modalities: s.modalities } : {}),
-          ...(s.availability ? { availability: s.availability } : {}),
-          ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
-          ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
-        })),
-        currency: serviceCurrency,
-        ...(phone ? { contactPhone: phone } : {}),
-      };
+    // A "Servicios" tool is a single service: its name/description are the tool's own
+    // title/description (the top-level fields); the form folds in the
+    // price/currency/modality/availability/media/contact. Validated and converted exactly like the
+    // creation page (shared toServiceInput). Price is optional (blank = quote-based).
+    const serviceResult =
+      type === "service"
+        ? toServiceInput(serviceForm, {
+            name: trimmedTitle,
+            description: description.trim(),
+          })
+        : null;
+    if (serviceResult && !serviceResult.ok) {
+      setError(serviceResult.error);
+      return;
     }
+    const service = serviceResult?.ok ? serviceResult.input : undefined;
 
     // A bingo carries its configuration (format + winning patterns + price). The cartones (lote)
     // live in a reusable mazo (deck), bound to the bingo at creation — never edited here.
@@ -659,24 +596,31 @@ export default function EditToolPage() {
         setTourStages(keyTourStages(savedTour.stages));
         setTourPhone(savedTour.contactPhone ?? "");
       }
-      // Re-sync the editable products from the saved values (drops empty/unsaved ones; every
-      // surviving product is now persisted so its media uploads unlock).
-      if (type === "sale" && savedSale) {
-        setSaleProducts(
-          savedSale.products.map((p) => ({ ...p, price: String(p.price) })),
-        );
-        setSaleCurrency(savedSale.currency);
-        setSalePhone(savedSale.contactPhone ?? "");
+      // Re-sync the form from the saved value (normalizes the price string back from the number).
+      if (type === "sale" && savedSale && savedSale.products.length > 0) {
+        const p = savedSale.products[0];
+        setSaleForm({
+          id: p.id,
+          price: String(p.price),
+          currency: savedSale.currency,
+          contactPhone: savedSale.contactPhone ?? "",
+          ...(p.photos && p.photos.length > 0 ? { photos: p.photos } : {}),
+          ...(p.videoUrl ? { videoUrl: p.videoUrl } : {}),
+        });
       }
-      if (type === "service" && savedService) {
-        setServiceItems(
-          savedService.services.map((s) => ({
-            ...s,
-            price: typeof s.price === "number" ? String(s.price) : "",
-          })),
-        );
-        setServiceCurrency(savedService.currency);
-        setServicePhone(savedService.contactPhone ?? "");
+      if (type === "service" && savedService && savedService.services.length > 0) {
+        const s = savedService.services[0];
+        setServiceForm({
+          id: s.id,
+          price: typeof s.price === "number" ? String(s.price) : "",
+          priceFrom: Boolean(s.priceFrom),
+          modalities: s.modalities ?? [],
+          availability: s.availability ?? "",
+          currency: savedService.currency,
+          contactPhone: savedService.contactPhone ?? "",
+          ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
+          ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
+        });
       }
       // Re-hydrate the event form from the saved config (the gallery media card reads tool.event).
       if (type === "event" && savedEvent) {
@@ -812,176 +756,16 @@ export default function EditToolPage() {
     setDirty(true);
   };
 
-  // ── Sale ("Productos") product helpers ─────────────────────────────────────
-  // Products carry a stable id, so media ops/removal match by id directly (no positional
-  // mapping). A product is "persisted" iff its id is in tool.sale.products; media can only
-  // attach to a persisted product (a freshly-added one persists on "Guardar cambios").
+  // Sale ("Productos") has no per-item helpers: a single product edits through the shared
+  // SaleProductsEditor (same as create), and its media saves with the form, not immediately.
 
-  /** Persist a media change on a single SAVED product immediately, from the persisted base, so
-   * an in-progress text/price edit isn't dragged along. Mirrors applyTourMedia. */
-  const applySaleMedia = async (
-    productId: string,
-    media: { photos?: string[]; videoUrl?: string | null },
-  ) => {
-    if (type !== "sale" || !tool?.sale) return;
-    if (!tool.sale.products.some((p) => p.id === productId)) return;
-    setError(null);
-    // Constrained on just the media fields so it applies to both the persisted base (SaleProduct,
-    // numeric price) and the editable copy (EditableSaleProduct, string price), preserving each
-    // one's other fields (notably the editable copy's in-progress text/price).
-    const applyDelta = <T extends { photos?: string[]; videoUrl?: string }>(
-      p: T,
-    ): T => {
-      const next = { ...p };
-      if (media.photos !== undefined) next.photos = media.photos;
-      if (media.videoUrl !== undefined) {
-        if (media.videoUrl) next.videoUrl = media.videoUrl;
-        else delete next.videoUrl;
-      }
-      return next;
-    };
-    const nextProducts: SaleProduct[] = tool.sale.products.map((p) =>
-      p.id === productId ? applyDelta(p) : p,
-    );
-    await updateToolSale(id, toolId, {
-      products: nextProducts,
-      currency: tool.sale.currency,
-      ...(tool.sale.contactPhone ? { contactPhone: tool.sale.contactPhone } : {}),
-    });
-    setTool((prev) =>
-      prev && prev.sale
-        ? { ...prev, sale: { ...prev.sale, products: nextProducts } }
-        : prev,
-    );
-    setSaleProducts((prev) =>
-      prev.map((p) => (p.id === productId ? applyDelta(p) : p)),
-    );
-  };
-
-  /** Remove a product. A persisted one is written immediately from the persisted base; an
-   * unsaved one is just dropped locally. */
-  const removeSaleProduct = async (productId: string) => {
-    if (type !== "sale") return;
-    setError(null);
-    if (!tool?.sale?.products.some((p) => p.id === productId)) {
-      setSaleProducts((prev) => prev.filter((p) => p.id !== productId));
-      setSaleRemoveId(null);
-      return;
-    }
-    const sale = tool.sale;
-    const nextProducts = sale.products.filter((p) => p.id !== productId);
-    setSaleRemoving(true);
-    try {
-      await updateToolSale(id, toolId, {
-        products: nextProducts,
-        currency: sale.currency,
-        ...(sale.contactPhone ? { contactPhone: sale.contactPhone } : {}),
-      });
-      setTool((prev) =>
-        prev && prev.sale
-          ? { ...prev, sale: { ...prev.sale, products: nextProducts } }
-          : prev,
-      );
-      setSaleProducts((prev) => prev.filter((p) => p.id !== productId));
-      setSaleRemoveId(null);
-    } catch (err) {
-      setError(userErrorMessage(err, "No se pudo quitar el producto."));
-    } finally {
-      setSaleRemoving(false);
-    }
-  };
-
-  const addSaleProduct = () => {
-    setSaleProducts((prev) => [
-      ...prev,
-      { id: newProductId(), name: "", description: "", price: "" },
-    ]);
-    setDirty(true);
-  };
-
-  // ── Service ("Servicios") helpers — mirror the sale helpers (id-matched media). ─────────
-
-  const applyServiceMedia = async (
-    serviceId: string,
-    media: { photos?: string[]; videoUrl?: string | null },
-  ) => {
-    if (type !== "service" || !tool?.service) return;
-    if (!tool.service.services.some((s) => s.id === serviceId)) return;
-    setError(null);
-    const applyDelta = <T extends { photos?: string[]; videoUrl?: string }>(
-      s: T,
-    ): T => {
-      const next = { ...s };
-      if (media.photos !== undefined) next.photos = media.photos;
-      if (media.videoUrl !== undefined) {
-        if (media.videoUrl) next.videoUrl = media.videoUrl;
-        else delete next.videoUrl;
-      }
-      return next;
-    };
-    const nextServices: ServiceItem[] = tool.service.services.map((s) =>
-      s.id === serviceId ? applyDelta(s) : s,
-    );
-    await updateToolService(id, toolId, {
-      services: nextServices,
-      currency: tool.service.currency,
-      ...(tool.service.contactPhone
-        ? { contactPhone: tool.service.contactPhone }
-        : {}),
-    });
-    setTool((prev) =>
-      prev && prev.service
-        ? { ...prev, service: { ...prev.service, services: nextServices } }
-        : prev,
-    );
-    setServiceItems((prev) =>
-      prev.map((s) => (s.id === serviceId ? applyDelta(s) : s)),
-    );
-  };
-
-  const removeServiceItem = async (serviceId: string) => {
-    if (type !== "service") return;
-    setError(null);
-    if (!tool?.service?.services.some((s) => s.id === serviceId)) {
-      setServiceItems((prev) => prev.filter((s) => s.id !== serviceId));
-      setServiceRemoveId(null);
-      return;
-    }
-    const svc = tool.service;
-    const nextServices = svc.services.filter((s) => s.id !== serviceId);
-    setServiceRemoving(true);
-    try {
-      await updateToolService(id, toolId, {
-        services: nextServices,
-        currency: svc.currency,
-        ...(svc.contactPhone ? { contactPhone: svc.contactPhone } : {}),
-      });
-      setTool((prev) =>
-        prev && prev.service
-          ? { ...prev, service: { ...prev.service, services: nextServices } }
-          : prev,
-      );
-      setServiceItems((prev) => prev.filter((s) => s.id !== serviceId));
-      setServiceRemoveId(null);
-    } catch (err) {
-      setError(userErrorMessage(err, "No se pudo quitar el servicio."));
-    } finally {
-      setServiceRemoving(false);
-    }
-  };
-
-  const addServiceItem = () => {
-    setServiceItems((prev) => [
-      ...prev,
-      { id: newServiceId(), name: "", description: "", price: "" },
-    ]);
-    setDirty(true);
-  };
+  // Service ("Servicios") has no per-item helpers: a single service edits through the shared
+  // ServiceItemsEditor (same as create), and its media saves with the form, not immediately.
 
   // ── Event ("Eventos") gallery helper ───────────────────────────────────────
   // The event has a single gallery (not a list), so its media persists immediately against the
   // persisted base (tool.event) — an in-progress, unsaved date/place/map edit is never dragged
-  // along. Mirrors applyServiceMedia, but for one config object instead of an item in a list.
+  // along. Mirrors the tour stage media, but for one config object instead of an item in a list.
 
   const applyEventMedia = async (media: {
     photos?: string[];
@@ -1024,20 +808,16 @@ export default function EditToolPage() {
     tourRemoveKey === null
       ? null
       : tourStages.find((s) => s._key === tourRemoveKey);
-  const saleRemoveTarget =
-    saleRemoveId === null
-      ? null
-      : saleProducts.find((p) => p.id === saleRemoveId);
-  const serviceRemoveTarget =
-    serviceRemoveId === null
-      ? null
-      : serviceItems.find((s) => s.id === serviceRemoveId);
 
   return (
     <main>
-      <Heading subtitle={school.name} />
-
-      <SchoolPanelNav schoolId={id} current="tools" />
+      <Heading
+        schoolId={id}
+        title={editToolTitle(type)}
+        subtitle={school.name}
+        backHref={`/panel/school/${id}/tools/manage/${type}`}
+        backLabel={`Volver a ${toolTypeMeta(type).pluralLabel}`}
+      />
 
       <form
         onSubmit={onSave}
@@ -1046,22 +826,6 @@ export default function EditToolPage() {
         onInputCapture={clearValidationMessage}
         className="mt-8 flex flex-col gap-4"
       >
-        <div>
-          <p className="text-sm font-medium text-foreground">
-            Tipo de herramienta
-          </p>
-          <p className="mb-3 mt-0.5 text-xs text-muted">
-            Elegí qué tipo de actividad es.
-          </p>
-          <ToolTypePicker
-            value={type}
-            onChange={(t) => {
-              setType(t);
-              setDirty(true);
-            }}
-          />
-        </div>
-
         <Field label={toolTypeMeta(type).titleLabel}>
           <input
             type="text"
@@ -1164,11 +928,11 @@ export default function EditToolPage() {
         )}
 
         {type === "sale" && (
-          <section className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                Productos del catálogo
-              </h2>
+          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-foreground">
+                Detalles del producto
+              </p>
               {tool.sale && (
                 <Link
                   href={`/panel/school/${id}/product-orders`}
@@ -1178,167 +942,33 @@ export default function EditToolPage() {
                 </Link>
               )}
             </div>
-            <p className="-mt-2 text-xs text-muted">
-              El público verá cada producto con su foto, precio y un botón
-              “Comprar”. Las fotos y el video se guardan al instante; los textos y
-              el precio, al guardar los cambios.
-            </p>
-
-            <Field label="Moneda">
-              <select
-                value={saleCurrency}
-                onChange={(e) => {
-                  setSaleCurrency(e.target.value as ProjectCurrency);
-                  setDirty(true);
-                }}
-                className="input"
-              >
-                {PROJECT_CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            {saleProducts.map((product, i) => (
-              <SaleProductCard
-                key={product.id}
-                product={product}
-                index={i}
-                currency={saleCurrency}
-                schoolId={id}
-                toolId={toolId}
-                canRemove={saleProducts.length > 1}
-                // An unsaved product has no slot in sale.products yet, so its media can't
-                // persist; the card disables uploads until the product is saved.
-                persisted={(tool.sale?.products ?? []).some(
-                  (p) => p.id === product.id,
-                )}
-                onText={(patch) => {
-                  setSaleProducts((prev) =>
-                    prev.map((p) =>
-                      p.id === product.id ? { ...p, ...patch } : p,
-                    ),
-                  );
-                  setDirty(true);
-                }}
-                onMedia={(media) => applySaleMedia(product.id, media)}
-                onRemove={() => setSaleRemoveId(product.id)}
-              />
-            ))}
-
-            {saleProducts.length < SALE_PRODUCT_MAX ? (
-              <button
-                type="button"
-                onClick={addSaleProduct}
-                className="btn btn-outline self-start"
-              >
-                Agregar producto
-              </button>
-            ) : (
-              <span className="text-xs text-muted">
-                Máximo {SALE_PRODUCT_MAX} productos.
-              </span>
-            )}
-
-            <Field label="WhatsApp para consultas (opcional)">
-              <input
-                type="tel"
-                inputMode="tel"
-                value={salePhone}
-                onChange={(e) => {
-                  setSalePhone(e.target.value);
-                  setDirty(true);
-                }}
-                className="input"
-                placeholder="Ej.: 8888 8888"
-              />
-            </Field>
-          </section>
+            <SaleProductsEditor
+              value={saleForm}
+              onChange={(action) => {
+                setSaleForm(action);
+                setDirty(true);
+              }}
+              schoolId={id}
+              toolId={toolId}
+            />
+          </div>
         )}
 
         {type === "service" && (
-          <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold tracking-tight text-foreground">
-              Servicios del catálogo
-            </h2>
-            <p className="-mt-2 text-xs text-muted">
-              El público verá cada servicio con su foto y un botón “Preguntar” por
-              WhatsApp. Las fotos y el video se guardan al instante; los textos y el
-              precio, al guardar los cambios.
+          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+            <p className="mb-3 text-sm font-semibold text-foreground">
+              Detalles del servicio
             </p>
-
-            <Field label="Moneda">
-              <select
-                value={serviceCurrency}
-                onChange={(e) => {
-                  setServiceCurrency(e.target.value as ProjectCurrency);
-                  setDirty(true);
-                }}
-                className="input"
-              >
-                {PROJECT_CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            {serviceItems.map((service, i) => (
-              <ServiceItemCard
-                key={service.id}
-                service={service}
-                index={i}
-                currency={serviceCurrency}
-                schoolId={id}
-                toolId={toolId}
-                canRemove={serviceItems.length > 1}
-                persisted={(tool.service?.services ?? []).some(
-                  (s) => s.id === service.id,
-                )}
-                onText={(patch) => {
-                  setServiceItems((prev) =>
-                    prev.map((s) =>
-                      s.id === service.id ? { ...s, ...patch } : s,
-                    ),
-                  );
-                  setDirty(true);
-                }}
-                onMedia={(media) => applyServiceMedia(service.id, media)}
-                onRemove={() => setServiceRemoveId(service.id)}
-              />
-            ))}
-
-            {serviceItems.length < SERVICE_ITEM_MAX ? (
-              <button
-                type="button"
-                onClick={addServiceItem}
-                className="btn btn-outline self-start"
-              >
-                Agregar servicio
-              </button>
-            ) : (
-              <span className="text-xs text-muted">
-                Máximo {SERVICE_ITEM_MAX} servicios.
-              </span>
-            )}
-
-            <Field label="WhatsApp para consultas (opcional)">
-              <input
-                type="tel"
-                inputMode="tel"
-                value={servicePhone}
-                onChange={(e) => {
-                  setServicePhone(e.target.value);
-                  setDirty(true);
-                }}
-                className="input"
-                placeholder="Ej.: 8888 8888"
-              />
-            </Field>
-          </section>
+            <ServiceItemsEditor
+              value={serviceForm}
+              onChange={(action) => {
+                setServiceForm(action);
+                setDirty(true);
+              }}
+              schoolId={id}
+              toolId={toolId}
+            />
+          </div>
         )}
 
         {type === "bingo" && (
@@ -1613,59 +1243,9 @@ export default function EditToolPage() {
         )}
       </ConfirmDialog>
 
-      {/* Remove a product — confirmed, with concrete impact (its media count). */}
-      <ConfirmDialog
-        open={saleRemoveId !== null}
-        title="Quitar producto"
-        tone="destructive"
-        confirmLabel="Quitar producto"
-        cancelLabel="Cancelar"
-        busy={saleRemoving}
-        busyLabel="Quitando…"
-        onConfirm={() => {
-          if (saleRemoveId !== null) removeSaleProduct(saleRemoveId);
-        }}
-        onCancel={() => setSaleRemoveId(null)}
-      >
-        {saleRemoveTarget && (
-          <p>
-            Vas a quitar «{saleRemoveTarget.name.trim() || "Producto sin nombre"}».
-            Tiene {saleRemoveTarget.photos?.length ?? 0}{" "}
-            {(saleRemoveTarget.photos?.length ?? 0) === 1 ? "foto" : "fotos"}
-            {saleRemoveTarget.videoUrl ? " y un video" : ""}. No se puede deshacer.
-          </p>
-        )}
-      </ConfirmDialog>
-
-      {/* Remove a service — confirmed, with concrete impact (its media count). */}
-      <ConfirmDialog
-        open={serviceRemoveId !== null}
-        title="Quitar servicio"
-        tone="destructive"
-        confirmLabel="Quitar servicio"
-        cancelLabel="Cancelar"
-        busy={serviceRemoving}
-        busyLabel="Quitando…"
-        onConfirm={() => {
-          if (serviceRemoveId !== null) removeServiceItem(serviceRemoveId);
-        }}
-        onCancel={() => setServiceRemoveId(null)}
-      >
-        {serviceRemoveTarget && (
-          <p>
-            Vas a quitar «
-            {serviceRemoveTarget.name.trim() || "Servicio sin nombre"}». Tiene{" "}
-            {serviceRemoveTarget.photos?.length ?? 0}{" "}
-            {(serviceRemoveTarget.photos?.length ?? 0) === 1 ? "foto" : "fotos"}
-            {serviceRemoveTarget.videoUrl ? " y un video" : ""}. No se puede
-            deshacer.
-          </p>
-        )}
-      </ConfirmDialog>
-
       <p className="mt-8 text-sm">
-        <BackLink href={`/panel/school/${id}/tools`}>
-          Volver a herramientas
+        <BackLink href={`/panel/school/${id}/tools/manage/${type}`}>
+          Volver a {toolTypeMeta(type).pluralLabel}
         </BackLink>
       </p>
     </main>
@@ -1742,241 +1322,3 @@ function TourStageCard({
   );
 }
 
-/**
- * One sale product on the edit page: name/description/price inside the shared ToolItemCard. The
- * price is a string here (a controlled number input drops the decimal point mid-type) and parsed
- * back on save.
- */
-function SaleProductCard({
-  product,
-  index,
-  currency,
-  schoolId,
-  toolId,
-  canRemove,
-  persisted,
-  onText,
-  onMedia,
-  onRemove,
-}: {
-  product: EditableSaleProduct;
-  index: number;
-  currency: ProjectCurrency;
-  schoolId: string;
-  toolId: string;
-  canRemove: boolean;
-  /** Whether this product is saved in Firestore; unsaved products can't receive media. */
-  persisted: boolean;
-  onText: (
-    patch: Partial<Pick<EditableSaleProduct, "name" | "description" | "price">>,
-  ) => void;
-  onMedia: (media: {
-    photos?: string[];
-    videoUrl?: string | null;
-  }) => Promise<void>;
-  onRemove: () => void;
-}) {
-  return (
-    <ToolItemCard
-      title={`Producto ${index + 1}`}
-      removeLabel="Quitar producto"
-      canRemove={canRemove}
-      onRemove={onRemove}
-      photos={product.photos ?? []}
-      videoUrl={product.videoUrl}
-      photoMax={SALE_PRODUCT_PHOTO_MAX}
-      schoolId={schoolId}
-      toolId={toolId}
-      persisted={persisted}
-      unsavedHint="Guardá el producto para poder subir fotos y un video."
-      onMedia={onMedia}
-    >
-      <Field label="Nombre del producto">
-        <input
-          type="text"
-          maxLength={SALE_PRODUCT_NAME_MAX}
-          value={product.name}
-          onChange={(e) => onText({ name: e.target.value })}
-          className="input"
-          placeholder="Ej.: Huevos de la granja de la escuela"
-        />
-      </Field>
-      <Field label="Descripción">
-        <textarea
-          rows={3}
-          maxLength={SALE_PRODUCT_DESCRIPTION_MAX}
-          value={product.description}
-          onChange={(e) => onText({ description: e.target.value })}
-          className="input"
-          placeholder="Contá qué es, presentación, etc."
-        />
-      </Field>
-      <Field label={`Precio (${currency})`}>
-        <input
-          type="number"
-          min={0}
-          step="any"
-          inputMode="decimal"
-          value={product.price}
-          onChange={(e) => onText({ price: e.target.value })}
-          className="input"
-          placeholder="Ej.: 2500"
-        />
-      </Field>
-    </ToolItemCard>
-  );
-}
-
-/**
- * One service on the edit page: name/description/optional-price plus the service-only extras
- * (delivery modality chips, a free-text schedule, and a "Desde" price toggle) inside the shared
- * ToolItemCard. A service is a product without the order flow; the price is optional here ("a
- * consultar" when blank), and "Desde" only matters once a price is set.
- */
-function ServiceItemCard({
-  service,
-  index,
-  currency,
-  schoolId,
-  toolId,
-  canRemove,
-  persisted,
-  onText,
-  onMedia,
-  onRemove,
-}: {
-  service: EditableServiceItem;
-  index: number;
-  currency: ProjectCurrency;
-  schoolId: string;
-  toolId: string;
-  canRemove: boolean;
-  /** Whether this service is saved in Firestore; unsaved services can't receive media. */
-  persisted: boolean;
-  onText: (
-    patch: Partial<
-      Pick<
-        EditableServiceItem,
-        "name" | "description" | "price" | "priceFrom" | "modalities" | "availability"
-      >
-    >,
-  ) => void;
-  onMedia: (media: {
-    photos?: string[];
-    videoUrl?: string | null;
-  }) => Promise<void>;
-  onRemove: () => void;
-}) {
-  const modalities = service.modalities ?? [];
-  const hasPrice = service.price.trim() !== "";
-  const toggleModality = (m: ServiceModality) =>
-    onText({
-      modalities: modalities.includes(m)
-        ? modalities.filter((x) => x !== m)
-        : [...modalities, m],
-    });
-
-  return (
-    <ToolItemCard
-      title={`Servicio ${index + 1}`}
-      removeLabel="Quitar servicio"
-      canRemove={canRemove}
-      onRemove={onRemove}
-      photos={service.photos ?? []}
-      videoUrl={service.videoUrl}
-      photoMax={SERVICE_PHOTO_MAX}
-      schoolId={schoolId}
-      toolId={toolId}
-      persisted={persisted}
-      unsavedHint="Guardá el servicio para poder subir fotos y un video."
-      onMedia={onMedia}
-    >
-      <Field label="Nombre del servicio">
-        <input
-          type="text"
-          maxLength={SERVICE_NAME_MAX}
-          value={service.name}
-          onChange={(e) => onText({ name: e.target.value })}
-          className="input"
-          placeholder="Ej.: Clases de repaso de matemática"
-        />
-      </Field>
-      <Field label="Descripción">
-        <textarea
-          rows={3}
-          maxLength={SERVICE_DESCRIPTION_MAX}
-          value={service.description}
-          onChange={(e) => onText({ description: e.target.value })}
-          className="input"
-          placeholder="Contá en qué consiste el servicio."
-        />
-      </Field>
-
-      {/* Modality: a service may offer more than one (presencial + virtual). */}
-      <fieldset>
-        <legend className="text-sm font-medium text-foreground">
-          Modalidad (opcional)
-        </legend>
-        <div className="mt-1.5 flex flex-wrap gap-2">
-          {SERVICE_MODALITIES.map((m) => {
-            const on = modalities.includes(m);
-            return (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggleModality(m)}
-                className={`inline-flex min-h-10 items-center rounded-full px-3 text-xs font-medium ring-1 transition-colors ${
-                  on
-                    ? "bg-brand-tint text-brand-darker ring-brand-darker/30"
-                    : "bg-surface text-muted ring-black/5 hover:text-foreground"
-                }`}
-              >
-                {SERVICE_MODALITY_LABELS[m]}
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
-
-      <Field label="Horario / disponibilidad (opcional)">
-        <input
-          type="text"
-          maxLength={SERVICE_AVAILABILITY_MAX}
-          value={service.availability ?? ""}
-          onChange={(e) => onText({ availability: e.target.value })}
-          className="input"
-          placeholder="Ej.: Lun a vie, 2–6 pm"
-        />
-      </Field>
-
-      <Field label={`Precio (${currency}) — opcional`}>
-        <input
-          type="number"
-          min={0}
-          step="any"
-          inputMode="decimal"
-          value={service.price}
-          onChange={(e) => onText({ price: e.target.value })}
-          className="input"
-          placeholder="Dejalo en blanco si es a consultar"
-        />
-      </Field>
-      {/* "Desde" only makes sense with a price; disabled (and visually off) when blank. */}
-      <label
-        className={`flex items-center gap-2 text-xs ${
-          hasPrice ? "text-foreground" : "text-muted"
-        }`}
-      >
-        <input
-          type="checkbox"
-          checked={hasPrice && Boolean(service.priceFrom)}
-          disabled={!hasPrice}
-          onChange={(e) => onText({ priceFrom: e.target.checked })}
-          className="h-4 w-4 rounded border-black/20 text-brand-darker focus:ring-brand"
-        />
-        Mostrar como precio “desde” (orientativo)
-      </label>
-    </ToolItemCard>
-  );
-}
