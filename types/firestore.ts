@@ -1285,6 +1285,20 @@ export interface BingoDeckCard {
 
 export type BingoDeckCardDoc = BingoDeckCard & { id: string };
 
+/**
+ * The per-kind configuration map stored under a tool's `config`. Exactly one kind's shape; which
+ * one is told by the tool's `type` (raffle → RaffleConfig, …). Read it typed via
+ * `toolConfigOf(tool, kind)` (lib/firestore) — it narrows this union for you. The catch-all
+ * `other` kind carries no config. To add a kind, add its config type to this union.
+ */
+export type ToolConfig =
+  | RaffleConfig
+  | BingoConfig
+  | SaleConfig
+  | ServiceConfig
+  | TourConfig
+  | EventConfig;
+
 export interface Tool {
   /** Denormalized parent id (the doc lives under the school; kept for the detail page and
    * any query that starts from a tool). */
@@ -1301,19 +1315,15 @@ export interface Tool {
   endsAt?: Timestamp;
   /** Optional call to action (a link the school controls). */
   cta?: ToolCta;
-  /** Present only when `type === 'raffle'`: the raffle's configuration. */
-  raffle?: RaffleConfig;
-  /** Present only when `type === 'guided_tour'`: the tour's ordered stages. */
-  tour?: TourConfig;
-  /** Present only when `type === 'sale'`: the product catalog. */
-  sale?: SaleConfig;
-  /** Present only when `type === 'service'`: the service catalog. */
-  service?: ServiceConfig;
-  /** Present only when `type === 'bingo'`: the bingo's configuration (cartones live in a
-   * subcollection, not here). */
-  bingo?: BingoConfig;
-  /** Present only when `type === 'event'`: the one-off event's configuration. */
-  event?: EventConfig;
+  /**
+   * The per-kind configuration, discriminated by `type` (its concrete shape is one member of
+   * `ToolConfig`); absent for the catch-all `other`. Read it typed with `toolConfigOf(tool, kind)`
+   * (lib/firestore). LEGACY: pre-refactor docs stored this under a per-kind field
+   * (`raffle`/`tour`/`sale`/`service`/`bingo`/`event`); the data layer's normalizeTool folds those
+   * into `config` on read, and any write re-stores it here and deletes the legacy field, so docs
+   * self-heal on edit. See lib/firestore/tools.ts.
+   */
+  config?: ToolConfig;
   status: ToolStatus;
   /** Denormalized from the school so rules/UI resolve the board without an extra read. */
   ownerId: string;

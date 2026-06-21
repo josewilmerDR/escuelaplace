@@ -11,6 +11,12 @@
  * more. No function-maintained fields: the school owns every field (so, unlike projects, there
  * are no counters to preserve).
  *
+ * CONFIG STORAGE: a kind's configuration lives under a single generic `config` map on the doc,
+ * discriminated by `type` (raffle → RaffleConfig, …); read it typed via toolConfigOf(tool, kind).
+ * LEGACY docs stored it under a per-kind field (`raffle`/`tour`/…); normalizeToolData() folds those
+ * into `config` on read, and every write re-stores under `config` and deletes the legacy field, so
+ * docs self-heal on edit — no bulk migration (mirrors how paymentMethodsOf normalizes legacy `sinpe`).
+ *
  * LIGHT vs HEAVY — the boundary that decides WHERE a new kind lives (the bingo lesson):
  *   • A LIGHT kind is config-only: its substance is a blob of fields the school describes once,
  *     plus at most an external CTA or a WhatsApp chat, with NO per-user mutable state. It lives
@@ -30,6 +36,7 @@
  */
 import { cache } from "react";
 import {
+  type DocumentData,
   addDoc,
   collection,
   deleteDoc,
@@ -62,6 +69,7 @@ import type {
   ServiceConfig,
   ServiceModality,
   Tool,
+  ToolConfig,
   ToolCta,
   ToolDoc,
   ToolStatus,
@@ -69,7 +77,6 @@ import type {
   TourConfig,
 } from "@/types";
 import { BINGO_PATTERNS, RAFFLE_NUMBER_COUNT } from "@/types";
-import { docToTyped, snapToList } from "./converters";
 
 const SCHOOLS = "schools";
 const TOOLS = "tools";
@@ -88,6 +95,54 @@ function byCreatedAtDesc(
 }
 
 /**
+ * Normalize a raw tool doc to the current shape: the per-kind config under the generic `config`
+ * map. NEW docs already store `config`; LEGACY docs stored it under a per-kind field
+ * (`raffle`/`tour`/`sale`/`service`/`bingo`/`event`, with guided_tour → `tour`), so fold that into
+ * `config` here and drop the legacy keys. Read-time only and idempotent — a write re-stores under
+ * `config` and deletes the legacy field (createTool/updateTool), so docs self-heal on edit. By the
+ * time any consumer sees a ToolDoc, the config lives only under `config`.
+ */
+function normalizeToolData(id: string, data: DocumentData): ToolDoc {
+  const { raffle, tour, sale, service, bingo, event, config, ...rest } = data;
+  // Legacy per-kind field keyed by type (guided_tour stored its config under `tour`).
+  const legacyByType: Record<string, unknown> = {
+    raffle,
+    bingo,
+    sale,
+    service,
+    guided_tour: tour,
+    event,
+  };
+  const resolved = config ?? legacyByType[rest.type as string];
+  return { id, ...rest, ...(resolved ? { config: resolved } : {}) } as ToolDoc;
+}
+
+/** The config type each (non-`other`) kind stores under `config`. */
+interface ToolConfigByType {
+  raffle: RaffleConfig;
+  bingo: BingoConfig;
+  sale: SaleConfig;
+  service: ServiceConfig;
+  guided_tour: TourConfig;
+  event: EventConfig;
+}
+
+/**
+ * The tool's typed per-kind config WHEN it is of the given kind, else null. Lets a consumer that
+ * already targets one kind read its config without re-narrowing the `ToolConfig` union:
+ * `const bingo = toolConfigOf(tool, "bingo")`. The cast is safe — normalizeTool + the writers
+ * keep `config`'s shape in step with `type`.
+ */
+export function toolConfigOf<K extends keyof ToolConfigByType>(
+  tool: Pick<Tool, "type" | "config"> | null | undefined,
+  kind: K,
+): ToolConfigByType[K] | null {
+  return tool && tool.type === kind
+    ? ((tool.config as ToolConfigByType[K] | undefined) ?? null)
+    : null;
+}
+
+/**
  * All tools of a school (any status), newest first.
  *
  * Wrapped in React cache(): the public school "Principal" section and (when present) other
@@ -96,7 +151,9 @@ function byCreatedAtDesc(
 export const getToolsBySchool = cache(
   async (schoolId: string): Promise<ToolDoc[]> => {
     const snap = await getDocs(toolsCol(schoolId));
-    return snapToList<Tool>(snap).sort(byCreatedAtDesc);
+    return snap.docs
+      .map((d) => normalizeToolData(d.id, d.data()))
+      .sort(byCreatedAtDesc);
   },
 );
 
@@ -108,7 +165,8 @@ export const getToolsBySchool = cache(
  */
 export const getToolById = cache(
   async (schoolId: string, toolId: string): Promise<ToolDoc | null> => {
-    return docToTyped<Tool>(await getDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId)));
+    const snap = await getDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId));
+    return snap.exists() ? normalizeToolData(snap.id, snap.data()) : null;
   },
 );
 
@@ -138,14 +196,11 @@ export function toolWindowLabel(
  * the school's board phone. Used by the feed card's "Consultar" action.
  */
 export function toolContactPhone(tool: ToolDoc): string {
-  return (
-    tool.tour?.contactPhone ||
-    tool.sale?.contactPhone ||
-    tool.service?.contactPhone ||
-    tool.bingo?.contactPhone ||
-    tool.event?.contactPhone ||
-    ""
-  );
+  const config = tool.config;
+  // raffle/other carry no contactPhone; tour/sale/service/bingo/event do (optional).
+  return config && "contactPhone" in config && config.contactPhone
+    ? config.contactPhone
+    : "";
 }
 
 // ── Date <-> <input type="date"> helpers (day-granular, UTC) ─────────────────
@@ -438,6 +493,40 @@ function buildEventConfig(input: EventConfigInput): EventConfig {
   };
 }
 
+/**
+ * Build the stored per-kind config from whichever *ConfigInput the create/edit form carries, or
+ * null for the config-less `other` kind (or a partial update that omits the kind's input). Single
+ * dispatch point — createTool/updateTool store the result under the generic `config` map, so the
+ * write path no longer branches per kind on the doc shape. To add a kind: a `case` here + its
+ * build*Config + its slot on CreateToolInput/ToolPatch.
+ */
+function buildToolConfig(input: {
+  type: ToolType;
+  raffle?: RaffleConfigInput;
+  tour?: TourConfigInput;
+  sale?: SaleConfigInput;
+  service?: ServiceConfigInput;
+  bingo?: BingoConfigInput;
+  event?: EventConfigInput;
+}): ToolConfig | null {
+  switch (input.type) {
+    case "raffle":
+      return input.raffle ? buildRaffleConfig(input.raffle) : null;
+    case "guided_tour":
+      return input.tour ? buildTourConfig(input.tour) : null;
+    case "sale":
+      return input.sale ? buildSaleConfig(input.sale) : null;
+    case "service":
+      return input.service ? buildServiceConfig(input.service) : null;
+    case "bingo":
+      return input.bingo ? buildBingoConfig(input.bingo) : null;
+    case "event":
+      return input.event ? buildEventConfig(input.event) : null;
+    default:
+      return null;
+  }
+}
+
 export interface CreateToolInput {
   type: ToolType;
   title: string;
@@ -485,6 +574,7 @@ export async function createTool(
   input: CreateToolInput,
   toolId?: string,
 ): Promise<string> {
+  const config = buildToolConfig(input);
   const data = {
     schoolId,
     schoolName,
@@ -492,12 +582,9 @@ export async function createTool(
     title: input.title,
     description: input.description,
     status: input.status ?? "active",
-    ...(input.raffle ? { raffle: buildRaffleConfig(input.raffle) } : {}),
-    ...(input.tour ? { tour: buildTourConfig(input.tour) } : {}),
-    ...(input.sale ? { sale: buildSaleConfig(input.sale) } : {}),
-    ...(input.service ? { service: buildServiceConfig(input.service) } : {}),
-    ...(input.bingo ? { bingo: buildBingoConfig(input.bingo) } : {}),
-    ...(input.event ? { event: buildEventConfig(input.event) } : {}),
+    // The kind config lives under the single generic `config` map (built by buildToolConfig);
+    // absent for the config-less `other` kind.
+    ...(config ? { config } : {}),
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -548,84 +635,33 @@ export async function updateTool(
   patch: ToolPatch,
 ): Promise<void> {
   const cta = sanitizeCta(patch.cta);
+  const config = buildToolConfig(patch);
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
     type: patch.type,
     title: patch.title,
     description: patch.description,
     status: patch.status,
     ...(patch.coverUrl ? { coverUrl: patch.coverUrl } : {}),
-    // Keep type and its config in sync: only the matching kind's config may live on the doc.
-    // Switching kinds must drop the stale config so it can't silently reappear; the matching
-    // kind writes its config when provided and deletes the other two. Deleting a field that was
-    // never there is a no-op (and not a "changed key" for the rules).
-    ...(patch.type === "raffle"
+    // The kind config lives under the single generic `config` map. Write the (re)built config for
+    // the active kind, or CLEAR it for the config-less `other` kind; a partial patch that omits the
+    // kind input leaves `config` untouched (the edit form always sends it on a kind change). Delete
+    // the LEGACY per-kind fields (raffle/tour/…) only WHEN we have a config to replace them with (or
+    // are clearing for `other`), so a legacy doc self-heals to `config` and never loses it midway.
+    ...(config
+      ? { config }
+      : patch.type === "other"
+        ? { config: deleteField() }
+        : {}),
+    ...(config || patch.type === "other"
       ? {
-          ...(patch.raffle ? { raffle: buildRaffleConfig(patch.raffle) } : {}),
+          raffle: deleteField(),
           tour: deleteField(),
           sale: deleteField(),
           service: deleteField(),
           bingo: deleteField(),
           event: deleteField(),
         }
-      : patch.type === "guided_tour"
-        ? {
-            ...(patch.tour ? { tour: buildTourConfig(patch.tour) } : {}),
-            raffle: deleteField(),
-            sale: deleteField(),
-            service: deleteField(),
-            bingo: deleteField(),
-            event: deleteField(),
-          }
-        : patch.type === "sale"
-          ? {
-              ...(patch.sale ? { sale: buildSaleConfig(patch.sale) } : {}),
-              raffle: deleteField(),
-              tour: deleteField(),
-              service: deleteField(),
-              bingo: deleteField(),
-              event: deleteField(),
-            }
-          : patch.type === "service"
-            ? {
-                ...(patch.service
-                  ? { service: buildServiceConfig(patch.service) }
-                  : {}),
-                raffle: deleteField(),
-                tour: deleteField(),
-                sale: deleteField(),
-                bingo: deleteField(),
-                event: deleteField(),
-              }
-            : patch.type === "bingo"
-              ? {
-                  ...(patch.bingo
-                    ? { bingo: buildBingoConfig(patch.bingo) }
-                    : {}),
-                  raffle: deleteField(),
-                  tour: deleteField(),
-                  sale: deleteField(),
-                  service: deleteField(),
-                  event: deleteField(),
-                }
-              : patch.type === "event"
-                ? {
-                    ...(patch.event
-                      ? { event: buildEventConfig(patch.event) }
-                      : {}),
-                    raffle: deleteField(),
-                    tour: deleteField(),
-                    sale: deleteField(),
-                    service: deleteField(),
-                    bingo: deleteField(),
-                  }
-                : {
-                    raffle: deleteField(),
-                    tour: deleteField(),
-                    sale: deleteField(),
-                    service: deleteField(),
-                    bingo: deleteField(),
-                    event: deleteField(),
-                  }),
+      : {}),
     startsAt: patch.startsAt ? Timestamp.fromDate(patch.startsAt) : deleteField(),
     endsAt: patch.endsAt ? Timestamp.fromDate(patch.endsAt) : deleteField(),
     cta: cta ?? deleteField(),
@@ -646,7 +682,8 @@ export async function updateToolTour(
   tour: TourConfigInput,
 ): Promise<void> {
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
-    tour: buildTourConfig(tour),
+    config: buildTourConfig(tour),
+    tour: deleteField(), // self-heal a legacy doc to the generic `config`
     updatedAt: serverTimestamp(),
   });
 }
@@ -663,7 +700,8 @@ export async function updateToolSale(
   sale: SaleConfigInput,
 ): Promise<void> {
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
-    sale: buildSaleConfig(sale),
+    config: buildSaleConfig(sale),
+    sale: deleteField(), // self-heal a legacy doc to the generic `config`
     updatedAt: serverTimestamp(),
   });
 }
@@ -680,7 +718,8 @@ export async function updateToolService(
   service: ServiceConfigInput,
 ): Promise<void> {
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
-    service: buildServiceConfig(service),
+    config: buildServiceConfig(service),
+    service: deleteField(), // self-heal a legacy doc to the generic `config`
     updatedAt: serverTimestamp(),
   });
 }
@@ -697,7 +736,8 @@ export async function updateToolEvent(
   event: EventConfigInput,
 ): Promise<void> {
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
-    event: buildEventConfig(event),
+    config: buildEventConfig(event),
+    event: deleteField(), // self-heal a legacy doc to the generic `config`
     updatedAt: serverTimestamp(),
   });
 }

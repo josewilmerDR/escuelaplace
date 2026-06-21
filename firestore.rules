@@ -300,9 +300,10 @@ service cloud.firestore {
       // - create/update/delete: the school's owner/editors or admin.
       // Unlike projects there are NO function-maintained fields (no counters to freeze) — the
       // school owns every field — so the only guards are the write-shape validators, which pin
-      // the field set, the type/status enums, the text caps, that the present config matches the
-      // declared type (toolConfigMatchesType), and the optional CTA url scheme (must start with
-      // http(s):// — a prefix check, defense in depth with safeExternalUrl on the write side).
+      // the field set, the type/status enums, the text caps, the generic `config` map shape, the
+      // legacy-config-delete-only rule (a write migrates a pre-`config` doc), and the optional CTA
+      // url scheme (must start with http(s):// — a prefix check, defense in depth with
+      // safeExternalUrl on the write side).
       match /tools/{toolId} {
         allow read: if true;
         allow create: if isAdmin() || (
@@ -471,44 +472,39 @@ service cloud.firestore {
           (request.resource.data.stages is list && request.resource.data.stages.size() <= 12));
     }
 
-    // P1-b write-shape validation for tools (non-admin arm only). CREATE pins createTool's
-    // field set (cover/dates/cta are added later via UPDATE, so they are NOT in the create set;
-    // a kind's own config — `raffle`/`tour` — IS written at create) and validates the
-    // type/status enums + the text caps. UPDATE constrains the changed keys (the edit form +
-    // setToolStatus) and freezes ownerId; the optional cta/startsAt/endsAt/coverUrl/raffle/tour
-    // are allowed but never required, so clearing them (deleteField) passes. The raffle/tour/cta
-    // shapes are validated only when the key is PRESENT in the new doc (a delete removes the
-    // key, so the guard is keyed on keys().hasAny, not changedKeys()). The nested config shape
-    // (stages, prizes…) is map-only here — rules can't iterate a list — exactly like projects.
-    // Both validators also assert toolConfigMatchesType() (no config of a non-declared kind may
-    // ride along) and, on UPDATE, the CTA url scheme (cta isn't in the create field set).
+    // P1-b write-shape validation for tools (non-admin arm only). CREATE pins createTool's field
+    // set (cover/dates/cta are added later via UPDATE, so they are NOT in the create set; the kind
+    // config is written under the generic `config` map) and validates the type/status enums + the
+    // text caps. UPDATE constrains the changed keys (the edit form + setToolStatus) and freezes
+    // ownerId; config/cta/dates/cover are allowed but never required, so clearing them (deleteField)
+    // passes. The config map is shape-checked (`is map`) only when PRESENT — the nested per-kind
+    // shape (stages, prizes…) can't be iterated by rules, exactly like projects. UPDATE also checks
+    // the optional CTA url scheme (must start with http(s)://) and that the LEGACY per-kind config
+    // fields are delete-only (a write self-heals a pre-`config` doc; see toolLegacyConfigDeleteOnly).
 
-    // Defense in depth: a tool carries AT MOST the one kind config that matches its `type` (note
-    // guided_tour's config field is `tour`). The client deletes the sibling configs on a kind
-    // switch (lib/firestore/tools.ts updateTool's deleteField ternary), but rules are the only
-    // authority a direct-SDK write must obey — so reject any NON-matching config here. We assert
-    // "no mismatched config", not "the matching one is present", so partial updates (setToolStatus,
-    // a cover-only write) and the config-less `other` kind still pass; the per-config `is map`
-    // guards validate the present one's shape. `request.resource.data` is the post-write doc (the
-    // merged result on an update), so this one helper holds for both create and update.
-    function toolConfigMatchesType() {
-      return (request.resource.data.type == 'raffle' ||
+    // A legacy per-kind config field (raffle/tour/sale/service/bingo/event — how a tool stored its
+    // config before the generic `config` map). A client UPDATE may only DELETE one (migrating an old
+    // doc to `config`), never set it: if it's a changed key, it must be ABSENT in the resulting doc.
+    // (deleteField on an already-migrated doc is a no-op — not a changed key — so this never trips on
+    // a `config`-shaped doc.)
+    function toolLegacyConfigDeleteOnly() {
+      return (!changedKeys().hasAny(['raffle']) ||
           !request.resource.data.keys().hasAny(['raffle'])) &&
-        (request.resource.data.type == 'guided_tour' ||
+        (!changedKeys().hasAny(['tour']) ||
           !request.resource.data.keys().hasAny(['tour'])) &&
-        (request.resource.data.type == 'sale' ||
+        (!changedKeys().hasAny(['sale']) ||
           !request.resource.data.keys().hasAny(['sale'])) &&
-        (request.resource.data.type == 'service' ||
+        (!changedKeys().hasAny(['service']) ||
           !request.resource.data.keys().hasAny(['service'])) &&
-        (request.resource.data.type == 'bingo' ||
+        (!changedKeys().hasAny(['bingo']) ||
           !request.resource.data.keys().hasAny(['bingo'])) &&
-        (request.resource.data.type == 'event' ||
+        (!changedKeys().hasAny(['event']) ||
           !request.resource.data.keys().hasAny(['event']));
     }
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
-          'raffle', 'tour', 'sale', 'service', 'bingo', 'event', 'ownerId', 'createdAt', 'updatedAt']) &&
+          'config', 'ownerId', 'createdAt', 'updatedAt']) &&
         request.resource.data.type in
           ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'other'] &&
         request.resource.data.status in ['active', 'inactive'] &&
@@ -517,25 +513,14 @@ service cloud.firestore {
         request.resource.data.description is string &&
         request.resource.data.description.size() <= 600 &&
         request.resource.data.ownerId is string &&
-        (!request.resource.data.keys().hasAny(['raffle']) ||
-          request.resource.data.raffle is map) &&
-        (!request.resource.data.keys().hasAny(['tour']) ||
-          request.resource.data.tour is map) &&
-        (!request.resource.data.keys().hasAny(['sale']) ||
-          request.resource.data.sale is map) &&
-        (!request.resource.data.keys().hasAny(['service']) ||
-          request.resource.data['service'] is map) &&
-        (!request.resource.data.keys().hasAny(['bingo']) ||
-          request.resource.data.bingo is map) &&
-        (!request.resource.data.keys().hasAny(['event']) ||
-          request.resource.data.event is map) &&
-        toolConfigMatchesType();
+        (!request.resource.data.keys().hasAny(['config']) ||
+          request.resource.data.config is map);
     }
     function validToolUpdate() {
       return keepsOwner() &&
         changedKeys().hasOnly([
           'type', 'title', 'description', 'status', 'coverUrl', 'startsAt', 'endsAt',
-          'cta', 'raffle', 'tour', 'sale', 'service', 'bingo', 'event', 'updatedAt']) &&
+          'cta', 'config', 'raffle', 'tour', 'sale', 'service', 'bingo', 'event', 'updatedAt']) &&
         (!changedKeys().hasAny(['type']) ||
           request.resource.data.type in
             ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'other']) &&
@@ -547,18 +532,9 @@ service cloud.firestore {
         (!changedKeys().hasAny(['description']) ||
           (request.resource.data.description is string &&
             request.resource.data.description.size() <= 600)) &&
-        (!request.resource.data.keys().hasAny(['raffle']) ||
-          request.resource.data.raffle is map) &&
-        (!request.resource.data.keys().hasAny(['tour']) ||
-          request.resource.data.tour is map) &&
-        (!request.resource.data.keys().hasAny(['sale']) ||
-          request.resource.data.sale is map) &&
-        (!request.resource.data.keys().hasAny(['service']) ||
-          request.resource.data['service'] is map) &&
-        (!request.resource.data.keys().hasAny(['bingo']) ||
-          request.resource.data.bingo is map) &&
-        (!request.resource.data.keys().hasAny(['event']) ||
-          request.resource.data.event is map) &&
+        (!request.resource.data.keys().hasAny(['config']) ||
+          request.resource.data.config is map) &&
+        toolLegacyConfigDeleteOnly() &&
         (!request.resource.data.keys().hasAny(['cta']) ||
           (request.resource.data.cta is map &&
             request.resource.data.cta.label is string &&
@@ -570,8 +546,7 @@ service cloud.firestore {
             // must obey. The app always stores a normalized lowercase scheme, so the lowercase
             // pattern rejects nothing legitimate; anchored at ^ so a scheme can't be smuggled
             // mid-string (safe whether matches() is full- or partial-string).
-            request.resource.data.cta.url.matches('^https?://.+'))) &&
-        toolConfigMatchesType();
+            request.resource.data.cta.url.matches('^https?://.+')));
     }
 
     // True if this update would elevate the school's verification state. Owners must

@@ -10,14 +10,15 @@
  * or a buy/contact flow is wired BY HAND across several files the registry does not abstract
  * away. A new CONFIG-BEARING kind realistically touches:
  *   1. types/firestore.ts — add to the `ToolType` union AND the `TOOL_TYPES` array; add an
- *      `XConfig` interface and an optional `x?: XConfig` field on `Tool`.
- *   2. lib/firestore/tools.ts — `XConfigInput` + `buildXConfig`; a slot on `CreateToolInput` AND
- *      `ToolPatch`; a new arm in the `updateTool` type↔config ternary (and the new key added to
- *      EVERY other arm's `deleteField` list); often an `updateToolX` immediate-save writer and a
- *      branch in `toolContactPhone`.
+ *      `XConfig` interface and add it to the `ToolConfig` union (the config lives under the doc's
+ *      generic `config` map — there is NO per-kind field on `Tool`).
+ *   2. lib/firestore/tools.ts — `XConfigInput` + `buildXConfig` + a `case` in `buildToolConfig`; a
+ *      slot on `CreateToolInput` AND `ToolPatch`; the kind in `toolConfigOf`'s ToolConfigByType (for
+ *      a typed read); often an `updateToolX` immediate-save writer and a branch in
+ *      `toolContactPhone`. (The `updateTool` write path is GENERIC — no per-kind arm to edit.)
  *   3. lib/tools/registry.ts — the META row (here), plus `toolBuyLabel`/`toolBuyHref` if buyable.
- *   4. firestore.rules — the `type` enum (listed TWICE: create + update), the `is map` config
- *      guard (in BOTH validToolCreate and validToolUpdate), and toolConfigMatchesType().
+ *   4. firestore.rules — the `type` enum (listed TWICE: create + update). The config guard is
+ *      generic (`config is map`), so a config-only kind needs no other rules change.
  *   5. app/school/[id]/tool/[toolId]/page.tsx — a dispatch branch + a per-kind detail render.
  *   6. app/(panel)/panel/school/[id]/tools/{new,[toolId]}/page.tsx — per-kind state, validation
  *      and JSX in BOTH the create and edit pages.

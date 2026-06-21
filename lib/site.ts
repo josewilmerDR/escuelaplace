@@ -6,10 +6,9 @@
  * scrapers (WhatsApp/Facebook) MUST be able to fetch.
  *
  * Sourced from `NEXT_PUBLIC_SITE_URL` so it tracks the origin the site is actually served
- * from. While the custom domain (escuelaplace.com) isn't connected yet, this must point at
- * the live App Hosting URL — otherwise og:image resolves to a domain that doesn't yet exist
- * and no share preview renders. Set it in apphosting.yaml; switch to escuelaplace.com once
- * the custom domain is live. The fallback is the eventual canonical domain.
+ * from — it MUST match that origin, otherwise og:image resolves to a domain the scraper
+ * can't fetch and no share preview renders. Set it in apphosting.yaml (currently the custom
+ * domain, escuelaplace.com). The fallback is the canonical domain.
  */
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://escuelaplace.com";
