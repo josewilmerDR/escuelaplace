@@ -15,6 +15,7 @@
  * ADDED (in an event handler — never during render — so it's SSR-safe and persists across edits)
  * and carried through, so orders can reference it and media attaches to the right product.
  */
+import type { Dispatch, SetStateAction } from "react";
 import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { Field } from "@/components/ui/Field";
 import {
@@ -130,34 +131,42 @@ export function SaleProductsEditor({
   toolId,
 }: {
   value: SaleFormValue;
-  onChange: (v: SaleFormValue) => void;
+  // A functional setter (the page passes setSaleForm directly). Every mutation computes from the
+  // LATEST state via the prev updater, so an async per-product media upload that resolves after
+  // the board edited text (or after another card's upload) merges its delta instead of reverting
+  // the form to the stale snapshot captured when the upload began.
+  onChange: Dispatch<SetStateAction<SaleFormValue>>;
   /** School id + the create page's pre-allocated tool id — the per-product media upload path. */
   schoolId: string;
   toolId: string;
 }) {
   const updateProduct = (id: string, patch: Partial<SaleProductDraft>) =>
-    onChange({
-      ...value,
-      products: value.products.map((p) =>
+    onChange((prev) => ({
+      ...prev,
+      products: prev.products.map((p) =>
         p.id === id ? { ...p, ...patch } : p,
       ),
-    });
+    }));
   const removeProduct = (id: string) =>
-    onChange({
-      ...value,
-      products: value.products.filter((p) => p.id !== id),
-    });
+    onChange((prev) => ({
+      ...prev,
+      products: prev.products.filter((p) => p.id !== id),
+    }));
   const addProduct = () =>
-    onChange({ ...value, products: [...value.products, emptySaleProduct()] });
+    onChange((prev) => ({
+      ...prev,
+      products: [...prev.products, emptySaleProduct()],
+    }));
 
   return (
     <div className="flex flex-col gap-4">
       <Field label="Moneda">
         <select
           value={value.currency}
-          onChange={(e) =>
-            onChange({ ...value, currency: e.target.value as ProjectCurrency })
-          }
+          onChange={(e) => {
+            const currency = e.target.value as ProjectCurrency;
+            onChange((prev) => ({ ...prev, currency }));
+          }}
           className="input"
         >
           {PROJECT_CURRENCIES.map((c) => (
@@ -251,7 +260,10 @@ export function SaleProductsEditor({
           type="tel"
           inputMode="tel"
           value={value.contactPhone}
-          onChange={(e) => onChange({ ...value, contactPhone: e.target.value })}
+          onChange={(e) => {
+            const contactPhone = e.target.value;
+            onChange((prev) => ({ ...prev, contactPhone }));
+          }}
           className="input"
           placeholder="Ej.: 8888 8888"
         />

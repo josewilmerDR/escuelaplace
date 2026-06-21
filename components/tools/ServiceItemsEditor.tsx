@@ -14,6 +14,7 @@
  * data-layer ServiceConfigInput lives here too; the stable service `id` is minted when a service
  * is ADDED (in an event handler — never during render — so it's SSR-safe) and carried through.
  */
+import type { Dispatch, SetStateAction } from "react";
 import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { Field } from "@/components/ui/Field";
 import {
@@ -155,34 +156,42 @@ export function ServiceItemsEditor({
   toolId,
 }: {
   value: ServiceFormValue;
-  onChange: (v: ServiceFormValue) => void;
+  // A functional setter (the page passes setServiceForm directly). Every mutation computes from
+  // the LATEST state via the prev updater, so an async per-service media upload that resolves
+  // after the board edited text (or after another card's upload) merges its delta instead of
+  // reverting the form to the stale snapshot captured when the upload began.
+  onChange: Dispatch<SetStateAction<ServiceFormValue>>;
   /** School id + the create page's pre-allocated tool id — the per-service media upload path. */
   schoolId: string;
   toolId: string;
 }) {
   const updateItem = (id: string, patch: Partial<ServiceItemDraft>) =>
-    onChange({
-      ...value,
-      services: value.services.map((s) =>
+    onChange((prev) => ({
+      ...prev,
+      services: prev.services.map((s) =>
         s.id === id ? { ...s, ...patch } : s,
       ),
-    });
+    }));
   const removeItem = (id: string) =>
-    onChange({
-      ...value,
-      services: value.services.filter((s) => s.id !== id),
-    });
+    onChange((prev) => ({
+      ...prev,
+      services: prev.services.filter((s) => s.id !== id),
+    }));
   const addItem = () =>
-    onChange({ ...value, services: [...value.services, emptyServiceItem()] });
+    onChange((prev) => ({
+      ...prev,
+      services: [...prev.services, emptyServiceItem()],
+    }));
 
   return (
     <div className="flex flex-col gap-4">
       <Field label="Moneda">
         <select
           value={value.currency}
-          onChange={(e) =>
-            onChange({ ...value, currency: e.target.value as ProjectCurrency })
-          }
+          onChange={(e) => {
+            const currency = e.target.value as ProjectCurrency;
+            onChange((prev) => ({ ...prev, currency }));
+          }}
           className="input"
         >
           {PROJECT_CURRENCIES.map((c) => (
@@ -338,7 +347,10 @@ export function ServiceItemsEditor({
           type="tel"
           inputMode="tel"
           value={value.contactPhone}
-          onChange={(e) => onChange({ ...value, contactPhone: e.target.value })}
+          onChange={(e) => {
+            const contactPhone = e.target.value;
+            onChange((prev) => ({ ...prev, contactPhone }));
+          }}
           className="input"
           placeholder="Ej.: 8888 8888"
         />

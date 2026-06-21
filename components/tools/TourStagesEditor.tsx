@@ -14,6 +14,7 @@
  * in an event handler — never during render — so it's SSR-safe) used only to key React and match
  * media; it is STRIPPED on conversion, since stored stages are positional (no per-stage id).
  */
+import type { Dispatch, SetStateAction } from "react";
 import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { Field } from "@/components/ui/Field";
 import {
@@ -109,20 +110,30 @@ export function TourStagesEditor({
   toolId,
 }: {
   value: TourFormValue;
-  onChange: (v: TourFormValue) => void;
+  // A functional setter (the page passes setTourForm directly). Every mutation computes from the
+  // LATEST state via the prev updater, so an async per-stage media upload that resolves after the
+  // board edited text (or after another stage's upload) merges its delta instead of reverting the
+  // form to the stale snapshot captured when the upload began.
+  onChange: Dispatch<SetStateAction<TourFormValue>>;
   /** School id + the create page's pre-allocated tool id — the per-stage media upload path. */
   schoolId: string;
   toolId: string;
 }) {
   const updateStage = (id: string, patch: Partial<TourStageDraft>) =>
-    onChange({
-      ...value,
-      stages: value.stages.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-    });
+    onChange((prev) => ({
+      ...prev,
+      stages: prev.stages.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    }));
   const removeStage = (id: string) =>
-    onChange({ ...value, stages: value.stages.filter((s) => s.id !== id) });
+    onChange((prev) => ({
+      ...prev,
+      stages: prev.stages.filter((s) => s.id !== id),
+    }));
   const addStage = () =>
-    onChange({ ...value, stages: [...value.stages, emptyTourStage()] });
+    onChange((prev) => ({
+      ...prev,
+      stages: [...prev.stages, emptyTourStage()],
+    }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -187,7 +198,10 @@ export function TourStagesEditor({
           type="tel"
           inputMode="tel"
           value={value.contactPhone}
-          onChange={(e) => onChange({ ...value, contactPhone: e.target.value })}
+          onChange={(e) => {
+            const contactPhone = e.target.value;
+            onChange((prev) => ({ ...prev, contactPhone }));
+          }}
           className="input"
           placeholder="Ej.: 8888 8888"
         />
