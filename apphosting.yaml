@@ -53,8 +53,8 @@ env:
     availability: [BUILD, RUNTIME]
   # Public origin used to build absolute OG/canonical URLs (notably og:image, which
   # WhatsApp/Facebook must be able to fetch). MUST match the origin the site is served from.
-  # Points at the live App Hosting URL until the custom domain (escuelaplace.com) is
-  # connected — switch this to https://escuelaplace.com once that domain resolves.
+  # Set to the custom domain (escuelaplace.com); the App Hosting URL must redirect/serve from
+  # it so og:image and canonical URLs resolve and link previews render.
   - variable: NEXT_PUBLIC_SITE_URL
-    value: "https://escuelaplace--escuelaplace.us-central1.hosted.app"
+    value: "https://escuelaplace.com"
     availability: [BUILD, RUNTIME]
