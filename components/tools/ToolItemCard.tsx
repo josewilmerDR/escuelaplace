@@ -1,12 +1,16 @@
 "use client";
 
 /**
- * One editable item card shared by every media-bearing tool kind on the edit page — a guided-tour
- * stage, a sale product, a service. It owns the parts that were byte-for-byte identical across the
- * three: the fieldset shell (legend + "Quitar …" button), the per-card busy/error state, and the
- * whole media block (a photo grid with add/remove, plus one short video with add/remove). The
- * type-specific text fields (title/name, description, price, …) are passed as `children`, so each
- * kind keeps only what actually differs.
+ * One editable item card shared by every media-bearing item — a guided-tour stage, a sale
+ * product, a service, an event gallery AND a project crowdfunding stage. It owns the parts that
+ * were byte-for-byte identical across them: the fieldset shell (legend + "Quitar …" button), the
+ * per-card busy/error state, and the whole media block (a photo grid with add/remove, plus one
+ * short video with add/remove). The type-specific text fields (title/name, description, price, …)
+ * are passed as `children`, so each kind keeps only what actually differs.
+ *
+ * Uploads go through `uploadAsset`. It defaults to the tool Storage path (uploadToolStageAsset
+ * with the `schoolId`/`toolId` props), so every existing tool caller is unchanged; the project
+ * stage editor passes its own (uploadProjectAsset) and omits the tool ids, reusing the same block.
  *
  * Media persists IMMEDIATELY against the SAVED item: each add/remove calls `onMedia` (the parent's
  * partial write), so an in-progress, unsaved text edit elsewhere on the form is never dragged
@@ -39,8 +43,12 @@ export interface ToolItemCardProps {
   videoUrl?: string;
   /** Max photos for this kind (TOUR_STAGE_PHOTO_MAX / SALE_PRODUCT_PHOTO_MAX / SERVICE_PHOTO_MAX). */
   photoMax: number;
-  schoolId: string;
-  toolId: string;
+  /** School + tool ids for the DEFAULT (tool) uploader. Omit when passing a custom `uploadAsset`. */
+  schoolId?: string;
+  toolId?: string;
+  /** Upload one photo/video and return its public URL. Defaults to the tool Storage path
+   * (uploadToolStageAsset with schoolId/toolId); the project stage editor passes uploadProjectAsset. */
+  uploadAsset?: (kind: "photo" | "video", file: File) => Promise<string>;
   /** Whether this item is saved in Firestore; an unsaved item can't receive media. */
   persisted: boolean;
   /** Shown in place of the upload controls when `persisted === false`. */
@@ -64,6 +72,7 @@ export function ToolItemCard({
   photoMax,
   schoolId,
   toolId,
+  uploadAsset,
   persisted,
   unsavedHint,
   onMedia,
@@ -71,6 +80,13 @@ export function ToolItemCard({
 }: ToolItemCardProps) {
   const [busy, setBusy] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
+
+  // Default to the tool Storage path; a caller (e.g. the project stage editor) can override it.
+  // Only reached when `uploadAsset` is absent, which is exactly when schoolId/toolId are passed.
+  const upload =
+    uploadAsset ??
+    ((kind: "photo" | "video", file: File) =>
+      uploadToolStageAsset(schoolId as string, toolId as string, kind, file));
 
   // Wrap a media op so upload/save failures report inline and the busy gate prevents a double-fire.
   const run = async (op: () => Promise<void>, fallback: string) => {
@@ -87,7 +103,7 @@ export function ToolItemCard({
 
   const addPhoto = (file: File) =>
     run(async () => {
-      const url = await uploadToolStageAsset(schoolId, toolId, "photo", file);
+      const url = await upload("photo", file);
       await onMedia({ photos: [...photos, url] });
     }, "No se pudo subir la foto.");
 
@@ -99,7 +115,7 @@ export function ToolItemCard({
 
   const setVideo = (file: File) =>
     run(async () => {
-      const url = await uploadToolStageAsset(schoolId, toolId, "video", file);
+      const url = await upload("video", file);
       await onMedia({ videoUrl: url });
     }, "No se pudo subir el video.");
 

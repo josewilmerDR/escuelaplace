@@ -5,9 +5,10 @@ import { safeExternalUrls } from "@/lib/url";
 import type { ProjectStage } from "@/types";
 
 /**
- * Presentational block for one cost-justified project stage (cover photos + quotes).
- * Server-safe (no client hooks); shared by the public project detail page so the stage
- * list stays consistent and the page file doesn't carry its own copy.
+ * Presentational block for one cost-justified project stage (photos + a short video + quotes).
+ * Server-safe (no client hooks); shared by the public project detail page so the stage list
+ * stays consistent and the page file doesn't carry its own copy. The video is a native
+ * `<video controls preload="metadata">` (a public Storage URL), like the guided-tour render.
  */
 export function ProjectStageItem({
   stage,
@@ -61,6 +62,17 @@ export function ProjectStageItem({
             businessName={`${projectTitle} — etapa ${index + 1}`}
           />
         </div>
+      )}
+
+      {stage.videoUrl && (
+        <video
+          controls
+          preload="metadata"
+          className="mt-3 w-full rounded-xl bg-black ring-1 ring-black/5"
+        >
+          <source src={stage.videoUrl} />
+          Tu navegador no puede reproducir este video.
+        </video>
       )}
 
       {quoteUrls.length > 0 && (
