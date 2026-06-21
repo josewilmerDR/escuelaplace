@@ -1,9 +1,30 @@
 /**
- * The registry of school "Herramientas" kinds — the single place to add or remove a tool
- * type. Each entry is PURE PRESENTATION (a Spanish label, a one-line helper, an icon); the
- * generic create / edit / render flow is identical for every kind, so a new kind needs only
- * a row here plus its key in `ToolType` (types/firestore.ts) and the firestore.rules
- * allow-list. Order here is the order shown in the editor picker.
+ * The registry of school "Herramientas" kinds — the single source of truth for a kind's
+ * PRESENTATION: a Spanish label, a one-line helper, an icon, the create/edit titles, and (for
+ * the buyable kinds) the buy CTA label/href. It drives the presentation-only surfaces — the hub
+ * directory + per-kind counts, the manage-page list, the card badge/icon, and the public feed
+ * card. Order here is the order shown in the editor picker.
+ *
+ * IMPORTANT — this is NOT a plugin seam. Adding a kind is NOT "just a row here": a registry row
+ * only makes the kind appear in the directory/list/card/badge. A kind that carries configuration
+ * or a buy/contact flow is wired BY HAND across several files the registry does not abstract
+ * away. A new CONFIG-BEARING kind realistically touches:
+ *   1. types/firestore.ts — add to the `ToolType` union AND the `TOOL_TYPES` array; add an
+ *      `XConfig` interface and an optional `x?: XConfig` field on `Tool`.
+ *   2. lib/firestore/tools.ts — `XConfigInput` + `buildXConfig`; a slot on `CreateToolInput` AND
+ *      `ToolPatch`; a new arm in the `updateTool` type↔config ternary (and the new key added to
+ *      EVERY other arm's `deleteField` list); often an `updateToolX` immediate-save writer and a
+ *      branch in `toolContactPhone`.
+ *   3. lib/tools/registry.ts — the META row (here), plus `toolBuyLabel`/`toolBuyHref` if buyable.
+ *   4. firestore.rules — the `type` enum (listed TWICE: create + update), the `is map` config
+ *      guard (in BOTH validToolCreate and validToolUpdate), and toolConfigMatchesType().
+ *   5. app/school/[id]/tool/[toolId]/page.tsx — a dispatch branch + a per-kind detail render.
+ *   6. app/(panel)/panel/school/[id]/tools/{new,[toolId]}/page.tsx — per-kind state, validation
+ *      and JSX in BOTH the create and edit pages.
+ *   7. app/school/[id]/tool/[toolId]/opengraph-image.tsx — the KIND_EMOJI entry.
+ * A BUYABLE kind (its own order collection + Storage proof + buyer/confirm pages + rules) is a
+ * full subsystem on top of that — see the LIGHT-vs-HEAVY note in lib/firestore/tools.ts before
+ * adding one. (Only the catch-all config-less `other` kind is truly "just a row".)
  *
  * Server-safe: it pulls only the inline SVG icons (no "use client"), so it renders from both
  * the public SSR pages and the client panel.

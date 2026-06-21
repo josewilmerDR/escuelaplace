@@ -300,9 +300,9 @@ service cloud.firestore {
       // - create/update/delete: the school's owner/editors or admin.
       // Unlike projects there are NO function-maintained fields (no counters to freeze) — the
       // school owns every field — so the only guards are the write-shape validators, which pin
-      // the field set, the type/status enums and the text caps. The optional CTA url scheme is
-      // checked on the WRITE side (safeExternalUrl — rules can't parse URLs), so here it is only
-      // shape/length-validated.
+      // the field set, the type/status enums, the text caps, that the present config matches the
+      // declared type (toolConfigMatchesType), and the optional CTA url scheme (must start with
+      // http(s):// — a prefix check, defense in depth with safeExternalUrl on the write side).
       match /tools/{toolId} {
         allow read: if true;
         allow create: if isAdmin() || (
@@ -480,6 +480,31 @@ service cloud.firestore {
     // shapes are validated only when the key is PRESENT in the new doc (a delete removes the
     // key, so the guard is keyed on keys().hasAny, not changedKeys()). The nested config shape
     // (stages, prizes…) is map-only here — rules can't iterate a list — exactly like projects.
+    // Both validators also assert toolConfigMatchesType() (no config of a non-declared kind may
+    // ride along) and, on UPDATE, the CTA url scheme (cta isn't in the create field set).
+
+    // Defense in depth: a tool carries AT MOST the one kind config that matches its `type` (note
+    // guided_tour's config field is `tour`). The client deletes the sibling configs on a kind
+    // switch (lib/firestore/tools.ts updateTool's deleteField ternary), but rules are the only
+    // authority a direct-SDK write must obey — so reject any NON-matching config here. We assert
+    // "no mismatched config", not "the matching one is present", so partial updates (setToolStatus,
+    // a cover-only write) and the config-less `other` kind still pass; the per-config `is map`
+    // guards validate the present one's shape. `request.resource.data` is the post-write doc (the
+    // merged result on an update), so this one helper holds for both create and update.
+    function toolConfigMatchesType() {
+      return (request.resource.data.type == 'raffle' ||
+          !request.resource.data.keys().hasAny(['raffle'])) &&
+        (request.resource.data.type == 'guided_tour' ||
+          !request.resource.data.keys().hasAny(['tour'])) &&
+        (request.resource.data.type == 'sale' ||
+          !request.resource.data.keys().hasAny(['sale'])) &&
+        (request.resource.data.type == 'service' ||
+          !request.resource.data.keys().hasAny(['service'])) &&
+        (request.resource.data.type == 'bingo' ||
+          !request.resource.data.keys().hasAny(['bingo'])) &&
+        (request.resource.data.type == 'event' ||
+          !request.resource.data.keys().hasAny(['event']));
+    }
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
@@ -503,7 +528,8 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['bingo']) ||
           request.resource.data.bingo is map) &&
         (!request.resource.data.keys().hasAny(['event']) ||
-          request.resource.data.event is map);
+          request.resource.data.event is map) &&
+        toolConfigMatchesType();
     }
     function validToolUpdate() {
       return keepsOwner() &&
@@ -537,7 +563,15 @@ service cloud.firestore {
           (request.resource.data.cta is map &&
             request.resource.data.cta.label is string &&
             request.resource.data.cta.label.size() <= 40 &&
-            request.resource.data.cta.url is string));
+            request.resource.data.cta.url is string &&
+            // Scheme check: a CTA href must start with http(s):// so a javascript:/data: value can
+            // never reach an <a href> on the public page. Mirrors safeExternalUrl on the write side
+            // (lib/firestore/tools.ts sanitizeCta) — rules are the only authority a direct-SDK write
+            // must obey. The app always stores a normalized lowercase scheme, so the lowercase
+            // pattern rejects nothing legitimate; anchored at ^ so a scheme can't be smuggled
+            // mid-string (safe whether matches() is full- or partial-string).
+            request.resource.data.cta.url.matches('^https?://.+'))) &&
+        toolConfigMatchesType();
     }
 
     // True if this update would elevate the school's verification state. Owners must
