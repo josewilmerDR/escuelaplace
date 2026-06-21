@@ -1406,6 +1406,25 @@ export const BINGO_CLAIM_NAME_MAX = 80;
 /** The live event's lifecycle: not started → calling numbers → finished. */
 export type BingoEventStatus = "idle" | "live" | "closed";
 
+/** Cap on the pause reason shown to players. */
+export const BINGO_PAUSE_REASON_MAX = 80;
+
+/**
+ * A break the director announces mid-game (refrigerio, sorteo, etc.). Both fields are optional: the
+ * director may give just a reason, just a duration, or neither. While set the game stays `live` (the
+ * round isn't lost) — players just see a "Bingo en pausa" notice. `minutes` drives the public
+ * countdown (from `startedAt`); when it elapses the notice flips to "reiniciamos en cualquier
+ * momento". Cleared (null) on resume and whenever a round/bingo (re)starts.
+ */
+export interface BingoPause {
+  /** Announced duration in minutes (absent/null if none) — the public countdown's length. */
+  minutes?: number | null;
+  /** Why the game is paused, shown to players (absent/null if none). */
+  reason?: string | null;
+  /** When the pause began (server time) — the countdown counts down from here. */
+  startedAt: Timestamp;
+}
+
 /**
  * The single live-event state doc of a bingo: schools/{id}/tools/{toolId}/event/state. Read is
  * public (virtual players watch the board live); only the school writes it. `calledNumbers` is
@@ -1439,6 +1458,8 @@ export interface BingoEventState {
   awardedCount?: number;
   /** LEGACY: patterns awarded under the old multi-pattern model. Kept so old docs still read. */
   awardedPatterns?: BingoPattern[];
+  /** Set while the director pauses the live game; null/absent when running. */
+  pause?: BingoPause | null;
   startedAt?: Timestamp;
   closedAt?: Timestamp;
   updatedAt: Timestamp;

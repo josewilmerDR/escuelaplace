@@ -16,26 +16,29 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { BingoCalledBoard } from "@/components/tools/BingoCalledBoard";
 import { BingoCardGrid } from "@/components/tools/BingoCardGrid";
 import { BingoPatternPicker } from "@/components/tools/BingoPatternPicker";
 import { BingoPatternPreview } from "@/components/tools/BingoPatternPreview";
+import { BingoPauseNotice } from "@/components/tools/BingoPauseNotice";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import { maskSatisfied, winningLineIndices } from "@/lib/bingo-patterns";
 import { userErrorMessage } from "@/lib/errors";
 import {
   callBingoNumber,
-  closeBingoEvent,
   confirmBingoWinner,
   getBingoCards,
   getSchoolById,
   getToolsBySchool,
+  pauseBingoEvent,
   resolveBingoClaim,
+  resumeBingoEvent,
   setBingoReviewing,
   startBingoEvent,
   subscribeBingoClaims,
@@ -44,6 +47,7 @@ import {
 } from "@/lib/firestore";
 import {
   BINGO_PATTERN_LABELS,
+  BINGO_PAUSE_REASON_MAX,
   type BingoActivePattern,
   type BingoActivePrize,
   type BingoCardDoc,
@@ -138,8 +142,27 @@ function SchoolBingoLiveInner() {
 
   return (
     <main>
-      <Heading subtitle={school.name} />
-      <SchoolPanelNav schoolId={id} current="tools" />
+      <p className="mb-6 text-sm">
+        <BackLink href={`/panel/school/${id}/tools`}>
+          Todas las herramientas
+        </BackLink>
+      </p>
+      <Heading
+        subtitle={school.name}
+        action={
+          selected ? (
+            <button
+              type="button"
+              onClick={() => setToolId(null)}
+              className="btn btn-outline shrink-0"
+            >
+              {/* Short label on phones so the title + button stay on one row. */}
+              <span className="sm:hidden">Salir</span>
+              <span className="hidden sm:inline">Salir del en vivo</span>
+            </button>
+          ) : undefined
+        }
+      />
 
       {bingos.length === 0 ? (
         <p className="mt-8 text-sm text-muted">
@@ -178,30 +201,28 @@ function SchoolBingoLiveInner() {
           </ul>
         </section>
       ) : (
-        <BingoConsole
-          schoolId={id}
-          tool={selected}
-          confirmedBy={user!.id}
-          onBack={() => setToolId(null)}
-        />
+        <BingoConsole schoolId={id} tool={selected} confirmedBy={user!.id} />
       )}
-
-      <p className="mt-8 text-sm">
-        <BackLink href={`/panel/school/${id}/tools`}>
-          Volver a herramientas
-        </BackLink>
-      </p>
     </main>
   );
 }
 
-function Heading({ subtitle }: { subtitle?: string }) {
+function Heading({
+  subtitle,
+  action,
+}: {
+  subtitle?: string;
+  action?: ReactNode;
+}) {
   return (
-    <header>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Bingo en vivo
-      </h1>
-      <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
+    <header className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Bingo en vivo
+        </h1>
+        <p className="mt-1 truncate text-sm text-muted">{subtitle || " "}</p>
+      </div>
+      {action}
     </header>
   );
 }
@@ -210,12 +231,10 @@ function BingoConsole({
   schoolId,
   tool,
   confirmedBy,
-  onBack,
 }: {
   schoolId: string;
   tool: ToolDoc;
   confirmedBy: string;
-  onBack: () => void;
 }) {
   const bingo = tool.bingo!;
   const toolId = tool.id;
@@ -225,6 +244,10 @@ function BingoConsole({
   const [cardsById, setCardsById] = useState<Map<string, BingoCardDoc>>(new Map());
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // "Nueva partida": the picker is open to start a BRAND-NEW bingo (wipe the awarded-prizes ledger,
+  // re-offer every prize) rather than the next round of the current one. Reset on close/start.
+  const [freshGame, setFreshGame] = useState(false);
+  const [pauseOpen, setPauseOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Synchronous in-flight lock: `busy` (state) only disables buttons after the next commit, so a
   // fast double-tap could fire an action twice before that. This drops the second tap immediately.
@@ -271,6 +294,8 @@ function BingoConsole({
   const activePattern = state?.activePattern ?? null;
   const activePrize = state?.activePrize ?? null;
   const winner = state?.winner ?? null;
+  // The director's announced break (null when running). Only meaningful while the game is live.
+  const pause = status === "live" ? (state?.pause ?? null) : null;
   // This round's claims only: scope by the event's startedAt so claims from earlier rounds (the
   // claims subcollection persists across restarts) don't leak into the queue.
   const roundStartMs = state?.startedAt?.toMillis?.() ?? 0;
@@ -348,34 +373,48 @@ function BingoConsole({
       }
     });
 
-  // Start/restart a round with the prize + pattern the director chose in the picker.
+  // Start a round with the prize + pattern the director chose in the picker. A "Nueva partida"
+  // (freshGame) resets the awarded-prizes ledger so the new bingo re-offers every prize; otherwise
+  // this is the next round of the current bingo and the ledger carries forward.
   const onStartRound = (
     active: BingoActivePattern,
     prize: BingoActivePrize | null,
   ) => {
+    const resetPrizes = freshGame;
     setPickerOpen(false);
-    run(() => startBingoEvent(schoolId, toolId, active, prize));
+    setFreshGame(false);
+    run(() => startBingoEvent(schoolId, toolId, active, prize, resetPrizes));
   };
+
+  // "Nueva partida": open the picker for a brand-new bingo. No explicit close — startBingoEvent's
+  // setDoc REPLACES the live doc (clean board, no winner), and resetPrizes wipes the ledger. If the
+  // director cancels the picker, the current bingo keeps running untouched.
+  const onNewGame = () => {
+    setFreshGame(true);
+    setPickerOpen(true);
+  };
+
+  // Pause/resume the live game (a refrigerio, etc.). The round isn't lost — players just see a notice.
+  const onPause = (minutes: number | null, reason: string | null) => {
+    setPauseOpen(false);
+    run(() => pauseBingoEvent(schoolId, toolId, minutes, reason));
+  };
+  const onResume = () => run(() => resumeBingoEvent(schoolId, toolId));
 
   return (
     <section className="mt-8 flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            {tool.title}
-          </h2>
-          <p className="text-xs text-muted">
-            Estado:{" "}
-            {status === "live"
-              ? "en vivo"
-              : status === "closed"
-                ? "cerrado"
-                : "sin iniciar"}
-          </p>
-        </div>
-        <button type="button" onClick={onBack} className="btn btn-outline">
-          Salir del en vivo
-        </button>
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          {tool.title}
+        </h2>
+        <p className="text-xs text-muted">
+          Estado:{" "}
+          {status === "live"
+            ? "en vivo"
+            : status === "closed"
+              ? "cerrado"
+              : "sin iniciar"}
+        </p>
       </div>
 
       {error && (
@@ -419,11 +458,11 @@ function BingoConsole({
                 </button>
                 <button
                   type="button"
-                  onClick={() => run(() => closeBingoEvent(schoolId, toolId))}
-                  disabled={busy}
-                  className="btn btn-outline"
+                  onClick={onNewGame}
+                  disabled={busy || !isStandardGrid}
+                  className="btn btn-outline ml-auto"
                 >
-                  Cerrar bingo
+                  Nueva partida
                 </button>
               </div>
             </>
@@ -431,11 +470,11 @@ function BingoConsole({
         ) : status === "live" ? (
           <button
             type="button"
-            onClick={() => run(() => closeBingoEvent(schoolId, toolId))}
-            disabled={busy}
+            onClick={onNewGame}
+            disabled={busy || !isStandardGrid}
             className="btn btn-outline self-start"
           >
-            Cerrar bingo
+            Nueva partida
           </button>
         ) : (
           <>
@@ -457,6 +496,32 @@ function BingoConsole({
           </>
         )}
       </div>
+
+      {/* Pause control: announce a break (refrigerio, sorteo…) without losing the round. While paused
+          the players see a "Bingo en pausa" notice + countdown; "Reanudar" clears it. */}
+      {status === "live" &&
+        (pause ? (
+          <div className="flex flex-col gap-3">
+            <BingoPauseNotice pause={pause} />
+            <button
+              type="button"
+              onClick={onResume}
+              disabled={busy}
+              className="btn btn-primary self-start"
+            >
+              Reanudar
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPauseOpen(true)}
+            disabled={busy}
+            className="btn btn-outline self-start"
+          >
+            Pausa
+          </button>
+        ))}
 
       {/* The board */}
       <div className={cardClass("inset")}>
@@ -631,17 +696,105 @@ function BingoConsole({
       {pickerOpen && (
         <BingoPatternPicker
           open
-          onClose={() => setPickerOpen(false)}
+          onClose={() => {
+            setPickerOpen(false);
+            setFreshGame(false);
+          }}
           onStart={onStartRound}
           prizes={bingo.prizes}
           // Prizes already won THIS bingo (so the picker skips them). Empty when starting a brand-new
-          // bingo (idle/closed) — a fresh bingo re-offers every prize.
-          awardedPrizes={status === "live" ? (state?.awardedPrizes ?? []) : []}
+          // bingo (idle/closed, or an explicit "Nueva partida") — a fresh bingo re-offers every prize.
+          awardedPrizes={
+            freshGame || status !== "live" ? [] : (state?.awardedPrizes ?? [])
+          }
           schoolId={schoolId}
           createdBy={confirmedBy}
-          reopening={status === "closed"}
+          reopening={freshGame || status === "closed"}
         />
       )}
+
+      {pauseOpen && (
+        <PauseDialog onClose={() => setPauseOpen(false)} onSubmit={onPause} />
+      )}
     </section>
+  );
+}
+
+/** The "Pausar el bingo" form: announce a break with an optional duration + reason (either can be
+ * left blank). The countdown the players see is driven by the minutes; the reason is the "por …".
+ * Mounted only while open, so its fields reset on every open without an effect. */
+function PauseDialog({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (minutes: number | null, reason: string | null) => void;
+}) {
+  const [minutes, setMinutes] = useState("");
+  const [reason, setReason] = useState("");
+
+  const submit = () => {
+    const n = Number(minutes);
+    const cleanMinutes =
+      minutes.trim() === "" || !Number.isFinite(n) || n <= 0
+        ? null
+        : Math.round(n);
+    const cleanReason = reason.trim() === "" ? null : reason.trim();
+    onSubmit(cleanMinutes, cleanReason);
+  };
+
+  return (
+    <Modal open title="Pausar el bingo" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div>
+          <label
+            htmlFor="pause-minutes"
+            className="text-xs font-semibold uppercase tracking-wide text-muted"
+          >
+            Tiempo (minutos)
+          </label>
+          <input
+            id="pause-minutes"
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={minutes}
+            onChange={(e) => setMinutes(e.target.value)}
+            placeholder="15"
+            className="input mt-2"
+          />
+          <p className="mt-1 text-xs text-muted">
+            Opcional. Los jugadores ven una cuenta regresiva; al llegar a cero
+            cambia a «reiniciamos en cualquier momento».
+          </p>
+        </div>
+        <div>
+          <label
+            htmlFor="pause-reason"
+            className="text-xs font-semibold uppercase tracking-wide text-muted"
+          >
+            Motivo
+          </label>
+          <input
+            id="pause-reason"
+            type="text"
+            maxLength={BINGO_PAUSE_REASON_MAX}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Refrigerio"
+            className="input mt-2"
+          />
+          <p className="mt-1 text-xs text-muted">Opcional.</p>
+        </div>
+      </div>
+      <div className="mt-5 flex justify-end gap-2 border-t border-border pt-4">
+        <button type="button" onClick={onClose} className="btn btn-outline">
+          Cancelar
+        </button>
+        <button type="button" onClick={submit} className="btn btn-primary">
+          Pausar
+        </button>
+      </div>
+    </Modal>
   );
 }
