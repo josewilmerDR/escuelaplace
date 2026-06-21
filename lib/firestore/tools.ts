@@ -3,13 +3,30 @@
  * Public read, so reads run from server components (the public "Principal" section + the tool
  * detail page); writes (the board's tool CRUD) run client-side from the panel.
  *
- * A tool is a lightweight activity a school runs that doesn't warrant its own tab — a raffle,
- * a bingo, a sale, a service, a guided tour. The concrete kinds live in a registry
+ * A tool DOC is the shared CONFIG SURFACE of an activity a school runs — a raffle, a bingo, a
+ * sale, a service, a guided tour, an event. The concrete kinds live in a registry
  * (lib/tools/registry); the storage shape here is the same for every kind. PURELY
  * INFORMATIONAL: like every other surface the platform never touches money — a tool may carry
- * an optional call-to-action LINK (scheme-checked on write), nothing more. No
- * function-maintained fields: the school owns every field (so, unlike projects, there are no
- * counters to preserve).
+ * an optional call-to-action LINK (scheme-checked on write AND in firestore.rules), nothing
+ * more. No function-maintained fields: the school owns every field (so, unlike projects, there
+ * are no counters to preserve).
+ *
+ * LIGHT vs HEAVY — the boundary that decides WHERE a new kind lives (the bingo lesson):
+ *   • A LIGHT kind is config-only: its substance is a blob of fields the school describes once,
+ *     plus at most an external CTA or a WhatsApp chat, with NO per-user mutable state. It lives
+ *     ENTIRELY in this doc's per-kind config (raffle/tour/sale/service/event). raffle/event/tour
+ *     are light; adding one needs no new collection, rule block, or route.
+ *   • A HEAVY kind has per-user/per-item mutable state (inventory, bids, votes, claims), an
+ *     order/purchase/reservation flow, or a real-time/director-driven live phase. It does NOT
+ *     belong in this doc: it gets its OWN subcollections / top-level collections, rules and
+ *     routes keyed by {schoolId, toolId}, and the tool doc serves only as its catalog entry
+ *     point. Bingo is heavy (lib/firestore/bingo-*.ts: cards/orders/decks/event + dedicated
+ *     routes); raffle/sale are light configs with a heavy ORDER flow bolted on
+ *     (lib/firestore/raffles.ts, product-orders.ts) that clones the projectContributions
+ *     privacy model.
+ * Do NOT cram a heavy kind's state into this doc to keep it "light" (it bloats the public doc
+ * and breaks the kind-agnostic read path); do NOT assume a buyable/stateful kind is "just a
+ * registry row" (it is a full subsystem). For the full add-a-kind checklist see lib/tools/registry.
  */
 import { cache } from "react";
 import {

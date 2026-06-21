@@ -21,6 +21,7 @@ import {
   addDoc,
   arrayUnion,
   collection,
+  deleteField,
   doc,
   getDoc,
   setDoc,
@@ -984,6 +985,109 @@ describe("schools/{id}/projects — write-shape (P1-b)", () => {
     );
     await assertFails(
       updateDoc(doc(asUser("bob"), "schools", "sch1", "projects", "p1"), { foo: "bar" }),
+    );
+  });
+});
+
+describe("tools — write-shape: config↔type + cta scheme (P1-b)", () => {
+  // The board's createTool field set (cover/dates/cta are added later via UPDATE, so they are
+  // NOT in the create set). Defaults to the config-less catch-all 'other' kind.
+  const baseTool = (over: Record<string, unknown> = {}) => ({
+    schoolId: "sch1",
+    schoolName: "Escuela",
+    type: "other",
+    title: "Actividad",
+    description: "Una actividad",
+    status: "active",
+    ownerId: "alice",
+    ...over,
+  });
+  const raffleCfg = {
+    numberCount: 100,
+    pricePerNumber: 1000,
+    currency: "CRC",
+    prizes: ["Premio"],
+    drawMethod: "tombola",
+  };
+  const eventCfg = { place: "Gimnasio" };
+
+  beforeEach(async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("alice")));
+  });
+
+  it("ALLOWS the owner to create a tool whose config matches its type, and a config-less 'other'", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
+        baseTool({ type: "raffle", raffle: raffleCfg }),
+      ),
+    );
+    await assertSucceeds(
+      setDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t2"), baseTool()),
+    );
+  });
+
+  it("DENIES creating a tool carrying a config of a NON-declared kind (mismatched config)", async () => {
+    // type 'event' but a raffle config rides along — toolConfigMatchesType() rejects it.
+    await assertFails(
+      setDoc(
+        doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
+        baseTool({ type: "event", raffle: raffleCfg }),
+      ),
+    );
+  });
+
+  it("DENIES an update that switches type but leaves the old kind's config (stale config)", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", raffle: raffleCfg })),
+    );
+    // The client deletes the raffle config on a kind switch; a direct write that forgets to is
+    // now rejected at the rules layer instead of silently persisting an inconsistent doc.
+    await assertFails(
+      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), { type: "event" }),
+    );
+  });
+
+  it("ALLOWS an update that switches type AND clears the old config (the correct client write)", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", raffle: raffleCfg })),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
+        type: "event",
+        raffle: deleteField(),
+        event: eventCfg,
+      }),
+    );
+  });
+
+  it("ALLOWS a CTA with an http(s) url and ALLOWS clearing it", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", raffle: raffleCfg })),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
+        cta: { label: "Más info", url: "https://example.com/rifa" },
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), { cta: deleteField() }),
+    );
+  });
+
+  it("DENIES a CTA whose url scheme is not http(s) (javascript:/data:)", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", raffle: raffleCfg })),
+    );
+    await assertFails(
+      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
+        cta: { label: "x", url: "javascript:alert(1)" },
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
+        cta: { label: "x", url: "data:text/html,<script>alert(1)</script>" },
+      }),
     );
   });
 });
