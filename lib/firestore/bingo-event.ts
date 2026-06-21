@@ -38,6 +38,7 @@ import type {
   BingoClaimStatus,
   BingoEventState,
 } from "@/types";
+import { BINGO_PAUSE_REASON_MAX } from "@/types";
 import { snapToList } from "./converters";
 
 const SCHOOLS = "schools";
@@ -140,19 +141,25 @@ export function subscribeBingoEventState(
  * fresh `startedAt` that scopes the round. The director picks both in the picker BEFORE this fires.
  * `setDoc` REPLACES the doc, so a restart naturally clears the previous round's `winner`/`reviewing`
  * (set explicitly here for a clean shape).
+ *
+ * `resetPrizes` forces a brand-new bingo: the awarded-prizes ledger is wiped so every prize is
+ * re-offered, even when the previous doc is still 'live'. The "Nueva partida" action uses it to go
+ * straight from a running bingo to a fresh one without an intermediate 'closed' state.
  */
 export async function startBingoEvent(
   schoolId: string,
   toolId: string,
   active: BingoActivePattern,
   prize: BingoActivePrize | null,
+  resetPrizes = false,
 ): Promise<void> {
   const ref = eventStateRef(schoolId, toolId);
   // Carry forward which prizes were already won THIS bingo so the picker can skip them — but RESET
-  // when the previous doc was 'closed' (that was the END of a bingo; this start is a brand-new one).
+  // when starting a brand-new bingo: either the previous doc was 'closed' (that was the END of a
+  // bingo) or the director explicitly asked for a new game (`resetPrizes`).
   const prev = await getDoc(ref);
   const awardedPrizes =
-    prev.exists() && prev.data().status !== "closed"
+    !resetPrizes && prev.exists() && prev.data().status !== "closed"
       ? ((prev.data().awardedPrizes as string[] | undefined) ?? [])
       : [];
   await setDoc(ref, {
@@ -163,8 +170,47 @@ export async function startBingoEvent(
     activePrize: prize,
     reviewing: false,
     winner: null,
+    pause: null,
     awardedPrizes,
     startedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Pause the live game (a refrigerio, a sorteo, etc.). Keeps `status: 'live'` — the round isn't lost,
+ * players just see a "Bingo en pausa" notice. Both args are OPTIONAL: pass null for either. `minutes`
+ * (when given) drives the public countdown from the server `startedAt`; once it elapses the notice
+ * flips to "reiniciamos en cualquier momento". Idempotent re-pause just refreshes `startedAt`.
+ */
+export async function pauseBingoEvent(
+  schoolId: string,
+  toolId: string,
+  minutes: number | null,
+  reason: string | null,
+): Promise<void> {
+  const cleanReason = reason?.trim().slice(0, BINGO_PAUSE_REASON_MAX) || null;
+  const cleanMinutes =
+    minutes != null && Number.isFinite(minutes) && minutes > 0
+      ? Math.round(minutes)
+      : null;
+  await updateDoc(eventStateRef(schoolId, toolId), {
+    pause: {
+      ...(cleanMinutes != null ? { minutes: cleanMinutes } : {}),
+      ...(cleanReason ? { reason: cleanReason } : {}),
+      startedAt: serverTimestamp(),
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Resume after a pause: clear the pause notice. The board/round are untouched (status stays live). */
+export async function resumeBingoEvent(
+  schoolId: string,
+  toolId: string,
+): Promise<void> {
+  await updateDoc(eventStateRef(schoolId, toolId), {
+    pause: null,
     updatedAt: serverTimestamp(),
   });
 }

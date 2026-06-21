@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BingoCalledBoard } from "@/components/tools/BingoCalledBoard";
 import { BingoPatternPreview } from "@/components/tools/BingoPatternPreview";
+import { BingoPauseNotice } from "@/components/tools/BingoPauseNotice";
 import { cardClass } from "@/components/ui/Card";
 import { subscribeBingoEventState } from "@/lib/firestore";
 import type { BingoEventState } from "@/types";
@@ -45,6 +46,8 @@ export function BingoLivePublic({
   const activePrize = state?.activePrize ?? null;
   const reviewing = state?.reviewing ?? false;
   const winner = state?.winner ?? null;
+  // The director's announced break (only while live) — shown as a prominent notice with a countdown.
+  const pause = status === "live" ? (state?.pause ?? null) : null;
   const playHref = `/panel/bingo-play?schoolId=${schoolId}&toolId=${toolId}`;
 
   if (status === "idle") return null; // nothing to show until the school starts
@@ -61,6 +64,12 @@ export function BingoLivePublic({
           </Link>
         )}
       </div>
+
+      {pause && (
+        <div className="mt-3">
+          <BingoPauseNotice pause={pause} />
+        </div>
+      )}
 
       {status === "live" && activePattern && (
         <div className={`mt-3 ${cardClass("inset")}`}>

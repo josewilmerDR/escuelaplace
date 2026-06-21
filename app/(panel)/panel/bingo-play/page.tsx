@@ -16,6 +16,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { BingoCalledStrip } from "@/components/tools/BingoCalledStrip";
 import { BingoCardGrid } from "@/components/tools/BingoCardGrid";
 import { BingoPatternHint } from "@/components/tools/BingoPatternHint";
+import { BingoPauseNotice } from "@/components/tools/BingoPauseNotice";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
 import { userErrorMessage } from "@/lib/errors";
@@ -153,6 +154,8 @@ function BingoPlayContent() {
   const activePrize = state?.activePrize ?? null;
   const reviewing = state?.reviewing ?? false;
   const winner = state?.winner ?? null;
+  // The director's announced break (only while live) — shown prominently so the player knows to wait.
+  const pause = status === "live" ? (state?.pause ?? null) : null;
   // Once the round has a winner it's decided — marking/claiming stops until a fresh round; status
   // 'closed' also ends play.
   const playable = status === "live" && winner == null;
@@ -229,6 +232,12 @@ function BingoPlayContent() {
         <p role="alert" className="mt-4 text-sm text-error">
           {error}
         </p>
+      )}
+
+      {pause && (
+        <div className="mt-4">
+          <BingoPauseNotice pause={pause} />
+        </div>
       )}
 
       {/* How to win this round — first, so the player knows the goal before the called board. */}
