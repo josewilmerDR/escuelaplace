@@ -989,9 +989,10 @@ describe("schools/{id}/projects — write-shape (P1-b)", () => {
   });
 });
 
-describe("tools — write-shape: config↔type + cta scheme (P1-b)", () => {
-  // The board's createTool field set (cover/dates/cta are added later via UPDATE, so they are
-  // NOT in the create set). Defaults to the config-less catch-all 'other' kind.
+describe("tools — write-shape: generic config + cta scheme (P1-b)", () => {
+  // The board's createTool field set (cover/dates/cta are added later via UPDATE, so they are NOT
+  // in the create set). The kind config lives under the single generic `config` map. Defaults to
+  // the config-less catch-all 'other' kind.
   const baseTool = (over: Record<string, unknown> = {}) => ({
     schoolId: "sch1",
     schoolName: "Escuela",
@@ -1015,11 +1016,11 @@ describe("tools — write-shape: config↔type + cta scheme (P1-b)", () => {
     await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("alice")));
   });
 
-  it("ALLOWS the owner to create a tool whose config matches its type, and a config-less 'other'", async () => {
+  it("ALLOWS the owner to create a tool with a config map, and a config-less 'other'", async () => {
     await assertSucceeds(
       setDoc(
         doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
-        baseTool({ type: "raffle", raffle: raffleCfg }),
+        baseTool({ type: "raffle", config: raffleCfg }),
       ),
     );
     await assertSucceeds(
@@ -1027,43 +1028,45 @@ describe("tools — write-shape: config↔type + cta scheme (P1-b)", () => {
     );
   });
 
-  it("DENIES creating a tool carrying a config of a NON-declared kind (mismatched config)", async () => {
-    // type 'event' but a raffle config rides along — toolConfigMatchesType() rejects it.
+  it("DENIES creating a tool with a legacy per-kind field (pre-config shape)", async () => {
+    // `raffle` is no longer in the create field set — the config must live under `config`.
     await assertFails(
       setDoc(
         doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
-        baseTool({ type: "event", raffle: raffleCfg }),
+        baseTool({ type: "raffle", raffle: raffleCfg }),
       ),
     );
   });
 
-  it("DENIES an update that switches type but leaves the old kind's config (stale config)", async () => {
-    await seed((db) =>
-      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", raffle: raffleCfg })),
-    );
-    // The client deletes the raffle config on a kind switch; a direct write that forgets to is
-    // now rejected at the rules layer instead of silently persisting an inconsistent doc.
-    await assertFails(
-      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), { type: "event" }),
-    );
-  });
-
-  it("ALLOWS an update that switches type AND clears the old config (the correct client write)", async () => {
+  it("ALLOWS an update that overwrites config on a kind switch AND deletes a legacy field", async () => {
+    // A LEGACY doc (config under the per-kind `raffle` field), seeded with rules disabled.
     await seed((db) =>
       setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", raffle: raffleCfg })),
     );
     await assertSucceeds(
       updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
         type: "event",
-        raffle: deleteField(),
-        event: eventCfg,
+        config: eventCfg,
+        raffle: deleteField(), // self-heal the legacy doc to `config`
+      }),
+    );
+  });
+
+  it("DENIES setting a legacy per-kind field on update (delete-only)", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", config: raffleCfg })),
+    );
+    // A client may DELETE a legacy field (migration) but never SET one.
+    await assertFails(
+      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
+        raffle: raffleCfg,
       }),
     );
   });
 
   it("ALLOWS a CTA with an http(s) url and ALLOWS clearing it", async () => {
     await seed((db) =>
-      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", raffle: raffleCfg })),
+      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", config: raffleCfg })),
     );
     await assertSucceeds(
       updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
@@ -1077,7 +1080,7 @@ describe("tools — write-shape: config↔type + cta scheme (P1-b)", () => {
 
   it("DENIES a CTA whose url scheme is not http(s) (javascript:/data:)", async () => {
     await seed((db) =>
-      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", raffle: raffleCfg })),
+      setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", config: raffleCfg })),
     );
     await assertFails(
       updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
@@ -1670,7 +1673,7 @@ describe("event tool — owner-only create with an event config map", () => {
     title: "Feria de la escuela",
     description: "¡Vení!",
     status: "active",
-    event: { place: "Gimnasio" },
+    config: { place: "Gimnasio" },
     ownerId: "bob",
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -1711,7 +1714,7 @@ describe("event tool — owner-only create with an event config map", () => {
     );
     await assertSucceeds(
       updateDoc(doc(asUser("bob"), "schools", "sch1", "tools", "tool1"), {
-        event: { place: "Patio", photos: ["https://x/p.jpg"] },
+        config: { place: "Patio", photos: ["https://x/p.jpg"] },
         updatedAt: new Date(),
       }),
     );

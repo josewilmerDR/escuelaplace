@@ -43,6 +43,7 @@ import {
   startBingoEvent,
   subscribeBingoClaims,
   subscribeBingoEventState,
+  toolConfigOf,
   undoLastCalledNumber,
 } from "@/lib/firestore";
 import {
@@ -174,30 +175,33 @@ function SchoolBingoLiveInner() {
             Elegí el bingo a dirigir
           </h2>
           <ul className="mt-4 flex flex-col gap-3">
-            {bingos.map((b) => (
-              <li key={b.id} className={cardClass("elevated", false) + " p-5"}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold tracking-tight text-foreground">
-                      {b.title}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {b.bingo
-                        ? `${b.bingo.format.rows}×${b.bingo.format.cols} · ${b.bingo.format.poolMin}–${b.bingo.format.poolMax}`
-                        : "Sin configurar"}
-                    </p>
+            {bingos.map((b) => {
+              const cfg = toolConfigOf(b, "bingo");
+              return (
+                <li key={b.id} className={cardClass("elevated", false) + " p-5"}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold tracking-tight text-foreground">
+                        {b.title}
+                      </p>
+                      <p className="text-xs text-muted">
+                        {cfg
+                          ? `${cfg.format.rows}×${cfg.format.cols} · ${cfg.format.poolMin}–${cfg.format.poolMax}`
+                          : "Sin configurar"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setToolId(b.id)}
+                      disabled={!cfg}
+                      className="btn btn-primary"
+                    >
+                      Dirigir
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setToolId(b.id)}
-                    disabled={!b.bingo}
-                    className="btn btn-primary"
-                  >
-                    Dirigir
-                  </button>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : (
@@ -236,7 +240,7 @@ function BingoConsole({
   tool: ToolDoc;
   confirmedBy: string;
 }) {
-  const bingo = tool.bingo!;
+  const bingo = toolConfigOf(tool, "bingo")!;
   const toolId = tool.id;
 
   const [state, setState] = useState<BingoEventState | null>(null);

@@ -27,6 +27,7 @@ import {
   getBingoOrdersByTool,
   getToolById,
   getVerifiedSchoolPaymentMethods,
+  toolConfigOf,
   uploadBingoOrderProof,
 } from "@/lib/firestore";
 import { formatMoney } from "@/lib/format";
@@ -112,7 +113,7 @@ function BingoOrderContent() {
 
   if (!user || !loaded) return <OrderSkeleton />;
 
-  const bingo = tool?.bingo;
+  const bingo = toolConfigOf(tool, "bingo");
   const invalid = !tool || tool.type !== "bingo" || !bingo || available <= 0;
   const currency = bingo?.currency ?? "CRC";
   // The reservable max is the smaller of the per-order cap and what's still available.
