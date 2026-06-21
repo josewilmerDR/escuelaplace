@@ -32,6 +32,7 @@ import {
   getToolById,
   isSchoolVerified,
   raffleNumberStates,
+  toolConfigOf,
   toolWindowLabel,
 } from "@/lib/firestore";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
@@ -83,37 +84,37 @@ export default async function ToolPage({ params }: Props) {
   if (!tool || !school) notFound();
 
   // A raffle has its own configured experience (prizes + the number grid + buy flow).
-  if (tool.type === "raffle" && tool.raffle) {
+  if (tool.type === "raffle" && tool.config) {
     return <RaffleDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   // A guided tour has its own configured experience (an ordered sequence of stages with media
   // + a WhatsApp "Preguntar" button).
-  if (tool.type === "guided_tour" && tool.tour) {
+  if (tool.type === "guided_tour" && tool.config) {
     return <TourDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   // A "Productos" catalog has its own configured experience (per-product media + price + the
   // Comprar/Consultar buttons).
-  if (tool.type === "sale" && tool.sale) {
+  if (tool.type === "sale" && tool.config) {
     return <SaleDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   // A "Servicios" catalog: per-service media + optional price + a "Preguntar" WhatsApp button
   // (no order flow).
-  if (tool.type === "service" && tool.service) {
+  if (tool.type === "service" && tool.config) {
     return <ServiceDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   // A bingo: format + prizes per winning pattern + price + how many cartones are left + a
   // "Comprar cartones" button (the order flow, gated on a verified school).
-  if (tool.type === "bingo" && tool.bingo) {
+  if (tool.type === "bingo" && tool.config) {
     return <BingoDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
   // An event: a dated one-off with a gallery, when/where, an "Agregar al calendario" link and a
   // "Preguntar" WhatsApp button.
-  if (tool.type === "event" && tool.event) {
+  if (tool.type === "event" && tool.config) {
     return <EventDetail id={id} toolId={toolId} tool={tool} school={school} />;
   }
 
@@ -247,7 +248,7 @@ async function RaffleDetail({
   tool: ToolDoc;
   school: SchoolDoc;
 }) {
-  const raffle = tool.raffle!;
+  const raffle = toolConfigOf(tool, "raffle")!;
   const orders = await getRaffleOrdersByTool(toolId).catch(() => []);
   const states = raffleNumberStates(orders, raffle.numberCount);
   const verified = isSchoolVerified(school);
@@ -409,7 +410,7 @@ async function TourDetail({
   tool: ToolDoc;
   school: SchoolDoc;
 }) {
-  const tour = tool.tour!;
+  const tour = toolConfigOf(tool, "guided_tour")!;
   const Icon = toolTypeMeta(tool.type).icon;
   const window = toolWindowLabel(tool);
 
@@ -549,7 +550,7 @@ async function SaleDetail({
   tool: ToolDoc;
   school: SchoolDoc;
 }) {
-  const sale = tool.sale!;
+  const sale = toolConfigOf(tool, "sale")!;
   const Icon = toolTypeMeta(tool.type).icon;
   const verified = isSchoolVerified(school);
   const contactPhone = sale.contactPhone || school.boardContact?.phone || "";
@@ -677,7 +678,7 @@ async function ServiceDetail({
   tool: ToolDoc;
   school: SchoolDoc;
 }) {
-  const service = tool.service!;
+  const service = toolConfigOf(tool, "service")!;
   const Icon = toolTypeMeta(tool.type).icon;
   const contactPhone = service.contactPhone || school.boardContact?.phone || "";
 
@@ -807,7 +808,7 @@ async function EventDetail({
   tool: ToolDoc;
   school: SchoolDoc;
 }) {
-  const event = tool.event!;
+  const event = toolConfigOf(tool, "event")!;
   const Icon = toolTypeMeta(tool.type).icon;
   const photos = event.photos ?? [];
   const contactPhone = event.contactPhone || school.boardContact?.phone || "";
@@ -1021,7 +1022,7 @@ async function BingoDetail({
   tool: ToolDoc;
   school: SchoolDoc;
 }) {
-  const bingo = tool.bingo!;
+  const bingo = toolConfigOf(tool, "bingo")!;
   const [cards, orders] = await Promise.all([
     getBingoCards(id, toolId).catch(() => []),
     getBingoOrdersByTool(toolId).catch(() => []),

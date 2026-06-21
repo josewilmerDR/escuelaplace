@@ -24,6 +24,7 @@ import {
   createProductOrder,
   getToolById,
   getVerifiedSchoolPaymentMethods,
+  toolConfigOf,
   uploadProductOrderProof,
 } from "@/lib/firestore";
 import { formatMoney } from "@/lib/format";
@@ -100,7 +101,8 @@ function ProductOrderContent() {
         setTool(t);
         setMethods(m);
         const found =
-          t?.sale?.products.find((p) => p.id === productId) ?? null;
+          toolConfigOf(t, "sale")?.products.find((p) => p.id === productId) ??
+          null;
         setProduct(found);
       })
       .finally(() => {
@@ -113,7 +115,7 @@ function ProductOrderContent() {
 
   if (!user || !loaded) return <OrderSkeleton />;
 
-  const sale = tool?.sale;
+  const sale = toolConfigOf(tool, "sale");
   const invalid = !tool || tool.type !== "sale" || !sale || !product;
   const currency = sale?.currency ?? "CRC";
   const qty = Number.isInteger(quantity)

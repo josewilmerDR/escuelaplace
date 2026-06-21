@@ -26,6 +26,7 @@ import {
   getToolById,
   getVerifiedSchoolPaymentMethods,
   raffleNumberStates,
+  toolConfigOf,
   uploadRaffleOrderProof,
 } from "@/lib/firestore";
 import { formatMoney } from "@/lib/format";
@@ -110,12 +111,14 @@ function RaffleContent() {
         const [t, m, orders] = res;
         setTool(t);
         setMethods(m);
-        if (t?.raffle) {
-          const states = raffleNumberStates(orders, t.raffle.numberCount);
+        const raffle = toolConfigOf(t, "raffle");
+        if (raffle) {
+          const states = raffleNumberStates(orders, raffle.numberCount);
           const avail: number[] = [];
           const gone: number[] = [];
           for (const n of requested) {
-            if (n < t.raffle.numberCount && states[n] === "available") avail.push(n);
+            if (n < raffle.numberCount && states[n] === "available")
+              avail.push(n);
             else gone.push(n);
           }
           setAvailable(avail);
@@ -132,7 +135,7 @@ function RaffleContent() {
 
   if (!user || !loaded) return <RaffleSkeleton />;
 
-  const raffle = tool?.raffle;
+  const raffle = toolConfigOf(tool, "raffle");
   const invalid = !tool || tool.type !== "raffle" || !raffle;
 
   const total = raffle ? available.length * raffle.pricePerNumber : 0;

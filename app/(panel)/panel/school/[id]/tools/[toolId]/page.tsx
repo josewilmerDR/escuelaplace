@@ -70,6 +70,7 @@ import {
   getSchoolById,
   getToolById,
   raffleNumberStates,
+  toolConfigOf,
   toolDateFromInput,
   toolDateInputValue,
   updateTool,
@@ -82,6 +83,7 @@ import {
 import {
   BINGO_PATTERNS,
   EVENT_PHOTO_MAX,
+  RAFFLE_NUMBER_COUNT,
   TOOL_CTA_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
@@ -91,10 +93,12 @@ import {
   TOUR_STAGE_TITLE_MAX,
   type BingoConfig,
   type EventConfig,
+  type RaffleConfig,
   type RaffleOrderDoc,
   type SaleConfig,
   type SchoolDoc,
   type ServiceConfig,
+  type ToolConfig,
   type ToolDoc,
   type ToolStatus,
   type ToolType,
@@ -175,7 +179,7 @@ export default function EditToolPage() {
   const [bingoForm, setBingoForm] = useState<BingoFormValue>(emptyBingoForm);
 
   // Event ("Eventos") editable state. Date/place/map/contact save with the form button; the
-  // gallery (photos/video) persists immediately against tool.event, like the catalog kinds.
+  // gallery (photos/video) persists immediately against the saved event config, like the catalog kinds.
   const [eventForm, setEventForm] = useState<EventFormValue>(emptyEventForm);
 
   // Guided-tour editable state. Stage text + the contact phone save with the form button; stage
@@ -185,7 +189,7 @@ export default function EditToolPage() {
   // Deterministic monotonic counter for stable stage ids (no Math.random/Date.now).
   const nextTourKey = useRef(0);
   // Keys of stages currently persisted in Firestore — a media upload can only target a saved
-  // stage (it writes against tool.tour.stages), so a brand-new unsaved stage disables uploads
+  // stage (it writes against the saved tour config's stages), so a brand-new unsaved stage disables uploads
   // until "Guardar cambios" persists and re-keys it (mirrors the project editor).
   const [tourPersistedKeys, setTourPersistedKeys] = useState<Set<number>>(
     new Set(),
@@ -247,39 +251,45 @@ export default function EditToolPage() {
           setEndsAt(toolDateInputValue(t.endsAt));
           setCtaLabel(t.cta?.label ?? "");
           setCtaUrl(t.cta?.url ?? "");
-          if (t.raffle) setRaffleForm(raffleFormFromConfig(t.raffle));
-          if (t.bingo) setBingoForm(bingoFormFromConfig(t.bingo));
-          if (t.event) setEventForm(eventFormFromConfig(t.event));
-          if (t.tour) {
-            setTourStages(keyTourStages(t.tour.stages));
-            setTourPhone(t.tour.contactPhone ?? "");
+          const raffleCfg = toolConfigOf(t, "raffle");
+          if (raffleCfg) setRaffleForm(raffleFormFromConfig(raffleCfg));
+          const bingoCfg = toolConfigOf(t, "bingo");
+          if (bingoCfg) setBingoForm(bingoFormFromConfig(bingoCfg));
+          const eventCfg = toolConfigOf(t, "event");
+          if (eventCfg) setEventForm(eventFormFromConfig(eventCfg));
+          const tourCfg = toolConfigOf(t, "guided_tour");
+          if (tourCfg) {
+            setTourStages(keyTourStages(tourCfg.stages));
+            setTourPhone(tourCfg.contactPhone ?? "");
           }
-          if (t.sale && t.sale.products.length > 0) {
+          const saleCfg = toolConfigOf(t, "sale");
+          if (saleCfg && saleCfg.products.length > 0) {
             // A "Productos" tool is a single product: its name/description are the tool's
             // title/description (set above), so the form holds only price/currency/contact/media.
-            const p = t.sale.products[0];
+            const p = saleCfg.products[0];
             setSaleForm({
               id: p.id,
               price: String(p.price),
-              currency: t.sale.currency,
-              contactPhone: t.sale.contactPhone ?? "",
+              currency: saleCfg.currency,
+              contactPhone: saleCfg.contactPhone ?? "",
               ...(p.photos && p.photos.length > 0 ? { photos: p.photos } : {}),
               ...(p.videoUrl ? { videoUrl: p.videoUrl } : {}),
             });
           }
-          if (t.service && t.service.services.length > 0) {
+          const serviceCfg = toolConfigOf(t, "service");
+          if (serviceCfg && serviceCfg.services.length > 0) {
             // A "Servicios" tool is a single service: its name/description are the tool's
             // title/description (set above), so the form holds only the
             // price/currency/modality/availability/contact/media.
-            const s = t.service.services[0];
+            const s = serviceCfg.services[0];
             setServiceForm({
               id: s.id,
               price: typeof s.price === "number" ? String(s.price) : "",
               priceFrom: Boolean(s.priceFrom),
               modalities: s.modalities ?? [],
               availability: s.availability ?? "",
-              currency: t.service.currency,
-              contactPhone: t.service.contactPhone ?? "",
+              currency: serviceCfg.currency,
+              contactPhone: serviceCfg.contactPhone ?? "",
               ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
               ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
             });
@@ -479,12 +489,13 @@ export default function EditToolPage() {
         setError(eventResult.error);
         return;
       }
+      const eventBase = toolConfigOf(tool, "event");
       event = {
         ...eventResult.input,
-        ...(tool.event?.photos && tool.event.photos.length > 0
-          ? { photos: tool.event.photos }
+        ...(eventBase?.photos && eventBase.photos.length > 0
+          ? { photos: eventBase.photos }
           : {}),
-        ...(tool.event?.videoUrl ? { videoUrl: tool.event.videoUrl } : {}),
+        ...(eventBase?.videoUrl ? { videoUrl: eventBase.videoUrl } : {}),
       };
     }
 
@@ -514,6 +525,18 @@ export default function EditToolPage() {
         ...(event ? { event } : {}),
       });
       // The local persisted bases (the Input shapes are structurally the stored shapes).
+      const savedRaffle: RaffleConfig | undefined = raffle
+        ? {
+            numberCount: RAFFLE_NUMBER_COUNT,
+            pricePerNumber: raffle.pricePerNumber,
+            currency: raffle.currency,
+            prizes: raffle.prizes,
+            drawMethod: raffle.drawMethod,
+            ...(raffle.drawDate
+              ? { drawDate: Timestamp.fromDate(raffle.drawDate) }
+              : {}),
+          }
+        : undefined;
       const savedTour: TourConfig | undefined = tour
         ? {
             stages: tour.stages,
@@ -537,7 +560,7 @@ export default function EditToolPage() {
           }
         : undefined;
       // Bingo's input carries eventDate as a Date, so rebuild the stored shape (Timestamp) — the
-      // cards manager reads tool.bingo.format, so this must reflect the just-saved format.
+      // cards manager reads the saved bingo config's format, so this must reflect the just-saved format.
       const savedBingo: BingoConfig | undefined = bingo
         ? {
             format: bingo.format,
@@ -571,6 +594,22 @@ export default function EditToolPage() {
             ...(event.contactPhone ? { contactPhone: event.contactPhone } : {}),
           }
         : undefined;
+      // The single generic config for the active kind, mirroring what updateTool stored; a switch
+      // to the config-less `other` kind clears it.
+      const savedConfig: ToolConfig | undefined =
+        type === "raffle"
+          ? savedRaffle
+          : type === "guided_tour"
+            ? savedTour
+            : type === "sale"
+              ? savedSale
+              : type === "service"
+                ? savedService
+                : type === "bingo"
+                  ? savedBingo
+                  : type === "event"
+                    ? savedEvent
+                    : undefined;
       setTool((prev) =>
         prev
           ? {
@@ -580,13 +619,8 @@ export default function EditToolPage() {
               description: description.trim(),
               status,
               ...(coverUrl ? { coverUrl } : {}),
-              // Keep the persisted bases in sync so later media ops build on saved items; a
-              // switch away from a kind drops its config (updateTool deleted it on the doc).
-              tour: type === "guided_tour" ? savedTour : undefined,
-              sale: type === "sale" ? savedSale : undefined,
-              service: type === "service" ? savedService : undefined,
-              bingo: type === "bingo" ? savedBingo : undefined,
-              event: type === "event" ? savedEvent : undefined,
+              // Keep the persisted base in sync so later media ops build on the saved config.
+              config: savedConfig,
             }
           : prev,
       );
@@ -622,7 +656,7 @@ export default function EditToolPage() {
           ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
         });
       }
-      // Re-hydrate the event form from the saved config (the gallery media card reads tool.event).
+      // Re-hydrate the event form from the saved config (the gallery media card reads that config).
       if (type === "event" && savedEvent) {
         setEventForm(eventFormFromConfig(savedEvent));
       }
@@ -654,7 +688,7 @@ export default function EditToolPage() {
   /**
    * Persist a media change (photos and/or the video) on a single SAVED stage immediately,
    * without dragging along any unsaved text edits: start from the persisted base
-   * (tool.tour.stages), apply only this stage's media delta, write just the `tour` field, then
+   * (the saved tour config's stages), apply only this stage's media delta, write just the `config` field, then
    * merge the new media back into the editable stage (matched by _key) so the UI updates while
    * in-progress text stays untouched. Mirrors the project editor's applyMedia. `videoUrl: null`
    * clears the video.
@@ -663,11 +697,12 @@ export default function EditToolPage() {
     key: number,
     media: { photos?: string[]; videoUrl?: string | null },
   ) => {
-    if (type !== "guided_tour" || !tool?.tour || !tourPersistedKeys.has(key))
+    const tourBase = toolConfigOf(tool, "guided_tour");
+    if (type !== "guided_tour" || !tourBase || !tourPersistedKeys.has(key))
       return;
     setError(null);
     // Persisted editable stages keep the same relative order as the persisted base, so the
-    // target's position among them maps onto tool.tour.stages.
+    // target's position among them maps onto tourBase.stages.
     const persistedEditable = tourStages.filter((s) =>
       tourPersistedKeys.has(s._key),
     );
@@ -683,19 +718,20 @@ export default function EditToolPage() {
       }
       return next;
     };
-    const nextStages: TourStage[] = tool.tour.stages.map((s, i) =>
+    const nextStages: TourStage[] = tourBase.stages.map((s, i) =>
       i === targetIndex ? applyDelta(s) : s,
     );
     await updateToolTour(id, toolId, {
       stages: nextStages,
-      ...(tool.tour.contactPhone ? { contactPhone: tool.tour.contactPhone } : {}),
+      ...(tourBase.contactPhone ? { contactPhone: tourBase.contactPhone } : {}),
     });
     // Refresh the persisted base (functional updater so a concurrent save isn't clobbered).
-    setTool((prev) =>
-      prev && prev.tour
-        ? { ...prev, tour: { ...prev.tour, stages: nextStages } }
-        : prev,
-    );
+    setTool((prev) => {
+      const base = toolConfigOf(prev, "guided_tour");
+      return prev && base
+        ? { ...prev, config: { ...base, stages: nextStages } }
+        : prev;
+    });
     // Merge the media into the editable stage, preserving its live text.
     setTourStages((prev) =>
       prev.map((s) => (s._key === key ? applyDelta(s) : s)),
@@ -714,26 +750,28 @@ export default function EditToolPage() {
       setTourRemoveKey(null);
       return;
     }
-    if (!tool?.tour) return;
+    const tourBase = toolConfigOf(tool, "guided_tour");
+    if (!tourBase) return;
     const persistedEditable = tourStages.filter((s) =>
       tourPersistedKeys.has(s._key),
     );
     const targetIndex = persistedEditable.findIndex((s) => s._key === key);
     if (targetIndex < 0) return;
-    const nextStages = tool.tour.stages.filter((_, i) => i !== targetIndex);
+    const nextStages = tourBase.stages.filter((_, i) => i !== targetIndex);
     setTourRemoving(true);
     try {
       await updateToolTour(id, toolId, {
         stages: nextStages,
-        ...(tool.tour.contactPhone
-          ? { contactPhone: tool.tour.contactPhone }
+        ...(tourBase.contactPhone
+          ? { contactPhone: tourBase.contactPhone }
           : {}),
       });
-      setTool((prev) =>
-        prev && prev.tour
-          ? { ...prev, tour: { ...prev.tour, stages: nextStages } }
-          : prev,
-      );
+      setTool((prev) => {
+        const base = toolConfigOf(prev, "guided_tour");
+        return prev && base
+          ? { ...prev, config: { ...base, stages: nextStages } }
+          : prev;
+      });
       setTourStages((prev) => prev.filter((s) => s._key !== key));
       setTourPersistedKeys((prev) => {
         const n = new Set(prev);
@@ -764,16 +802,17 @@ export default function EditToolPage() {
 
   // ── Event ("Eventos") gallery helper ───────────────────────────────────────
   // The event has a single gallery (not a list), so its media persists immediately against the
-  // persisted base (tool.event) — an in-progress, unsaved date/place/map edit is never dragged
+  // persisted base (the saved event config) — an in-progress, unsaved date/place/map edit is never dragged
   // along. Mirrors the tour stage media, but for one config object instead of an item in a list.
 
   const applyEventMedia = async (media: {
     photos?: string[];
     videoUrl?: string | null;
   }) => {
-    if (type !== "event" || !tool?.event) return;
+    const eventBase = toolConfigOf(tool, "event");
+    if (type !== "event" || !eventBase) return;
     setError(null);
-    const base = tool.event;
+    const base = eventBase;
     const nextPhotos =
       media.photos !== undefined ? media.photos : (base.photos ?? []);
     const nextVideo =
@@ -789,18 +828,19 @@ export default function EditToolPage() {
       photos: nextPhotos,
       ...(nextVideo ? { videoUrl: nextVideo } : {}),
     });
-    setTool((prev) =>
-      prev && prev.event
+    setTool((prev) => {
+      const base2 = toolConfigOf(prev, "event");
+      return prev && base2
         ? {
             ...prev,
-            event: {
-              ...prev.event,
+            config: {
+              ...base2,
               photos: nextPhotos,
               ...(nextVideo ? { videoUrl: nextVideo } : { videoUrl: undefined }),
             },
           }
-        : prev,
-    );
+        : prev;
+    });
   };
 
   // The stage targeted by the open remove dialog, for its impact summary.
@@ -808,6 +848,12 @@ export default function EditToolPage() {
     tourRemoveKey === null
       ? null
       : tourStages.find((s) => s._key === tourRemoveKey);
+
+  // Typed per-kind config for the render (tool is non-null past the guards above).
+  const saleConfig = toolConfigOf(tool, "sale");
+  const bingoConfig = toolConfigOf(tool, "bingo");
+  const eventConfig = toolConfigOf(tool, "event");
+  const raffleConfig = toolConfigOf(tool, "raffle");
 
   return (
     <main>
@@ -933,7 +979,7 @@ export default function EditToolPage() {
               <p className="text-sm font-semibold text-foreground">
                 Detalles del producto
               </p>
-              {tool.sale && (
+              {saleConfig && (
                 <Link
                   href={`/panel/school/${id}/product-orders`}
                   className="text-sm font-medium text-brand-darker hover:underline"
@@ -974,8 +1020,8 @@ export default function EditToolPage() {
         {type === "bingo" && (
           <section className="flex flex-col gap-4">
             {/* Launch the live game from inside the tool it belongs to (only once the bingo is
-                saved — the console reads tool.bingo.format to draw the board). */}
-            {tool.bingo && (
+                saved — the console reads the saved bingo config's format to draw the board). */}
+            {bingoConfig && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand-tint p-4 ring-1 ring-brand/10">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground">
@@ -1036,14 +1082,14 @@ export default function EditToolPage() {
               </p>
               <EventConfigFields value={eventForm} onChange={setEventForm} />
             </div>
-            {tool.event ? (
+            {eventConfig ? (
               <ToolItemCard
                 title="Fotos y video del evento"
                 removeLabel=""
                 canRemove={false}
                 onRemove={() => {}}
-                photos={tool.event.photos ?? []}
-                videoUrl={tool.event.videoUrl}
+                photos={eventConfig.photos ?? []}
+                videoUrl={eventConfig.videoUrl}
                 photoMax={EVENT_PHOTO_MAX}
                 schoolId={id}
                 toolId={toolId}
@@ -1159,7 +1205,7 @@ export default function EditToolPage() {
         </div>
       </form>
 
-      {type === "raffle" && tool.raffle && (
+      {type === "raffle" && raffleConfig && (
         <section className="mt-10">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
@@ -1178,8 +1224,8 @@ export default function EditToolPage() {
           </p>
           <div className="mt-4">
             <RaffleNumberGrid
-              count={tool.raffle.numberCount}
-              states={raffleNumberStates(orders, tool.raffle.numberCount)}
+              count={raffleConfig.numberCount}
+              states={raffleNumberStates(orders, raffleConfig.numberCount)}
             />
             <RaffleNumberLegend />
           </div>

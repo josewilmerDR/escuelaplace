@@ -27,6 +27,7 @@ import {
   getToolById,
   subscribeBingoEventState,
   subscribeMyBingoClaims,
+  toolConfigOf,
 } from "@/lib/firestore";
 import {
   BINGO_PATTERN_LABELS,
@@ -131,7 +132,7 @@ function BingoPlayContent() {
 
   if (!user || !loaded) return <PlaySkeleton />;
 
-  const bingo = tool?.bingo;
+  const bingo = toolConfigOf(tool, "bingo");
   const invalid = !tool || tool.type !== "bingo" || !bingo;
 
   if (invalid) {
