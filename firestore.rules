@@ -37,8 +37,17 @@ service cloud.firestore {
     // claim-bearing admin pays no userDoc() read. Once every admin carries the claim, drop the
     // role fallback (and the get() it costs). See docs/security/ADMIN-BOOTSTRAP.md.
     function isAdmin() {
-      return isSignedIn() &&
-        (request.auth.token.admin == true || userDoc().role == 'admin');
+      // Null-safe: a token WITHOUT the custom claim, or a user with NO user doc, must read as
+      // "not admin" cleanly and never raise an evaluation error. Accessing a missing custom claim
+      // as `request.auth.token.admin` throws "Property admin is undefined" on some emulator versions,
+      // which then poisons the surrounding `||` non-deterministically. `.get('admin', false)`
+      // defaults a missing claim to false, and the exists() gate avoids a get() on a missing user doc.
+      return isSignedIn() && (
+        request.auth.token.get('admin', false) == true || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          userDoc().role == 'admin'
+        )
+      );
     }
 
     // True if the signed-in user owns or co-edits a page, given that page's data.
