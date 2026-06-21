@@ -1,0 +1,315 @@
+"use client";
+
+/**
+ * New project (/panel/school/[id]/projects/new).
+ *
+ * Dedicated creation screen reached from the "+ Nuevo" button on the projects list. The board
+ * defines the project's title, description, currency and cost-justified stages; media per stage
+ * and the cover are added afterwards on the per-project edit page (uploads persist immediately,
+ * so they need a saved project). Creating a project does NOT require verification — but its
+ * public "Financiar" button stays off until the school is verified (see the contribution rule),
+ * so the board can prepare projects ahead. On success we go straight to the edit page (with
+ * ?created=1) so the cover and per-stage photos can be added next.
+ */
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
+import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/components/auth/AuthProvider";
+import {
+  StagesEditor,
+  emptyStage,
+  type StageDraft,
+} from "@/components/projects/StagesEditor";
+import { Field } from "@/components/ui/Field";
+import { FormError } from "@/components/ui/FormError";
+import { userErrorMessage } from "@/lib/errors";
+import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
+import { createProject, getSchoolById, newProjectId } from "@/lib/firestore";
+import {
+  PROJECT_CURRENCIES,
+  PROJECT_DESCRIPTION_MAX,
+  PROJECT_TITLE_MAX,
+  type ProjectCurrency,
+  type SchoolDoc,
+} from "@/types";
+
+/** Lifecycle of the school fetch the page depends on. */
+type LoadState = "loading" | "error" | "loaded";
+
+/**
+ * The page heading, rendered identically in every state (loading, error, missing school,
+ * not-a-manager, loaded) so the title never shifts as content swaps in. Its first element is a
+ * back link to the school's projects list (where the "+ Nuevo" button came from). The subtitle
+ * takes the school name; during loading the school isn't known yet, so the subtitle renders
+ * blank (a non-breaking space keeps the line height reserved) and the h1 stays fixed.
+ */
+function Heading({
+  schoolId,
+  subtitle,
+}: {
+  schoolId: string;
+  subtitle?: string;
+}) {
+  return (
+    <>
+      <p className="text-sm">
+        <BackLink href={`/panel/school/${schoolId}/projects`}>
+          Proyectos
+        </BackLink>
+      </p>
+      <header className="mt-3">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          Nuevo proyecto
+        </h1>
+        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
+      </header>
+    </>
+  );
+}
+
+export default function NewProjectPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const router = useRouter();
+
+  const [school, setSchool] = useState<SchoolDoc | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+
+  // The project's id, pre-allocated once (newProjectId is pure ref construction, no write) so the
+  // per-stage media (photos + a short video) can upload to the project's Storage path while the
+  // form is still being filled. It rides along as createProject's id on submit. Lazy initializer →
+  // stable across re-renders; the id is never rendered to the DOM, so SSR/CSR differing is invisible.
+  const [projectId] = useState(() => newProjectId(id));
+
+  // Create-form state
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [currency, setCurrency] = useState<ProjectCurrency>("CRC");
+  const [stages, setStages] = useState<StageDraft[]>(() => [emptyStage()]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reusable load so "Reintentar" can re-run it; a network failure lands on the error state
+  // (distinct from a real missing school, which is school === null after an OK load).
+  const load = useCallback(() => {
+    getSchoolById(id)
+      .then((s) => {
+        setSchool(s);
+        setLoadState("loaded");
+      })
+      .catch(() => setLoadState("error"));
+  }, [id]);
+
+  useEffect(load, [load]);
+
+  const retry = () => {
+    setLoadState("loading");
+    load();
+  };
+
+  if (loadState === "loading") {
+    return (
+      <main>
+        {/* School not loaded yet → blank subtitle, but the h1 sits in its final position. */}
+        <Heading schoolId={id} />
+        <ul className="mt-8 flex flex-col gap-4" aria-hidden="true">
+          <li className="h-32 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <li className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        </ul>
+        <p className="sr-only" role="status">
+          Cargando…
+        </p>
+      </main>
+    );
+  }
+
+  if (loadState === "error") {
+    return (
+      <main>
+        <Heading schoolId={id} />
+        <p role="alert" className="mt-4 text-sm text-error">
+          No pudimos cargar la escuela. Revisá tu conexión e intentá de nuevo.
+        </p>
+        <button type="button" onClick={retry} className="btn btn-outline mt-3">
+          Reintentar
+        </button>
+      </main>
+    );
+  }
+
+  if (!school) {
+    return (
+      <main>
+        <Heading schoolId={id} />
+        <p className="mt-4 text-sm text-muted">Escuela no encontrada.</p>
+        <p className="mt-6 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
+  }
+
+  const isManager =
+    user != null &&
+    (school.ownerId === user.id ||
+      school.editorIds?.includes(user.id) ||
+      user.role === "admin");
+
+  if (!isManager) {
+    return (
+      <main>
+        <Heading schoolId={id} subtitle={school.name} />
+        {/* Not a system failure — the user simply lacks access here, so muted, not error. */}
+        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-6 text-sm">
+          <BackLink href="/panel">Volver al panel</BackLink>
+        </p>
+      </main>
+    );
+  }
+
+  const onCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    // Whitespace-only passes the native `required`, so check the trimmed value.
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setError("Ingresá el título del proyecto.");
+      return;
+    }
+    // Keep each stage's already-uploaded media (photos/video) and drop the local-only id —
+    // stored stages are positional. Conditional spreads so Firestore never sees `undefined`.
+    const cleanStages = stages
+      .map((s) => ({
+        title: s.title.trim(),
+        justification: s.justification.trim(),
+        cost: s.cost,
+        ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
+        ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
+      }))
+      .filter((s) => s.title);
+    if (cleanStages.length === 0) {
+      setError("Agregá al menos una etapa con título.");
+      return;
+    }
+    // Stage costs are the project goal; a total of 0 yields a degenerate progress bar.
+    if (cleanStages.reduce((s, x) => s + (x.cost || 0), 0) <= 0) {
+      setError("Cada etapa necesita un costo: la meta del proyecto no puede ser 0.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      // Pass the pre-allocated id so the project is written at the same path its stage media
+      // already uploaded to (createProject uses setDoc when given an id).
+      const newId = await createProject(
+        id,
+        school.name,
+        user.id,
+        {
+          title: trimmedTitle,
+          description: description.trim(),
+          currency,
+          stages: cleanStages,
+        },
+        projectId,
+      );
+      // Straight to the edit page (with ?created=1 so it can confirm the creation) so the
+      // board can add the cover (and tweak per-stage media).
+      router.push(`/panel/school/${id}/projects/${newId}?created=1`);
+    } catch (err) {
+      setError(userErrorMessage(err, "No se pudo crear el proyecto."));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <main>
+      <Heading schoolId={id} subtitle={school.name} />
+
+      {school.verificationStatus !== "verified" && (
+        <p className="mt-6 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
+          {school.verificationStatus === "needs_reverification"
+            ? "Editaste datos sensibles y la escuela quedó pendiente de re-verificación: el botón “Financiar” permanece apagado hasta que el equipo apruebe los cambios."
+            : "Podés preparar proyectos desde ya, pero el botón “Financiar” recién se activa cuando el equipo verifique la escuela."}{" "}
+          <Link
+            href={`/panel/school/${id}/edit`}
+            className="font-medium underline underline-offset-2"
+          >
+            Completá los datos de la escuela
+          </Link>{" "}
+          para empezar.
+        </p>
+      )}
+
+      <form
+        onSubmit={onCreate}
+        onInvalidCapture={spanishRequiredMessage}
+        onInputCapture={clearValidationMessage}
+        className="mt-8 flex flex-col gap-4"
+      >
+        <Field label="Título">
+          <input
+            type="text"
+            required
+            maxLength={PROJECT_TITLE_MAX}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="input"
+            placeholder="Ej.: Comprar tanque de almacenamiento de agua potable"
+          />
+        </Field>
+        <Field label="Descripción">
+          <textarea
+            rows={3}
+            maxLength={PROJECT_DESCRIPTION_MAX}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="input"
+            placeholder="Contá qué se busca lograr y por qué importa."
+          />
+        </Field>
+        <Field label="Moneda">
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value as ProjectCurrency)}
+            className="input"
+          >
+            {PROJECT_CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          {/* Mirror the edit page's reason: the currency is frozen once money is in. */}
+          <p className="mt-1 text-xs text-muted">
+            No vas a poder cambiarla una vez que el proyecto reciba aportes.
+          </p>
+        </Field>
+
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
+            Etapas
+          </h2>
+          <p className="mb-2 text-xs text-muted">
+            Cada etapa justifica su costo. La suma es la meta del proyecto.
+          </p>
+          <StagesEditor
+            stages={stages}
+            onChange={setStages}
+            currency={currency}
+            schoolId={id}
+            projectId={projectId}
+          />
+        </div>
+
+        <FormError message={error} />
+
+        <button type="submit" disabled={saving} className="btn btn-primary">
+          {saving ? "Creando…" : "Crear proyecto"}
+        </button>
+      </form>
+    </main>
+  );
+}
