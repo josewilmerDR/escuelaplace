@@ -1,14 +1,15 @@
 "use client";
 
 /**
- * The edit-page manager for a bingo's cartones (the lote). Like per-item media, the cartones live
- * in Firestore and persist IMMEDIATELY against the SAVED tool, so this only renders once the bingo
- * config exists (the parent passes the persisted `format`). The school can GENERATE random
- * cartones, IMPORT pre-printed ones (paste, one per line), preview the lote, and clear/delete.
+ * Manager for a reusable deck's (mazo) cartones, on the dedicated deck detail page
+ * (/panel/school/[id]/bingo-decks/[deckId]). It targets a DECK, not a bingo tool: a deck card
+ * carries no sold/owner state (those exist only once a deck is copied into a bingo), so every
+ * cartón is freely deletable and there's no "vendido" gating. It shows the WHOLE deck — the board's
+ * reason for a dedicated page is to review every cartón. After each change it refreshes the deck's
+ * denormalized cardCount.
  *
- * Cartones are written only by the school (rules); a sold cartón (already assigned to a buyer on a
- * confirmed order) can't be deleted from here and blocks clearing the whole lote — so an
- * assignment is never silently orphaned.
+ * The school can GENERATE random cartones, IMPORT pre-printed ones (paste, one per line), see them
+ * all, and delete one or clear the deck. Writes are the school's alone (firestore.rules).
  */
 import { useCallback, useEffect, useState } from "react";
 import { BingoCardGrid } from "@/components/tools/BingoCardGrid";
@@ -16,31 +17,30 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { userErrorMessage } from "@/lib/errors";
 import {
-  clearBingoCards,
-  deleteBingoCard,
-  generateBingoCards,
-  getBingoCards,
-  importBingoCards,
+  clearBingoDeckCards,
+  deleteBingoDeckCard,
+  generateBingoDeckCards,
+  getBingoDeckCards,
+  importBingoDeckCards,
   nextCardStartNumber,
   parseImportedCards,
+  setBingoDeckCardCount,
 } from "@/lib/firestore";
-import { BINGO_CARD_MAX, type BingoCardDoc, type BingoFormat } from "@/types";
+import { BINGO_CARD_MAX, type BingoDeckCardDoc, type BingoFormat } from "@/types";
 
-const PREVIEW_COUNT = 6;
-
-export function BingoCardsManager({
+export function BingoDeckCardsManager({
   schoolId,
-  toolId,
+  deckId,
   format,
   onCountChange,
 }: {
   schoolId: string;
-  toolId: string;
+  deckId: string;
   format: BingoFormat;
-  /** Reports the current lote size up to the edit page (which locks the format once cards exist). */
+  /** Reports the current deck size up to the page (which shows it in the header). */
   onCountChange?: (count: number) => void;
 }) {
-  const [cards, setCards] = useState<BingoCardDoc[]>([]);
+  const [cards, setCards] = useState<BingoDeckCardDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,33 +49,37 @@ export function BingoCardsManager({
   const [showImport, setShowImport] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
 
-  const reload = useCallback(async () => {
-    setCards(await getBingoCards(schoolId, toolId));
-  }, [schoolId, toolId]);
+  const reload = useCallback(async (): Promise<BingoDeckCardDoc[]> => {
+    const cs = await getBingoDeckCards(schoolId, deckId);
+    setCards(cs);
+    return cs;
+  }, [schoolId, deckId]);
 
   const load = useCallback(() => {
-    getBingoCards(schoolId, toolId)
-      .then(setCards)
-      .catch(() => setError("No pudimos cargar los cartones."))
+    getBingoDeckCards(schoolId, deckId)
+      .then((cs) => {
+        setCards(cs);
+        onCountChange?.(cs.length);
+      })
+      .catch(() => setError("No pudimos cargar los cartones del mazo."))
       .finally(() => setLoading(false));
-  }, [schoolId, toolId]);
+    // onCountChange is a stable setState dispatcher from the page; excluded to avoid reload loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId, deckId]);
 
   useEffect(load, [load]);
 
-  const soldCount = cards.filter((c) => c.status === "sold").length;
   const total = cards.length;
 
-  // Report the lote size up so the edit page can lock the format once cartones exist.
-  useEffect(() => {
-    onCountChange?.(total);
-  }, [total, onCountChange]);
-
+  /** Run a mutation, then reload and refresh the deck's denormalized cardCount. */
   const run = async (op: () => Promise<void>, fallback: string) => {
     setError(null);
     setBusy(true);
     try {
       await op();
-      await reload();
+      const cs = await reload();
+      await setBingoDeckCardCount(schoolId, deckId, cs.length);
+      onCountChange?.(cs.length);
     } catch (err) {
       setError(userErrorMessage(err, fallback));
     } finally {
@@ -91,15 +95,15 @@ export function BingoCardsManager({
     }
     if (total + count > BINGO_CARD_MAX) {
       setError(
-        `El lote no puede superar ${BINGO_CARD_MAX} cartones (ya hay ${total}).`,
+        `El mazo no puede superar ${BINGO_CARD_MAX} cartones (ya hay ${total}).`,
       );
       return;
     }
     run(
       () =>
-        generateBingoCards(
+        generateBingoDeckCards(
           schoolId,
-          toolId,
+          deckId,
           format,
           count,
           nextCardStartNumber(cards),
@@ -116,12 +120,12 @@ export function BingoCardsManager({
     }
     if (total + parsed.cards.length > BINGO_CARD_MAX) {
       setError(
-        `El lote no puede superar ${BINGO_CARD_MAX} cartones (ya hay ${total}).`,
+        `El mazo no puede superar ${BINGO_CARD_MAX} cartones (ya hay ${total}).`,
       );
       return;
     }
     run(async () => {
-      await importBingoCards(schoolId, toolId, parsed.cards);
+      await importBingoDeckCards(schoolId, deckId, parsed.cards);
       setImportText("");
       setShowImport(false);
     }, "No se pudieron importar los cartones.");
@@ -129,37 +133,33 @@ export function BingoCardsManager({
 
   const onClear = () => {
     setConfirmClear(false);
-    run(() => clearBingoCards(schoolId, toolId), "No se pudo limpiar el lote.");
+    run(
+      () => clearBingoDeckCards(schoolId, deckId),
+      "No se pudo limpiar el mazo.",
+    );
   };
 
-  const onDeleteCard = (card: BingoCardDoc) =>
+  const onDeleteCard = (card: BingoDeckCardDoc) =>
     run(
-      () => deleteBingoCard(schoolId, toolId, card.id),
+      () => deleteBingoDeckCard(schoolId, deckId, card.id),
       "No se pudo quitar el cartón.",
     );
 
   return (
-    // This manager persists immediately (generate/import/clear), so its inputs must NOT bubble a
-    // change event to the edit form's onChange dirty-tracker — stop it at the wrapper.
-    <div
-      onChange={(e) => e.stopPropagation()}
-      className="flex flex-col gap-4 rounded-2xl bg-surface p-4 ring-1 ring-black/5"
-    >
+    <div className="flex flex-col gap-4 rounded-2xl bg-surface p-4 ring-1 ring-black/5">
       <div>
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">
-          Cartones del lote
-        </h3>
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">
+          Cartones del mazo
+        </h2>
         <p className="mt-0.5 text-xs text-muted">
-          {loading
-            ? "Cargando cartones…"
-            : `${total} cartones${soldCount > 0 ? ` · ${soldCount} vendidos` : ""}.`}
+          {loading ? "Cargando cartones…" : `${total} cartones.`}
         </p>
       </div>
 
       {!loading && total === 0 && (
         <p className="rounded-xl bg-brand-tint p-3 text-sm text-brand-darker ring-1 ring-brand-darker/10">
-          Generá (o importá) el lote de cartones para habilitar la compra: sin cartones,
-          el público no puede comprar este bingo.
+          Generá (o importá) los cartones de este mazo. Después podrás reutilizarlo al
+          crear un bingo.
         </p>
       )}
 
@@ -222,32 +222,28 @@ export function BingoCardsManager({
         </p>
       )}
 
-      {/* Preview */}
+      {/* Every cartón of the deck — the whole point of the dedicated page. */}
       {total > 0 && (
         <div>
           <p className="text-xs font-medium text-foreground">
-            Vista previa {total > PREVIEW_COUNT ? `(primeros ${PREVIEW_COUNT})` : ""}
+            Todos los cartones ({total})
           </p>
-          <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {cards.slice(0, PREVIEW_COUNT).map((card) => (
+          <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {cards.map((card) => (
               <li key={card.id} className="flex flex-col gap-1">
                 <BingoCardGrid
                   label={card.label}
                   numbers={card.numbers}
                   cols={format.cols}
                 />
-                {card.status === "available" ? (
-                  <button
-                    type="button"
-                    onClick={() => onDeleteCard(card)}
-                    disabled={busy}
-                    className="self-start text-xs font-medium text-muted transition-colors hover:text-error"
-                  >
-                    Quitar
-                  </button>
-                ) : (
-                  <span className="text-xs text-muted">Vendido</span>
-                )}
+                <button
+                  type="button"
+                  onClick={() => onDeleteCard(card)}
+                  disabled={busy}
+                  className="self-start text-xs font-medium text-muted transition-colors hover:text-error"
+                >
+                  Quitar
+                </button>
               </li>
             ))}
           </ul>
@@ -258,28 +254,24 @@ export function BingoCardsManager({
         <button
           type="button"
           onClick={() => setConfirmClear(true)}
-          disabled={busy || soldCount > 0}
+          disabled={busy}
           className="self-start text-xs font-medium text-muted transition-colors hover:text-error disabled:opacity-50"
-          title={
-            soldCount > 0
-              ? "No se puede limpiar: hay cartones vendidos."
-              : undefined
-          }
         >
-          Limpiar lote
+          Limpiar mazo
         </button>
       )}
 
       <ConfirmDialog
         open={confirmClear}
-        title="Limpiar el lote"
+        title="Limpiar el mazo"
         confirmLabel="Limpiar"
         busy={busy}
         onConfirm={onClear}
         onCancel={() => setConfirmClear(false)}
       >
         <p className="text-sm text-muted">
-          Se eliminarán los {total} cartones de este bingo. No se puede deshacer.
+          Se eliminarán los {total} cartones de este mazo. No se puede deshacer. Los
+          bingos que ya lo usaron conservan sus cartones.
         </p>
       </ConfirmDialog>
     </div>

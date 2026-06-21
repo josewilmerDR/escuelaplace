@@ -53,8 +53,10 @@ import {
   toTourInput,
   type TourFormValue,
 } from "@/components/tools/TourStagesEditor";
+import { BingoDeckPicker } from "@/components/tools/BingoDeckPicker";
 import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { BackLink } from "@/components/ui/BackLink";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { ImagePicker } from "@/components/ui/ImagePicker";
@@ -62,7 +64,10 @@ import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { TOOL_TYPE_LIST, toolTypeMeta } from "@/lib/tools/registry";
 import {
+  copyDeckToTool,
   createTool,
+  deleteBingoDeck,
+  getBingoDecks,
   getSchoolById,
   newToolId,
   setToolCover,
@@ -72,6 +77,7 @@ import {
   EVENT_PHOTO_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
+  type BingoDeckDoc,
   type SchoolDoc,
   type ToolType,
 } from "@/types";
@@ -198,6 +204,16 @@ function NewToolContent() {
   const [serviceForm, setServiceForm] =
     useState<ServiceFormValue>(emptyServiceForm);
   const [bingoForm, setBingoForm] = useState<BingoFormValue>(emptyBingoForm);
+  // Reusable decks (mazos) the school saved earlier, offered when creating a bingo. Picking one
+  // copies its cartones into the new bingo (and pins the format to the deck's); null = create with
+  // no deck (generate/import the cartones later, from the edit page). Loaded only for type 'bingo'.
+  const [decks, setDecks] = useState<BingoDeckDoc[]>([]);
+  const [decksLoading, setDecksLoading] = useState(true);
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [deckDeletingId, setDeckDeletingId] = useState<string | null>(null);
+  const [deckPendingDelete, setDeckPendingDelete] = useState<BingoDeckDoc | null>(
+    null,
+  );
   const [eventForm, setEventForm] = useState<EventFormValue>(emptyEventForm);
   // The event's gallery (photos + one short video). Unlike a catalog's per-item media it isn't a
   // list, so it lives here and is merged into the event config on submit. Uploaded immediately to
@@ -222,6 +238,54 @@ function NewToolContent() {
   }, [id]);
 
   useEffect(load, [load]);
+
+  // Load the school's saved decks once the user is known (the read is owner-gated by rules), but
+  // only for a bingo — the picker is shown nowhere else. Best-effort: a failure just yields an
+  // empty list, so the board can still create the bingo and generate cartones later.
+  useEffect(() => {
+    if (type !== "bingo" || !user) return;
+    let active = true;
+    getBingoDecks(id)
+      .then((d) => active && setDecks(d))
+      .catch(() => active && setDecks([]))
+      .finally(() => active && setDecksLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [type, user, id]);
+
+  // Selecting a deck pins the (hidden) bingo format to the deck's, so the saved config matches the
+  // cartones that will be copied in; "Crear sin mazo" restores the default format.
+  const onSelectDeck = (deckId: string | null) => {
+    setSelectedDeckId(deckId);
+    const deck = deckId ? decks.find((d) => d.id === deckId) : null;
+    setBingoForm((prev) => ({
+      ...prev,
+      ...(deck
+        ? {
+            rows: String(deck.format.rows),
+            cols: String(deck.format.cols),
+            poolMin: String(deck.format.poolMin),
+            poolMax: String(deck.format.poolMax),
+          }
+        : { rows: "5", cols: "5", poolMin: "0", poolMax: "75" }),
+    }));
+  };
+
+  const onDeleteDeck = async (deck: BingoDeckDoc) => {
+    setDeckDeletingId(deck.id);
+    try {
+      await deleteBingoDeck(id, deck.id);
+      setDecks((prev) => prev.filter((d) => d.id !== deck.id));
+      // If the deleted deck was selected, fall back to "no deck" (and its default format).
+      if (selectedDeckId === deck.id) onSelectDeck(null);
+    } catch (err) {
+      setError(userErrorMessage(err, "No se pudo eliminar el mazo."));
+    } finally {
+      setDeckDeletingId(null);
+      setDeckPendingDelete(null);
+    }
+  };
 
   const retry = () => {
     setLoadState("loading");
@@ -313,13 +377,23 @@ function NewToolContent() {
     }
     const service = serviceResult?.ok ? serviceResult.input : undefined;
     // A bingo carries its configuration (format + winning patterns + price); the cartones (lote)
-    // are generated/imported on the edit page after creation.
+    // come from the chosen mazo (deck), copied into the bingo right after creation.
     const bingoResult = type === "bingo" ? toBingoInput(bingoForm) : null;
     if (bingoResult && !bingoResult.ok) {
       setError(bingoResult.error);
       return;
     }
     const bingo = bingoResult?.ok ? bingoResult.input : undefined;
+    // A bingo's cartones come from a mazo (deck), chosen here — it's required, since cartones can't
+    // be added after creation (they live in the mazo).
+    if (type === "bingo" && !selectedDeckId) {
+      setError(
+        decks.length === 0
+          ? "Necesitás un mazo para crear el bingo. Creá uno primero con «Crear o administrar mazos»."
+          : "Elegí un mazo de cartones para el bingo.",
+      );
+      return;
+    }
     // An event carries its date/place/map/contact plus its gallery (photos + video) — merged in
     // here, since the gallery isn't part of the EventConfigFields form.
     const eventResult = type === "event" ? toEventInput(eventForm) : null;
@@ -367,6 +441,20 @@ function NewToolContent() {
         } catch {
           // ignore — the tool is created; the cover can be added later from the edit page
         }
+      }
+      // When a bingo is created from a deck, copy the deck's cartones into the new bingo's lote and
+      // land on the edit page so the board sees the populated lote. Best-effort, like the cover: the
+      // bingo already exists, so a failed copy must neither block the flow nor risk a duplicate lote
+      // on a form retry — the board can generate/import from the edit page. No deck → the documented
+      // return to the hub, where the bingo (with cartones still pending) now appears.
+      if (type === "bingo" && selectedDeckId) {
+        try {
+          await copyDeckToTool(id, selectedDeckId, toolId);
+        } catch {
+          // ignore — the bingo is created; the cartones can be generated from the edit page
+        }
+        router.push(`/panel/school/${id}/tools/${toolId}`);
+        return;
       }
       router.push(`/panel/school/${id}/tools`);
     } catch (err) {
@@ -459,12 +547,52 @@ function NewToolContent() {
         )}
 
         {type === "bingo" && (
-          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-            <p className="mb-3 text-sm font-semibold text-foreground">
-              Configuración del bingo
-            </p>
-            <BingoConfigFields value={bingoForm} onChange={setBingoForm} hideFormat />
-          </div>
+          <>
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-1 text-sm font-semibold text-foreground">
+                Mazo de cartones <span className="text-error">*</span>
+              </p>
+              <p className="mb-3 text-xs text-muted">
+                Elegí el mazo (lote de cartones) para este bingo. Sus cartones se copian al
+                bingo al crearlo. Es obligatorio: los cartones viven en el mazo y no se
+                editan dentro del bingo.
+              </p>
+              {decksLoading ? (
+                <p className="text-sm text-muted">Cargando mazos…</p>
+              ) : decks.length === 0 ? (
+                <p className="rounded-xl bg-brand-tint p-3 text-sm text-brand-darker ring-1 ring-brand-darker/10">
+                  Necesitás un mazo para crear un bingo y todavía no tenés ninguno. Creá uno
+                  primero (con sus cartones) y volvé a crear el bingo.
+                </p>
+              ) : (
+                <BingoDeckPicker
+                  decks={decks}
+                  selectedDeckId={selectedDeckId}
+                  onSelect={onSelectDeck}
+                  onDelete={(deck) => setDeckPendingDelete(deck)}
+                  deletingId={deckDeletingId}
+                  disabled={saving}
+                />
+              )}
+              {/* Open the deck library in a new tab so the in-progress bingo form isn't lost. */}
+              <p className="mt-3 text-xs">
+                <a
+                  href={`/panel/school/${id}/bingo-decks`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-brand-darker hover:underline"
+                >
+                  Crear o administrar mazos ↗
+                </a>
+              </p>
+            </div>
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Configuración del bingo
+              </p>
+              <BingoConfigFields value={bingoForm} onChange={setBingoForm} hideFormat />
+            </div>
+          </>
         )}
 
         {type === "event" && (
@@ -522,6 +650,23 @@ function NewToolContent() {
           {saving ? "Creando…" : heading}
         </button>
       </form>
+
+      <ConfirmDialog
+        open={deckPendingDelete !== null}
+        title="Eliminar mazo"
+        tone="destructive"
+        confirmLabel="Eliminar"
+        busy={deckDeletingId !== null}
+        busyLabel="Eliminando…"
+        onConfirm={() => deckPendingDelete && onDeleteDeck(deckPendingDelete)}
+        onCancel={() => setDeckPendingDelete(null)}
+      >
+        <p className="text-sm text-muted">
+          Se elimina el mazo «{deckPendingDelete?.name}» y sus{" "}
+          {deckPendingDelete?.cardCount} cartones guardados. Los bingos que ya lo usaron
+          conservan sus cartones. No se puede deshacer.
+        </p>
+      </ConfirmDialog>
     </main>
   );
 }

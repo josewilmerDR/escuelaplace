@@ -1070,6 +1070,8 @@ export const BINGO_GRID_CELLS = 25;
 export const BINGO_CUSTOM_PATTERN_NAME_MAX = 40;
 /** Cap on how many custom patterns a school can save in its catalog. */
 export const BINGO_CUSTOM_PATTERNS_MAX = 30;
+/** Cap on a saved deck (mazo) name. */
+export const BINGO_DECK_NAME_MAX = 60;
 
 /** A winning shape on a cartón. A "line" means a COMPLETE row/column/diagonal; `full` = the
  * whole cartón marked. The organizer enables which ones count, each with its prize. */
@@ -1244,6 +1246,44 @@ export interface BingoCard {
 }
 
 export type BingoCardDoc = BingoCard & { id: string };
+
+/**
+ * A reusable deck (mazo) of cartones a school saves once and reuses across many bingos — a doc in
+ * schools/{schoolId}/bingoDecks/{deckId}, parallel to the custom-pattern catalog (bingoPatterns).
+ * Holds only the deck's name, its cartón format and a denormalized count; the cartones themselves
+ * live in the subcollection `bingoDecks/{deckId}/cards` (one doc per cartón), mirroring a tool's
+ * lote so a 1000-cartón deck never strains the doc-size limit. The deck is a TEMPLATE — its cards
+ * carry no status/ownerId; creating a bingo from a deck COPIES its cartones into that tool's `cards`
+ * as fresh `available` ones, so per-event sold/assignment state never collides between bingos. The
+ * school owns every field (no function-maintained signals, no money).
+ */
+export interface BingoDeck {
+  name: string;
+  /** The cartón grid + number pool every cartón in the deck shares (a bingo built from this deck
+   * adopts this format so its config and the copied cartones line up). */
+  format: BingoFormat;
+  /** Denormalized cartón count, for the picker list (the cards live in a subcollection). */
+  cardCount: number;
+  createdBy: string;
+  createdByName?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type BingoDeckDoc = BingoDeck & { id: string };
+
+/** One template cartón of a deck, a doc in schools/{id}/bingoDecks/{deckId}/cards/{cardId}. Unlike
+ * a tool's BingoCard it carries NO status/ownerId — those are per-event and set only when the deck
+ * is copied into a bingo's lote. */
+export interface BingoDeckCard {
+  /** Printed serial/identifier (e.g. "001"), preserved when the deck is copied into a bingo. */
+  label: string;
+  /** Row-major grid numbers, length = rows*cols, distinct, within the format's pool. */
+  numbers: number[];
+  createdAt: Timestamp;
+}
+
+export type BingoDeckCardDoc = BingoDeckCard & { id: string };
 
 export interface Tool {
   /** Denormalized parent id (the doc lives under the school; kept for the detail page and

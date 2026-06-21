@@ -227,6 +227,19 @@ export default function SchoolToolsPage() {
         <ToolTypeMenu schoolId={id} />
       </section>
 
+      {/* Bingo decks (mazos): reusable lotes of cartones, shared across a school's bingos. */}
+      <p className="mt-6 text-sm">
+        <Link
+          href={`/panel/school/${id}/bingo-decks`}
+          className="font-medium text-brand-darker hover:underline"
+        >
+          Mazos de bingo →
+        </Link>
+        <span className="ml-2 text-muted">
+          Lotes de cartones reutilizables para tus bingos.
+        </span>
+      </p>
+
       {/* Then the activities already created, compact so many fit at a glance. */}
       <section className="mt-12">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">

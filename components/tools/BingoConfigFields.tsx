@@ -4,8 +4,8 @@
  * The bingo-specific configuration inputs, shared by the create and edit forms (the seam the
  * ToolTypePicker opens). Controlled: the parent owns a BingoFormValue and passes value + onChange.
  * Conversion to/from the stored BingoConfig (format parsing, pattern toggles + prizes, dates)
- * lives here so both pages share it. The cartones (lote) are NOT configured here — they're
- * generated/imported on the edit page via BingoCardsManager.
+ * lives here so both pages share it. The cartones (lote) are NOT configured here — they live in a
+ * reusable mazo (deck), authored on the Mazos page and bound to the bingo at creation.
  */
 import { Field } from "@/components/ui/Field";
 import {
