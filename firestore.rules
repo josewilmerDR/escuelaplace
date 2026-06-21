@@ -377,6 +377,43 @@ service cloud.firestore {
         );
         allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
       }
+
+      // Bingo deck (mazo) library: schools/{id}/bingoDecks/{deckId} — reusable lotes of cartones
+      // a school saves once and reuses across its bingos. Unlike the cartones a bingo SELLS (which
+      // are public so players see their numbers), a deck is a BOARD-ONLY convenience: nothing
+      // public references it — creating a bingo from a deck copies its cartones into the tool's
+      // public `cards`. So READ here is the school's owner/editors (or admin), not public. WRITE is
+      // shape-capped to a name + a format map + a numeric count; the cartones live in the nested
+      // `cards` subcollection. No money, no function-maintained signal — the school owns it all.
+      match /bingoDecks/{deckId} {
+        allow read: if isAdmin() || isOwnerOrEditor(schoolData(id));
+        allow create: if isAdmin() || (
+          isOwnerOrEditor(schoolData(id)) &&
+          request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() <= 60 &&
+          request.resource.data.format is map &&
+          request.resource.data.cardCount is int
+        );
+        // Update (rename / refresh cardCount) is open to ANY owner/editor, not just the creator —
+        // a deck is shared school property. createdBy is frozen (can't be reassigned on update).
+        allow update: if isAdmin() || (
+          isOwnerOrEditor(schoolData(id)) &&
+          request.resource.data.createdBy == resource.data.createdBy &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() <= 60 &&
+          request.resource.data.format is map &&
+          request.resource.data.cardCount is int
+        );
+        allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
+
+        // The deck's template cartones (label + numbers). Same owner-only access as the parent —
+        // a deck card carries no status/ownerId (those exist only on a tool's sold cartón).
+        match /cards/{cardId} {
+          allow read: if isAdmin() || isOwnerOrEditor(schoolData(id));
+          allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
+        }
+      }
     }
 
     // Collection-group reads of projects (`collectionGroup(db, 'projects')`). A nested

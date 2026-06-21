@@ -22,7 +22,6 @@ import {
   toBingoInput,
   type BingoFormValue,
 } from "@/components/tools/BingoConfigFields";
-import { BingoCardsManager } from "@/components/tools/BingoCardsManager";
 import {
   EventConfigFields,
   emptyEventForm,
@@ -170,12 +169,10 @@ export default function EditToolPage() {
   const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
   // Raffle orders, only for the read-only grid preview shown to the board.
   const [orders, setOrders] = useState<RaffleOrderDoc[]>([]);
-  // Bingo config form. The cartones (lote) are managed by BingoCardsManager, which persists
-  // immediately and reads its own state — so there's no editable card list here. The manager
-  // reports the lote size so the format inputs lock once cartones exist (changing it would
-  // mismatch the already-generated cards).
+  // Bingo config form (prizes, price, modality…). The cartones (lote) are NOT managed here — they
+  // live in a reusable mazo (deck) bound to the bingo at creation; the edit page only links out to
+  // the mazos library. So there's no editable card list and no card-count tracking here.
   const [bingoForm, setBingoForm] = useState<BingoFormValue>(emptyBingoForm);
-  const [bingoCardCount, setBingoCardCount] = useState(0);
 
   // Event ("Eventos") editable state. Date/place/map/contact save with the form button; the
   // gallery (photos/video) persists immediately against tool.event, like the catalog kinds.
@@ -527,7 +524,7 @@ export default function EditToolPage() {
     }
 
     // A bingo carries its configuration (format + winning patterns + price). The cartones (lote)
-    // are managed separately by BingoCardsManager; nothing about them is built here.
+    // live in a reusable mazo (deck), bound to the bingo at creation — never edited here.
     const bingoResult = type === "bingo" ? toBingoInput(bingoForm) : null;
     if (bingoResult && !bingoResult.ok) {
       setError(bingoResult.error);
@@ -1373,22 +1370,30 @@ export default function EditToolPage() {
               <BingoConfigFields
                 value={bingoForm}
                 onChange={setBingoForm}
-                lockFormat={bingoCardCount > 0}
                 hideFormat
               />
             </div>
-            {tool.bingo ? (
-              <BingoCardsManager
-                schoolId={id}
-                toolId={toolId}
-                format={tool.bingo.format}
-                onCountChange={setBingoCardCount}
-              />
-            ) : (
-              <p className="text-xs text-muted">
-                Guardá el bingo para generar o importar los cartones.
+            {/* Cartones live in a reusable mazo (deck) — the single place to create/edit them. A
+                bingo binds its lote by choosing a mazo at creation, so the edit page only links out
+                (no generate/import here). */}
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="text-sm font-semibold text-foreground">Cartones (mazo)</p>
+              <p className="mt-1 text-xs text-muted">
+                Los cartones de este bingo se definen eligiendo un mazo al crearlo. Para
+                generarlos, importarlos o ver todos los cartones, administrá tus mazos en
+                su propia página.
               </p>
-            )}
+              <p className="mt-2 text-xs">
+                <a
+                  href={`/panel/school/${id}/bingo-decks`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-brand-darker hover:underline"
+                >
+                  Crear o administrar mazos ↗
+                </a>
+              </p>
+            </div>
           </section>
         )}
 
