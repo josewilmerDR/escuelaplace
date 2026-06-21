@@ -1,21 +1,40 @@
 "use client";
 
 /**
- * Admin strip on the public school profile, visible only to the people who manage the
- * page (owner, editors, or platform admin). Client island — the SSR page doesn't know
- * who is looking at it; renders nothing for everyone else, so the layout never shifts
- * for visitors. Mirrors the business ManageBar, but the school's panel surface is the
- * confirmation queue (there is no school edit form yet).
+ * Manage controls for the people who run the school page (owner, editors, or platform
+ * admin) — pinned on top of the profile cover, FB-page style. Client island: the SSR page
+ * doesn't know who is looking, so this renders nothing for visitors and never shifts their
+ * layout. Passed to ProfileHeader as `coverOverlay`, so it positions itself against the
+ * cover band (which is `relative`).
  *
- * "Ver como visitante" reuses the shared view-as store: the strip collapses into the
- * floating exit pill so the manager sees exactly what a visitor gets.
+ * Two affordances, split by intent — manage vs. attend to:
+ *  - a BELL pinned top-right, badged with how many items await confirmation (the activity
+ *    queue), linking straight to it;
+ *  - a GEAR pinned bottom-right opening the "Configurar" menu (edit page, projects, tools,
+ *    and "Ver como visitante").
+ *
+ * "Ver como visitante" flips the shared view-as store: the whole overlay collapses into the
+ * floating exit pill (VisitorModeToast), so the manager sees exactly what a visitor gets and
+ * the mode can't get stuck on invisibly.
  */
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { VisitorModeToast } from "@/components/ui/VisitorModeToast";
+import {
+  BellIcon,
+  CogIcon,
+  EyeIcon,
+  FlagIcon,
+  PencilIcon,
+  WrenchIcon,
+} from "@/components/ui/icons";
 import { getPendingActivityCountBySchool } from "@/lib/firestore";
 import { useViewAsVisitor } from "@/lib/view-as";
+
+/** Circular cover-overlay button: legible on any cover photo via a translucent dark scrim. */
+const OVERLAY_BTN =
+  "inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white shadow-sm ring-1 ring-white/25 backdrop-blur transition hover:bg-black/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white";
 
 export function SchoolManageBar({
   schoolId,
@@ -28,15 +47,17 @@ export function SchoolManageBar({
 }) {
   const { user } = useAuth();
   const [asVisitor, setAsVisitor] = useViewAsVisitor();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const canManage =
     user &&
     (user.id === ownerId ||
       editorIds?.includes(user.id) ||
       user.role === "admin");
 
-  // How many items (supports, project aportes, tool orders) are awaiting confirmation — a nudge
-  // badge so the board sees the queue even when it's just viewing the public page. Managers only;
-  // never for visitors.
+  // How many items (supports, project aportes, tool orders) are awaiting confirmation — the
+  // bell badge so the board sees the queue even when it's just viewing the public page.
+  // Managers only; never for visitors.
   const [pendingCount, setPendingCount] = useState(0);
   useEffect(() => {
     if (!canManage) return;
@@ -51,99 +72,130 @@ export function SchoolManageBar({
     };
   }, [canManage, schoolId]);
 
+  // Dismiss the "Configurar" menu on outside click or Escape — standard popover behavior.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
   if (!canManage) return null;
 
+  // In visitor mode the whole overlay collapses with the rest of the owner-only UI; the
+  // shared floating pill is the only trace, so the mode can't get stuck on invisibly.
   if (asVisitor) return <VisitorModeToast />;
 
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-xl bg-surface px-4 py-3 ring-1 ring-black/5 sm:justify-start">
-      <p className="text-sm font-medium text-muted">
-        Administrás esta página
-      </p>
-      <div className="flex flex-wrap justify-center gap-2">
-        <Link
-          href={`/panel/school/${schoolId}/edit`}
-          className="btn btn-outline"
-        >
-          <PencilIcon className="mr-2 h-4 w-4" />
-          Editar página
-        </Link>
-        <Link
-          href={`/panel/school/${schoolId}/activity`}
-          className="btn btn-outline"
-        >
-          Actividad
-          {pendingCount > 0 && (
-            <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-darker px-1.5 text-xs font-semibold text-white">
-              {pendingCount}
-            </span>
-          )}
-        </Link>
-        <Link
-          href={`/panel/school/${schoolId}/projects`}
-          className="btn btn-outline"
-        >
-          Proyectos
-        </Link>
-        <Link
-          href={`/panel/school/${schoolId}/tools`}
-          className="btn btn-outline"
-        >
-          Herramientas
-        </Link>
+    <>
+      {/* Bell — "attend to": the confirmation queue, badged with its count. */}
+      <Link
+        href={`/panel/school/${schoolId}/activity`}
+        aria-label={
+          pendingCount > 0
+            ? `Actividad (${pendingCount} pendientes)`
+            : "Actividad"
+        }
+        className={`absolute right-3 top-3 z-20 ${OVERLAY_BTN}`}
+      >
+        <BellIcon className="h-5 w-5" />
+        {pendingCount > 0 && (
+          // Red is the universal "needs attention" notification cue — no token equivalent on
+          // the scale; the white ring lifts it off the cover photo.
+          <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-semibold text-white ring-2 ring-white">
+            {pendingCount}
+          </span>
+        )}
+      </Link>
+
+      {/* Gear — "manage": the low-frequency page-management menu. */}
+      <div ref={menuRef} className="absolute bottom-3 right-3 z-20">
         <button
           type="button"
-          onClick={() => setAsVisitor(true)}
-          className="btn btn-outline"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label="Configurar página"
+          className={OVERLAY_BTN}
         >
-          <EyeIcon className="mr-2 h-4 w-4" />
-          Ver como visitante
+          <CogIcon className="h-5 w-5" />
         </button>
+
+        {menuOpen && (
+          // Opens downward (top-full) into the header body, never above the cover, so the
+          // header's overflow-hidden can't clip it.
+          <div
+            role="menu"
+            className="absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-xl bg-white py-1 shadow-lg ring-1 ring-black/10"
+          >
+            <MenuLink
+              href={`/panel/school/${schoolId}/edit`}
+              icon={<PencilIcon className="h-4 w-4" />}
+            >
+              Editar página
+            </MenuLink>
+            <MenuLink
+              href={`/panel/school/${schoolId}/projects`}
+              icon={<FlagIcon className="h-4 w-4" />}
+            >
+              Proyectos
+            </MenuLink>
+            <MenuLink
+              href={`/panel/school/${schoolId}/tools`}
+              icon={<WrenchIcon className="h-4 w-4" />}
+            >
+              Herramientas
+            </MenuLink>
+            <div className="my-1 h-px bg-black/5" role="separator" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAsVisitor(true);
+                setMenuOpen(false);
+              }}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-foreground hover:bg-surface"
+            >
+              <span className="text-muted">
+                <EyeIcon className="h-4 w-4" />
+              </span>
+              Ver como visitante
+            </button>
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }
 
-/** Heroicons pencil (outline) — same inline-SVG approach as the page icons. */
-function PencilIcon({ className }: { className?: string }) {
+function MenuLink({
+  href,
+  icon,
+  children,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
+    <Link
+      href={href}
+      role="menuitem"
+      className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-foreground hover:bg-surface"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
-      />
-    </svg>
-  );
-}
-
-function EyeIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      aria-hidden
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-      />
-    </svg>
+      <span className="text-muted">{icon}</span>
+      {children}
+    </Link>
   );
 }

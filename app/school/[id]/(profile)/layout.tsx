@@ -184,6 +184,14 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
         name={school.name}
         verified={isSchoolVerified(school)}
         verifiedLabel="Escuela verificada"
+        coverOverlay={
+          // Manage controls (bell + gear) float on the cover for the page's managers only.
+          <SchoolManageBar
+            schoolId={id}
+            ownerId={school.ownerId}
+            editorIds={school.editorIds}
+          />
+        }
         meta={
           placeParts.length > 0 ? (
             <p className="mt-1 text-sm text-muted">{placeParts.join(", ")}</p>
@@ -260,14 +268,8 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
         </div>
         <DonateHint unverified={unverified} />
 
-        {/* Edit/queue shortcuts — only the page's managers see this. */}
-        <SchoolManageBar
-          schoolId={id}
-          ownerId={school.ownerId}
-          editorIds={school.editorIds}
-        />
-
-        {/* Section tabs — each is its own route. */}
+        {/* Section tabs — each is its own route. The manage controls (bell + gear) now float
+            on the cover; see ProfileHeader's `coverOverlay` above. */}
         <ProfileTabs tabs={tabs} />
       </ProfileHeader>
 
