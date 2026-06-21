@@ -348,6 +348,9 @@ export interface BingoConfigInput {
   eventDate?: Date | null;
   drawMethod?: string;
   contactPhone?: string;
+  /** Easy mode: the play grid only lets players tap called numbers. Default (false/omitted) is
+   * traditional — players mark by hand and may err. See BingoConfig.assistMarking. */
+  assistMarking?: boolean;
 }
 
 /** All winning shapes enabled, prize-less — the default the board gets now that prizes are no
@@ -385,6 +388,8 @@ function buildBingoConfig(input: BingoConfigInput): BingoConfig {
     ...(input.eventDate ? { eventDate: Timestamp.fromDate(input.eventDate) } : {}),
     ...(input.drawMethod ? { drawMethod: input.drawMethod } : {}),
     ...(input.contactPhone ? { contactPhone: input.contactPhone } : {}),
+    // Only persist easy mode when enabled; absent reads as traditional (the default).
+    ...(input.assistMarking ? { assistMarking: true } : {}),
   };
 }
 
