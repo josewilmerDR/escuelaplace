@@ -1,107 +1,60 @@
 /**
- * Typed reads + writes of bingo orders (`bingoOrders/{orderId}`, top-level) — a buyer's
- * reservation of N cartones in a school bingo (a tool of `type: 'bingo'`). Mirrors raffle orders:
- * public read, the buyer's real name + amount live in a PRIVATE subdoc
- * (`bingoOrders/{id}/private/data`), and the payment proof in Storage. Top-level (not nested) so
- * the proof file and private subdoc resolve by order id alone.
+ * Bingo orders (`bingoOrders/{orderId}`, top-level) — a buyer's reservation of N cartones in a
+ * school bingo (a tool of `type: 'bingo'`). Thin typed wrappers over the shared "informational
+ * order" skeleton in ./orders (the pending create + private name/amount split + proof +
+ * confirm-from-pending privacy model). What is bingo-SPECIFIC and lives here: the public `quantity`
+ * field on create, and `confirmBingoOrder` — the one piece of genuinely new logic, a BATCHED
+ * card-assignment write (the buyer reserves a quantity; the school assigns that many available
+ * cartones on confirmation), which is why bingo can't use the shared confirmOrder.
  *
- * Unlike a raffle (where the buyer picks specific numbers), a bingo buyer reserves a QUANTITY;
- * the school ASSIGNS that many available cartones when it confirms the payment — see
- * confirmBingoOrder, the one piece of genuinely new logic (a batched card-assignment write).
- *
- * PURELY INFORMATIONAL: the platform never processes the money. The buyer pays the school
- * directly; the school confirms the proof, same as donations.
+ * PURELY INFORMATIONAL: the platform never processes the money. The buyer pays the school directly;
+ * the school confirms the proof, same as donations.
  */
 import { cache } from "react";
 import {
-  addDoc,
   collection,
-  deleteDoc,
   doc,
-  getDoc,
   getDocs,
   query,
   serverTimestamp,
-  setDoc,
-  updateDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
-import {
-  getDownloadURL,
-  ref as storageRef,
-  uploadBytes,
-} from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import type { BingoOrder, BingoOrderDoc, ProjectCurrency } from "@/types";
-import { snapToList } from "./converters";
+import {
+  createOrder,
+  deleteOrder,
+  getOrderProofUrl,
+  getOrdersBySchool,
+  getOrdersByTool,
+  orderProofPath,
+  uploadOrderProof,
+  type OrderCollection,
+} from "./orders";
 
-const BINGO_ORDERS = "bingoOrders";
+const BINGO_ORDERS: OrderCollection = {
+  name: "bingoOrders",
+  proofPrefix: "bingo-order-proofs",
+};
 const SCHOOLS = "schools";
 const TOOLS = "tools";
 const CARDS = "cards";
 
-/** Sort by createdAt (desc) in JS to avoid a composite index (matches the other domains). */
-function byCreatedAtDesc(
-  a: { createdAt?: { toMillis?: () => number } },
-  b: { createdAt?: { toMillis?: () => number } },
-): number {
-  return (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0);
-}
-
 /**
- * Every order of one bingo (any status), newest first. PUBLIC, anonymous-safe — used to derive
- * how many cartones are still available, so it does NOT merge the private fields. Wrapped in
- * cache() to dedupe the detail page's reads in one request.
+ * Every order of one bingo (any status), newest first. PUBLIC, anonymous-safe — used to derive how
+ * many cartones are still available. Wrapped in cache() to dedupe the detail page's reads.
  */
 export const getBingoOrdersByTool = cache(
-  async (toolId: string): Promise<BingoOrderDoc[]> => {
-    const q = query(collection(db, BINGO_ORDERS), where("toolId", "==", toolId));
-    return snapToList<BingoOrder>(await getDocs(q)).sort(byCreatedAtDesc);
-  },
+  (toolId: string): Promise<BingoOrderDoc[]> =>
+    getOrdersByTool<BingoOrder>(BINGO_ORDERS, toolId),
 );
 
-/**
- * Every bingo order targeting a school (any status, any bingo), newest first — the board's
- * confirmation queue. CLIENT-ONLY merges the private buyerName/amount back in (the board is
- * authorized); on the server the merge is skipped.
- */
+/** Every bingo order targeting a school (any status), newest first — the board's queue. */
 export const getBingoOrdersBySchool = cache(
-  async (schoolId: string): Promise<BingoOrderDoc[]> => {
-    const q = query(
-      collection(db, BINGO_ORDERS),
-      where("schoolId", "==", schoolId),
-    );
-    const orders = snapToList<BingoOrder>(await getDocs(q)).sort(byCreatedAtDesc);
-    return mergePrivateFields(orders);
-  },
+  (schoolId: string): Promise<BingoOrderDoc[]> =>
+    getOrdersBySchool<BingoOrder>(BINGO_ORDERS, schoolId),
 );
-
-/**
- * Merge each order's PRIVATE fields (buyerName + amount) back onto the doc — CLIENT-ONLY and
- * best-effort, the same pattern as raffle orders. Those fields live in a private subdoc so an
- * anonymous scraper can't deanonymize a buyer nor read how much they paid.
- */
-async function mergePrivateFields(
-  orders: BingoOrderDoc[],
-): Promise<BingoOrderDoc[]> {
-  if (typeof window === "undefined") return orders; // SSR doesn't need them
-  await Promise.all(
-    orders.map(async (o) => {
-      try {
-        const data = (
-          await getDoc(doc(db, BINGO_ORDERS, o.id, "private", "data"))
-        ).data();
-        if (!data) return;
-        if (typeof data.buyerName === "string") o.buyerName = data.buyerName;
-        if (typeof data.amount === "number") o.amount = data.amount;
-      } catch {
-        // Unauthorized/missing — leave as-is; authorized callers (board/admin) won't hit this.
-      }
-    }),
-  );
-  return orders;
-}
 
 // ── Writes ───────────────────────────────────────────────────────────────────
 
@@ -124,56 +77,34 @@ export interface CreateBingoOrderInput {
  * buyerId == auth.uid) and only against a verified school. The buyer's real name + amount go to
  * the private subdoc (off the public doc). Returns the new order id (for the proof upload).
  */
-export async function createBingoOrder(
-  input: CreateBingoOrderInput,
-): Promise<string> {
-  const created = await addDoc(collection(db, BINGO_ORDERS), {
-    schoolId: input.schoolId,
-    schoolName: input.schoolName,
-    toolId: input.toolId,
-    toolTitle: input.toolTitle,
-    buyerId: input.buyerId,
-    quantity: input.quantity,
-    currency: input.currency,
-    status: "pending",
-    confirmedAt: null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  await setDoc(doc(db, BINGO_ORDERS, created.id, "private", "data"), {
-    buyerName: input.buyerName,
-    amount: input.amount,
-  });
-  return created.id;
+export function createBingoOrder(input: CreateBingoOrderInput): Promise<string> {
+  return createOrder(
+    BINGO_ORDERS,
+    {
+      schoolId: input.schoolId,
+      schoolName: input.schoolName,
+      toolId: input.toolId,
+      toolTitle: input.toolTitle,
+      buyerId: input.buyerId,
+      quantity: input.quantity,
+      currency: input.currency,
+    },
+    { buyerName: input.buyerName, amount: input.amount },
+  );
 }
 
 /** Storage path of an order's payment proof (the file never appears in the public doc). */
 export function bingoOrderProofPath(orderId: string): string {
-  return `bingo-order-proofs/${orderId}/proof`;
+  return orderProofPath(BINGO_ORDERS, orderId);
 }
 
-export async function uploadBingoOrderProof(
-  orderId: string,
-  file: Blob,
-): Promise<void> {
-  await uploadBytes(storageRef(storage, bingoOrderProofPath(orderId)), file);
-  await updateDoc(doc(db, BINGO_ORDERS, orderId), {
-    proofUploaded: true,
-    updatedAt: serverTimestamp(),
-  });
+export function uploadBingoOrderProof(orderId: string, file: Blob): Promise<void> {
+  return uploadOrderProof(BINGO_ORDERS, orderId, file);
 }
 
 /** Temporary download URL for the board to view a proof. null if missing/unauthorized. */
-export async function getBingoOrderProofUrl(
-  orderId: string,
-): Promise<string | null> {
-  try {
-    return await getDownloadURL(
-      storageRef(storage, bingoOrderProofPath(orderId)),
-    );
-  } catch {
-    return null;
-  }
+export function getBingoOrderProofUrl(orderId: string): Promise<string | null> {
+  return getOrderProofUrl(BINGO_ORDERS, orderId);
 }
 
 /**
@@ -181,7 +112,8 @@ export async function getBingoOrderProofUrl(
  * both the cards and the order) reads the available cartones, takes the first `quantity` (lowest
  * labels first), marks them sold/owned, and flips the order to confirmed with their ids — all in
  * one batch. Throws (no write) if fewer cartones are available than requested, so the board can
- * generate more or adjust instead of overselling.
+ * generate more or adjust instead of overselling. Bingo's bespoke confirm (the shared confirmOrder
+ * only flips status); the order's money invariants still live in ./orders + firestore.rules.
  */
 export async function confirmBingoOrder(
   order: Pick<BingoOrderDoc, "id" | "schoolId" | "toolId" | "buyerId" | "quantity">,
@@ -217,7 +149,7 @@ export async function confirmBingoOrder(
     });
     cardIds.push(card.id);
   }
-  batch.update(doc(db, BINGO_ORDERS, order.id), {
+  batch.update(doc(db, BINGO_ORDERS.name, order.id), {
     status: "confirmed",
     confirmedAt: serverTimestamp(),
     confirmedBy,
@@ -228,6 +160,6 @@ export async function confirmBingoOrder(
 }
 
 /** Delete an order (the buyer cancels, or admin). */
-export async function deleteBingoOrder(orderId: string): Promise<void> {
-  await deleteDoc(doc(db, BINGO_ORDERS, orderId));
+export function deleteBingoOrder(orderId: string): Promise<void> {
+  return deleteOrder(BINGO_ORDERS, orderId);
 }

@@ -657,8 +657,10 @@ export const PROJECT_STAGE_TITLE_MAX = 120;
 export const PROJECT_STAGE_JUSTIFICATION_MAX = 500;
 // Defensive cap: stops one extra zero from inflating the goal and the progress bar.
 export const PROJECT_STAGE_COST_MAX = 100_000_000;
-export const PROJECT_STAGE_PHOTO_MAX = 4;
+export const PROJECT_STAGE_PHOTO_MAX = 5;
 export const PROJECT_STAGE_QUOTE_MAX = 3;
+// A stage's optional short video reuses the tool-wide short-video budget
+// (TOOL_VIDEO_MAX_SECONDS / TOOL_VIDEO_MAX_MB, declared with the tools below).
 /** UI cap for a contribution's in-kind description ("¿qué donás?"). */
 export const CONTRIBUTION_DESCRIPTION_MAX = 500;
 
@@ -691,9 +693,11 @@ export type ProjectStatus = "active" | "completed" | "cancelled";
 
 /**
  * One funded step of a project, embedded in the project doc. Each stage justifies its own
- * cost and may attach photos (e.g. the terrain today + a projection of the result) and
- * quotes (cotizaciones) for transparency — the same evidence the verification mechanic
- * already rewards. The project goal is the SUM of the stage costs (computed, never stored).
+ * cost and may attach photos (e.g. the terrain today + a projection of the result), a short
+ * video, and quotes (cotizaciones) for transparency — the same evidence the verification
+ * mechanic already rewards. The project goal is the SUM of the stage costs (computed, never
+ * stored). Media mirrors a guided-tour stage: up to PROJECT_STAGE_PHOTO_MAX photos plus one
+ * clip ≤ TOOL_VIDEO_MAX_SECONDS.
  */
 export interface ProjectStage {
   title: string;
@@ -703,6 +707,8 @@ export interface ProjectStage {
   cost: number;
   /** Public Storage URLs (schools/{id}/projects/{pid}/...). */
   photos?: string[];
+  /** Public Storage URL of a single short video (≤ TOOL_VIDEO_MAX_SECONDS). */
+  videoUrl?: string;
   /** Public Storage URLs of quotes/receipts (images or PDFs). */
   quoteUrls?: string[];
 }

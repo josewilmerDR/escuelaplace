@@ -305,17 +305,31 @@ function sanitizeStages(stages: ProjectStage[]): ProjectStage[] {
 }
 
 /**
+ * Pre-allocate a project id WITHOUT writing anything (pure ref construction, no I/O), so the
+ * create form can upload per-stage media to the project's Storage path — `schools/{schoolId}/
+ * projects/{projectId}/…`, gated only by school ownership, not by the doc existing — while the
+ * board is still filling it. The collected URLs then ride along in the single `createProject`
+ * write (pass this id as its `projectId`). Mirrors the tool create flow's `newToolId`.
+ */
+export function newProjectId(schoolId: string): string {
+  return doc(projectsCol(schoolId)).id;
+}
+
+/**
  * Create an `active` project under a school. Must be called by the school owner/editor (the
  * rules enforce it). `raised`/`contributorsCount` start at 0 and are maintained by the
- * Cloud Function; `ownerId`/`schoolName` are denormalized from the school. Returns the id.
+ * Cloud Function; `ownerId`/`schoolName` are denormalized from the school. Pass a pre-allocated
+ * `projectId` (newProjectId) when stage media was uploaded to that path during the form;
+ * otherwise an id is minted. Both hit the same `create` rule. Returns the id.
  */
 export async function createProject(
   schoolId: string,
   schoolName: string,
   ownerId: string,
   input: CreateProjectInput,
+  projectId?: string,
 ): Promise<string> {
-  const created = await addDoc(collection(db, SCHOOLS, schoolId, PROJECTS), {
+  const data = {
     schoolId,
     schoolName,
     title: input.title,
@@ -328,8 +342,14 @@ export async function createProject(
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
-  return created.id;
+  };
+  // A pre-allocated id is written with setDoc (the board already uploaded media under its path);
+  // without one, addDoc mints the id.
+  if (projectId) {
+    await setDoc(doc(projectsCol(schoolId), projectId), data);
+    return projectId;
+  }
+  return (await addDoc(collection(db, SCHOOLS, schoolId, PROJECTS), data)).id;
 }
 
 /** Fields of a project the board may edit. `raised`/`contributorsCount`/`status` are
@@ -382,15 +402,15 @@ export async function deleteProject(
 }
 
 /**
- * Upload a project asset (the cover, a stage photo or a stage quote) to the public school
- * Storage namespace and return its URL. Unique timestamped path so files never overwrite.
- * The caller persists the URL via updateProject (cover) or by writing it into the stages
- * array. `kind` only shapes the path for readability.
+ * Upload a project asset (the cover, a stage photo, a stage quote or a stage video) to the
+ * public school Storage namespace and return its URL. Unique timestamped path so files never
+ * overwrite. The caller persists the URL via updateProject (cover) or by writing it into the
+ * stages array. `kind` only shapes the path for readability.
  */
 export async function uploadProjectAsset(
   schoolId: string,
   projectId: string,
-  kind: "cover" | "photo" | "quote",
+  kind: "cover" | "photo" | "quote" | "video",
   file: Blob,
 ): Promise<string> {
   const ref = storageRef(

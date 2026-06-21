@@ -32,7 +32,7 @@ import { ImagePicker, validateImageFile } from "@/components/ui/ImagePicker";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { XMarkIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
-import { validateProofFile } from "@/lib/files";
+import { validateProofFile, validateVideoFile, videoDurationSeconds } from "@/lib/files";
 import { formatMoney } from "@/lib/format";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { PROFILE_COVER_ASPECT, PAGE_COVER_SIZES } from "@/lib/layout";
@@ -54,6 +54,8 @@ import {
   PROJECT_STAGE_PHOTO_MAX,
   PROJECT_STAGE_QUOTE_MAX,
   PROJECT_TITLE_MAX,
+  TOOL_VIDEO_MAX_MB,
+  TOOL_VIDEO_MAX_SECONDS,
   type ProjectCurrency,
   type ProjectDoc,
   type ProjectStage,
@@ -275,7 +277,12 @@ export default function ProjectEditPage() {
    */
   const applyMedia = async (
     key: number,
-    media: Pick<ProjectStage, "photos" | "quoteUrls">,
+    media: {
+      photos?: string[];
+      quoteUrls?: string[];
+      // `null` clears the video; `undefined` (absent) leaves it unchanged.
+      videoUrl?: string | null;
+    },
   ) => {
     // Only persisted stages can receive media; an unsaved stage has no slot in project.stages.
     if (!persistedKeys.has(key)) return;
@@ -290,20 +297,33 @@ export default function ProjectEditPage() {
     const targetIndex = persistedEditable.findIndex((s) => s._key === key);
     if (targetIndex < 0) return;
     const base = project.stages;
-    const nextPersisted = base.map((s, i) =>
-      i === targetIndex ? { ...s, ...media } : s,
-    );
+    // Apply ONLY the media keys present in `media`; videoUrl:null deletes the field so the stored
+    // stage omits it (Firestore rejects an explicit `undefined`). Same merge for both the persisted
+    // base and the editable copy.
+    const nextPersisted = base.map((s, i) => {
+      if (i !== targetIndex) return s;
+      const next: ProjectStage = { ...s };
+      if (media.photos !== undefined) next.photos = media.photos;
+      if (media.quoteUrls !== undefined) next.quoteUrls = media.quoteUrls;
+      if (media.videoUrl === null) delete next.videoUrl;
+      else if (media.videoUrl !== undefined) next.videoUrl = media.videoUrl;
+      return next;
+    });
     await updateProject(id, pid, { stages: nextPersisted });
     // Refresh the persisted base so a later media op builds on this one. Functional updater
     // so a concurrent status change (onStatus) isn't clobbered by a stale closure value.
     setProject((prev) => (prev ? { ...prev, stages: nextPersisted } : prev));
-    // Merge only the media arrays into the editable stage, preserving its live text.
+    // Merge only the changed media into the editable stage, preserving its live text.
     setStages((prev) =>
-      prev.map((s) =>
-        s._key === key
-          ? { ...s, photos: media.photos, quoteUrls: media.quoteUrls }
-          : s,
-      ),
+      prev.map((s) => {
+        if (s._key !== key) return s;
+        const next: EditableStage = { ...s };
+        if (media.photos !== undefined) next.photos = media.photos;
+        if (media.quoteUrls !== undefined) next.quoteUrls = media.quoteUrls;
+        if (media.videoUrl === null) delete next.videoUrl;
+        else if (media.videoUrl !== undefined) next.videoUrl = media.videoUrl;
+        return next;
+      }),
     );
   };
 
@@ -812,18 +832,26 @@ function StageCard({
   /** Whether this stage is saved in Firestore; unsaved stages can't receive media (#3). */
   persisted: boolean;
   onText: (patch: Partial<ProjectStage>) => void;
-  onMedia: (media: Pick<ProjectStage, "photos" | "quoteUrls">) => Promise<void>;
+  onMedia: (media: {
+    photos?: string[];
+    quoteUrls?: string[];
+    /** `null` clears the video; `undefined` leaves it unchanged. */
+    videoUrl?: string | null;
+  }) => Promise<void>;
   onRemove: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const photos = stage.photos ?? [];
   const quotes = stage.quoteUrls ?? [];
+  const videoUrl = stage.videoUrl;
 
   // Persist a media change for this stage, reporting upload/save failures inline.
-  const commitMedia = async (
-    media: Pick<ProjectStage, "photos" | "quoteUrls">,
-  ) => {
+  const commitMedia = async (media: {
+    photos?: string[];
+    quoteUrls?: string[];
+    videoUrl?: string | null;
+  }) => {
     setMediaError(null);
     setBusy(true);
     try {
@@ -835,15 +863,17 @@ function StageCard({
     }
   };
 
-  const upload = async (file: File, kind: "photo" | "quote") => {
+  const upload = async (file: File, kind: "photo" | "quote" | "video") => {
     setMediaError(null);
     setBusy(true);
     try {
       const url = await uploadProjectAsset(schoolId, projectId, kind, file);
       if (kind === "photo") {
         await onMedia({ photos: [...photos, url], quoteUrls: quotes });
-      } else {
+      } else if (kind === "quote") {
         await onMedia({ photos, quoteUrls: [...quotes, url] });
+      } else {
+        await onMedia({ videoUrl: url });
       }
     } catch (err) {
       setMediaError(userErrorMessage(err, "No se pudo subir el archivo."));
@@ -935,10 +965,71 @@ function StageCard({
               </label>
             ) : (
               <p className="mt-1 text-xs text-muted">
-                Guardá la etapa para poder subir fotos y cotizaciones.
+                Guardá la etapa para poder subir fotos, video y cotizaciones.
               </p>
             ))}
         </div>
+
+        {/* Video (at most one per stage). Shown for a saved stage or when one already exists; the
+            photos hint above already covers the unsaved case. Mirrors the tool media block. */}
+        {(persisted || videoUrl) && (
+          <div>
+            <p className="text-xs font-medium">Video (máx. 1 min)</p>
+            {videoUrl ? (
+              <div className="mt-1 flex flex-col gap-1">
+                <video
+                  controls
+                  preload="metadata"
+                  className="w-full rounded-lg bg-black ring-1 ring-black/5"
+                >
+                  <source src={videoUrl} />
+                </video>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => commitMedia({ videoUrl: null })}
+                  className="inline-flex min-h-10 items-center justify-center gap-1 self-start rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
+                >
+                  <XMarkIcon className="h-3.5 w-3.5" />
+                  Quitar video
+                </button>
+              </div>
+            ) : (
+              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
+                {busy ? "Subiendo…" : "Agregar video"}
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="sr-only"
+                  disabled={busy}
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const v = validateVideoFile(f, TOOL_VIDEO_MAX_MB);
+                    if (v) return setMediaError(v);
+                    let duration: number;
+                    try {
+                      duration = await videoDurationSeconds(f);
+                    } catch {
+                      setMediaError(
+                        "No pudimos leer el video. Probá con otro archivo.",
+                      );
+                      return;
+                    }
+                    if (duration > TOOL_VIDEO_MAX_SECONDS + 2) {
+                      setMediaError(
+                        `El video debe durar máximo ${TOOL_VIDEO_MAX_SECONDS} segundos.`,
+                      );
+                      return;
+                    }
+                    upload(f, "video");
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        )}
 
         {/* Quotes */}
         <div>

@@ -70,6 +70,19 @@ service firebase.storage {
           request.resource.size < videoMax())
       );
     }
+    // Image OR pdf (under assetMax) OR video (under the higher videoMax) — for project-stage
+    // media: photos + the cover are images, a quote (cotización) can be a PDF, and a stage may
+    // carry one short clip. Same per-branch size split as isImageOrVideo.
+    function isImageOrPdfOrVideo() {
+      return request.resource != null && (
+        (request.resource.contentType.matches('image/.*') &&
+          request.resource.size < assetMax()) ||
+        (request.resource.contentType == 'application/pdf' &&
+          request.resource.size < assetMax()) ||
+        (request.resource.contentType.matches('video/.*') &&
+          request.resource.size < videoMax())
+      );
+    }
 
     // Parent-doc ownership (the id is the Storage path segment). Mirrors firestore.rules'
     // isOwnerOrEditor: owner OR a co-editor of that page. `.get('editorIds', [])` (not
@@ -113,7 +126,7 @@ service firebase.storage {
     // Instead each school object is governed by EXACTLY ONE mutually-exclusive block:
     //   - schools/{id}/photo, schools/{id}/cover   → single-segment {schoolAsset}, image-only
     //   - schools/{id}/gallery/{file}              → image-only
-    //   - schools/{id}/projects/{pid}/**           → image OR pdf (project stage quotes are PDF)
+    //   - schools/{id}/projects/{pid}/**           → image OR pdf OR video (quotes are PDF; stages carry a clip)
     //   - schools/{id}/tools/{toolId}/**           → image OR video (covers + tour stage media)
     // All gated by the PARENT school doc's owner/editor (project/tool assets inherit the school
     // owner; the projectId/toolId is not separately gated — the school owner is the only legit
@@ -133,10 +146,11 @@ service firebase.storage {
       allow delete: if ownsSchoolId(schoolId) || isAdmin();
     }
 
-    // project assets (cover/photo are images, quote can be a PDF) — image OR pdf.
+    // project assets (cover/photo are images, quote can be a PDF, a stage may carry one short
+    // video) — image OR pdf OR video.
     match /schools/{schoolId}/projects/{projectId}/{allPaths=**} {
       allow read: if true;
-      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImageOrPdf();
+      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImageOrPdfOrVideo();
       allow delete: if ownsSchoolId(schoolId) || isAdmin();
     }
 
@@ -222,97 +236,77 @@ service firebase.storage {
       allow delete: if isContributor() || isAdmin();
     }
 
-    // Raffle order proofs (sensitive): raffle-order-proofs/{orderId}/...
-    // NOT public. Ownership is resolved via Firestore: the proof belongs to a raffle order,
-    // which references its buyer (buyerId) and target school. Same shape/authz as the
-    // contribution proofs above.
-    // - write: the buyer or admin.   - read: the buyer, the school's owner/editors, or admin.
+    // ── Shared order-proof access (raffle / product / bingo order proofs) ─────────
+    // All three order-proof paths have the SAME ownership model: the proof belongs to an order
+    // (which references its buyer + target school). These helpers take the RESOLVED order data so
+    // each block supplies only its own one-line `order()` get (the only per-kind piece). Mirrors
+    // the shared "informational order" model in firestore.rules + lib/firestore/orders.ts.
+    // - read: the buyer, the target school's owner/editors, or admin.
+    // - create/update: the buyer or admin (+ a valid image/pdf).   - delete: the buyer or admin.
+    function orderProofSchool(orderData) {
+      return firestore.get(
+        /databases/(default)/documents/schools/$(orderData.schoolId)
+      ).data;
+    }
+    function orderProofIsBuyer(orderData) {
+      return isSignedIn() && orderData.buyerId == request.auth.uid;
+    }
+    function orderProofOwnsSchool(orderData) {
+      return isSignedIn() && (
+        orderProofSchool(orderData).ownerId == request.auth.uid ||
+        request.auth.uid in orderProofSchool(orderData).get('editorIds', [])
+      );
+    }
+    function canReadOrderProof(orderData) {
+      return orderProofIsBuyer(orderData) || orderProofOwnsSchool(orderData) || isAdmin();
+    }
+    function canWriteOrderProof(orderData) {
+      return (orderProofIsBuyer(orderData) || isAdmin()) && isImageOrPdf();
+    }
+    function canDeleteOrderProof(orderData) {
+      return orderProofIsBuyer(orderData) || isAdmin();
+    }
+
+    // Raffle order proofs (sensitive): raffle-order-proofs/{orderId}/... NOT public; ownership
+    // resolved via the raffle order doc (buyer + target school). Authz lives in the shared
+    // order-proof helpers above; only the `order()` get is raffle-specific.
     match /raffle-order-proofs/{orderId}/{allPaths=**} {
       function order() {
         return firestore.get(
           /databases/(default)/documents/raffleOrders/$(orderId)
         ).data;
       }
-      function school() {
-        return firestore.get(
-          /databases/(default)/documents/schools/$(order().schoolId)
-        ).data;
-      }
-      function isBuyer() {
-        return isSignedIn() && order().buyerId == request.auth.uid;
-      }
-      function ownsSchool() {
-        return isSignedIn() && (
-          school().ownerId == request.auth.uid ||
-          request.auth.uid in school().get('editorIds', [])
-        );
-      }
-
-      allow read: if isBuyer() || ownsSchool() || isAdmin();
-      allow create, update: if (isBuyer() || isAdmin()) && isImageOrPdf();
-      allow delete: if isBuyer() || isAdmin();
+      allow read: if canReadOrderProof(order());
+      allow create, update: if canWriteOrderProof(order());
+      allow delete: if canDeleteOrderProof(order());
     }
 
-    // Product order proofs (sensitive): product-order-proofs/{orderId}/...
-    // NOT public. Ownership is resolved via Firestore: the proof belongs to a product order,
-    // which references its buyer (buyerId) and target school. Same shape/authz as raffle order
-    // proofs above.
-    // - write: the buyer or admin.   - read: the buyer, the school's owner/editors, or admin.
+    // Product order proofs (sensitive): product-order-proofs/{orderId}/... NOT public; ownership
+    // resolved via the product order doc (buyer + target school). Authz lives in the shared
+    // order-proof helpers above; only the `order()` get is product-specific.
     match /product-order-proofs/{orderId}/{allPaths=**} {
       function order() {
         return firestore.get(
           /databases/(default)/documents/productOrders/$(orderId)
         ).data;
       }
-      function school() {
-        return firestore.get(
-          /databases/(default)/documents/schools/$(order().schoolId)
-        ).data;
-      }
-      function isBuyer() {
-        return isSignedIn() && order().buyerId == request.auth.uid;
-      }
-      function ownsSchool() {
-        return isSignedIn() && (
-          school().ownerId == request.auth.uid ||
-          request.auth.uid in school().get('editorIds', [])
-        );
-      }
-
-      allow read: if isBuyer() || ownsSchool() || isAdmin();
-      allow create, update: if (isBuyer() || isAdmin()) && isImageOrPdf();
-      allow delete: if isBuyer() || isAdmin();
+      allow read: if canReadOrderProof(order());
+      allow create, update: if canWriteOrderProof(order());
+      allow delete: if canDeleteOrderProof(order());
     }
 
-    // Bingo order proofs (sensitive): bingo-order-proofs/{orderId}/...
-    // NOT public. Ownership is resolved via Firestore: the proof belongs to a bingo order,
-    // which references its buyer (buyerId) and target school. Same shape/authz as raffle/product
-    // order proofs above.
-    // - write: the buyer or admin.   - read: the buyer, the school's owner/editors, or admin.
+    // Bingo order proofs (sensitive): bingo-order-proofs/{orderId}/... NOT public; ownership
+    // resolved via the bingo order doc (buyer + target school). Authz lives in the shared
+    // order-proof helpers above; only the `order()` get is bingo-specific.
     match /bingo-order-proofs/{orderId}/{allPaths=**} {
       function order() {
         return firestore.get(
           /databases/(default)/documents/bingoOrders/$(orderId)
         ).data;
       }
-      function school() {
-        return firestore.get(
-          /databases/(default)/documents/schools/$(order().schoolId)
-        ).data;
-      }
-      function isBuyer() {
-        return isSignedIn() && order().buyerId == request.auth.uid;
-      }
-      function ownsSchool() {
-        return isSignedIn() && (
-          school().ownerId == request.auth.uid ||
-          request.auth.uid in school().get('editorIds', [])
-        );
-      }
-
-      allow read: if isBuyer() || ownsSchool() || isAdmin();
-      allow create, update: if (isBuyer() || isAdmin()) && isImageOrPdf();
-      allow delete: if isBuyer() || isAdmin();
+      allow read: if canReadOrderProof(order());
+      allow create, update: if canWriteOrderProof(order());
+      allow delete: if canDeleteOrderProof(order());
     }
   }
 }
