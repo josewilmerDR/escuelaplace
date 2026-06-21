@@ -1214,6 +1214,14 @@ export interface BingoConfig {
   drawMethod?: string;
   /** Optional WhatsApp for questions; empty falls back to the school's board phone. */
   contactPhone?: string;
+  /**
+   * Marking assistance for players. Default (absent/false) = traditional mode: the player marks
+   * EVERY cell by hand and may err, so the system never restricts which cells are tappable and the
+   * school's review of a "¡Bingo!" claim is meaningful. When `true` (easy mode), only called numbers
+   * are tappable, so a marked pattern is always legitimate by construction. Validation is always
+   * authoritative (called ∩ cartón) regardless; this flag only changes the player's marking UX.
+   */
+  assistMarking?: boolean;
 }
 
 export type BingoCardStatus = "available" | "sold";

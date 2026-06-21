@@ -377,6 +377,25 @@ export async function getMyBingoClaims(
   return snapToList<BingoClaim>(snap).sort(byCreatedAtAsc);
 }
 
+/**
+ * Subscribe to a player's own claims, oldest first (live). Returns the unsubscribe fn. Unlike the
+ * one-shot read, this reflects the school's verdict (confirmed/rejected) the moment it lands, so the
+ * play view can re-open the "¡Bingo!" button on a rejection and show "rechazado" without a reload.
+ */
+export function subscribeMyBingoClaims(
+  schoolId: string,
+  toolId: string,
+  claimantId: string,
+  cb: (claims: BingoClaimDoc[]) => void,
+  onError?: (err: unknown) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(claimsCol(schoolId, toolId), where("claimantId", "==", claimantId)),
+    (snap) => cb(snapToList<BingoClaim>(snap).sort(byCreatedAtAsc)),
+    (err) => onError?.(err),
+  );
+}
+
 // ── Claims: writes ─────────────────────────────────────────────────────────────
 
 export interface CreateBingoClaimInput {

@@ -431,51 +431,64 @@ function BingoConsole({
       )}
 
       {/* Lifecycle + round outcome. One prize per round: a confirmed winner ends the round (the
-          premio-mayor round ends the whole bingo). */}
+          premio-mayor round ends the whole bingo). The pause control + "Nueva partida" share one
+          right-aligned row while the game is live. */}
       <div className="flex flex-col gap-3">
-        {status === "live" && roundWinnerClaim ? (
-          activePrize?.isGrand ? (
-            // Premio-mayor round won → the bingo is ending (the confirm tx flips status to 'closed').
-            // No "próxima ronda": there isn't one.
-            <p className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10">
-              🏆 ¡El cartón #{roundWinnerClaim.cardLabel} ganó el premio mayor! El
-              bingo terminó.
-            </p>
-          ) : (
-            <>
-              <p className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10">
-                🎉 Ronda ganada por el cartón #{roundWinnerClaim.cardLabel}
-                {activePrize ? ` — ${activePrize.label}` : ""}.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen(true)}
-                  disabled={busy || !isStandardGrid}
-                  className="btn btn-primary"
-                >
-                  Iniciar próxima ronda
-                </button>
-                <button
-                  type="button"
-                  onClick={onNewGame}
-                  disabled={busy || !isStandardGrid}
-                  className="btn btn-outline ml-auto"
-                >
-                  Nueva partida
-                </button>
-              </div>
-            </>
-          )
-        ) : status === "live" ? (
-          <button
-            type="button"
-            onClick={onNewGame}
-            disabled={busy || !isStandardGrid}
-            className="btn btn-outline self-start"
-          >
-            Nueva partida
-          </button>
+        {status === "live" ? (
+          <>
+            {roundWinnerClaim &&
+              (activePrize?.isGrand ? (
+                // Premio-mayor round won → the bingo is ending (the confirm tx flips status to
+                // 'closed').
+                <p className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10">
+                  🏆 ¡El cartón #{roundWinnerClaim.cardLabel} ganó el premio mayor!
+                  El bingo terminó.
+                </p>
+              ) : (
+                <p className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10">
+                  🎉 Ronda ganada por el cartón #{roundWinnerClaim.cardLabel}
+                  {activePrize ? ` — ${activePrize.label}` : ""}.
+                </p>
+              ))}
+
+            {/* The premio-mayor round already ended the bingo, so no live controls there. */}
+            {!(roundWinnerClaim && activePrize?.isGrand) && (
+              <>
+                {/* While paused, players see a "Bingo en pausa" notice + countdown. */}
+                {pause && <BingoPauseNotice pause={pause} />}
+                {/* Pausa/Reanudar + Nueva partida, tucked to the right on one row. */}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {pause ? (
+                    <button
+                      type="button"
+                      onClick={onResume}
+                      disabled={busy}
+                      className="btn btn-outline"
+                    >
+                      Reanudar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setPauseOpen(true)}
+                      disabled={busy}
+                      className="btn btn-outline"
+                    >
+                      Pausa
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onNewGame}
+                    disabled={busy || !isStandardGrid}
+                    className="btn btn-primary"
+                  >
+                    Nueva partida
+                  </button>
+                </div>
+              </>
+            )}
+          </>
         ) : (
           <>
             {status === "closed" && (
@@ -496,32 +509,6 @@ function BingoConsole({
           </>
         )}
       </div>
-
-      {/* Pause control: announce a break (refrigerio, sorteo…) without losing the round. While paused
-          the players see a "Bingo en pausa" notice + countdown; "Reanudar" clears it. */}
-      {status === "live" &&
-        (pause ? (
-          <div className="flex flex-col gap-3">
-            <BingoPauseNotice pause={pause} />
-            <button
-              type="button"
-              onClick={onResume}
-              disabled={busy}
-              className="btn btn-primary self-start"
-            >
-              Reanudar
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setPauseOpen(true)}
-            disabled={busy}
-            className="btn btn-outline self-start"
-          >
-            Pausa
-          </button>
-        ))}
 
       {/* The board */}
       <div className={cardClass("inset")}>

@@ -9,7 +9,7 @@
  * files a claim the school validates and awards. This is the deliberate "precio a pagar": a
  * passive player who never marks can never win, which keeps the live experience honest.
  */
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -26,6 +26,7 @@ import {
   getMyBingoClaims,
   getToolById,
   subscribeBingoEventState,
+  subscribeMyBingoClaims,
 } from "@/lib/firestore";
 import {
   BINGO_PATTERN_LABELS,
@@ -73,11 +74,12 @@ function BingoPlayContent() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshClaims = useCallback(() => {
+  // Live stream of my own claims so the school's verdict reaches the player instantly: a rejection
+  // re-opens the "¡Bingo!" button (claimedCards excludes rejected) and flips this cartón's status to
+  // "rechazada" — without it the play view kept showing "en revisión" forever after a one-shot read.
+  useEffect(() => {
     if (!user || !schoolId || !toolId) return;
-    getMyBingoClaims(schoolId, toolId, user.id)
-      .then(setMyClaims)
-      .catch(() => {});
+    return subscribeMyBingoClaims(schoolId, toolId, user.id, setMyClaims, () => {});
   }, [user, schoolId, toolId]);
 
   useEffect(() => {
@@ -146,6 +148,10 @@ function BingoPlayContent() {
     );
   }
 
+  // Easy mode: the grid only lets the player tap called numbers (a marked pattern is always
+  // legitimate). Default = traditional: every cell is tappable, so the player marks by hand and may
+  // err — which is why the school reviews each claim. The win check is authoritative either way.
+  const assistMarking = bingo.assistMarking ?? false;
   const status = state?.status ?? "idle";
   const lastCalled = state?.calledNumbers?.at(-1);
   // The round's winning shape + the single prize it plays for (frozen snapshot) — the "cómo ganar"
@@ -173,8 +179,9 @@ function BingoPlayContent() {
   );
 
   const toggleMark = (cardId: string, n: number) => {
-    // Only called numbers are markable (the play grid already enforces this on the cell).
-    if (!called.has(n)) return;
+    // In easy mode only called numbers are markable; in traditional mode the player marks freely
+    // (and may err). The grid mirrors this via the `markable` set it receives.
+    if (assistMarking && !called.has(n)) return;
     setMarks((prev) => {
       const next = new Set(prev[cardId] ?? []);
       if (next.has(n)) next.delete(n);
@@ -194,7 +201,7 @@ function BingoPlayContent() {
         claimantId: user.id,
         claimantName: user.name,
       });
-      refreshClaims();
+      // The live subscription above reflects the new claim; no manual refresh needed.
     });
   };
 
@@ -323,6 +330,13 @@ function BingoPlayContent() {
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
           Mis cartones ({cards.length})
         </h2>
+        {cards.length > 0 && status === "live" && !assistMarking && (
+          <p className="mt-1 text-sm text-muted">
+            Marcá vos cada número cantado en tus cartones — el sistema no marca por
+            vos. Revisá bien antes de cantar «¡Bingo!»: si el patrón no está completo,
+            la escuela rechazará el reclamo.
+          </p>
+        )}
         {cards.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
             Todavía no tenés cartones asignados en este bingo. La escuela los asigna
@@ -362,7 +376,9 @@ function BingoPlayContent() {
                     numbers={card.numbers}
                     cols={bingo.format.cols}
                     marked={cardMarks}
-                    markable={called}
+                    // Easy mode restricts taps to called numbers; traditional mode lets the player
+                    // mark any cell (and thus possibly err).
+                    markable={assistMarking ? called : new Set(card.numbers)}
                     onToggle={playable ? (n) => toggleMark(card.id, n) : undefined}
                   />
                   <div className="mt-3 flex flex-col gap-2">
@@ -413,7 +429,9 @@ function ClaimStatus({
           ) : c.status === "confirmed" ? (
             <span className="font-medium text-success">¡ganador!</span>
           ) : (
-            <span className="font-medium text-error">rechazado</span>
+            <span className="font-medium text-error">
+              rechazada — podés volver a cantar «¡Bingo!»
+            </span>
           )}
         </li>
       ))}

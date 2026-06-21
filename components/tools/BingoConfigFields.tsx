@@ -39,6 +39,8 @@ export interface BingoFormValue {
   eventDate: string; // YYYY-MM-DD
   drawMethod: string;
   contactPhone: string;
+  /** Easy mode (the grid only lets players tap called numbers). Default off = traditional. */
+  assistMarking: boolean;
 }
 
 export function emptyBingoForm(): BingoFormValue {
@@ -56,6 +58,7 @@ export function emptyBingoForm(): BingoFormValue {
     eventDate: "",
     drawMethod: "",
     contactPhone: "",
+    assistMarking: false,
   };
 }
 
@@ -77,6 +80,7 @@ export function bingoFormFromConfig(bingo: BingoConfig): BingoFormValue {
     eventDate: toolDateInputValue(bingo.eventDate),
     drawMethod: bingo.drawMethod ?? "",
     contactPhone: bingo.contactPhone ?? "",
+    assistMarking: bingo.assistMarking ?? false,
   };
 }
 
@@ -132,6 +136,7 @@ export function toBingoInput(
       eventDate: toolDateFromInput(value.eventDate),
       ...(drawMethod ? { drawMethod } : {}),
       ...(contactPhone ? { contactPhone } : {}),
+      ...(value.assistMarking ? { assistMarking: true } : {}),
     },
   };
 }
@@ -357,6 +362,29 @@ export function BingoConfigFields({
           placeholder="Ej.: 8888 8888"
         />
       </Field>
+
+      <div>
+        <p className="text-sm font-medium text-foreground">Cómo marcan los jugadores</p>
+        <label className="mt-2 flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={value.assistMarking}
+            onChange={(e) => set({ assistMarking: e.target.checked })}
+            className="mt-0.5 size-4 shrink-0"
+          />
+          <span className="text-sm text-foreground">
+            Modo fácil: el cartón solo deja marcar números ya cantados.
+            <span className="mt-0.5 block text-xs text-muted">
+              Por defecto está apagado (modo tradicional): cada jugador marca su
+              cartón a mano y puede equivocarse, igual que en un cartón físico; por eso
+              la escuela revisa cada «¡Bingo!» antes de dar el premio. Activá el modo
+              fácil para que el sistema impida marcar números no cantados (menos
+              fricción, pero los jugadores online quedan en ventaja sobre los de cartón
+              físico).
+            </span>
+          </span>
+        </label>
+      </div>
 
       <p className="text-xs text-muted">
         Después de crear el bingo, generá o importá los cartones desde la página de
