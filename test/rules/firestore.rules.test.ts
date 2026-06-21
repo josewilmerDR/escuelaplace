@@ -1463,7 +1463,8 @@ describe("bingo claims — owner-only create, school-only resolve", () => {
   const claim = (over: Record<string, unknown> = {}) => ({
     cardId: "card1",
     cardLabel: "001",
-    pattern: "row",
+    patternId: "line",
+    patternName: "Línea",
     claimantId: "dana",
     claimantName: "Dana",
     status: "pending",

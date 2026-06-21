@@ -367,7 +367,7 @@ async function RaffleDetail({
           </div>
 
           {/* Number grid + buy flow (client island) */}
-          <div className="mt-8">
+          <div id="comprar" className="mt-8 scroll-mt-20">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
               Elegí tus números
             </h2>
@@ -639,7 +639,7 @@ async function SaleDetail({
             </p>
           )}
 
-          <div className="mt-8">
+          <div id="comprar" className="mt-8 scroll-mt-20">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
               Productos
             </h2>
@@ -1137,25 +1137,61 @@ async function BingoDetail({
             </p>
           )}
 
-          {/* Prizes per winning pattern */}
+          {/* Prizes */}
           <div className={`mt-6 ${cardClass("inset")}`}>
             <h2 className="text-sm font-semibold tracking-tight text-foreground">
-              Formas de ganar
+              Premios
             </h2>
-            <ol className="mt-2 space-y-1 text-sm">
-              {bingo.patterns.map((p) => (
-                <li key={p.pattern}>
-                  <span className="font-medium text-foreground">
-                    {BINGO_PATTERN_LABELS[p.pattern]}:
-                  </span>{" "}
-                  <span className="text-muted">{p.prize}</span>
+            {bingo.prizes ? (
+              <ol className="mt-2 space-y-1 text-sm">
+                <li>
+                  <span className="font-medium text-foreground">Premio mayor:</span>{" "}
+                  <span className="text-muted">{bingo.prizes.first}</span>
                 </li>
-              ))}
-            </ol>
+                {bingo.prizes.second && (
+                  <li>
+                    <span className="font-medium text-foreground">
+                      Segundo premio:
+                    </span>{" "}
+                    <span className="text-muted">{bingo.prizes.second}</span>
+                  </li>
+                )}
+                {bingo.prizes.third && (
+                  <li>
+                    <span className="font-medium text-foreground">
+                      Tercer premio:
+                    </span>{" "}
+                    <span className="text-muted">{bingo.prizes.third}</span>
+                  </li>
+                )}
+                {bingo.prizes.others.map((prize, i) => (
+                  <li key={i}>
+                    <span className="font-medium text-foreground">Otro premio:</span>{" "}
+                    <span className="text-muted">{prize}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              // Legacy bingo: prizes used to be attached to each winning pattern.
+              <ol className="mt-2 space-y-1 text-sm">
+                {bingo.patterns.map((p) => (
+                  <li key={p.pattern}>
+                    <span className="font-medium text-foreground">
+                      {BINGO_PATTERN_LABELS[p.pattern]}:
+                    </span>{" "}
+                    <span className="text-muted">{p.prize}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <p className="mt-3 text-xs text-muted">
+              La forma de ganar (línea, cartón lleno, etc.) la anuncia la escuela al
+              iniciar cada ronda del bingo en vivo.
+            </p>
           </div>
 
           {/* Price + availability + buy */}
-          <div className="mt-8">
+          <div id="comprar" className="mt-8 scroll-mt-20">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
               Comprá tus cartones
             </h2>

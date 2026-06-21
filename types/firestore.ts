@@ -1059,9 +1059,17 @@ export const BINGO_GRID_MIN = 3;
 export const BINGO_GRID_MAX = 9;
 export const BINGO_LABEL_MAX = 40;
 export const BINGO_PRIZE_MAX = 80;
+/** Cap on how many extra ("otros") prizes a bingo can list, beyond the ranked top three. */
+export const BINGO_OTHER_PRIZES_MAX = 8;
 export const BINGO_METHOD_MAX = 140;
 /** Defensive cap on one order's quantity (anti-typo; the platform never moves money). */
 export const BINGO_ORDER_QTY_MAX = 100;
+/** Cells of the fixed 5×5 grid every winning pattern is defined on (indices 0..24, row-major). */
+export const BINGO_GRID_CELLS = 25;
+/** Cap on a saved custom-pattern name. */
+export const BINGO_CUSTOM_PATTERN_NAME_MAX = 40;
+/** Cap on how many custom patterns a school can save in its catalog. */
+export const BINGO_CUSTOM_PATTERNS_MAX = 30;
 
 /** A winning shape on a cartón. A "line" means a COMPLETE row/column/diagonal; `full` = the
  * whole cartón marked. The organizer enables which ones count, each with its prize. */
@@ -1076,6 +1084,83 @@ export const BINGO_PATTERN_LABELS: Record<BingoPattern, string> = {
   diagonal: "Diagonal",
   full: "Cartón lleno",
 };
+
+/**
+ * A winning shape ("modalidad / forma de ganar") on the fixed 5×5 grid (indices 0..24, row-major),
+ * built-in OR a school's custom one. The live director picks ONE per round. `arrangements` is the
+ * sole validation truth: each inner array is one complete winning placement; a cartón wins when the
+ * called numbers cover EVERY cell of SOME arrangement. `preview` is the cell mask the visual aid
+ * highlights — for single-shape patterns it equals arrangements[0]; for "any-of" families (line,
+ * diagonal, double line) it's one representative placement plus a Spanish `caption` so the aid stays
+ * legible. Custom patterns store a single arrangement (the exact drawn cells). The geometry of the
+ * built-ins lives in @/lib/bingo-patterns (BINGO_BUILTIN_PATTERNS).
+ */
+export interface PatternDef {
+  /** Stable id: a built-in key (e.g. "line") or "custom:<docId>" / "custom:adhoc". */
+  id: string;
+  /** Spanish name shown to director, players and the public. */
+  name: string;
+  kind: "builtin" | "custom";
+  arrangements: number[][];
+  preview: number[];
+  caption?: string;
+}
+
+/**
+ * The FROZEN snapshot of the round's winning shape, denormalized onto the event-state doc and onto
+ * every claim — so validation needs no catalog read and is immune to later catalog edits. It's a
+ * PatternDef without `kind` (and JSON/Firestore-serializable — no Timestamps).
+ */
+export interface BingoActivePattern {
+  id: string;
+  name: string;
+  arrangements: number[][];
+  preview: number[];
+  caption?: string;
+}
+
+/**
+ * The single prize a round plays for (Costa Rica dynamic: one prize per round, played minor → major,
+ * the premio mayor last). Frozen onto the event-state doc next to `activePattern` so players see
+ * what's at stake. `isGrand` marks the premio-mayor round — confirming its winner ends the whole
+ * bingo. The `label` is the prize text the school configured (never anything personal).
+ */
+export interface BingoActivePrize {
+  label: string;
+  isGrand: boolean;
+}
+
+/**
+ * The confirmed winner of a round, denormalized onto the public event-state doc so every watcher
+ * sees the result live. Identified by the CARTÓN LABEL only — never the person's name: the modality
+ * is presencial-virtual (the name may be unknown) and names are not exposed for privacy. The school
+ * still confirms against the authoritative claim; this is only the public announcement.
+ */
+export interface BingoWinner {
+  /** The winning cartón's label/serial (e.g. "042"), as called out in a live bingo. */
+  cardLabel: string;
+  /** The prize this round was for, copied from the round's `activePrize`. */
+  prizeLabel: string;
+  /** True when this was the premio-mayor round — i.e. the bingo itself just ended. */
+  isGrand: boolean;
+}
+
+/**
+ * A school's saved custom pattern, a doc in schools/{schoolId}/bingoPatterns/{patternId} — reusable
+ * across that school's bingos. Holds only a name + the drawn cells (no sensitive data); the live
+ * arrangement derives as [cells]. The director writes these directly (no function-maintained
+ * signals; the anti-cheat truth is the frozen activePattern snapshot, never the catalog).
+ */
+export interface SavedBingoPattern {
+  name: string;
+  /** Distinct cell indices in 0..24 (length 1..25). */
+  cells: number[];
+  createdBy: string;
+  createdByName?: string;
+  createdAt: Timestamp;
+}
+
+export type SavedBingoPatternDoc = SavedBingoPattern & { id: string };
 
 /** The cartón grid + number pool. Every cell holds a distinct number in [poolMin, poolMax];
  * a valid format needs the pool size (poolMax − poolMin + 1) to be ≥ rows*cols. */
@@ -1092,9 +1177,32 @@ export interface BingoWinningPattern {
   prize: string;
 }
 
+/**
+ * The bingo's prizes, decoupled from the winning patterns. A ranked top three (a required
+ * `first`/"premio mayor", optional `second`/`third`) plus any number of extra unranked prizes
+ * (`others`). The winning SHAPE is no longer tied to a prize here — the live director picks the
+ * shape per round; these are simply the prizes the school is offering.
+ */
+export interface BingoPrizes {
+  /** Premio mayor — always present. */
+  first: string;
+  /** Segundo premio — omitted when not offered. */
+  second?: string;
+  /** Tercer premio — omitted when not offered. */
+  third?: string;
+  /** Extra prizes beyond the top three, in listed order (each non-empty). */
+  others: string[];
+}
+
 export interface BingoConfig {
   format: BingoFormat;
-  /** Enabled winning patterns, in play order; at least one required. */
+  /** The prizes the school offers (premio mayor + optional 2nd/3rd + extras). Optional only so
+   * legacy bingos (created before prizes were decoupled from patterns) still read; every write
+   * sets it. */
+  prizes?: BingoPrizes;
+  /** Enabled winning patterns, in play order; at least one required. Not configured by the
+   * board anymore (defaulted at creation) — kept for the live event, which will let the
+   * director pick the winning shape per round. */
   patterns: BingoWinningPattern[];
   /** Price the school charges per cartón, in `currency`. Informational — the platform never
    * collects it; it only labels the total the buyer pays the school directly. */
@@ -1301,15 +1409,36 @@ export type BingoEventStatus = "idle" | "live" | "closed";
 /**
  * The single live-event state doc of a bingo: schools/{id}/tools/{toolId}/event/state. Read is
  * public (virtual players watch the board live); only the school writes it. `calledNumbers` is
- * append-order (the order the tómbola drew them); `awardedPatterns` are the patterns already won
- * this event, so the board (and players) can see which prizes are still open.
+ * append-order (the order the tómbola drew them). `activePattern` is the FROZEN winning shape the
+ * director chose for THIS round (one per round) — the "cómo ganar" players and the public see.
+ * Each round plays for ONE prize (`activePrize`) at ONE shape (`activePattern`); confirming that
+ * round's single winner (`winner`) ends the round, and the premio-mayor round ends the bingo. The
+ * console (owner/editor) maintains the public `reviewing`/`winner` signals as the denormalizer — so
+ * every watcher sees "alguien cantó" and the result without reading the private claims.
  */
 export interface BingoEventState {
   status: BingoEventStatus;
   /** Numbers drawn so far, in call order (distinct, within the format's pool). */
   calledNumbers: number[];
-  /** Patterns already awarded this event (so won prizes show as closed). */
-  awardedPatterns: BingoPattern[];
+  /** The round's winning shape (frozen snapshot). Absent on legacy docs (pre-per-round patterns). */
+  activePattern?: BingoActivePattern | null;
+  /** The prize THIS round plays for (one per round, minor → major). Absent on legacy docs. */
+  activePrize?: BingoActivePrize | null;
+  /** True while a "¡Bingo!" claim of the current round is pending the school's review. Maintained by
+   * the console so all watchers can show "alguien cantó — revisando" (they can't read claims). */
+  reviewing?: boolean;
+  /** The confirmed winner of the round, by cartón label (never a name). Present once the school
+   * confirms; cleared when the next round starts. On a premio-mayor round it stays as the final
+   * result and `status` flips to 'closed'. */
+  winner?: BingoWinner | null;
+  /** Prize labels already won THIS bingo (appended on each confirmation), so the picker can skip a
+   * prize that's already been awarded. Reset when a brand-new bingo starts after a 'closed' one. */
+  awardedPrizes?: string[];
+  /** LEGACY/unused: the awarded-prize count was DERIVED from confirmed claims under the old
+   * multi-prize-per-round model. Kept optional only so old docs that still carry it read. */
+  awardedCount?: number;
+  /** LEGACY: patterns awarded under the old multi-pattern model. Kept so old docs still read. */
+  awardedPatterns?: BingoPattern[];
   startedAt?: Timestamp;
   closedAt?: Timestamp;
   updatedAt: Timestamp;
@@ -1327,7 +1456,12 @@ export interface BingoClaim {
   cardId: string;
   /** Denormalized cartón serial so the board's queue renders without an extra read. */
   cardLabel: string;
-  pattern: BingoPattern;
+  /** The round's pattern id + name (for the queue label only). The school re-validates the win
+   * against the event's authoritative activePattern, not anything carried on the claim. */
+  patternId: string;
+  patternName: string;
+  /** LEGACY enum pattern (old claims, before per-round patterns). Optional for old-doc reads. */
+  pattern?: BingoPattern;
   claimantId: string;
   claimantName: string;
   status: BingoClaimStatus;

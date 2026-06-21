@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bingoFormatError,
+  columnRange,
   getBingoCardAvailability,
   nextCardStartNumber,
   parseImportedCards,
@@ -8,7 +9,43 @@ import {
 } from "./bingo-cards";
 import type { BingoFormat } from "@/types";
 
+// Generic small format: 3×3 over 0–99. Split into 3 column bands → [0,33] [34,66] [67,99].
 const FMT: BingoFormat = { rows: 3, cols: 3, poolMin: 0, poolMax: 99 };
+// The production bingo: 5×5 over 0–75, the classic B-I-N-G-O column bands.
+const BINGO: BingoFormat = { rows: 5, cols: 5, poolMin: 0, poolMax: 75 };
+
+describe("columnRange", () => {
+  it("splits the standard 5×5 / 0–75 bingo into the classic B-I-N-G-O bands", () => {
+    expect([0, 1, 2, 3, 4].map((c) => columnRange(BINGO, c))).toEqual([
+      [0, 15],
+      [16, 30],
+      [31, 45],
+      [46, 60],
+      [61, 75],
+    ]);
+  });
+
+  it("hands the remainder to the earliest columns and keeps bands contiguous", () => {
+    // 100 numbers over 3 columns → base 33, remainder 1 (col 0 gets the extra).
+    expect([0, 1, 2].map((c) => columnRange(FMT, c))).toEqual([
+      [0, 33],
+      [34, 66],
+      [67, 99],
+    ]);
+  });
+
+  it("splits evenly when the pool divides by the column count", () => {
+    expect(
+      [0, 1, 2].map((c) =>
+        columnRange({ rows: 3, cols: 3, poolMin: 1, poolMax: 9 }, c),
+      ),
+    ).toEqual([
+      [1, 3],
+      [4, 6],
+      [7, 9],
+    ]);
+  });
+});
 
 describe("bingoFormatError", () => {
   it("accepts a valid format", () => {
@@ -49,46 +86,75 @@ describe("bingoFormatError", () => {
 });
 
 describe("randomCardNumbers", () => {
-  it("returns rows*cols distinct numbers within the pool", () => {
+  it("returns rows*cols distinct numbers, each cell within its column's band", () => {
     for (let trial = 0; trial < 20; trial++) {
       const nums = randomCardNumbers(FMT);
       expect(nums).toHaveLength(9);
       expect(new Set(nums).size).toBe(9); // distinct
-      for (const n of nums) {
-        expect(n).toBeGreaterThanOrEqual(0);
-        expect(n).toBeLessThanOrEqual(99);
+      // Row-major: cell index = row*cols + col, so a cell's column is index % cols.
+      nums.forEach((n, i) => {
+        const [lo, hi] = columnRange(FMT, i % FMT.cols);
         expect(Number.isInteger(n)).toBe(true);
-      }
+        expect(n).toBeGreaterThanOrEqual(lo);
+        expect(n).toBeLessThanOrEqual(hi);
+      });
     }
   });
 
-  it("uses the full pool when it equals the grid size", () => {
+  it("keeps the standard bingo's B-I-N-G-O columns", () => {
+    for (let trial = 0; trial < 20; trial++) {
+      const nums = randomCardNumbers(BINGO);
+      expect(nums).toHaveLength(25);
+      expect(new Set(nums).size).toBe(25);
+      nums.forEach((n, i) => {
+        const [lo, hi] = columnRange(BINGO, i % BINGO.cols);
+        expect(n).toBeGreaterThanOrEqual(lo);
+        expect(n).toBeLessThanOrEqual(hi);
+      });
+    }
+  });
+
+  it("uses the full band when a column's range equals the row count", () => {
+    // 3×3 over 1–9: each column band holds exactly 3 numbers, so all must appear.
     const nums = randomCardNumbers({ rows: 3, cols: 3, poolMin: 1, poolMax: 9 });
     expect([...nums].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    // Column 0 (positions 0,3,6) draws from [1,3], column 2 (2,5,8) from [7,9].
+    expect([nums[0], nums[3], nums[6]].sort((a, b) => a - b)).toEqual([1, 2, 3]);
+    expect([nums[2], nums[5], nums[8]].sort((a, b) => a - b)).toEqual([7, 8, 9]);
   });
 });
 
 describe("parseImportedCards", () => {
+  // Column bands for FMT (3×3 / 0–99): col0 [0,33], col1 [34,66], col2 [67,99]. Row-major, so a
+  // line reads row by row: pos0,1,2 = row0 cols 0,1,2; pos3,4,5 = row1; pos6,7,8 = row2.
   it("parses one cartón per line with auto labels", () => {
-    const res = parseImportedCards("1 2 3 4 5 6 7 8 9\n10,11,12,13,14,15,16,17,18", FMT);
+    const res = parseImportedCards(
+      "1 40 70 2 41 71 3 42 72\n10,50,90,11,51,91,12,52,92",
+      FMT,
+    );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.cards).toHaveLength(2);
-    expect(res.cards[0]).toEqual({ label: "1", numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9] });
+    expect(res.cards[0]).toEqual({
+      label: "1",
+      numbers: [1, 40, 70, 2, 41, 71, 3, 42, 72],
+    });
     expect(res.cards[1].label).toBe("2");
   });
 
   it("honors an explicit label before a colon", () => {
-    const res = parseImportedCards("A07: 1 2 3 4 5 6 7 8 9", FMT);
+    const res = parseImportedCards("A07: 1 40 70 2 41 71 3 42 72", FMT);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.cards[0].label).toBe("A07");
   });
 
-  it("rejects a wrong count, out-of-range, or duplicate", () => {
-    expect(parseImportedCards("1 2 3", FMT).ok).toBe(false); // too few
-    expect(parseImportedCards("1 2 3 4 5 6 7 8 100", FMT).ok).toBe(false); // out of range
-    expect(parseImportedCards("1 1 2 3 4 5 6 7 8", FMT).ok).toBe(false); // duplicate
+  it("rejects a wrong count, an out-of-band value, or a duplicate", () => {
+    expect(parseImportedCards("1 40 70", FMT).ok).toBe(false); // too few
+    // 2 sits in column 1's position but column 1's band is [34,66] → out of band.
+    expect(parseImportedCards("1 2 70 3 41 71 4 42 72", FMT).ok).toBe(false);
+    // 70 is valid for column 2 but repeated.
+    expect(parseImportedCards("1 40 70 2 41 70 3 42 72", FMT).ok).toBe(false);
   });
 
   it("rejects empty input", () => {

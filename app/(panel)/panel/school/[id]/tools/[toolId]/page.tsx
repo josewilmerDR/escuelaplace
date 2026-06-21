@@ -76,6 +76,7 @@ import {
   type TourConfigInput,
 } from "@/lib/firestore";
 import {
+  BINGO_PATTERNS,
   PROJECT_CURRENCIES,
   SALE_PRODUCT_DESCRIPTION_MAX,
   SALE_PRODUCT_MAX,
@@ -605,7 +606,12 @@ export default function EditToolPage() {
       const savedBingo: BingoConfig | undefined = bingo
         ? {
             format: bingo.format,
-            patterns: bingo.patterns,
+            prizes: bingo.prizes,
+            // Mirror buildBingoConfig: the board no longer sets patterns, so default them (all
+            // shapes, prize-less) for the live event.
+            patterns:
+              bingo.patterns ??
+              BINGO_PATTERNS.map((pattern) => ({ pattern, prize: "" })),
             pricePerCard: bingo.pricePerCard,
             currency: bingo.currency,
             ...(bingo.eventDate
@@ -1368,6 +1374,7 @@ export default function EditToolPage() {
                 value={bingoForm}
                 onChange={setBingoForm}
                 lockFormat={bingoCardCount > 0}
+                hideFormat
               />
             </div>
             {tool.bingo ? (

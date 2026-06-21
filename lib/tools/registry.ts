@@ -26,6 +26,8 @@ export interface ToolTypeMeta {
   label: string;
   /** One-line helper shown under the picker so the board knows what each kind is for. */
   hint: string;
+  /** Example title shown as the create form's placeholder, phrased for this kind. */
+  titlePlaceholder: string;
   /** Icon used as the card's image fallback and the badge mark. */
   icon: ComponentType<{ className?: string }>;
 }
@@ -35,42 +37,49 @@ const META: Record<ToolType, ToolTypeMeta> = {
     key: "raffle",
     label: "Rifa",
     hint: "Sorteo de un premio entre quienes participan.",
+    titlePlaceholder: "Ej.: Rifa pro fondos para la gira",
     icon: TicketIcon,
   },
   bingo: {
     key: "bingo",
     label: "Bingo",
     hint: "Juego de cartones para recaudar fondos.",
+    titlePlaceholder: "Ej.: Bingo familiar pro fondos para la gira",
     icon: GridIcon,
   },
   sale: {
     key: "sale",
     label: "Productos",
     hint: "Catálogo de productos a la venta (comida, artículos…).",
+    titlePlaceholder: "Ej.: Venta de comidas para la kermés",
     icon: ShoppingBagIcon,
   },
   service: {
     key: "service",
     label: "Servicios",
     hint: "Catálogo de servicios que ofrece la comunidad escolar.",
+    titlePlaceholder: "Ej.: Clases de repaso de la comunidad escolar",
     icon: WrenchIcon,
   },
   guided_tour: {
     key: "guided_tour",
     label: "Visita guiada",
     hint: "Un recorrido o visita abierta a la comunidad.",
+    titlePlaceholder: "Ej.: Visita guiada a la huerta escolar",
     icon: MapPinIcon,
   },
   event: {
     key: "event",
     label: "Evento",
     hint: "Una actividad puntual con fecha (feria, acto, kermés…).",
+    titlePlaceholder: "Ej.: Feria de fin de año",
     icon: CalendarIcon,
   },
   other: {
     key: "other",
     label: "Otro",
     hint: "Cualquier otra actividad puntual.",
+    titlePlaceholder: "Ej.: Actividad pro fondos para la gira",
     icon: SparklesIcon,
   },
 };
@@ -81,4 +90,45 @@ export const TOOL_TYPE_LIST: ToolTypeMeta[] = Object.values(META);
 /** Presentation for a stored type, falling back to "Otro" for unknown/legacy values. */
 export function toolTypeMeta(type: ToolType | string): ToolTypeMeta {
   return META[type as ToolType] ?? META.other;
+}
+
+/**
+ * The buy CTA label for the kinds that have a purchase flow (rifa/bingo/venta), or null for kinds
+ * that don't (tour/servicio/evento/otro — those use "Consultar" instead). Drives the optional
+ * "Comprar" button on the feed card. Keep its non-null kinds in sync with `toolBuyHref`.
+ */
+export function toolBuyLabel(type: ToolType): string | null {
+  switch (type) {
+    case "raffle":
+      return "Comprar números";
+    case "bingo":
+      return "Comprar cartones";
+    case "sale":
+      return "Comprar";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Where the feed card's "Comprar" button points. Bingo has NO per-cartón selection (the buyer just
+ * picks a quantity), so it skips the detail page and lands the buyer straight on the order/payment
+ * page — the page itself re-checks the school is verified and cartones are available, degrading to
+ * an explanatory state when not. Rifa (pick numbers) and venta (pick products) DO need an in-page
+ * selection step first, so they jump to the detail page's buy section instead. Returns null for
+ * kinds with no purchase flow. Keep the non-null kinds in sync with `toolBuyLabel`.
+ */
+export function toolBuyHref(
+  type: ToolType,
+  ids: { schoolId: string; toolId: string; detailHref: string },
+): string | null {
+  switch (type) {
+    case "bingo":
+      return `/panel/bingo-order?schoolId=${ids.schoolId}&toolId=${ids.toolId}`;
+    case "raffle":
+    case "sale":
+      return `${ids.detailHref}#comprar`;
+    default:
+      return null;
+  }
 }
