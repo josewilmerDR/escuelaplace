@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BuyerStrip } from "@/components/buyer/BuyerStrip";
+import { HomeSchools } from "@/components/feed/HomeSchools";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SearchBar } from "@/components/search/SearchBar";
 import { Chip } from "@/components/ui/Chip";
@@ -8,10 +9,19 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { TagIcon, WarningIcon } from "@/components/ui/icons";
 import {
   getCategories,
+  getSchoolIdsWithActiveProject,
+  getSchoolsCached,
   getTopBusinesses,
+  rankSchoolsByRelevance,
   toBusinessCardData,
+  toSchoolCardData,
 } from "@/lib/firestore";
-import type { BusinessCardData, CategoryDoc } from "@/types";
+import type { BusinessCardData, CategoryDoc, SchoolCardData } from "@/types";
+
+// Bound the schools candidate pool shipped to the client: the block shows 3, the rest are the
+// proximity re-rank pool when the buyer sets a location. Paginate/raise as the catalog grows
+// (same note as DIRECTORY_LIMIT on /schools).
+const SCHOOL_CANDIDATES = 24;
 
 /**
  * Home (/). Server component — rendered on the server for SEO.
@@ -46,6 +56,26 @@ export default async function HomePage() {
   let categories: CategoryDoc[] = [];
   try {
     categories = (await getCategories()).filter((c) => c.businessCount > 0);
+  } catch {}
+
+  // Schools' presence on the home: a top-3 block interleaved into the business feed, which
+  // <HomeSchools> personalizes by the buyer's community after mount. The SSR order is by
+  // community support (rankSchoolsByRelevance with no location = activity baseline), so it is
+  // SEO-visible. Best-effort: a failed read just omits the block, never blanks the catalog.
+  let schoolCards: SchoolCardData[] = [];
+  try {
+    const schools = await getSchoolsCached();
+    const activeProjectSchoolIds = await getSchoolIdsWithActiveProject().catch(
+      () => new Set<string>(),
+    );
+    schoolCards = rankSchoolsByRelevance(
+      schools.map((s) =>
+        toSchoolCardData(s, { hasActiveProject: activeProjectSchoolIds.has(s.id) }),
+      ),
+      {},
+    )
+      .slice(0, SCHOOL_CANDIDATES)
+      .map((r) => r.school);
   } catch {}
 
   return (
@@ -157,7 +187,14 @@ export default async function HomePage() {
             cta={{ label: "Creá la página del tuyo", href: "/create" }}
           />
         ) : (
-          <RankedFeed initial={cards} />
+          <RankedFeed
+            initial={cards}
+            interleave={
+              schoolCards.length > 0 ? (
+                <HomeSchools initial={schoolCards} />
+              ) : undefined
+            }
+          />
         )}
       </section>
       </main>

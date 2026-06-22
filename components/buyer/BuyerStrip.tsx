@@ -16,8 +16,7 @@
  * `ready` is false on the server and first client paint, so the SSR HTML always carries the
  * full stepper (the SEO/teaching content) and the collapse only happens after mount.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { distanceBetween } from "geofire-common";
+import { useEffect, useRef, useState } from "react";
 import { Combobox } from "@/components/ui/Combobox";
 import { Modal } from "@/components/ui/Modal";
 import { StepTile } from "@/components/ui/StepTile";
@@ -29,7 +28,7 @@ import {
   SearchIcon,
 } from "@/components/ui/icons";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
-import { COMMUNITY_RADIUS_KM, getSchoolsCached } from "@/lib/firestore";
+import { getSchoolsCached } from "@/lib/firestore";
 import { localityLabel } from "@/lib/location";
 import type { SchoolDoc } from "@/types";
 
@@ -79,8 +78,9 @@ export function BuyerStrip() {
           location: { lat: pos.coords.latitude, lng: pos.coords.longitude },
         });
         setLocating(false);
-        // Close on success; the locationWithoutSchools guard below still prompts the
-        // buyer to pick a school inline if their area has none registered.
+        // Close on success: a chosen location is a usable community on its own (it drives the
+        // nearest-schools block and the proximity ordering), so the strip collapses to the
+        // summary.
         setOpen(false);
       },
       () => {
@@ -97,30 +97,11 @@ export function BuyerStrip() {
 
   const hasCommunity = ready && (prefs.schoolId || prefs.location);
 
-  // Whether any known school falls inside the community radius of the buyer's location.
-  // Derived from the already-fetched list (no extra geo query); null while there is no
-  // location or the list hasn't loaded. Without it, "use my location" in an area with no
-  // registered schools confirms success while the feed order never actually changes.
-  const hasNearbySchool = useMemo(() => {
-    if (!prefs.location || schoolsState !== "loaded") return null;
-    const center: [number, number] = [prefs.location.lat, prefs.location.lng];
-    return schools.some((s) => {
-      const gp = s.location?.geopoint;
-      return (
-        gp != null &&
-        distanceBetween([gp.latitude, gp.longitude], center) <= COMMUNITY_RADIUS_KM
-      );
-    });
-  }, [prefs.location, schools, schoolsState]);
-
-  const locationWithoutSchools =
-    !prefs.schoolId && prefs.location && hasNearbySchool === false;
-
-  // A usable community is set (school chosen, or a location with schools nearby): the strip
-  // collapses to a one-line summary and the trailing steps drop. locationWithoutSchools falls
-  // through to the full stepper + an inline prompt, because the buyer still has to pick a
-  // school from the list for the ranking to change.
-  const showSummary = hasCommunity && !locationWithoutSchools;
+  // A usable community is set (a chosen school, or just a location): the strip collapses to a
+  // one-line summary and the trailing steps drop. A location with no school within the radius is
+  // still useful — it drives the nearest-schools block and the proximity ordering below — so it
+  // no longer falls through to a "no schools nearby" prompt.
+  const showSummary = hasCommunity;
 
   return (
     <>
@@ -164,11 +145,6 @@ export function BuyerStrip() {
                   {locating ? "activando…" : "activá tu ubicación"}
                 </button>
               </h3>
-              {locationWithoutSchools && (
-                <p className="mt-0.5 text-sm text-amber-700">
-                  No hay escuelas a menos de {COMMUNITY_RADIUS_KM} km. Elegí una de la lista.
-                </p>
-              )}
               {error && !open && (
                 <p role="alert" className="mt-0.5 text-sm text-red-600">
                   {error}

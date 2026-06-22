@@ -10,7 +10,7 @@
  * localStorage and re-rank client-side, surfacing local supporters and showing per-tier
  * badges. With no community known, the order stays at the SSR baseline.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
@@ -24,10 +24,18 @@ import type { BusinessCardData } from "@/types";
 export function RankedFeed({
   initial,
   relevanceById,
+  interleave,
+  interleaveAfter = 3,
 }: {
   initial: BusinessCardData[];
   /** Relevance R per business id (search mode). Omit for explore mode. */
   relevanceById?: Record<string, number>;
+  /** Optional node rendered between the first `interleaveAfter` cards and the rest — the home's
+   * schools block, so the feed reads "top businesses → schools → the rest". The split is here
+   * (not server-side) because it must follow the CLIENT-re-ranked order the buyer actually sees.
+   * Omit to render a single uninterrupted grid. */
+  interleave?: ReactNode;
+  interleaveAfter?: number;
 }) {
   const { prefs, ready } = useBuyerPreferences();
   // The personalized order, tagged with the community that produced it. The tag is what
@@ -111,6 +119,25 @@ export function RankedFeed({
 
   if (initial.length === 0) return null;
 
+  const grid = (items: typeof cards) => (
+    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map(({ business, tier, supportedSchools }) => (
+        <BusinessCard
+          key={business.id}
+          business={business}
+          tier={tier}
+          supportedSchools={supportedSchools}
+        />
+      ))}
+    </div>
+  );
+
+  // Split the grid around the interleaved node. With fewer than `interleaveAfter` cards the head
+  // holds them all and the tail is empty (businesses → schools, no "rest").
+  const showInterleave = interleave != null;
+  const head = showInterleave ? cards.slice(0, interleaveAfter) : cards;
+  const tail = showInterleave ? cards.slice(interleaveAfter) : [];
+
   return (
     <div>
       {/* Announce the reorder to screen readers; sighted users see the badges appear. */}
@@ -125,16 +152,9 @@ export function RankedFeed({
         </p>
       )}
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map(({ business, tier, supportedSchools }) => (
-          <BusinessCard
-            key={business.id}
-            business={business}
-            tier={tier}
-            supportedSchools={supportedSchools}
-          />
-        ))}
-      </div>
+      {grid(head)}
+      {showInterleave && interleave}
+      {tail.length > 0 && grid(tail)}
     </div>
   );
 }
