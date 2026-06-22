@@ -40,6 +40,7 @@ import type { PaymentMethod, School, SchoolDoc, SchoolPrivate } from "@/types";
 import { docToTyped, snapToList } from "./converters";
 import { toLocation, type LocationInput } from "./geo";
 import { linkPageToUser } from "./users";
+import { revalidateSchoolCatalog } from "@/lib/revalidate";
 
 const SCHOOLS = "schools";
 
@@ -218,6 +219,9 @@ export async function updateSchoolProfile(
   // A rename must reach the pickers (donate, subscribe, community combobox) before
   // their TTL cache would naturally expire.
   if ("name" in patch) invalidateSchoolsCache();
+
+  // Best-effort: refresh the school's public pages + the directory without the ISR lag.
+  await revalidateSchoolCatalog(id).catch(() => {});
 }
 
 /** Public Storage path of a school profile asset (public read via storage.rules). */
@@ -257,6 +261,8 @@ export async function addSchoolGalleryPhoto(
     photos: arrayUnion(url),
     updatedAt: serverTimestamp(),
   });
+  // Best-effort: refresh the school's public page so the new photo shows without the lag.
+  await revalidateSchoolCatalog(schoolId).catch(() => {});
   return url;
 }
 
@@ -277,6 +283,8 @@ export async function removeSchoolGalleryPhoto(
   } catch {
     // Orphaned file (or an emulator URL ref() can't parse) — harmless.
   }
+  // Best-effort: refresh the school's public page so the removed photo drops without the lag.
+  await revalidateSchoolCatalog(schoolId).catch(() => {});
 }
 
 /**
@@ -302,6 +310,10 @@ export async function updateSchoolPaymentMethods(
   }
 
   await setDoc(doc(db, SCHOOLS, id, "private", "data"), { paymentMethods });
+
+  // The school page shows/hides the methods by verification state, which this write can
+  // flip — refresh it (and the directory) so the change is visible right away.
+  await revalidateSchoolCatalog(id).catch(() => {});
 }
 
 // ── Admin: school verification ───────────────────────────────────────────────
@@ -339,6 +351,9 @@ export async function verifySchool(id: string): Promise<void> {
     verificationStatus: "verified",
     updatedAt: serverTimestamp(),
   });
+  // Verifying clears the banner, reveals the payment methods and changes the school's
+  // ranking weight — refresh its public pages + the directory/home right away.
+  await revalidateSchoolCatalog(id).catch(() => {});
 }
 
 export interface CreateSchoolInput {
@@ -433,5 +448,9 @@ export async function createSchoolPage(
 
   // New school → drop the pickers' TTL cache so it is selectable immediately.
   invalidateSchoolsCache();
+
+  // A new school is publicly listed right away (getSchools includes `pending`), so refresh
+  // the directory + home without waiting out the ISR window.
+  await revalidateSchoolCatalog(ref.id).catch(() => {});
   return ref.id;
 }

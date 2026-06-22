@@ -56,6 +56,11 @@ import {
  * branching, and an unconfigured/unknown kind falls through to the generic informational render.
  */
 
+// ISR safety net (mirrors the school/business/project detail pages): without this the tool
+// page stays cached until the next deploy. Owner edits to the tool refresh it on the next
+// request within this window; the catalog listings are unaffected by tool changes.
+export const revalidate = 300;
+
 interface Props {
   params: Promise<{ id: string; toolId: string }>;
 }

@@ -33,6 +33,12 @@ import { locationParts } from "@/lib/location";
  * switches), so funnel metrics still count one view per visitor, not one per tab.
  */
 
+// ISR safety net: without this the statically-generated business pages stay cached until the
+// next deploy, so function-maintained fields (ranking, reviewStats) — which the client can't
+// revalidate on-demand — would never refresh. 300s mirrors the catalog listings; owner edits
+// still refresh instantly via revalidateBusinessCatalog (lib/revalidate.ts).
+export const revalidate = 300;
+
 interface Props {
   children: ReactNode;
   params: Promise<{ slug: string }>;

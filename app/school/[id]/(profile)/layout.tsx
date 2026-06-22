@@ -50,6 +50,12 @@ import { locationParts } from "@/lib/location";
  * only for verified schools.
  */
 
+// ISR safety net: without this the statically-generated school pages stay cached until the
+// next deploy, so function-maintained fields (metrics, donor wall) — which the client can't
+// revalidate on-demand — would never refresh. 300s mirrors the catalog listings; owner edits
+// still refresh instantly via revalidateSchoolCatalog (lib/revalidate.ts).
+export const revalidate = 300;
+
 interface Props {
   children: ReactNode;
   params: Promise<{ id: string }>;
