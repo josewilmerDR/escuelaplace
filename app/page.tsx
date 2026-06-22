@@ -1,17 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CommunityStep } from "@/components/buyer/CommunityStep";
+import { BuyerStrip } from "@/components/buyer/BuyerStrip";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SearchBar } from "@/components/search/SearchBar";
 import { Chip } from "@/components/ui/Chip";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { StepTile } from "@/components/ui/StepTile";
-import {
-  HeartIcon,
-  SearchIcon,
-  TagIcon,
-  WarningIcon,
-} from "@/components/ui/icons";
+import { TagIcon, WarningIcon } from "@/components/ui/icons";
 import {
   getCategories,
   getTopBusinesses,
@@ -115,33 +109,11 @@ export default async function HomePage() {
       {/* Value strip: the product breaks marketplace expectations (no checkout, the
           platform never touches money), so the home — where most buyers land — has to
           say what the catalog is FOR before showing it. Condensed from the "Para quien
-          compra" steps on /about; the secondary CTAs also surface /schools and /about,
-          which are otherwise only reachable from the header/footer. */}
+          compra" steps on /about. <BuyerStrip> shows the full 1→2→3 stepper on a first
+          visit and collapses to a one-line community summary once a school/zone is set. */}
       <section className="border-y border-border bg-surface">
         <div className="mx-auto max-w-6xl px-6 py-10">
-          <ol className="relative mx-auto grid max-w-4xl gap-4 sm:grid-cols-3 sm:gap-6">
-            {/* Stepper connector: a faint line linking the three icon centers so the
-                steps read as a 1→2→3 flow, not three independent items. Desktop only
-                (the mobile layout is a vertical row where the numbers carry the order).
-                top-6 = the h-12 icon's vertical center; insets stop at the outer icons. */}
-            <span
-              aria-hidden
-              className="absolute left-[16.6%] right-[16.6%] top-6 hidden h-px bg-border sm:block"
-            />
-            {/* Step 1 is interactive (picks the buyer's community → drives the feed),
-                so it's a client component; steps 2–3 stay static SSR. */}
-            <CommunityStep />
-            <BuyerStep
-              step={2}
-              icon={<SearchIcon className="h-5 w-5" />}
-              title="Descubrí los comercios que la apoyan"
-            />
-            <BuyerStep
-              step={3}
-              icon={<HeartIcon className="h-5 w-5" />}
-              title="Comprá en ellos y apoyá tu institución"
-            />
-          </ol>
+          <BuyerStrip />
         </div>
       </section>
 
@@ -190,33 +162,5 @@ export default async function HomePage() {
       </section>
       </main>
     </>
-  );
-}
-
-/** A buyer "how it works" step on the home value strip: numbered icon tile + title + line.
- *  The number badge + the connector line behind the icons (see <ol> above) make the three
- *  read as an ordered flow. Compact: a horizontal row on mobile (icon left, text right) to
- *  keep the strip short; recenters into a column on the 3-up grid (sm+). */
-function BuyerStep({
-  step,
-  icon,
-  title,
-  children,
-}: {
-  step: number;
-  icon: React.ReactNode;
-  title: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <li className="flex items-start gap-3 text-left sm:flex-col sm:items-center sm:text-center">
-      <StepTile step={step}>{icon}</StepTile>
-      <div className="min-w-0 sm:mt-3">
-        <h3 className="font-semibold tracking-tight text-foreground">{title}</h3>
-        {children && (
-          <p className="mt-0.5 text-sm leading-relaxed text-muted sm:mt-1">{children}</p>
-        )}
-      </div>
-    </li>
   );
 }
