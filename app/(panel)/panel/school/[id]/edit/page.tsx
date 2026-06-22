@@ -16,7 +16,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { GalleryManager } from "@/components/business/GalleryManager";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
-import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -377,12 +376,11 @@ export default function SchoolEditPage() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+      <BackLink href={`/school/${id}`}>Principal</BackLink>
+      <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">
         Editar escuela
       </h1>
       <p className="mt-1 text-sm text-muted">{school.name}</p>
-
-      <SchoolPanelNav schoolId={id} current="edit" />
 
       {/* Verification state: a calm-depth semantic banner (success when verified,
           warning while pending/needs_reverification) — soft tint + hairline ring.
