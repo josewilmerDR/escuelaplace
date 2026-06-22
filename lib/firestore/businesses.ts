@@ -39,6 +39,7 @@ import type {
 import { docToTyped, snapToList } from "./converters";
 import { toLocation, type LocationInput } from "./geo";
 import { linkPageToUser } from "./users";
+import { revalidateBusinessCatalog } from "@/lib/revalidate";
 
 const BUSINESSES = "businesses";
 
@@ -280,6 +281,8 @@ export async function addBusinessGalleryPhoto(
     photos: arrayUnion(url),
     updatedAt: serverTimestamp(),
   });
+  // Best-effort: refresh the public business page so the new photo shows without the ISR lag.
+  await revalidateBusinessCatalog().catch(() => {});
   return url;
 }
 
@@ -301,6 +304,8 @@ export async function removeBusinessGalleryPhoto(
   } catch {
     // Orphaned file (or an emulator URL ref() can't parse) — harmless.
   }
+  // Best-effort: refresh the public business page so the removed photo drops without the lag.
+  await revalidateBusinessCatalog().catch(() => {});
 }
 
 /**
@@ -397,6 +402,9 @@ export async function setBusinessStatus(
     status,
     updatedAt: serverTimestamp(),
   });
+  // Publishing/unpublishing is exactly what adds or removes the business from the catalog,
+  // so refresh the listings + its page immediately instead of waiting out the ISR window.
+  await revalidateBusinessCatalog().catch(() => {});
 }
 
 /** Profile fields the owner edits from the panel (everything the edit form captures). */
@@ -461,4 +469,7 @@ export async function updateBusinessProfile(
     ...(input.coverUrl ? { coverUrl: input.coverUrl } : {}),
     updatedAt: serverTimestamp(),
   });
+  // Name/categories/discount/images all surface in the feed, the listings and the public
+  // page — refresh them now so an edit isn't invisible for up to the ISR window.
+  await revalidateBusinessCatalog().catch(() => {});
 }

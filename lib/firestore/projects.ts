@@ -48,6 +48,7 @@ import type {
 } from "@/types";
 import { docToTyped, snapToList } from "./converters";
 import { isSchoolVerified } from "./schools";
+import { revalidateProject } from "@/lib/revalidate";
 
 const SCHOOLS = "schools";
 const PROJECTS = "projects";
@@ -347,9 +348,14 @@ export async function createProject(
   // without one, addDoc mints the id.
   if (projectId) {
     await setDoc(doc(projectsCol(schoolId), projectId), data);
+    await revalidateProject(schoolId, projectId).catch(() => {});
     return projectId;
   }
-  return (await addDoc(collection(db, SCHOOLS, schoolId, PROJECTS), data)).id;
+  const id = (await addDoc(collection(db, SCHOOLS, schoolId, PROJECTS), data)).id;
+  // Best-effort: surface the new project on the school page (and the home active-project
+  // signal) immediately instead of after the ISR window.
+  await revalidateProject(schoolId, id).catch(() => {});
+  return id;
 }
 
 /** Fields of a project the board may edit. `raised`/`contributorsCount`/`status` are
@@ -374,6 +380,8 @@ export async function updateProject(
     ...(patch.stages ? { stages: sanitizeStages(patch.stages) } : {}),
     updatedAt: serverTimestamp(),
   });
+  // Best-effort: refresh the project detail + the school page without the ISR lag.
+  await revalidateProject(schoolId, projectId).catch(() => {});
 }
 
 /**
@@ -390,6 +398,8 @@ export async function setProjectStatus(
     status,
     updatedAt: serverTimestamp(),
   });
+  // Opening/closing a project changes what the school page and project strip show — refresh.
+  await revalidateProject(schoolId, projectId).catch(() => {});
 }
 
 /** Delete a project. Must be called by the school owner/editor. Past contributions are
@@ -399,6 +409,8 @@ export async function deleteProject(
   projectId: string,
 ): Promise<void> {
   await deleteDoc(doc(db, SCHOOLS, schoolId, PROJECTS, projectId));
+  // Best-effort: drop the deleted project from the school page + clear its detail cache.
+  await revalidateProject(schoolId, projectId).catch(() => {});
 }
 
 /**

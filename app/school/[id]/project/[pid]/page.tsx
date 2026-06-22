@@ -34,6 +34,11 @@ import { formatMoney } from "@/lib/format";
  * but the button only turns on once the team verifies it.
  */
 
+// ISR safety net (mirrors the school/business detail pages): refresh the function-maintained
+// progress (raised/contributorsCount) that the client can't revalidate on-demand. Owner edits
+// to the project still refresh instantly via revalidateProject (lib/revalidate.ts).
+export const revalidate = 300;
+
 interface Props {
   params: Promise<{ id: string; pid: string }>;
 }
