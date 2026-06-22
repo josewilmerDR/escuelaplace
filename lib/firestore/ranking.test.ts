@@ -18,9 +18,15 @@ import {
 const NOW = 1_700_000_000_000; // fixed clock (ms)
 const DAY = 86_400_000;
 
-/** Minimal fake Timestamp: only `toMillis` is used by the helpers. */
+/**
+ * Minimal fake Timestamp: only `toMillis` is used by the helpers. Typed against the NON-null
+ * `createdAt` field (a plain `Timestamp`) so the result is assignable to every timestamp slot —
+ * both the non-null ones (`createdAt`/`updatedAt`) and the nullable ones (`confirmedAt`/
+ * `expiresAt`/`firstConfirmedAt`, which still take a `Timestamp`). The null cases pass `null`
+ * literally instead of calling `ts`.
+ */
 function ts(ms: number) {
-  return { toMillis: () => ms } as unknown as SubscriptionDoc["confirmedAt"];
+  return { toMillis: () => ms } as unknown as SubscriptionDoc["createdAt"];
 }
 
 /** Build a subscription doc with sensible defaults for ranking tests. */
