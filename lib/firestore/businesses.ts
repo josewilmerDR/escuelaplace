@@ -314,18 +314,11 @@ export async function createBusinessPage(
 ): Promise<string> {
   const slug = await uniqueBusinessSlug(input.name);
   const ref = doc(collection(db, BUSINESSES));
-  // Images go up BEFORE the doc commit: the id already exists client-side, and a
-  // failed upload must fail the whole creation (a page missing the images the owner
-  // picked would publish broken). Files under a never-committed id are unreachable
-  // orphans — harmless.
-  const [logoUrl, coverUrl] = await Promise.all([
-    input.logoFile
-      ? uploadBusinessImage(ref.id, "logo", input.logoFile)
-      : Promise.resolve(null),
-    input.coverFile
-      ? uploadBusinessImage(ref.id, "cover", input.coverFile)
-      : Promise.resolve(null),
-  ]);
+  // The Firestore doc is committed FIRST, before any image upload: the Storage rules gate
+  // `businesses/{id}/**` writes on the parent doc's ownerId (storage.rules), so the
+  // logo/cover uploads are denied with 403 (storage/unauthorized) unless `businesses/{id}`
+  // already exists with this uid as owner. The reverse order (upload then commit) fails
+  // closed because the parent doc the rule reads does not exist yet.
   const batch = writeBatch(db);
   batch.set(ref, {
     name: input.name,
@@ -338,8 +331,6 @@ export async function createBusinessPage(
     schoolName: input.schoolName,
     contact: input.contact ?? {},
     discount: { active: false, text: "" },
-    ...(logoUrl ? { logoUrl } : {}),
-    ...(coverUrl ? { coverUrl } : {}),
     photos: [],
     tags: input.tags ?? [],
     status: "draft",
@@ -354,6 +345,36 @@ export async function createBusinessPage(
   });
   linkPageToUser(batch, uid, "business", ref.id);
   await batch.commit();
+
+  // With the doc in place the uploads now pass the ownership-gated Storage rules. A failed
+  // upload must still fail the whole creation (a page missing the images the owner picked
+  // would publish broken), so on error we roll the doc + the user link back rather than
+  // leaving a half-created draft.
+  if (input.logoFile || input.coverFile) {
+    try {
+      const [logoUrl, coverUrl] = await Promise.all([
+        input.logoFile
+          ? uploadBusinessImage(ref.id, "logo", input.logoFile)
+          : Promise.resolve(null),
+        input.coverFile
+          ? uploadBusinessImage(ref.id, "cover", input.coverFile)
+          : Promise.resolve(null),
+      ]);
+      await updateDoc(ref, {
+        ...(logoUrl ? { logoUrl } : {}),
+        ...(coverUrl ? { coverUrl } : {}),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      const rollback = writeBatch(db);
+      rollback.delete(ref);
+      rollback.update(doc(db, "users", uid), {
+        managedPages: arrayRemove({ type: "business", id: ref.id, role: "owner" }),
+      });
+      await rollback.commit().catch(() => {});
+      throw err;
+    }
+  }
   return ref.id;
 }
 

@@ -367,19 +367,11 @@ export async function createSchoolPage(
   input: CreateSchoolInput,
 ): Promise<string> {
   const ref = doc(collection(db, SCHOOLS));
-  // Images go up BEFORE the doc commit: the id already exists client-side, and a
-  // failed upload must fail the whole creation (a page missing the images the owner
-  // picked would publish broken). Files under a never-committed id are unreachable
-  // orphans — harmless. Image changes are not sensitive, so they never affect
-  // verification (the school is born unverified regardless).
-  const [photoUrl, coverUrl] = await Promise.all([
-    input.photoFile
-      ? uploadSchoolImage(ref.id, "photo", input.photoFile)
-      : Promise.resolve(null),
-    input.coverFile
-      ? uploadSchoolImage(ref.id, "cover", input.coverFile)
-      : Promise.resolve(null),
-  ]);
+  // The Firestore doc is committed FIRST, before any image upload: the Storage rules gate
+  // `schools/{id}/**` writes on the parent doc's ownerId (storage.rules), so the
+  // photo/cover uploads are denied with 403 (storage/unauthorized) unless `schools/{id}`
+  // already exists with this uid as owner. The reverse order (upload then commit) fails
+  // closed because the parent doc the rule reads does not exist yet.
   const batch = writeBatch(db);
   batch.set(ref, {
     name: input.name,
@@ -387,8 +379,6 @@ export async function createSchoolPage(
     thankYouMessage: input.thankYouMessage ?? "",
     location: toLocation(input.location),
     boardContact: input.boardContact,
-    ...(photoUrl ? { photoUrl } : {}),
-    ...(coverUrl ? { coverUrl } : {}),
     status: "pending",
     verified: false,
     verificationStatus: "pending",
@@ -399,6 +389,38 @@ export async function createSchoolPage(
   });
   linkPageToUser(batch, uid, "school", ref.id);
   await batch.commit();
+
+  // With the doc in place the uploads now pass the ownership-gated Storage rules. A failed
+  // upload must still fail the whole creation (a page missing the images the owner picked
+  // would publish broken), so on error we roll the doc + the user link back rather than
+  // leaving a half-created draft. Image changes are not sensitive, so they never affect
+  // verification (the school is born unverified regardless).
+  if (input.photoFile || input.coverFile) {
+    try {
+      const [photoUrl, coverUrl] = await Promise.all([
+        input.photoFile
+          ? uploadSchoolImage(ref.id, "photo", input.photoFile)
+          : Promise.resolve(null),
+        input.coverFile
+          ? uploadSchoolImage(ref.id, "cover", input.coverFile)
+          : Promise.resolve(null),
+      ]);
+      await updateDoc(ref, {
+        ...(photoUrl ? { photoUrl } : {}),
+        ...(coverUrl ? { coverUrl } : {}),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      const rollback = writeBatch(db);
+      rollback.delete(ref);
+      rollback.update(doc(db, "users", uid), {
+        managedPages: arrayRemove({ type: "school", id: ref.id, role: "owner" }),
+      });
+      await rollback.commit().catch(() => {});
+      invalidateSchoolsCache();
+      throw err;
+    }
+  }
 
   // The payment-methods write stays OUTSIDE the batch: the private-subcollection rule
   // guards with get(schools/{id}), which reads pre-batch state — inside the batch the
