@@ -19,7 +19,6 @@ import type { ComponentType } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
-import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
@@ -408,8 +407,6 @@ function ActivityInner() {
   return (
     <main>
       <Heading subtitle={school.name} />
-
-      <SchoolPanelNav schoolId={id} current="activity" />
 
       {/* Accessible-only success announcement; no visual banner is needed. */}
       <p className="sr-only" role="status" aria-live="polite">

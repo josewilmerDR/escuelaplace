@@ -98,29 +98,24 @@ export default function PanelHome() {
  */
 function PanelHeading({ count }: { count?: number }) {
   return (
-    <header className="flex items-end justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+    <header>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="min-w-0 truncate text-3xl font-semibold tracking-tight text-foreground">
           Mis páginas
-          {count !== undefined && count > 0 && (
-            <span className="ml-2 align-middle text-2xl font-normal text-muted">
-              {count}
-            </span>
-          )}
         </h1>
-        <p className="mt-1 text-sm text-muted">
-          Administrá tus comercios y escuelas.
-        </p>
+        {count !== undefined && count > 0 && (
+          <Link
+            href="/panel/new"
+            className="btn btn-primary inline-flex shrink-0 gap-1.5"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Crear página
+          </Link>
+        )}
       </div>
-      {count !== undefined && count > 0 && (
-        <Link
-          href="/panel/new"
-          className="btn btn-primary hidden shrink-0 gap-1.5 sm:inline-flex"
-        >
-          <PlusIcon className="h-4 w-4" />
-          Crear página
-        </Link>
-      )}
+      <p className="mt-1 text-sm text-muted">
+        Administrá tus comercios y escuelas.
+      </p>
     </header>
   );
 }
