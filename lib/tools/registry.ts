@@ -16,10 +16,13 @@
  *      slot on `CreateToolInput` AND `ToolPatch`; the kind in `toolConfigOf`'s ToolConfigByType (for
  *      a typed read); often an `updateToolX` immediate-save writer and a branch in
  *      `toolContactPhone`. (The `updateTool` write path is GENERIC — no per-kind arm to edit.)
- *   3. lib/tools/registry.ts — the META row (here), plus `toolBuyLabel`/`toolBuyHref` if buyable.
+ *   3. lib/tools/registry.ts — the META row (here, incl. `inactiveNotice`), plus
+ *      `toolBuyLabel`/`toolBuyHref` if buyable.
  *   4. firestore.rules — the `type` enum (listed TWICE: create + update). The config guard is
  *      generic (`config is map`), so a config-only kind needs no other rules change.
- *   5. app/school/[id]/tool/[toolId]/page.tsx — a dispatch branch + a per-kind detail render.
+ *   5. app/school/[id]/tool/[toolId]/page.tsx — an async detail render that wraps its body in
+ *      `<ToolDetailShell>` (the shared chrome), registered in `TOOL_DETAIL_RENDERERS` (a lookup,
+ *      not an if-branch). Kinds with no entry fall through to the generic render.
  *   6. app/(panel)/panel/school/[id]/tools/{new,[toolId]}/page.tsx — per-kind state, validation
  *      and JSX in BOTH the create and edit pages.
  *   7. app/school/[id]/tool/[toolId]/opengraph-image.tsx — the KIND_EMOJI entry.
@@ -57,6 +60,11 @@ export interface ToolTypeMeta {
   titleLabel: string;
   /** Example title shown as the create form's placeholder, phrased for this kind. */
   titlePlaceholder: string;
+  /** Full sentence shown on the public detail page when the tool is not `active` (so it's hidden
+   * from the school page but still reachable by direct URL). Spelled out per kind because the
+   * Spanish subject + verb agreement ("Esta rifa no está activa" vs "Estos productos no están
+   * activos") isn't derivable from `label`. */
+  inactiveNotice: string;
   /** Icon used as the card's image fallback and the badge mark. */
   icon: ComponentType<{ className?: string }>;
 }
@@ -69,6 +77,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
     hint: "Sorteo de un premio entre quienes participan.",
     titleLabel: "Título",
     titlePlaceholder: "Ej.: Rifa pro fondos para la gira",
+    inactiveNotice:
+      "Esta rifa no está activa por el momento, así que no aparece en la página de la escuela.",
     icon: TicketIcon,
   },
   bingo: {
@@ -78,6 +88,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
     hint: "Juego de cartones para recaudar fondos.",
     titleLabel: "Título",
     titlePlaceholder: "Ej.: Bingo familiar pro fondos para la gira",
+    inactiveNotice:
+      "Este bingo no está activo por el momento, así que no aparece en la página de la escuela.",
     icon: GridIcon,
   },
   sale: {
@@ -87,6 +99,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
     hint: "Catálogo de productos a la venta (comida, artículos…).",
     titleLabel: "Nombre del producto",
     titlePlaceholder: "Ej.: Huevos de la granja de la escuela",
+    inactiveNotice:
+      "Estos productos no están activos por el momento, así que no aparecen en la página de la escuela.",
     icon: ShoppingBagIcon,
   },
   service: {
@@ -96,6 +110,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
     hint: "Catálogo de servicios que ofrece la comunidad escolar.",
     titleLabel: "Título",
     titlePlaceholder: "Ej.: Clases de repaso de la comunidad escolar",
+    inactiveNotice:
+      "Estos servicios no están activos por el momento, así que no aparecen en la página de la escuela.",
     icon: WrenchIcon,
   },
   guided_tour: {
@@ -105,6 +121,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
     hint: "Un recorrido o visita abierta a la comunidad.",
     titleLabel: "Título",
     titlePlaceholder: "Ej.: Visita guiada a la huerta escolar",
+    inactiveNotice:
+      "Esta visita guiada no está activa por el momento, así que no aparece en la página de la escuela.",
     icon: MapPinIcon,
   },
   event: {
@@ -114,6 +132,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
     hint: "Una actividad puntual con fecha (feria, acto, kermés…).",
     titleLabel: "Título",
     titlePlaceholder: "Ej.: Feria de fin de año",
+    inactiveNotice:
+      "Este evento no está activo por el momento, así que no aparece en la página de la escuela.",
     icon: CalendarIcon,
   },
   other: {
@@ -123,6 +143,8 @@ const META: Record<ToolType, ToolTypeMeta> = {
     hint: "Cualquier otra actividad puntual.",
     titleLabel: "Título",
     titlePlaceholder: "Ej.: Actividad pro fondos para la gira",
+    inactiveNotice:
+      "Esta actividad no está activa por el momento, así que no aparece en la página de la escuela.",
     icon: SparklesIcon,
   },
 };

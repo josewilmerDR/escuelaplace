@@ -2,15 +2,13 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BackLink } from "@/components/ui/BackLink";
-import { PageContainer } from "@/components/layout/PageContainer";
+import type { ReactNode } from "react";
 import { BingoLivePublic } from "@/components/tools/BingoLivePublic";
 import { EventStatusBadge } from "@/components/tools/EventStatusBadge";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { SaleProducts } from "@/components/tools/SaleProducts";
 import { ServiceItems } from "@/components/tools/ServiceItems";
-import { ToolManageBar } from "@/components/tools/ToolManageBar";
-import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
+import { ToolDetailShell } from "@/components/tools/ToolDetailShell";
 import { TourStages } from "@/components/tools/TourStages";
 import { cardClass } from "@/components/ui/Card";
 import {
@@ -36,10 +34,13 @@ import {
   toolWindowLabel,
 } from "@/lib/firestore";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
-import { PAGE_COVER_SIZES } from "@/lib/layout";
-import { toolTypeMeta } from "@/lib/tools/registry";
 import { safeExternalUrl } from "@/lib/url";
-import { BINGO_PATTERN_LABELS, type SchoolDoc, type ToolDoc } from "@/types";
+import {
+  BINGO_PATTERN_LABELS,
+  type SchoolDoc,
+  type ToolDoc,
+  type ToolType,
+} from "@/types";
 
 /**
  * Public tool detail: /school/[id]/tool/[toolId]
@@ -48,6 +49,11 @@ import { BINGO_PATTERN_LABELS, type SchoolDoc, type ToolDoc } from "@/types";
  * (profile) layout, mirroring the project detail page). PURELY INFORMATIONAL — the platform
  * never processes money; the CTA is a link the school controls (scheme-checked on write and
  * re-checked here before rendering).
+ *
+ * Every render shares the same chrome (cover + title + back link + edit bar + JSON-LD) via
+ * <ToolDetailShell>; each kind supplies only its body. The kinds with a configured experience
+ * register an async renderer in TOOL_DETAIL_RENDERERS — the page looks the kind up instead of
+ * branching, and an unconfigured/unknown kind falls through to the generic informational render.
  */
 
 interface Props {
@@ -75,6 +81,54 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+interface ToolDetailProps {
+  id: string;
+  toolId: string;
+  tool: ToolDoc;
+  school: SchoolDoc;
+}
+
+type ToolDetailRenderer = (props: ToolDetailProps) => Promise<ReactNode>;
+
+/**
+ * The per-kind detail renderers. A kind with a configured experience registers its async renderer
+ * here; ToolPage looks the kind up instead of branching. A kind with no entry (or no `config`
+ * saved yet) falls through to the generic render. Adding a config-bearing kind = add its renderer
+ * here — no new if-branch. (Insertion order is irrelevant; the picker order lives in the registry.)
+ */
+const TOOL_DETAIL_RENDERERS: Partial<Record<ToolType, ToolDetailRenderer>> = {
+  raffle: RaffleDetail,
+  guided_tour: TourDetail,
+  sale: SaleDetail,
+  service: ServiceDetail,
+  bingo: BingoDetail,
+  event: EventDetail,
+};
+
+/**
+ * Base Event JSON-LD shared by the informational/Event-shaped kinds (generic, raffle, tour, bingo,
+ * event). `extra` overrides/extends it (e.g. `startDate`, `location`, or an image fallback). The
+ * catalog kinds (sale/service) emit ItemList instead and build their own payload inline.
+ */
+function toolEventJsonLd(
+  tool: ToolDoc,
+  school: SchoolDoc,
+  id: string,
+  toolId: string,
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: tool.title,
+    description: tool.description,
+    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
+    ...(tool.coverUrl ? { image: tool.coverUrl } : {}),
+    organizer: { "@type": "Organization", name: school.name },
+    ...extra,
+  };
+}
+
 export default async function ToolPage({ params }: Props) {
   const { id, toolId } = await params;
   const [tool, school] = await Promise.all([
@@ -83,150 +137,52 @@ export default async function ToolPage({ params }: Props) {
   ]);
   if (!tool || !school) notFound();
 
-  // A raffle has its own configured experience (prizes + the number grid + buy flow).
-  if (tool.type === "raffle" && tool.config) {
-    return <RaffleDetail id={id} toolId={toolId} tool={tool} school={school} />;
-  }
+  // A configured kind renders its own experience; look it up instead of branching. A kind with no
+  // entry (or no `config` saved yet) falls through to the generic informational render below.
+  const renderer = tool.config ? TOOL_DETAIL_RENDERERS[tool.type] : undefined;
+  if (renderer) return renderer({ id, toolId, tool, school });
 
-  // A guided tour has its own configured experience (an ordered sequence of stages with media
-  // + a WhatsApp "Preguntar" button).
-  if (tool.type === "guided_tour" && tool.config) {
-    return <TourDetail id={id} toolId={toolId} tool={tool} school={school} />;
-  }
-
-  // A "Productos" catalog has its own configured experience (per-product media + price + the
-  // Comprar/Consultar buttons).
-  if (tool.type === "sale" && tool.config) {
-    return <SaleDetail id={id} toolId={toolId} tool={tool} school={school} />;
-  }
-
-  // A "Servicios" catalog: per-service media + optional price + a "Preguntar" WhatsApp button
-  // (no order flow).
-  if (tool.type === "service" && tool.config) {
-    return <ServiceDetail id={id} toolId={toolId} tool={tool} school={school} />;
-  }
-
-  // A bingo: format + prizes per winning pattern + price + how many cartones are left + a
-  // "Comprar cartones" button (the order flow, gated on a verified school).
-  if (tool.type === "bingo" && tool.config) {
-    return <BingoDetail id={id} toolId={toolId} tool={tool} school={school} />;
-  }
-
-  // An event: a dated one-off with a gallery, when/where, an "Agregar al calendario" link and a
-  // "Preguntar" WhatsApp button.
-  if (tool.type === "event" && tool.config) {
-    return <EventDetail id={id} toolId={toolId} tool={tool} school={school} />;
-  }
-
-  const Icon = toolTypeMeta(tool.type).icon;
   const window = toolWindowLabel(tool);
   // Re-check the CTA scheme at render even though it was sanitized on write (defense in depth).
   const ctaUrl = tool.cta ? safeExternalUrl(tool.cta.url) : null;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Event",
-    name: tool.title,
-    description: tool.description,
-    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
-    ...(tool.coverUrl ? { image: tool.coverUrl } : {}),
-    organizer: { "@type": "Organization", name: school.name },
-  };
-
   return (
-    <PageContainer variant="detail">
-      {/* "<" escaped so owner-controlled text can't close the script tag. */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-        }}
-      />
-
-      <div className="text-sm">
-        <span className="inline-flex py-2 -my-2">
-          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
-        </span>
-      </div>
-
-      {/* Edit shortcut — only the school's managers see this. Client island that renders null
-          for visitors, so it never shifts the SSR layout. */}
-      <ToolManageBar
-        schoolId={id}
-        toolId={toolId}
-        ownerId={school.ownerId}
-        editorIds={school.editorIds}
-      />
-
-      {tool.status !== "active" && (
-        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
-          Esta actividad no está activa por el momento, así que no aparece en la
-          página de la escuela.
-        </div>
+    <ToolDetailShell
+      id={id}
+      toolId={toolId}
+      tool={tool}
+      school={school}
+      jsonLd={toolEventJsonLd(tool, school, id, toolId)}
+    >
+      {window && (
+        <p className="mt-3 flex items-center gap-2 text-sm text-muted">
+          <ClockIcon className="h-5 w-5 shrink-0" />
+          {window}
+        </p>
       )}
 
-      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
-        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
-          {tool.coverUrl ? (
-            <Image
-              src={tool.coverUrl}
-              alt=""
-              fill
-              priority
-              sizes={PAGE_COVER_SIZES}
-              className="object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-full items-center justify-center text-brand-darker/30"
-            >
-              <Icon className="h-20 w-20" />
-            </span>
-          )}
+      {tool.description && (
+        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
+      )}
+
+      {ctaUrl && (
+        <div className="mt-6">
+          <a
+            href={ctaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
+          >
+            {tool.cta?.label}
+            <ArrowRightIcon className="ml-2 h-5 w-5" />
+          </a>
+          <p className="mt-2 text-xs text-muted">
+            Coordiná directamente con la escuela. escuelaplace solo da
+            visibilidad: nunca procesa pagos ni participa en la actividad.
+          </p>
         </div>
-
-        <div className="p-5 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {tool.title}
-            </h1>
-            <ToolTypeBadge type={tool.type} />
-          </div>
-
-          {window && (
-            <p className="mt-3 flex items-center gap-2 text-sm text-muted">
-              <ClockIcon className="h-5 w-5 shrink-0" />
-              {window}
-            </p>
-          )}
-
-          {tool.description && (
-            <p className="mt-3 whitespace-pre-line text-muted">
-              {tool.description}
-            </p>
-          )}
-
-          {ctaUrl && (
-            <div className="mt-6">
-              <a
-                href={ctaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
-              >
-                {tool.cta?.label}
-                <ArrowRightIcon className="ml-2 h-5 w-5" />
-              </a>
-              <p className="mt-2 text-xs text-muted">
-                Coordiná directamente con la escuela. escuelaplace solo da
-                visibilidad: nunca procesa pagos ni participa en la actividad.
-              </p>
-            </div>
-          )}
-        </div>
-      </article>
-    </PageContainer>
+      )}
+    </ToolDetailShell>
   );
 }
 
@@ -237,159 +193,89 @@ const PRIZE_LABELS = ["Primer premio", "Segundo premio", "Tercer premio"];
  * grid state (reserved/sold) is computed here on the server from the raffle's orders and handed
  * to the RaffleBoard client island, which owns selection and the handoff to the buy flow.
  */
-async function RaffleDetail({
-  id,
-  toolId,
-  tool,
-  school,
-}: {
-  id: string;
-  toolId: string;
-  tool: ToolDoc;
-  school: SchoolDoc;
-}) {
+async function RaffleDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const raffle = toolConfigOf(tool, "raffle")!;
   const orders = await getRaffleOrdersByTool(toolId).catch(() => []);
   const states = raffleNumberStates(orders, raffle.numberCount);
   const verified = isSchoolVerified(school);
-  const Icon = toolTypeMeta(tool.type).icon;
-
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Event",
-    name: tool.title,
-    description: tool.description,
-    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
-    ...(tool.coverUrl ? { image: tool.coverUrl } : {}),
-    ...(raffle.drawDate
-      ? { startDate: raffle.drawDate.toDate().toISOString() }
-      : {}),
-    organizer: { "@type": "Organization", name: school.name },
-  };
 
   return (
-    <PageContainer variant="detail">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-        }}
-      />
+    <ToolDetailShell
+      id={id}
+      toolId={toolId}
+      tool={tool}
+      school={school}
+      jsonLd={toolEventJsonLd(
+        tool,
+        school,
+        id,
+        toolId,
+        raffle.drawDate
+          ? { startDate: raffle.drawDate.toDate().toISOString() }
+          : {},
+      )}
+    >
+      <ul className="mt-3 space-y-1 text-sm text-muted">
+        <li className="flex items-start gap-2">
+          <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
+          <span>
+            <span className="font-medium text-foreground">Modalidad:</span>{" "}
+            {raffle.drawMethod}
+          </span>
+        </li>
+        {raffle.drawDate && (
+          <li className="flex items-start gap-2">
+            <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Sorteo:</span>{" "}
+              {formatDate(raffle.drawDate.toMillis())}
+            </span>
+          </li>
+        )}
+      </ul>
 
-      <div className="text-sm">
-        <span className="inline-flex py-2 -my-2">
-          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
-        </span>
-      </div>
-
-      <ToolManageBar
-        schoolId={id}
-        toolId={toolId}
-        ownerId={school.ownerId}
-        editorIds={school.editorIds}
-      />
-
-      {tool.status !== "active" && (
-        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
-          Esta rifa no está activa por el momento, así que no aparece en la página
-          de la escuela.
-        </div>
+      {tool.description && (
+        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
       )}
 
-      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
-        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
-          {tool.coverUrl ? (
-            <Image
-              src={tool.coverUrl}
-              alt=""
-              fill
-              priority
-              sizes={PAGE_COVER_SIZES}
-              className="object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-full items-center justify-center text-brand-darker/30"
-            >
-              <Icon className="h-20 w-20" />
-            </span>
-          )}
-        </div>
-
-        <div className="p-5 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {tool.title}
-            </h1>
-            <ToolTypeBadge type={tool.type} />
-          </div>
-
-          <ul className="mt-3 space-y-1 text-sm text-muted">
-            <li className="flex items-start gap-2">
-              <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
-              <span>
-                <span className="font-medium text-foreground">Modalidad:</span>{" "}
-                {raffle.drawMethod}
-              </span>
+      {/* Prizes */}
+      <div className={`mt-6 ${cardClass("inset")}`}>
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">
+          Premios
+        </h2>
+        <ol className="mt-2 space-y-1 text-sm">
+          {raffle.prizes.map((prize, i) => (
+            <li key={i}>
+              <span className="font-medium text-foreground">
+                {PRIZE_LABELS[i] ?? `Premio ${i + 1}`}:
+              </span>{" "}
+              <span className="text-muted">{prize}</span>
             </li>
-            {raffle.drawDate && (
-              <li className="flex items-start gap-2">
-                <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" />
-                <span>
-                  <span className="font-medium text-foreground">Sorteo:</span>{" "}
-                  {formatDate(raffle.drawDate.toMillis())}
-                </span>
-              </li>
-            )}
-          </ul>
+          ))}
+        </ol>
+      </div>
 
-          {tool.description && (
-            <p className="mt-3 whitespace-pre-line text-muted">
-              {tool.description}
-            </p>
-          )}
-
-          {/* Prizes */}
-          <div className={`mt-6 ${cardClass("inset")}`}>
-            <h2 className="text-sm font-semibold tracking-tight text-foreground">
-              Premios
-            </h2>
-            <ol className="mt-2 space-y-1 text-sm">
-              {raffle.prizes.map((prize, i) => (
-                <li key={i}>
-                  <span className="font-medium text-foreground">
-                    {PRIZE_LABELS[i] ?? `Premio ${i + 1}`}:
-                  </span>{" "}
-                  <span className="text-muted">{prize}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          {/* Number grid + buy flow (client island) */}
-          <div id="comprar" className="mt-8 scroll-mt-20">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Elegí tus números
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              {formatMoney(raffle.pricePerNumber, raffle.currency)} cada número.
-            </p>
-            <div className="mt-4">
-              <RaffleBoard
-                schoolId={id}
-                toolId={toolId}
-                numberCount={raffle.numberCount}
-                states={states}
-                pricePerNumber={raffle.pricePerNumber}
-                currency={raffle.currency}
-                verified={verified}
-              />
-            </div>
-          </div>
+      {/* Number grid + buy flow (client island) */}
+      <div id="comprar" className="mt-8 scroll-mt-20">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Elegí tus números
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          {formatMoney(raffle.pricePerNumber, raffle.currency)} cada número.
+        </p>
+        <div className="mt-4">
+          <RaffleBoard
+            schoolId={id}
+            toolId={toolId}
+            numberCount={raffle.numberCount}
+            states={states}
+            pricePerNumber={raffle.pricePerNumber}
+            currency={raffle.currency}
+            verified={verified}
+          />
         </div>
-      </article>
-    </PageContainer>
+      </div>
+    </ToolDetailShell>
   );
 }
 
@@ -399,19 +285,8 @@ async function RaffleDetail({
  * the tour's own contact when set, otherwise the school's board phone; the button is omitted
  * when neither resolves to a dialable number. PURELY INFORMATIONAL — it only opens a chat.
  */
-async function TourDetail({
-  id,
-  toolId,
-  tool,
-  school,
-}: {
-  id: string;
-  toolId: string;
-  tool: ToolDoc;
-  school: SchoolDoc;
-}) {
+async function TourDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const tour = toolConfigOf(tool, "guided_tour")!;
-  const Icon = toolTypeMeta(tool.type).icon;
   const window = toolWindowLabel(tool);
 
   // Prefer the tour's own WhatsApp contact; fall back to the school's board phone. buildWhatsAppLink
@@ -420,117 +295,53 @@ async function TourDetail({
   const askMessage = `¡Hola! Vi la visita guiada "${tool.title}" de ${school.name} en escuelaplace y quiero hacer una consulta.`;
   const whatsappUrl = phone ? buildWhatsAppLink(phone, askMessage) : null;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Event",
-    name: tool.title,
-    description: tool.description,
-    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
-    ...(tool.coverUrl ? { image: tool.coverUrl } : {}),
-    organizer: { "@type": "Organization", name: school.name },
-  };
-
   return (
-    <PageContainer variant="detail">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-        }}
-      />
-
-      <div className="text-sm">
-        <span className="inline-flex py-2 -my-2">
-          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
-        </span>
-      </div>
-
-      <ToolManageBar
-        schoolId={id}
-        toolId={toolId}
-        ownerId={school.ownerId}
-        editorIds={school.editorIds}
-      />
-
-      {tool.status !== "active" && (
-        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
-          Esta visita guiada no está activa por el momento, así que no aparece en
-          la página de la escuela.
-        </div>
+    <ToolDetailShell
+      id={id}
+      toolId={toolId}
+      tool={tool}
+      school={school}
+      jsonLd={toolEventJsonLd(tool, school, id, toolId)}
+    >
+      {window && (
+        <p className="mt-3 flex items-center gap-2 text-sm text-muted">
+          <ClockIcon className="h-5 w-5 shrink-0" />
+          {window}
+        </p>
       )}
 
-      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
-        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
-          {tool.coverUrl ? (
-            <Image
-              src={tool.coverUrl}
-              alt=""
-              fill
-              priority
-              sizes={PAGE_COVER_SIZES}
-              className="object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-full items-center justify-center text-brand-darker/30"
-            >
-              <Icon className="h-20 w-20" />
-            </span>
-          )}
+      {tool.description && (
+        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
+      )}
+
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Recorrido
+        </h2>
+        <div className="mt-4">
+          <TourStages stages={tour.stages} />
         </div>
+      </div>
 
-        <div className="p-5 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {tool.title}
-            </h1>
-            <ToolTypeBadge type={tool.type} />
-          </div>
-
-          {window && (
-            <p className="mt-3 flex items-center gap-2 text-sm text-muted">
-              <ClockIcon className="h-5 w-5 shrink-0" />
-              {window}
-            </p>
-          )}
-
-          {tool.description && (
-            <p className="mt-3 whitespace-pre-line text-muted">
-              {tool.description}
-            </p>
-          )}
-
-          <div className="mt-8">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Recorrido
-            </h2>
-            <div className="mt-4">
-              <TourStages stages={tour.stages} />
-            </div>
-          </div>
-
-          {whatsappUrl && (
-            <div className="mt-8">
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
-              >
-                <ChatBubbleIcon className="mr-2 h-5 w-5" />
-                Preguntar
-              </a>
-              <p className="mt-2 text-xs text-muted">
-                Coordiná directamente con la escuela por WhatsApp. escuelaplace
-                solo da visibilidad: nunca procesa pagos ni participa en la
-                actividad.
-              </p>
-            </div>
-          )}
+      {whatsappUrl && (
+        <div className="mt-8">
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
+          >
+            <ChatBubbleIcon className="mr-2 h-5 w-5" />
+            Preguntar
+          </a>
+          <p className="mt-2 text-xs text-muted">
+            Coordiná directamente con la escuela por WhatsApp. escuelaplace
+            solo da visibilidad: nunca procesa pagos ni participa en la
+            actividad.
+          </p>
         </div>
-      </article>
-    </PageContainer>
+      )}
+    </ToolDetailShell>
   );
 }
 
@@ -539,19 +350,8 @@ async function TourDetail({
  * "Comprar" button (the raffle-style order flow, gated on the school being verified) and a
  * "Consultar" WhatsApp button. PURELY INFORMATIONAL — the platform never processes the money.
  */
-async function SaleDetail({
-  id,
-  toolId,
-  tool,
-  school,
-}: {
-  id: string;
-  toolId: string;
-  tool: ToolDoc;
-  school: SchoolDoc;
-}) {
+async function SaleDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const sale = toolConfigOf(tool, "sale")!;
-  const Icon = toolTypeMeta(tool.type).icon;
   const verified = isSchoolVerified(school);
   const contactPhone = sale.contactPhone || school.boardContact?.phone || "";
 
@@ -577,88 +377,34 @@ async function SaleDetail({
   };
 
   return (
-    <PageContainer variant="detail">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-        }}
-      />
-
-      <div className="text-sm">
-        <span className="inline-flex py-2 -my-2">
-          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
-        </span>
-      </div>
-
-      <ToolManageBar
-        schoolId={id}
-        toolId={toolId}
-        ownerId={school.ownerId}
-        editorIds={school.editorIds}
-      />
-
-      {tool.status !== "active" && (
-        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
-          Estos productos no están activos por el momento, así que no aparecen en
-          la página de la escuela.
-        </div>
+    <ToolDetailShell
+      id={id}
+      toolId={toolId}
+      tool={tool}
+      school={school}
+      jsonLd={jsonLd}
+    >
+      {tool.description && (
+        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
       )}
 
-      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
-        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
-          {tool.coverUrl ? (
-            <Image
-              src={tool.coverUrl}
-              alt=""
-              fill
-              priority
-              sizes={PAGE_COVER_SIZES}
-              className="object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-full items-center justify-center text-brand-darker/30"
-            >
-              <Icon className="h-20 w-20" />
-            </span>
-          )}
+      <div id="comprar" className="mt-8 scroll-mt-20">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Productos
+        </h2>
+        <div className="mt-4">
+          <SaleProducts
+            products={sale.products}
+            currency={sale.currency}
+            schoolId={id}
+            toolId={toolId}
+            schoolName={school.name}
+            contactPhone={contactPhone}
+            verified={verified}
+          />
         </div>
-
-        <div className="p-5 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {tool.title}
-            </h1>
-            <ToolTypeBadge type={tool.type} />
-          </div>
-
-          {tool.description && (
-            <p className="mt-3 whitespace-pre-line text-muted">
-              {tool.description}
-            </p>
-          )}
-
-          <div id="comprar" className="mt-8 scroll-mt-20">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Productos
-            </h2>
-            <div className="mt-4">
-              <SaleProducts
-                products={sale.products}
-                currency={sale.currency}
-                schoolId={id}
-                toolId={toolId}
-                schoolName={school.name}
-                contactPhone={contactPhone}
-                verified={verified}
-              />
-            </div>
-          </div>
-        </div>
-      </article>
-    </PageContainer>
+      </div>
+    </ToolDetailShell>
   );
 }
 
@@ -667,19 +413,8 @@ async function SaleDetail({
  * with a single "Preguntar" WhatsApp button. No order flow and no verification gate — asking is
  * just a chat. PURELY INFORMATIONAL.
  */
-async function ServiceDetail({
-  id,
-  toolId,
-  tool,
-  school,
-}: {
-  id: string;
-  toolId: string;
-  tool: ToolDoc;
-  school: SchoolDoc;
-}) {
+async function ServiceDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const service = toolConfigOf(tool, "service")!;
-  const Icon = toolTypeMeta(tool.type).icon;
   const contactPhone = service.contactPhone || school.boardContact?.phone || "";
 
   const jsonLd = {
@@ -709,85 +444,31 @@ async function ServiceDetail({
   };
 
   return (
-    <PageContainer variant="detail">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-        }}
-      />
-
-      <div className="text-sm">
-        <span className="inline-flex py-2 -my-2">
-          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
-        </span>
-      </div>
-
-      <ToolManageBar
-        schoolId={id}
-        toolId={toolId}
-        ownerId={school.ownerId}
-        editorIds={school.editorIds}
-      />
-
-      {tool.status !== "active" && (
-        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
-          Estos servicios no están activos por el momento, así que no aparecen en
-          la página de la escuela.
-        </div>
+    <ToolDetailShell
+      id={id}
+      toolId={toolId}
+      tool={tool}
+      school={school}
+      jsonLd={jsonLd}
+    >
+      {tool.description && (
+        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
       )}
 
-      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
-        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
-          {tool.coverUrl ? (
-            <Image
-              src={tool.coverUrl}
-              alt=""
-              fill
-              priority
-              sizes={PAGE_COVER_SIZES}
-              className="object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-full items-center justify-center text-brand-darker/30"
-            >
-              <Icon className="h-20 w-20" />
-            </span>
-          )}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Servicios
+        </h2>
+        <div className="mt-4">
+          <ServiceItems
+            services={service.services}
+            currency={service.currency}
+            schoolName={school.name}
+            contactPhone={contactPhone}
+          />
         </div>
-
-        <div className="p-5 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {tool.title}
-            </h1>
-            <ToolTypeBadge type={tool.type} />
-          </div>
-
-          {tool.description && (
-            <p className="mt-3 whitespace-pre-line text-muted">
-              {tool.description}
-            </p>
-          )}
-
-          <div className="mt-8">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Servicios
-            </h2>
-            <div className="mt-4">
-              <ServiceItems
-                services={service.services}
-                currency={service.currency}
-                schoolName={school.name}
-                contactPhone={contactPhone}
-              />
-            </div>
-          </div>
-        </div>
-      </article>
-    </PageContainer>
+      </div>
+    </ToolDetailShell>
   );
 }
 
@@ -797,19 +478,8 @@ async function ServiceDetail({
  * single "Preguntar" WhatsApp button. Emits Event JSON-LD for search rich results. PURELY
  * INFORMATIONAL — nothing to pay; it only informs and links out.
  */
-async function EventDetail({
-  id,
-  toolId,
-  tool,
-  school,
-}: {
-  id: string;
-  toolId: string;
-  tool: ToolDoc;
-  school: SchoolDoc;
-}) {
+async function EventDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const event = toolConfigOf(tool, "event")!;
-  const Icon = toolTypeMeta(tool.type).icon;
   const photos = event.photos ?? [];
   const contactPhone = event.contactPhone || school.boardContact?.phone || "";
   const dateMs = event.date ? event.date.toMillis() : null;
@@ -830,178 +500,118 @@ async function EventDetail({
       })
     : null;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Event",
-    name: tool.title,
-    description: tool.description,
-    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
-    ...(tool.coverUrl ? { image: tool.coverUrl } : photos[0] ? { image: photos[0] } : {}),
+  const jsonLd = toolEventJsonLd(tool, school, id, toolId, {
+    ...(!tool.coverUrl && photos[0] ? { image: photos[0] } : {}),
     ...(dateMs ? { startDate: new Date(dateMs).toISOString() } : {}),
     ...(event.place
       ? { location: { "@type": "Place", name: event.place } }
       : {}),
-    organizer: { "@type": "Organization", name: school.name },
-  };
+  });
 
   return (
-    <PageContainer variant="detail">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-        }}
-      />
+    <ToolDetailShell
+      id={id}
+      toolId={toolId}
+      tool={tool}
+      school={school}
+      jsonLd={jsonLd}
+      badge={dateMs ? <EventStatusBadge dateMs={dateMs} /> : null}
+    >
+      <ul className="mt-3 space-y-1 text-sm text-muted">
+        {dateMs && (
+          <li className="flex items-start gap-2">
+            <CalendarIcon className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Cuándo:</span>{" "}
+              {formatDateTime(dateMs)}
+            </span>
+          </li>
+        )}
+        {event.place && (
+          <li className="flex items-start gap-2">
+            <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Dónde:</span>{" "}
+              {event.place}
+              {mapUrl && (
+                <>
+                  {" · "}
+                  <a
+                    href={mapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-brand-darker hover:underline"
+                  >
+                    Cómo llegar
+                  </a>
+                </>
+              )}
+            </span>
+          </li>
+        )}
+      </ul>
 
-      <div className="text-sm">
-        <span className="inline-flex py-2 -my-2">
-          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
-        </span>
-      </div>
-
-      <ToolManageBar
-        schoolId={id}
-        toolId={toolId}
-        ownerId={school.ownerId}
-        editorIds={school.editorIds}
-      />
-
-      {tool.status !== "active" && (
-        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
-          Este evento no está activo por el momento, así que no aparece en la página
-          de la escuela.
-        </div>
+      {tool.description && (
+        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
       )}
 
-      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
-        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
-          {tool.coverUrl ? (
-            <Image
-              src={tool.coverUrl}
-              alt=""
-              fill
-              priority
-              sizes={PAGE_COVER_SIZES}
-              className="object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-full items-center justify-center text-brand-darker/30"
+      {/* Gallery */}
+      {photos.length > 0 && (
+        <ul className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {photos.map((url) => (
+            <li
+              key={url}
+              className="relative block aspect-square overflow-hidden rounded-xl bg-surface ring-1 ring-black/5"
             >
-              <Icon className="h-20 w-20" />
-            </span>
-          )}
-        </div>
+              <Image
+                src={url}
+                alt=""
+                fill
+                sizes="(min-width: 640px) 30vw, 50vw"
+                className="object-cover"
+              />
+            </li>
+          ))}
+        </ul>
+      )}
 
-        <div className="p-5 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {tool.title}
-            </h1>
-            <ToolTypeBadge type={tool.type} />
-            {dateMs && <EventStatusBadge dateMs={dateMs} />}
-          </div>
+      {event.videoUrl && (
+        <video
+          controls
+          preload="metadata"
+          className="mt-4 w-full rounded-xl bg-black ring-1 ring-black/5"
+        >
+          <source src={event.videoUrl} />
+          Tu navegador no puede reproducir este video.
+        </video>
+      )}
 
-          <ul className="mt-3 space-y-1 text-sm text-muted">
-            {dateMs && (
-              <li className="flex items-start gap-2">
-                <CalendarIcon className="mt-0.5 h-5 w-5 shrink-0" />
-                <span>
-                  <span className="font-medium text-foreground">Cuándo:</span>{" "}
-                  {formatDateTime(dateMs)}
-                </span>
-              </li>
-            )}
-            {event.place && (
-              <li className="flex items-start gap-2">
-                <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0" />
-                <span>
-                  <span className="font-medium text-foreground">Dónde:</span>{" "}
-                  {event.place}
-                  {mapUrl && (
-                    <>
-                      {" · "}
-                      <a
-                        href={mapUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-brand-darker hover:underline"
-                      >
-                        Cómo llegar
-                      </a>
-                    </>
-                  )}
-                </span>
-              </li>
-            )}
-          </ul>
-
-          {tool.description && (
-            <p className="mt-3 whitespace-pre-line text-muted">
-              {tool.description}
-            </p>
-          )}
-
-          {/* Gallery */}
-          {photos.length > 0 && (
-            <ul className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {photos.map((url) => (
-                <li
-                  key={url}
-                  className="relative block aspect-square overflow-hidden rounded-xl bg-surface ring-1 ring-black/5"
-                >
-                  <Image
-                    src={url}
-                    alt=""
-                    fill
-                    sizes="(min-width: 640px) 30vw, 50vw"
-                    className="object-cover"
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {event.videoUrl && (
-            <video
-              controls
-              preload="metadata"
-              className="mt-4 w-full rounded-xl bg-black ring-1 ring-black/5"
-            >
-              <source src={event.videoUrl} />
-              Tu navegador no puede reproducir este video.
-            </video>
-          )}
-
-          {/* Actions */}
-          <div className="mt-8 flex flex-wrap gap-3">
-            {askUrl && (
-              <a
-                href={askUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary"
-              >
-                <ChatBubbleIcon className="mr-1.5 h-5 w-5" />
-                Preguntar
-              </a>
-            )}
-            {calendarUrl && (
-              <a
-                href={calendarUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-outline"
-              >
-                <CalendarIcon className="mr-1.5 h-5 w-5" />
-                Agregar al calendario
-              </a>
-            )}
-          </div>
-        </div>
-      </article>
-    </PageContainer>
+      {/* Actions */}
+      <div className="mt-8 flex flex-wrap gap-3">
+        {askUrl && (
+          <a
+            href={askUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+          >
+            <ChatBubbleIcon className="mr-1.5 h-5 w-5" />
+            Preguntar
+          </a>
+        )}
+        {calendarUrl && (
+          <a
+            href={calendarUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-outline"
+          >
+            <CalendarIcon className="mr-1.5 h-5 w-5" />
+            Agregar al calendario
+          </a>
+        )}
+      </div>
+    </ToolDetailShell>
   );
 }
 
@@ -1011,17 +621,7 @@ async function EventDetail({
  * school — buying means paying the school directly). PURELY INFORMATIONAL: the platform never
  * processes the money. The live event (called numbers, claims) is a later phase.
  */
-async function BingoDetail({
-  id,
-  toolId,
-  tool,
-  school,
-}: {
-  id: string;
-  toolId: string;
-  tool: ToolDoc;
-  school: SchoolDoc;
-}) {
+async function BingoDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const bingo = toolConfigOf(tool, "bingo")!;
   const [cards, orders] = await Promise.all([
     getBingoCards(id, toolId).catch(() => []),
@@ -1029,208 +629,148 @@ async function BingoDetail({
   ]);
   const availability = getBingoCardAvailability(cards, orders);
   const verified = isSchoolVerified(school);
-  const Icon = toolTypeMeta(tool.type).icon;
   const buyHref = `/panel/bingo-order?schoolId=${id}&toolId=${toolId}`;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Event",
-    name: tool.title,
-    description: tool.description,
-    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
-    ...(tool.coverUrl ? { image: tool.coverUrl } : {}),
-    ...(bingo.eventDate
-      ? { startDate: bingo.eventDate.toDate().toISOString() }
-      : {}),
-    organizer: { "@type": "Organization", name: school.name },
-  };
-
   return (
-    <PageContainer variant="detail">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-        }}
-      />
+    <ToolDetailShell
+      id={id}
+      toolId={toolId}
+      tool={tool}
+      school={school}
+      jsonLd={toolEventJsonLd(
+        tool,
+        school,
+        id,
+        toolId,
+        bingo.eventDate
+          ? { startDate: bingo.eventDate.toDate().toISOString() }
+          : {},
+      )}
+    >
+      <ul className="mt-3 space-y-1 text-sm text-muted">
+        <li className="flex items-start gap-2">
+          <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
+          <span>
+            <span className="font-medium text-foreground">Cartón:</span>{" "}
+            {bingo.format.rows}×{bingo.format.cols} · números{" "}
+            {bingo.format.poolMin}–{bingo.format.poolMax}
+          </span>
+        </li>
+        {bingo.drawMethod && (
+          <li className="flex items-start gap-2">
+            <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Modalidad:</span>{" "}
+              {bingo.drawMethod}
+            </span>
+          </li>
+        )}
+        {bingo.eventDate && (
+          <li className="flex items-start gap-2">
+            <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Evento:</span>{" "}
+              {formatDate(bingo.eventDate.toMillis())}
+            </span>
+          </li>
+        )}
+      </ul>
 
-      <div className="text-sm">
-        <span className="inline-flex py-2 -my-2">
-          <BackLink href={`/school/${id}`}>{school.name}</BackLink>
-        </span>
-      </div>
-
-      <ToolManageBar
-        schoolId={id}
-        toolId={toolId}
-        ownerId={school.ownerId}
-        editorIds={school.editorIds}
-      />
-
-      {tool.status !== "active" && (
-        <div className="mt-4 rounded-2xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
-          Este bingo no está activo por el momento, así que no aparece en la página
-          de la escuela.
-        </div>
+      {tool.description && (
+        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
       )}
 
-      <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>
-        <div className="relative aspect-video w-full bg-brand-tint sm:aspect-[5/2]">
-          {tool.coverUrl ? (
-            <Image
-              src={tool.coverUrl}
-              alt=""
-              fill
-              priority
-              sizes={PAGE_COVER_SIZES}
-              className="object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-full items-center justify-center text-brand-darker/30"
-            >
-              <Icon className="h-20 w-20" />
-            </span>
-          )}
-        </div>
-
-        <div className="p-5 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {tool.title}
-            </h1>
-            <ToolTypeBadge type={tool.type} />
-          </div>
-
-          <ul className="mt-3 space-y-1 text-sm text-muted">
-            <li className="flex items-start gap-2">
-              <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
-              <span>
-                <span className="font-medium text-foreground">Cartón:</span>{" "}
-                {bingo.format.rows}×{bingo.format.cols} · números{" "}
-                {bingo.format.poolMin}–{bingo.format.poolMax}
-              </span>
+      {/* Prizes */}
+      <div className={`mt-6 ${cardClass("inset")}`}>
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">
+          Premios
+        </h2>
+        {bingo.prizes ? (
+          <ol className="mt-2 space-y-1 text-sm">
+            <li>
+              <span className="font-medium text-foreground">Premio mayor:</span>{" "}
+              <span className="text-muted">{bingo.prizes.first}</span>
             </li>
-            {bingo.drawMethod && (
-              <li className="flex items-start gap-2">
-                <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
-                <span>
-                  <span className="font-medium text-foreground">Modalidad:</span>{" "}
-                  {bingo.drawMethod}
-                </span>
+            {bingo.prizes.second && (
+              <li>
+                <span className="font-medium text-foreground">
+                  Segundo premio:
+                </span>{" "}
+                <span className="text-muted">{bingo.prizes.second}</span>
               </li>
             )}
-            {bingo.eventDate && (
-              <li className="flex items-start gap-2">
-                <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" />
-                <span>
-                  <span className="font-medium text-foreground">Evento:</span>{" "}
-                  {formatDate(bingo.eventDate.toMillis())}
-                </span>
+            {bingo.prizes.third && (
+              <li>
+                <span className="font-medium text-foreground">
+                  Tercer premio:
+                </span>{" "}
+                <span className="text-muted">{bingo.prizes.third}</span>
               </li>
             )}
-          </ul>
+            {bingo.prizes.others.map((prize, i) => (
+              <li key={i}>
+                <span className="font-medium text-foreground">Otro premio:</span>{" "}
+                <span className="text-muted">{prize}</span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          // Legacy bingo: prizes used to be attached to each winning pattern.
+          <ol className="mt-2 space-y-1 text-sm">
+            {bingo.patterns.map((p) => (
+              <li key={p.pattern}>
+                <span className="font-medium text-foreground">
+                  {BINGO_PATTERN_LABELS[p.pattern]}:
+                </span>{" "}
+                <span className="text-muted">{p.prize}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="mt-3 text-xs text-muted">
+          La forma de ganar (línea, cartón lleno, etc.) la anuncia la escuela al
+          iniciar cada ronda del bingo en vivo.
+        </p>
+      </div>
 
-          {tool.description && (
-            <p className="mt-3 whitespace-pre-line text-muted">
-              {tool.description}
+      {/* Price + availability + buy */}
+      <div id="comprar" className="mt-8 scroll-mt-20">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Comprá tus cartones
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          {formatMoney(bingo.pricePerCard, bingo.currency)} cada cartón ·{" "}
+          {availability.available > 0
+            ? `${availability.available} de ${availability.total} disponibles`
+            : availability.total > 0
+              ? "agotados por ahora"
+              : "todavía sin cartones"}
+        </p>
+        <div className="mt-4">
+          {!verified ? (
+            <p className="rounded-xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+              La compra se habilita cuando la escuela esté verificada.
+            </p>
+          ) : availability.available > 0 ? (
+            <Link href={buyHref} className="btn btn-primary">
+              Comprar cartones
+              <ArrowRightIcon className="ml-1.5 h-5 w-5" />
+            </Link>
+          ) : (
+            <p className="rounded-xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
+              No hay cartones disponibles por el momento.
             </p>
           )}
-
-          {/* Prizes */}
-          <div className={`mt-6 ${cardClass("inset")}`}>
-            <h2 className="text-sm font-semibold tracking-tight text-foreground">
-              Premios
-            </h2>
-            {bingo.prizes ? (
-              <ol className="mt-2 space-y-1 text-sm">
-                <li>
-                  <span className="font-medium text-foreground">Premio mayor:</span>{" "}
-                  <span className="text-muted">{bingo.prizes.first}</span>
-                </li>
-                {bingo.prizes.second && (
-                  <li>
-                    <span className="font-medium text-foreground">
-                      Segundo premio:
-                    </span>{" "}
-                    <span className="text-muted">{bingo.prizes.second}</span>
-                  </li>
-                )}
-                {bingo.prizes.third && (
-                  <li>
-                    <span className="font-medium text-foreground">
-                      Tercer premio:
-                    </span>{" "}
-                    <span className="text-muted">{bingo.prizes.third}</span>
-                  </li>
-                )}
-                {bingo.prizes.others.map((prize, i) => (
-                  <li key={i}>
-                    <span className="font-medium text-foreground">Otro premio:</span>{" "}
-                    <span className="text-muted">{prize}</span>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              // Legacy bingo: prizes used to be attached to each winning pattern.
-              <ol className="mt-2 space-y-1 text-sm">
-                {bingo.patterns.map((p) => (
-                  <li key={p.pattern}>
-                    <span className="font-medium text-foreground">
-                      {BINGO_PATTERN_LABELS[p.pattern]}:
-                    </span>{" "}
-                    <span className="text-muted">{p.prize}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-            <p className="mt-3 text-xs text-muted">
-              La forma de ganar (línea, cartón lleno, etc.) la anuncia la escuela al
-              iniciar cada ronda del bingo en vivo.
-            </p>
-          </div>
-
-          {/* Price + availability + buy */}
-          <div id="comprar" className="mt-8 scroll-mt-20">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Comprá tus cartones
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              {formatMoney(bingo.pricePerCard, bingo.currency)} cada cartón ·{" "}
-              {availability.available > 0
-                ? `${availability.available} de ${availability.total} disponibles`
-                : availability.total > 0
-                  ? "agotados por ahora"
-                  : "todavía sin cartones"}
-            </p>
-            <div className="mt-4">
-              {!verified ? (
-                <p className="rounded-xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
-                  La compra se habilita cuando la escuela esté verificada.
-                </p>
-              ) : availability.available > 0 ? (
-                <Link href={buyHref} className="btn btn-primary">
-                  Comprar cartones
-                  <ArrowRightIcon className="ml-1.5 h-5 w-5" />
-                </Link>
-              ) : (
-                <p className="rounded-xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
-                  No hay cartones disponibles por el momento.
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Live event (streams in real time once the school starts the game). */}
-          <BingoLivePublic
-            schoolId={id}
-            toolId={toolId}
-            poolMin={bingo.format.poolMin}
-            poolMax={bingo.format.poolMax}
-          />
         </div>
-      </article>
-    </PageContainer>
+      </div>
+
+      {/* Live event (streams in real time once the school starts the game). */}
+      <BingoLivePublic
+        schoolId={id}
+        toolId={toolId}
+        poolMin={bingo.format.poolMin}
+        poolMax={bingo.format.poolMax}
+      />
+    </ToolDetailShell>
   );
 }
