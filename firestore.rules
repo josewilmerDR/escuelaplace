@@ -891,6 +891,73 @@ service cloud.firestore {
         'status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'updatedAt']);
     }
 
+    // ── Shared "informational order" rules (raffle / product / bingo orders) ────
+    // Every buyable kind's order is the SAME privacy + anti-fraud model (top-level doc, NO money on
+    // the public doc, buyer name+amount in a private subdoc, proof in Storage, school-only confirm).
+    // These helpers hold that model in ONE place so a new buyable kind clones nothing security-
+    // relevant; each per-kind block supplies only its own field set + frozen-identity list. Mirrors
+    // the shared data-layer skeleton in lib/firestore/orders.ts.
+
+    // CREATE gate: the signed-in buyer creates their OWN order, forced 'pending'/unconfirmed, and
+    // ONLY while the target school is verified (the same gate as contributions). Shared verbatim.
+    function orderCreateGate() {
+      return isSignedIn() &&
+        request.resource.data.buyerId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.confirmedAt == null &&
+        schoolData(request.resource.data.schoolId).verificationStatus == 'verified';
+    }
+    // Confirmed exactly once (pending → confirmed) so the school can't re-confirm (no renewal).
+    function confirmsOrderFromPending() {
+      return request.resource.data.status != 'confirmed' ||
+        resource.data.status == 'pending';
+    }
+    // The confirmation fields a BUYER must never touch (only the school/admin confirms). Bingo
+    // extends this (it also forbids the buyer assigning cartones) in changesBingoOrderConfirmation.
+    function changesOrderConfirmation() {
+      return request.resource.data.status != resource.data.status ||
+        request.resource.data.confirmedAt != resource.data.confirmedAt;
+    }
+    // UPDATE actor: the target school's owner/editors confirm; the buyer may only touch their own
+    // pending doc and never the confirmation fields. `buyerTouchesConfirmation` is the per-kind
+    // changes*Confirmation() result (bingo also counts the cartón assignment).
+    function orderUpdateActor(buyerTouchesConfirmation) {
+      return isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
+        (isSignedIn() &&
+          resource.data.buyerId == request.auth.uid &&
+          !buyerTouchesConfirmation);
+    }
+    // The standard confirmation/proof update field set (raffle + product). Bingo adds 'cardIds' in
+    // its own validBingoOrderUpdate (a hasOnly set can't be extended by composition).
+    function validOrderUpdateFields() {
+      return changedKeys().hasOnly(
+        ['status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'updatedAt']);
+    }
+    // Private subdoc (buyerName + amount, OFF the public doc). `o` is the resolved PARENT order data
+    // (each block passes its own *OrderData(id) — the only per-kind piece). read: buyer, target
+    // school owner/editors, or admin. create: buyer while parent pending. update: buyer, but
+    // `amount` is FROZEN once the school confirmed. delete: buyer or admin.
+    function orderPrivateCanRead(o) {
+      return isAdmin() ||
+        (isSignedIn() && o.buyerId == request.auth.uid) ||
+        isOwnerOrEditor(schoolData(o.schoolId));
+    }
+    function orderPrivateCanCreate(o) {
+      return isAdmin() ||
+        (isSignedIn() && o.buyerId == request.auth.uid && o.status == 'pending');
+    }
+    function orderPrivateCanUpdate(o) {
+      return isAdmin() || (
+        isSignedIn() && o.buyerId == request.auth.uid && (
+          o.status == 'pending' ||
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount'])
+        )
+      );
+    }
+    function orderPrivateCanDelete(o) {
+      return isAdmin() || (isSignedIn() && o.buyerId == request.auth.uid);
+    }
+
     // ── raffleOrders/{id} ─────────────────────────────────────────────────────
     // A buyer's reservation of raffle numbers, awaiting the school's payment confirmation.
     // Top-level (like projectContributions) so its proof file + private subdoc resolve by id.
@@ -906,50 +973,19 @@ service cloud.firestore {
     // - delete: the buyer or admin.
     match /raffleOrders/{id} {
       allow read: if true;
-
-      allow create: if isAdmin() || (
-        isSignedIn() &&
-        request.resource.data.buyerId == request.auth.uid &&
-        request.resource.data.status == 'pending' &&
-        request.resource.data.confirmedAt == null &&
-        schoolData(request.resource.data.schoolId).verificationStatus == 'verified' &&
-        validRaffleOrderCreate()
-      );
-
+      allow create: if isAdmin() || (orderCreateGate() && validRaffleOrderCreate());
       allow update: if isAdmin() || (
-        keepsRaffleOrderIdentity() && validRaffleOrderUpdate() &&
-        confirmsRaffleOrderFromPending() && (
-          isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
-          (isSignedIn() &&
-            resource.data.buyerId == request.auth.uid &&
-            !changesRaffleOrderConfirmation())
-        )
+        keepsRaffleOrderIdentity() && validOrderUpdateFields() &&
+        confirmsOrderFromPending() && orderUpdateActor(changesOrderConfirmation())
       );
-
       allow delete: if isAdmin() ||
         (isSignedIn() && resource.data.buyerId == request.auth.uid);
 
-      // Private: the buyer's real (proof-matching) name AND the amount — denormalized OFF the
-      // public doc so an anonymous scraper can't deanonymize nor read how much a person paid.
-      // - read: the buyer, the target school's owner/editors, or admin.
-      // - create: the buyer, while the parent is still 'pending'. - update: the buyer, but once
-      //   the school confirmed, `amount` is FROZEN.
-      function buyerOwnsOrder() {
-        return isSignedIn() && raffleOrderData(id).buyerId == request.auth.uid;
-      }
       match /private/{doc} {
-        allow read: if isAdmin() || buyerOwnsOrder() ||
-          isOwnerOrEditor(schoolData(raffleOrderData(id).schoolId));
-        allow create: if isAdmin() || (
-          buyerOwnsOrder() && raffleOrderData(id).status == 'pending'
-        );
-        allow update: if isAdmin() || (
-          buyerOwnsOrder() && (
-            raffleOrderData(id).status == 'pending' ||
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount'])
-          )
-        );
-        allow delete: if isAdmin() || buyerOwnsOrder();
+        allow read: if orderPrivateCanRead(raffleOrderData(id));
+        allow create: if orderPrivateCanCreate(raffleOrderData(id));
+        allow update: if orderPrivateCanUpdate(raffleOrderData(id));
+        allow delete: if orderPrivateCanDelete(raffleOrderData(id));
       }
     }
 
@@ -959,19 +995,8 @@ service cloud.firestore {
         ['schoolId', 'toolId', 'buyerId', 'numbers', 'currency']
       );
     }
-    // The buyer must not self-confirm; only the school/admin may touch these fields.
-    function changesRaffleOrderConfirmation() {
-      return request.resource.data.status != resource.data.status ||
-        request.resource.data.confirmedAt != resource.data.confirmedAt;
-    }
-    // Confirmed exactly once (pending → confirmed) so the school can't re-confirm (no renewal).
-    function confirmsRaffleOrderFromPending() {
-      return request.resource.data.status != 'confirmed' ||
-        resource.data.status == 'pending';
-    }
     // CREATE pins the PUBLIC field set — it OMITS buyerName/amount (those live in private/data),
-    // validates the currency enum and the numbers list bounds. UPDATE pins the
-    // confirmation/proof fields only.
+    // validates the currency enum and the numbers list bounds.
     function validRaffleOrderCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'toolId', 'toolTitle', 'buyerId', 'numbers', 'currency',
@@ -982,10 +1007,6 @@ service cloud.firestore {
         request.resource.data.numbers is list &&
         request.resource.data.numbers.size() >= 1 &&
         request.resource.data.numbers.size() <= 100;
-    }
-    function validRaffleOrderUpdate() {
-      return changedKeys().hasOnly([
-        'status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'updatedAt']);
     }
 
     // ── productOrders/{id} ─────────────────────────────────────────────────────
@@ -1003,50 +1024,19 @@ service cloud.firestore {
     // - delete: the buyer or admin.
     match /productOrders/{id} {
       allow read: if true;
-
-      allow create: if isAdmin() || (
-        isSignedIn() &&
-        request.resource.data.buyerId == request.auth.uid &&
-        request.resource.data.status == 'pending' &&
-        request.resource.data.confirmedAt == null &&
-        schoolData(request.resource.data.schoolId).verificationStatus == 'verified' &&
-        validProductOrderCreate()
-      );
-
+      allow create: if isAdmin() || (orderCreateGate() && validProductOrderCreate());
       allow update: if isAdmin() || (
-        keepsProductOrderIdentity() && validProductOrderUpdate() &&
-        confirmsProductOrderFromPending() && (
-          isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
-          (isSignedIn() &&
-            resource.data.buyerId == request.auth.uid &&
-            !changesProductOrderConfirmation())
-        )
+        keepsProductOrderIdentity() && validOrderUpdateFields() &&
+        confirmsOrderFromPending() && orderUpdateActor(changesOrderConfirmation())
       );
-
       allow delete: if isAdmin() ||
         (isSignedIn() && resource.data.buyerId == request.auth.uid);
 
-      // Private: the buyer's real (proof-matching) name AND the amount — denormalized OFF the
-      // public doc so an anonymous scraper can't deanonymize nor read how much a person paid.
-      // - read: the buyer, the target school's owner/editors, or admin.
-      // - create: the buyer, while the parent is still 'pending'. - update: the buyer, but once
-      //   the school confirmed, `amount` is FROZEN.
-      function buyerOwnsProductOrder() {
-        return isSignedIn() && productOrderData(id).buyerId == request.auth.uid;
-      }
       match /private/{doc} {
-        allow read: if isAdmin() || buyerOwnsProductOrder() ||
-          isOwnerOrEditor(schoolData(productOrderData(id).schoolId));
-        allow create: if isAdmin() || (
-          buyerOwnsProductOrder() && productOrderData(id).status == 'pending'
-        );
-        allow update: if isAdmin() || (
-          buyerOwnsProductOrder() && (
-            productOrderData(id).status == 'pending' ||
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount'])
-          )
-        );
-        allow delete: if isAdmin() || buyerOwnsProductOrder();
+        allow read: if orderPrivateCanRead(productOrderData(id));
+        allow create: if orderPrivateCanCreate(productOrderData(id));
+        allow update: if orderPrivateCanUpdate(productOrderData(id));
+        allow delete: if orderPrivateCanDelete(productOrderData(id));
       }
     }
 
@@ -1056,19 +1046,8 @@ service cloud.firestore {
         ['schoolId', 'toolId', 'buyerId', 'productId', 'quantity', 'currency']
       );
     }
-    // The buyer must not self-confirm; only the school/admin may touch these fields.
-    function changesProductOrderConfirmation() {
-      return request.resource.data.status != resource.data.status ||
-        request.resource.data.confirmedAt != resource.data.confirmedAt;
-    }
-    // Confirmed exactly once (pending → confirmed) so the school can't re-confirm (no renewal).
-    function confirmsProductOrderFromPending() {
-      return request.resource.data.status != 'confirmed' ||
-        resource.data.status == 'pending';
-    }
     // CREATE pins the PUBLIC field set — it OMITS buyerName/amount (those live in private/data),
-    // validates the currency enum and the quantity bounds. UPDATE pins the confirmation/proof
-    // fields only.
+    // validates the currency enum and the quantity bounds.
     function validProductOrderCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'toolId', 'toolTitle', 'buyerId', 'productId',
@@ -1082,10 +1061,6 @@ service cloud.firestore {
         request.resource.data.quantity is int &&
         request.resource.data.quantity >= 1 &&
         request.resource.data.quantity <= 10000;
-    }
-    function validProductOrderUpdate() {
-      return changedKeys().hasOnly([
-        'status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'updatedAt']);
     }
 
     // ── bingoOrders/{id} ───────────────────────────────────────────────────────
@@ -1105,45 +1080,19 @@ service cloud.firestore {
     // - delete: the buyer or admin.
     match /bingoOrders/{id} {
       allow read: if true;
-
-      allow create: if isAdmin() || (
-        isSignedIn() &&
-        request.resource.data.buyerId == request.auth.uid &&
-        request.resource.data.status == 'pending' &&
-        request.resource.data.confirmedAt == null &&
-        schoolData(request.resource.data.schoolId).verificationStatus == 'verified' &&
-        validBingoOrderCreate()
-      );
-
+      allow create: if isAdmin() || (orderCreateGate() && validBingoOrderCreate());
       allow update: if isAdmin() || (
         keepsBingoOrderIdentity() && validBingoOrderUpdate() &&
-        confirmsBingoOrderFromPending() && (
-          isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
-          (isSignedIn() &&
-            resource.data.buyerId == request.auth.uid &&
-            !changesBingoOrderConfirmation())
-        )
+        confirmsOrderFromPending() && orderUpdateActor(changesBingoOrderConfirmation())
       );
-
       allow delete: if isAdmin() ||
         (isSignedIn() && resource.data.buyerId == request.auth.uid);
 
-      function buyerOwnsBingoOrder() {
-        return isSignedIn() && bingoOrderData(id).buyerId == request.auth.uid;
-      }
       match /private/{doc} {
-        allow read: if isAdmin() || buyerOwnsBingoOrder() ||
-          isOwnerOrEditor(schoolData(bingoOrderData(id).schoolId));
-        allow create: if isAdmin() || (
-          buyerOwnsBingoOrder() && bingoOrderData(id).status == 'pending'
-        );
-        allow update: if isAdmin() || (
-          buyerOwnsBingoOrder() && (
-            bingoOrderData(id).status == 'pending' ||
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount'])
-          )
-        );
-        allow delete: if isAdmin() || buyerOwnsBingoOrder();
+        allow read: if orderPrivateCanRead(bingoOrderData(id));
+        allow create: if orderPrivateCanCreate(bingoOrderData(id));
+        allow update: if orderPrivateCanUpdate(bingoOrderData(id));
+        allow delete: if orderPrivateCanDelete(bingoOrderData(id));
       }
     }
 
@@ -1153,21 +1102,16 @@ service cloud.firestore {
         ['schoolId', 'toolId', 'buyerId', 'quantity', 'currency']
       );
     }
-    // The buyer must not self-confirm NOR assign cartones; only the school/admin touches these.
+    // Bingo extends the shared confirmation guard: the buyer must not self-confirm NOR assign
+    // cartones (cardIds) — only the school/admin touches any of these on confirmation.
     function changesBingoOrderConfirmation() {
-      return request.resource.data.status != resource.data.status ||
-        request.resource.data.confirmedAt != resource.data.confirmedAt ||
+      return changesOrderConfirmation() ||
         request.resource.data.diff(resource.data).affectedKeys().hasAny(
           ['cardIds', 'confirmedBy']);
     }
-    // Confirmed exactly once (pending → confirmed) so the school can't re-confirm (no renewal).
-    function confirmsBingoOrderFromPending() {
-      return request.resource.data.status != 'confirmed' ||
-        resource.data.status == 'pending';
-    }
     // CREATE pins the PUBLIC field set — it OMITS buyerName/amount (those live in private/data)
     // and cardIds (assigned later), validates the currency enum and the quantity bounds. UPDATE
-    // pins the confirmation/assignment/proof fields only.
+    // adds 'cardIds' to the shared confirmation/proof set (the school assigns cartones on confirm).
     function validBingoOrderCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'toolId', 'toolTitle', 'buyerId', 'quantity', 'currency',
