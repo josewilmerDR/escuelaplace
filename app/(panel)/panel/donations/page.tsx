@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
+import { ThankYouCard } from "@/components/donors/ThankYouCard";
 import { ProjectContributionItem } from "@/components/projects/ProjectContributionItem";
 import { SupporterContributionItem } from "@/components/subscriptions/SupporterContributionItem";
 import { BackLink } from "@/components/ui/BackLink";
@@ -31,6 +32,9 @@ import {
   getSchoolsCached,
   getSubscriptionsByBusiness,
   getSubscriptionsByDonor,
+  getThankYousByDonor,
+  getThankYousForBusinesses,
+  markThankYouSeen,
   uploadContributionProof,
   uploadSubscriptionProof,
 } from "@/lib/firestore";
@@ -40,6 +44,7 @@ import type {
   ProjectContributionDoc,
   SchoolDoc,
   SubscriptionDoc,
+  ThankYouDoc,
 } from "@/types";
 
 const TITLE = "Mis donaciones";
@@ -54,6 +59,9 @@ export default function DonationsPage() {
   // separate identity from the personal donations above, so it lives in its own section.
   const [businessDonations, setBusinessDonations] = useState<SubscriptionDoc[]>([]);
   const [profile, setProfile] = useState<DonorProfileDoc | null>(null);
+  // Thank-yous the schools sent this account, for its personal donations AND its managed
+  // businesses' support — the celebratory band at the top.
+  const [thankYous, setThankYous] = useState<ThankYouDoc[]>([]);
   const [loaded, setLoaded] = useState(false);
   // A single in-flight proof upload at a time; the id (unique across the collections) doubles
   // as the "which row is busy" marker shared by every list.
@@ -107,14 +115,17 @@ export default function DonationsPage() {
       Promise.all(managedBusinessIds.map(getSubscriptionsByBusiness)).then((lists) =>
         lists.flat(),
       ),
+      getThankYousByDonor(user.id).catch(() => []),
+      getThankYousForBusinesses(managedBusinessIds).catch(() => []),
     ])
-      .then(([s, d, c, p, bd]) => {
+      .then(([s, d, c, p, bd, donorTys, bizTys]) => {
         if (cancelled) return;
         setSchools(s);
         setDonations(d);
         setContributions(c);
         setProfile(p);
         setBusinessDonations(bd);
+        setThankYous([...donorTys, ...bizTys]);
       })
       .finally(() => {
         if (!cancelled) setLoaded(true);
@@ -153,9 +164,31 @@ export default function DonationsPage() {
     return [...groups.values()];
   }, [businessDonations]);
 
+  // The schools' thank-yous to surface to the recipient: only `sent` ones (a `prompted` one
+  // has no message yet), unseen first so the celebratory moment leads, then newest.
+  const sentThankYous = useMemo(
+    () =>
+      thankYous
+        .filter((t) => t.status === "sent")
+        .sort((a, b) => {
+          const seen = Number(a.seenByDonor ?? false) - Number(b.seenByDonor ?? false);
+          if (seen !== 0) return seen;
+          return (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0);
+        }),
+    [thankYous],
+  );
+
   if (!user || !loaded) {
     return <DonationsSkeleton />;
   }
+
+  // Optimistic: drop the "Nuevo" highlight at once; the write is best-effort.
+  const onMarkThankYouSeen = (tyId: string) => {
+    setThankYous((prev) =>
+      prev.map((t) => (t.id === tyId ? { ...t, seenByDonor: true } : t)),
+    );
+    void markThankYouSeen(tyId).catch(() => {});
+  };
 
   const onUploadDonationProof = async (subId: string, file: File) => {
     setUploadingId(subId);
@@ -250,6 +283,26 @@ export default function DonationsPage() {
               </span>
             )}
           </div>
+          )}
+
+          {sentThankYous.length > 0 && (
+            <section className="mt-8">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                Mensajes de tus escuelas
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Un gracias de las comunidades que apoyás.
+              </p>
+              <ul className="mt-4 flex flex-col gap-3">
+                {sentThankYous.map((t) => (
+                  <ThankYouCard
+                    key={t.id}
+                    thankYou={t}
+                    onMarkSeen={onMarkThankYouSeen}
+                  />
+                ))}
+              </ul>
+            </section>
           )}
 
           {listError && (

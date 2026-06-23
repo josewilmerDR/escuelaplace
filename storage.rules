@@ -119,13 +119,14 @@ service firebase.storage {
       allow delete: if ownsBusinessId(businessId) || isAdmin();
     }
 
-    // ── School assets: FOUR non-overlapping match blocks ────────────────────────
+    // ── School assets: FIVE non-overlapping match blocks ────────────────────────
     // Firebase Storage recursive wildcards are OR-ADDITIVE (no most-specific-wins), so a
     // school-root `{allPaths=**}` catch-all would OR-union with the projects subtree and we
     // could not keep logo/cover/gallery image-only while allowing PDF only under projects.
     // Instead each school object is governed by EXACTLY ONE mutually-exclusive block:
     //   - schools/{id}/photo, schools/{id}/cover   → single-segment {schoolAsset}, image-only
     //   - schools/{id}/gallery/{file}              → image-only
+    //   - schools/{id}/thanks/{file}               → image OR video (thank-you templates / messages)
     //   - schools/{id}/projects/{pid}/**           → image OR pdf OR video (quotes are PDF; stages carry a clip)
     //   - schools/{id}/tools/{toolId}/**           → image OR video (covers + tour stage media)
     // All gated by the PARENT school doc's owner/editor (project/tool assets inherit the school
@@ -143,6 +144,15 @@ service firebase.storage {
     match /schools/{schoolId}/gallery/{galleryFile} {
       allow read: if true;
       allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImage();
+      allow delete: if ownsSchoolId(schoolId) || isAdmin();
+    }
+
+    // thank-you media (one segment under thanks/): a short clip of the kids or a photo a school
+    // attaches to a thank-you template or to a personalized milestone message — image OR video.
+    // Public read (the recipient, signed in, views it on their celebratory card).
+    match /schools/{schoolId}/thanks/{thanksFile} {
+      allow read: if true;
+      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImageOrVideo();
       allow delete: if ownsSchoolId(schoolId) || isAdmin();
     }
 

@@ -646,6 +646,138 @@ export type DonorProfileDoc = DonorProfile & { id: string };
 /** Max length of a donor's public display name (recognition form). */
 export const DISPLAY_NAME_MAX = 60;
 
+// ── thankYous/{id} + schools/{schoolId}/config/thanks ─────────────────────────
+
+/**
+ * Max length of a thank-you message / template (chars). Same budget as a page description;
+ * enforced by the panel inputs, not by rules.
+ */
+export const THANK_YOU_MESSAGE_MAX = 600;
+
+/**
+ * The token a school may drop into a template; substituted with the supporter's name before
+ * delivery (see renderThankYou). Country-agnostic — a school writing in any language uses the
+ * same literal token.
+ */
+export const THANK_YOU_NAME_TOKEN = "{nombre}";
+
+/**
+ * Anniversary years that, by default, prompt the school to craft a PERSONAL gesture (a
+ * letter, a placard, a short video) instead of auto-sending a template. A school may override
+ * the list in its config. Year 0 is never an anniversary — that's the `welcome`.
+ */
+export const THANK_YOU_SPECIAL_YEARS_DEFAULT: number[] = [1, 5];
+
+/** Cap on how many special anniversary years a school may list (anti-typo / sanity bound). */
+export const THANK_YOU_SPECIAL_YEARS_MAX = 12;
+
+/**
+ * The relationship moment a thank-you marks:
+ * - `welcome`: the supporter's FIRST confirmed support to this school.
+ * - `renewal`: a later confirmation (the recurring "one more period with us").
+ * - `anniversary`: an N-year mark since the first confirmation (`years` is set).
+ */
+export type ThankYouMilestoneKind = "welcome" | "renewal" | "anniversary";
+
+/**
+ * Optional rich media attached to a thank-you (a short clip of the kids waving, a photo). The
+ * files live in Storage under `schools/{id}/thanks/...`; this holds only their public URLs.
+ */
+export interface ThankYouMedia {
+  /** Public Storage URL of a single image. */
+  photoUrl?: string;
+  /** Public Storage URL of a single short video (≤ TOOL_VIDEO_MAX_SECONDS). */
+  videoUrl?: string;
+}
+
+/**
+ * A reusable thank-you the school writes ONCE and the platform auto-sends when the matching
+ * milestone fires. `message` is free text that may embed THANK_YOU_NAME_TOKEN; `media` is
+ * optional. An absent/blank template means "don't auto-send for this milestone" — special
+ * milestones then prompt the school instead (see ThankYouConfig / planThankYou).
+ */
+export interface ThankYouTemplate {
+  message: string;
+  media?: ThankYouMedia;
+}
+
+/**
+ * schools/{schoolId}/config/thanks — the school's thank-you setup. PUBLIC read (it is shown to
+ * supporters), owner/editors or admin write. Not sensitive, so unlike `private/data` it is
+ * world-readable; it is kept OFF the hot school doc so the catalog read stays lean.
+ *
+ * The example copy the product shows schools is INSPIRATION rendered in the editor, never a
+ * stored default: every template here is the school's own words. The whole point is to nudge
+ * schools toward a simple, cheap, memorable gesture that builds community.
+ */
+export interface ThankYouConfig {
+  /** Auto-sent on the supporter's first confirmed support; absent → the school is prompted. */
+  welcome?: ThankYouTemplate;
+  /** Auto-sent on each later confirmation; absent → nothing is sent on renewals. */
+  renewal?: ThankYouTemplate;
+  /** Auto-sent on a NON-special anniversary year; absent → nothing is sent. */
+  anniversaryGeneric?: ThankYouTemplate;
+  /** Anniversary years that prompt a PERSONAL gesture instead of a template (defaults to
+   * THANK_YOU_SPECIAL_YEARS_DEFAULT when absent). */
+  specialYears?: number[];
+  updatedAt: Timestamp;
+}
+
+export type ThankYouConfigDoc = ThankYouConfig & { id: string };
+
+/**
+ * A thank-you delivered to (or pending the school's personal touch for) one supporter at one
+ * milestone. Written ONLY by the milestone-detector Cloud Function — clients never create it
+ * (see firestore.rules); the school personalizes a `prompted` one and records its real-world
+ * gesture, and the recipient marks it seen. Top-level (like subscriptions) so the recipient
+ * reads theirs across schools and the school reads its own queue.
+ *
+ * The recipient is a person (`donorId`) OR a business page (`businessId`) — the platform thanks
+ * "cada persona o comercio". `supporterName` is denormalized for both surfaces. No money figure
+ * is ever stored here (gratitude, not a ledger).
+ */
+export interface ThankYou {
+  supporterType: SupporterType;
+  /** Recipient person (uid). Present iff supporterType 'user'. */
+  donorId?: string;
+  /** Recipient business page. Present iff supporterType 'business'. */
+  businessId?: string;
+  /** Display name of the supporter (person account name or business name). */
+  supporterName: string;
+  schoolId: string;
+  schoolName: string;
+  milestone: ThankYouMilestoneKind;
+  /** Completed years with the school (anniversary only). */
+  years?: number;
+  /**
+   * True when the product treats this milestone as worth a special gesture (a `welcome`, or
+   * an anniversary in the school's specialYears). Independent of `status`: an auto-sent welcome
+   * is still special. Drives the school's "gestos por hacer" queue together with `status`.
+   */
+  special: boolean;
+  /**
+   * - `sent`: a message is ready for the supporter to see (an auto-template, or one the school
+   *   wrote). - `prompted`: waiting for the school to craft its personal thank-you.
+   */
+  status: "sent" | "prompted";
+  /** The delivered message (already rendered with the supporter's name). "" while `prompted`. */
+  message: string;
+  /** Optional media shown with the message. */
+  media?: ThankYouMedia;
+  /** The school's note about the real-world gesture (placard placed, letter sent). */
+  gestureNote?: string;
+  /** Whether the school marked the physical gesture done. */
+  gestureDone?: boolean;
+  /** Whether the recipient has seen it (so the celebratory card shows once). */
+  seenByDonor?: boolean;
+  /** When a `prompted` thank-you was sent by the school (null for an auto-sent one). */
+  deliveredAt?: Timestamp | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type ThankYouDoc = ThankYou & { id: string };
+
 // ── schools/{schoolId}/projects/{projectId} ─────────────────────────────────
 
 /** UI caps for the project crowdfunding form. Enforced by the panel inputs, not rules. */

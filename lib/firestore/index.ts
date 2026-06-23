@@ -21,6 +21,7 @@ export * from "./bingo-event";
 export * from "./bingo-patterns-catalog";
 export * from "./bingo-decks";
 export * from "./donors";
+export * from "./thanks";
 export * from "./reviews";
 export * from "./audit";
 export * from "./metrics";
