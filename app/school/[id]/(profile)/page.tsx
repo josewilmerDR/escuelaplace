@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Fragment } from "react";
 import { SupportersCarousel } from "@/components/business/SupportersCarousel";
 import { DonorWallManagerHint } from "@/components/donors/DonorWallManagerHint";
 import { ProjectCard } from "@/components/projects/ProjectCard";
@@ -110,6 +111,35 @@ export default async function SchoolLandingPage({ params }: Props) {
       ),
   ].sort((a, b) => b.at - a.at);
 
+  // The businesses that support the school, rendered as a shelf interleaved into the feed
+  // (after the first activity) — buying from them is the no-login way to help. A teaser; the
+  // full grid lives on the "Comercios" tab. null when there are none, so nothing is inserted.
+  const supportersShelf =
+    supporterCards.length > 0 ? (
+      <section className="scroll-mt-6">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Comercios que la apoyan
+          </h2>
+          <Link
+            href={`/school/${id}/businesses`}
+            className="shrink-0 text-sm font-medium text-brand-darker hover:underline"
+          >
+            Ver todos
+          </Link>
+        </div>
+        <p className="mt-1 text-sm text-muted">
+          Apoyá a la escuela comprándole a los comercios que ya la apoyan.
+        </p>
+        <div className="mt-5">
+          <SupportersCarousel
+            businesses={supporterCards}
+            ariaLabel="Comercios que apoyan a la escuela"
+          />
+        </div>
+      </section>
+    ) : null;
+
   return (
     // The "Principal" tab is the school's activity FEED: a single centered column of stacked
     // post cards (Facebook-style), narrower than the full-width header above. Wrapping the whole
@@ -127,67 +157,49 @@ export default async function SchoolLandingPage({ params }: Props) {
             organizando.
           </p>
           <div className="mt-5 flex flex-col gap-5">
-            {publications.map((pub) =>
-              pub.kind === "project" ? (
-                <ProjectCard
-                  key={`p-${pub.project.id}`}
-                  project={pub.project}
-                  coverSizes={FEED_COVER_SIZES}
-                />
-              ) : (
-                <ToolCard
-                  key={`t-${pub.tool.id}`}
-                  tool={pub.tool}
-                  boardPhone={school.boardContact?.phone}
-                />
-              ),
-            )}
+            {publications.map((pub, i) => (
+              <Fragment
+                key={
+                  pub.kind === "project"
+                    ? `p-${pub.project.id}`
+                    : `t-${pub.tool.id}`
+                }
+              >
+                {pub.kind === "project" ? (
+                  <ProjectCard
+                    project={pub.project}
+                    coverSizes={FEED_COVER_SIZES}
+                  />
+                ) : (
+                  <ToolCard
+                    tool={pub.tool}
+                    boardPhone={school.boardContact?.phone}
+                  />
+                )}
+                {/* Interleave the supporters shelf between the first and second activity. */}
+                {i === 0 && supportersShelf}
+              </Fragment>
+            ))}
           </div>
         </section>
       ) : (
         // No live activity yet: rather than an empty landing, point visitors to the school's
-        // identity and the ways they can help.
-        <Section id="actividades" title="Actividades de la escuela">
-          <p className="mt-3 text-muted">
-            Esta escuela todavía no tiene actividades en curso. Conocé más en{" "}
-            <Link
-              href={`/school/${id}/info`}
-              className="font-medium text-brand-darker hover:underline"
-            >
-              Información
-            </Link>{" "}
-            o apoyala con una donación.
-          </p>
-        </Section>
-      )}
-
-      {/* The businesses that support the school: buying from them is the no-login way to
-          help, so it leads after the school's own publications. A teaser carousel — the
-          full grid lives on the "Comercios" tab. Omitted entirely when there are none, so
-          the landing never shows an empty supporter shelf. */}
-      {supporterCards.length > 0 && (
-        <section className="mt-10 scroll-mt-6">
-          <div className="flex items-baseline justify-between gap-4">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Comercios que la apoyan
-            </h2>
-            <Link
-              href={`/school/${id}/businesses`}
-              className="shrink-0 text-sm font-medium text-brand-darker hover:underline"
-            >
-              Ver todos
-            </Link>
-          </div>
-          <p className="mt-1 text-sm text-muted">
-            Apoyá a la escuela comprándole a los comercios que ya la apoyan.
-          </p>
-          <div className="mt-5">
-            <SupportersCarousel
-              businesses={supporterCards}
-              ariaLabel="Comercios que apoyan a la escuela"
-            />
-          </div>
-        </section>
+        // identity and the ways they can help — and still surface the supporters, if any.
+        <>
+          <Section id="actividades" title="Actividades de la escuela">
+            <p className="mt-3 text-muted">
+              Esta escuela todavía no tiene actividades en curso. Conocé más en{" "}
+              <Link
+                href={`/school/${id}/info`}
+                className="font-medium text-brand-darker hover:underline"
+              >
+                Información
+              </Link>{" "}
+              o apoyala con una donación.
+            </p>
+          </Section>
+          {supportersShelf && <div className="mt-8">{supportersShelf}</div>}
+        </>
       )}
 
       {!hasWall && (
