@@ -5,15 +5,8 @@ import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
 import { toolBuyHref, toolBuyLabel, toolTypeMeta } from "@/lib/tools/registry";
 import { toolContactPhone, toolWindowLabel } from "@/lib/firestore";
 import { buildWhatsAppLink } from "@/lib/contact";
-import { CARD_COVER_ASPECT } from "@/lib/layout";
+import { CARD_COVER_ASPECT, FEED_COVER_SIZES } from "@/lib/layout";
 import type { ToolDoc } from "@/types";
-
-/**
- * Cover `sizes` for the single-column activity feed: the card caps at the feed column
- * (max-w-2xl = 672px) on desktop and is ~full-width below that. Not the shared CARD_COVER_SIZES,
- * which is tuned for the multi-column catalog grids.
- */
-const FEED_COVER_SIZES = "(min-width: 720px) 672px, 100vw";
 
 /**
  * Read-only card for a school tool (rifa/venta/etc.), shown on the public "Principal" tab.
