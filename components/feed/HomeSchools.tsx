@@ -171,7 +171,11 @@ export function HomeSchools({ initial }: { initial: SchoolCardData[] }) {
               }
               renderItem={(pub) =>
                 pub.kind === "project" ? (
-                  <ProjectCard project={pub.project} />
+                  <ProjectCard
+                    project={pub.project}
+                    showActions
+                    boardPhone={data.boardPhone}
+                  />
                 ) : (
                   // ToolCard is feed-tuned but fills the carousel slide fine here.
                   <ToolCard tool={pub.tool} boardPhone={data.boardPhone} />
