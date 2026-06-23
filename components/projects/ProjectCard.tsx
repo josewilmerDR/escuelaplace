@@ -11,7 +11,18 @@ import type { ProjectDoc } from "@/types";
 import { ProjectProgress } from "./ProjectProgress";
 import { ProjectStatusBadge } from "./ProjectStatusBadge";
 
-export function ProjectCard({ project }: { project: ProjectDoc }) {
+export function ProjectCard({
+  project,
+  coverSizes = "(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw",
+}: {
+  project: ProjectDoc;
+  /**
+   * Cover `sizes`. Defaults to the 3-column grid hint (the "Proyectos" tab and the home
+   * carousel); the single-column school activity feed passes FEED_COVER_SIZES so the wider
+   * full-column cover isn't upscaled from a grid-sized source.
+   */
+  coverSizes?: string;
+}) {
   const goal = projectGoal(project.stages);
 
   return (
@@ -26,7 +37,7 @@ export function ProjectCard({ project }: { project: ProjectDoc }) {
             src={project.coverUrl}
             alt=""
             fill
-            sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw"
+            sizes={coverSizes}
             className="object-cover"
           />
         ) : (

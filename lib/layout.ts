@@ -18,6 +18,14 @@ export const CARD_COVER_SIZES =
   "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
 
 /**
+ * Cover for the single-column activity feed (the school "Principal" tab, where tools and
+ * projects stack as full-width post cards). The card caps at the feed column (max-w-2xl =
+ * 672px) on desktop and is ~full-width below that — wider than a grid cell, so its cover
+ * needs its own hint to avoid being upscaled.
+ */
+export const FEED_COVER_SIZES = "(min-width: 720px) 672px, 100vw";
+
+/**
  * Cover aspect ratios. Profile headers use a short FB-style band on desktop; cards keep
  * the YouTube-thumbnail 16:9. Tailwind arbitrary-value classes so they read as utilities
  * at the call site.
