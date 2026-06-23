@@ -273,6 +273,20 @@ service cloud.firestore {
           (isSignedIn() && schoolData(id).verificationStatus == 'verified');
       }
 
+      // Thank-you template config: schools/{id}/config/thanks — the school's reusable thank-you
+      // templates (welcome / renewal / generic anniversary) the milestone detector auto-sends.
+      // PUBLIC read (it is shown to supporters); create/update by the school's owner/editors or
+      // admin. Not sensitive (no payment data), so — unlike private/ — it is world-readable; the
+      // shape validator caps it to the known maps + a small numeric list so a direct-SDK write
+      // can't bloat it. Delete is ownership-only (request.resource is null on delete).
+      match /config/{docId} {
+        allow read: if true;
+        allow create, update: if isAdmin() || (
+          isOwnerOrEditor(schoolData(id)) && validThanksConfig()
+        );
+        allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
+      }
+
       // Projects (crowdfunding): schools/{id}/projects/{projectId}.
       // - read: public (the project section + detail page are SSR).
       // - create/update/delete: the school's owner/editors or admin.
@@ -601,6 +615,24 @@ service cloud.firestore {
           (request.resource.data.photos is list && request.resource.data.photos.size() <= 10)) &&
         (!changedKeys().hasAny(['boardContact']) || request.resource.data.boardContact is map) &&
         (!changedKeys().hasAny(['location']) || request.resource.data.location is map);
+    }
+
+    // Shape validation for a school's thank-you config (schools/{id}/config/thanks). Pins the
+    // field set (junk keys rejected), shape-checks each template as a map (the nested message/
+    // media can't be iterated by rules — same limit as the tool `config` map), and caps the
+    // specialYears list. The data layer trims blank templates before writing.
+    function validThanksConfig() {
+      return request.resource.data.keys().hasOnly([
+          'welcome', 'renewal', 'anniversaryGeneric', 'specialYears', 'updatedAt']) &&
+        (!request.resource.data.keys().hasAny(['welcome']) ||
+          request.resource.data.welcome is map) &&
+        (!request.resource.data.keys().hasAny(['renewal']) ||
+          request.resource.data.renewal is map) &&
+        (!request.resource.data.keys().hasAny(['anniversaryGeneric']) ||
+          request.resource.data.anniversaryGeneric is map) &&
+        (!request.resource.data.keys().hasAny(['specialYears']) ||
+          (request.resource.data.specialYears is list &&
+            request.resource.data.specialYears.size() <= 12));
     }
 
     // ── categories/{id} ─────────────────────────────────────────────────────
@@ -1188,6 +1220,66 @@ service cloud.firestore {
       );
 
       allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+    }
+
+    // ── thankYous/{id} ────────────────────────────────────────────────────────
+    // A milestone thank-you for one supporter (a person OR a business page). CREATED ONLY by
+    // the milestone-detector Cloud Function (Admin SDK bypasses these rules) — no client create,
+    // so nobody can mint themselves a thank-you. The recipient may ONLY mark it seen; the target
+    // school's owner/editors personalize a `prompted` one (write the message/media, flip to
+    // `sent`) and record their real-world gesture. NOT public — a personalized message is for the
+    // recipient and the school only (unlike confirmed subscriptions, which are public).
+    match /thankYous/{id} {
+      // The recipient side: the donating person, or an owner/editor of the recipient business.
+      // The supporterType guard runs first (short-circuit) so a donor doc never dereferences
+      // businessId and a business doc never dereferences donorId.
+      function isThankYouRecipient(data) {
+        return (
+          data.get('supporterType', 'business') == 'user' &&
+          isSignedIn() && data.get('donorId', '') == request.auth.uid
+        ) || (
+          data.get('supporterType', 'business') == 'business' &&
+          isOwnerOrEditor(businessData(data.get('businessId', '')))
+        );
+      }
+      function ownsThankYouSchool() {
+        return isOwnerOrEditor(schoolData(resource.data.schoolId));
+      }
+
+      // Recipient checked BEFORE the school: isThankYouRecipient short-circuits without the
+      // school get(), so the recipient can still read/mark-seen even if the school was deleted
+      // (a get() on a missing school doc would otherwise error and deny the whole statement).
+      allow read: if isAdmin() || isThankYouRecipient(resource.data) ||
+        ownsThankYouSchool();
+      allow create: if false; // only the Cloud Function (milestone detector) creates these
+      allow update: if isAdmin() || (
+        // The recipient may ONLY mark it seen — never rewrite the message or who it's for.
+        isThankYouRecipient(resource.data) &&
+        changedKeys().hasOnly(['seenByDonor', 'updatedAt']) &&
+        request.resource.data.seenByDonor is bool
+      ) || (
+        // The school personalizes a prompted thank-you + records its gesture.
+        ownsThankYouSchool() && validSchoolThankYouUpdate()
+      );
+      allow delete: if isAdmin() || ownsThankYouSchool();
+    }
+
+    // The school side of a thankYou update: write the delivered message/media, flip status, or
+    // record the gesture. hasOnly() pins the changed keys, so every identity/computed field
+    // (supporterType, donorId/businessId, schoolId, milestone, years, special, createdAt) stays
+    // frozen, and the recipient-only `seenByDonor` can't be set by the school.
+    function validSchoolThankYouUpdate() {
+      return changedKeys().hasOnly([
+          'status', 'message', 'media', 'gestureNote', 'gestureDone', 'deliveredAt',
+          'updatedAt']) &&
+        (!changedKeys().hasAny(['status']) ||
+          request.resource.data.status in ['sent', 'prompted']) &&
+        (!changedKeys().hasAny(['message']) ||
+          (request.resource.data.message is string &&
+            request.resource.data.message.size() <= 600)) &&
+        (!changedKeys().hasAny(['media']) || request.resource.data.media is map) &&
+        (!changedKeys().hasAny(['gestureDone']) ||
+          request.resource.data.gestureDone is bool);
     }
   }
 }

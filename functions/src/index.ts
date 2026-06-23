@@ -42,6 +42,12 @@ import {
   baselineScore,
   isCounting,
 } from "./ranking";
+import {
+  type ThankYouMilestoneKind,
+  completedYears,
+  planThankYou,
+  renderThankYou,
+} from "./thanks";
 
 initializeApp();
 const db = getFirestore();
@@ -60,6 +66,7 @@ const PROJECTS = "projects";
 const PROJECT_CONTRIBUTIONS = "projectContributions";
 const AUDIT_EVENTS = "auditEvents";
 const CATEGORIES = "categories";
+const THANK_YOUS = "thankYous";
 
 /** The uids that administer a page (owner + editors) as a set — the self-dealing key. */
 function principalsOf(
@@ -259,6 +266,154 @@ async function recordContributionAudit(
     ...(await confirmationSignals(schoolId, supporterPrincipals, confirmedBy)),
     createdAt: FieldValue.serverTimestamp(),
   });
+}
+
+/** A school's thank-you template config (schools/{id}/config/thanks), or null. Read with Admin
+ * privileges so the detector can resolve auto-templates regardless of the public read gate. */
+async function thanksConfigOf(
+  schoolId: string,
+): Promise<Parameters<typeof planThankYou>[2]> {
+  const snap = await db
+    .collection(SCHOOLS)
+    .doc(schoolId)
+    .collection("config")
+    .doc("thanks")
+    .get();
+  return snap.exists
+    ? (snap.data() as Parameters<typeof planThankYou>[2])
+    : null;
+}
+
+/**
+ * Create a thank-you row IDEMPOTENTLY, keyed by a deterministic id (`{subId}__welcome`,
+ * `{subId}__renewal__{confirmedAtMs}`, `{subId}__anniv__{N}`). Like appendAuditOnce: 2nd-gen
+ * triggers are at-least-once, and the daily job re-scans the same relationships, so `create()`
+ * on a stable id rejects ALREADY_EXISTS (gRPC 6) for a milestone already recorded — which we
+ * swallow, so exactly one thank-you survives per logical milestone. Returns whether it created.
+ */
+async function createThankYouOnce(
+  id: string,
+  payload: Record<string, unknown>,
+): Promise<boolean> {
+  try {
+    await db.collection(THANK_YOUS).doc(id).create(payload);
+    return true;
+  } catch (err) {
+    if ((err as { code?: number }).code === 6) return false; // ALREADY_EXISTS — already thanked
+    throw err;
+  }
+}
+
+/** The supporter's display name for a thank-you: the business's public name, or — for a
+ * personal donor — the name in the private subdoc (off the public doc). */
+async function thankYouSupporterName(
+  subscriptionId: string,
+  data: Record<string, unknown>,
+): Promise<string> {
+  const supporterType = (data.supporterType as string | undefined) ?? "business";
+  if (supporterType === "user") {
+    return (await privateRecord(SUBSCRIPTIONS, subscriptionId)).donorName ?? "";
+  }
+  return (data.businessName as string | undefined) ?? "";
+}
+
+/** Assemble a thank-you payload from a planned milestone (shared by welcome/renewal/anniversary). */
+function thankYouPayload(
+  data: Record<string, unknown>,
+  milestone: ThankYouMilestoneKind,
+  years: number | null,
+  plan: ReturnType<typeof planThankYou>,
+  supporterName: string,
+): Record<string, unknown> {
+  const supporterType = (data.supporterType as string | undefined) ?? "business";
+  const businessId = data.businessId as string | undefined;
+  const donorId = data.donorId as string | undefined;
+  return {
+    supporterType,
+    ...(donorId ? { donorId } : {}),
+    ...(businessId ? { businessId } : {}),
+    supporterName,
+    schoolId: data.schoolId as string,
+    schoolName: (data.schoolName as string | undefined) ?? "",
+    milestone,
+    ...(years != null ? { years } : {}),
+    special: plan.special,
+    status: plan.status,
+    message: plan.template ? renderThankYou(plan.template.message, supporterName) : "",
+    ...(plan.template?.media ? { media: plan.template.media } : {}),
+    seenByDonor: false,
+    // Auto-template milestones are delivered now; a prompted one is delivered when the school
+    // personalizes it (sendPromptedThankYou stamps deliveredAt then).
+    deliveredAt: plan.status === "sent" ? FieldValue.serverTimestamp() : null,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+/**
+ * Thank a supporter on a confirmation: a brand-new relationship is a `welcome`, a later
+ * confirmation a `renewal`. Reads the school's config and decides (planThankYou) whether to
+ * auto-send a template or leave a `prompted` record for the school to personalize. Generic
+ * milestones with no configured template create nothing. Idempotent on a deterministic id.
+ */
+async function recordSubscriptionThankYou(
+  subscriptionId: string,
+  kind: "welcome" | "renewal",
+  data: Record<string, unknown>,
+): Promise<void> {
+  const schoolId = data.schoolId as string | undefined;
+  if (!schoolId) return;
+  const plan = planThankYou(kind, 0, await thanksConfigOf(schoolId));
+  if (!plan.create) return;
+  const confirmedAtMs = tsMillis(data.confirmedAt) ?? 0;
+  const id =
+    kind === "welcome"
+      ? `${subscriptionId}__welcome`
+      : `${subscriptionId}__renewal__${confirmedAtMs}`;
+  const supporterName = await thankYouSupporterName(subscriptionId, data);
+  await createThankYouOnce(id, thankYouPayload(data, kind, null, plan, supporterName));
+}
+
+/**
+ * Scan currently-supporting subscriptions for N-year anniversaries that have come due since the
+ * last run and haven't been recorded yet. Anniversaries fall BETWEEN the ~90-day renewals, so
+ * they can't be detected on a confirmation alone — this daily pass catches them on the right day.
+ * Only the highest completed year is attempted (lower ones were created on earlier runs or
+ * predate the feature). Configs are cached per school for the run; the existence pre-check skips
+ * the private-name read for anniversaries already recorded (the steady state). Returns the count.
+ */
+async function detectAnniversaries(nowMs: number): Promise<number> {
+  const snap = await db
+    .collection(SUBSCRIPTIONS)
+    .where("status", "in", ["confirmed", "expiring"])
+    .get();
+  const configCache = new Map<string, Parameters<typeof planThankYou>[2]>();
+  let created = 0;
+  for (const d of snap.docs) {
+    const data = d.data();
+    const firstMs = tsMillis(data.firstConfirmedAt);
+    if (firstMs == null) continue;
+    const years = completedYears(firstMs, nowMs);
+    if (years < 1) continue;
+    const schoolId = data.schoolId as string | undefined;
+    if (!schoolId) continue;
+
+    let config = configCache.get(schoolId);
+    if (!configCache.has(schoolId)) {
+      config = await thanksConfigOf(schoolId);
+      configCache.set(schoolId, config);
+    }
+    const plan = planThankYou("anniversary", years, config);
+    if (!plan.create) continue;
+
+    const id = `${d.id}__anniv__${years}`;
+    if ((await db.collection(THANK_YOUS).doc(id).get()).exists) continue; // already thanked
+    const supporterName = await thankYouSupporterName(d.id, data);
+    if (await createThankYouOnce(id, thankYouPayload(data, "anniversary", years, plan, supporterName))) {
+      created += 1;
+    }
+  }
+  return created;
 }
 
 /**
@@ -475,17 +630,29 @@ export const onSubscriptionWritten = onDocumentWritten(
       if (d.donorId) donorIds.add(d.donorId as string);
     }
 
-    // Audit a confirmation: `confirmedAt` newly set (first confirm) or advanced (renewal).
-    // Flag-only writes (countsForRanking) and expiry status flips leave confirmedAt
-    // untouched, so they record nothing — no duplicate events from the recompute cascade.
-    const audit =
+    // A confirmation: `confirmedAt` newly set (first confirm) or advanced (renewal). Flag-only
+    // writes (countsForRanking) and expiry status flips leave confirmedAt untouched, so they
+    // trigger neither the audit nor a thank-you — no duplicates from the recompute cascade.
+    const isConfirmation =
       after?.confirmedAt != null &&
-      tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt)
-        ? recordSubscriptionAudit(auditIdOf(event.id), event.params.id, after)
-        : Promise.resolve();
+      tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt);
+    const audit = isConfirmation
+      ? recordSubscriptionAudit(auditIdOf(event.id), event.params.id, after as Record<string, unknown>)
+      : Promise.resolve();
+    // Thank the supporter on this confirmation. A relationship never confirmed before is a
+    // `welcome`; a later confirmation is a `renewal`. Anniversaries fall between renewals and
+    // are caught by the daily job (detectAnniversaries), not here.
+    const thanks = isConfirmation
+      ? recordSubscriptionThankYou(
+          event.params.id,
+          tsMillis(before?.confirmedAt) == null ? "welcome" : "renewal",
+          after as Record<string, unknown>,
+        )
+      : Promise.resolve();
 
     await Promise.all([
       audit,
+      thanks,
       ...[...businessIds].map(recomputeBusinessRanking),
       ...[...schoolIds].map(recomputeSchool),
       ...[...donorIds].map(recomputeDonorProfile),
@@ -757,9 +924,14 @@ export const expireSubscriptionsDaily = onSchedule(
     );
     await batch.commit();
 
+    // Same daily pass thanks supporters whose N-year anniversary came due since yesterday —
+    // these fall between the ~90-day renewals, so the confirmation trigger can't catch them.
+    const anniversaries = await detectAnniversaries(now.toMillis());
+
     logger.info("expireSubscriptionsDaily", {
       expired: lapsed.size,
       expiring: nearing.size,
+      anniversaries,
     });
   },
 );

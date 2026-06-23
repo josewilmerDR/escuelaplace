@@ -26,6 +26,7 @@ import {
   CogIcon,
   EyeIcon,
   FlagIcon,
+  HeartIcon,
   PencilIcon,
   WrenchIcon,
 } from "@/components/ui/icons";
@@ -156,6 +157,12 @@ export function SchoolManageBar({
               icon={<WrenchIcon className="h-4 w-4" />}
             >
               Herramientas
+            </MenuLink>
+            <MenuLink
+              href={`/panel/school/${schoolId}/thanks`}
+              icon={<HeartIcon className="h-4 w-4" />}
+            >
+              Agradecimientos
             </MenuLink>
             <div className="my-1 h-px bg-black/5" role="separator" />
             <button
