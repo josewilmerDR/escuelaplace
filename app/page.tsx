@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BuyerStrip } from "@/components/buyer/BuyerStrip";
-import { HomeSchools } from "@/components/feed/HomeSchools";
+import { HomeSchools, type SupportingBusinessCard } from "@/components/feed/HomeSchools";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { SearchBar } from "@/components/search/SearchBar";
 import { Chip } from "@/components/ui/Chip";
@@ -12,6 +12,7 @@ import {
   getSchoolIdsWithActiveProject,
   getSchoolsCached,
   getTopBusinesses,
+  getTopSupportingBusinesses,
   rankSchoolsByRelevance,
   toBusinessCardData,
   toSchoolCardData,
@@ -76,6 +77,18 @@ export default async function HomePage() {
     )
       .slice(0, SCHOOL_CANDIDATES)
       .map((r) => r.school);
+  } catch {}
+
+  // Top businesses by support breadth (# distinct schools each supports), interleaved into the
+  // no-community schools block. Community-independent, so it's computed here on the server
+  // (SEO-visible) and degrades to nothing until businesses start confirming support. Best-effort:
+  // a failed read just omits the carousel, never blanks the catalog.
+  let supportingBusinessCards: SupportingBusinessCard[] = [];
+  try {
+    supportingBusinessCards = (await getTopSupportingBusinesses(10)).map((r) => ({
+      business: toBusinessCardData(r.business),
+      supportedSchools: r.supportedSchools,
+    }));
   } catch {}
 
   return (
@@ -191,7 +204,10 @@ export default async function HomePage() {
             initial={cards}
             interleave={
               schoolCards.length > 0 ? (
-                <HomeSchools initial={schoolCards} />
+                <HomeSchools
+                  initial={schoolCards}
+                  supportingBusinesses={supportingBusinessCards}
+                />
               ) : undefined
             }
           />
