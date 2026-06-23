@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-escuelaplace --config firebase.emulator-test.json \"vitest run --config vitest.rules.config.ts\"",
     "emulators": "firebase emulators:start --only auth,functions,firestore,storage --import=./.emulator-data --export-on-exit",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.mjs",
+    "seed:prod:check": "node scripts/seed-prod.mjs --check",
+    "seed:prod": "node scripts/seed-prod.mjs"
   },
   "dependencies": {
     "@vis.gl/react-google-maps": "^1.8.3",
