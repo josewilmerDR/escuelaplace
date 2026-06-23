@@ -21,11 +21,15 @@ import {
 } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 
-/** Each slide: ~1 visible on mobile (a peek of the next), ~2 on small, ~3 on desktop. The
- *  `[&>*]:h-full` stretches each card to fill the slide so a row of mixed cards (e.g. a tall
- *  project next to a short rifa) lines up to a uniform height — the flex track stretches every
- *  slide to the tallest, and this passes that height down to the card. */
-const SLIDE = "snap-start shrink-0 w-[80%] sm:w-[46%] lg:w-[31%] [&>*]:h-full";
+/** Each slide: ~1 visible on mobile (a peek of the next), ~2 on small, ~3 on desktop. The mobile
+ *  and small widths add a fixed +30px (via calc) on top of the percentage so cards run a touch
+ *  wider — enough that the two footer buttons ("Consultar" + "Ver proyecto") stay on one row at
+ *  the narrow breakpoints instead of wrapping. Desktop (lg) keeps the clean 3-up, where cards are
+ *  already wide enough. The `[&>*]:h-full` stretches each card to fill the slide so a row of mixed
+ *  cards (e.g. a tall project next to a short rifa) lines up to a uniform height — the flex track
+ *  stretches every slide to the tallest, and this passes that height down to the card. */
+const SLIDE =
+  "snap-start shrink-0 w-[calc(80%_+_30px)] sm:w-[calc(46%_+_30px)] lg:w-[31%] [&>*]:h-full";
 
 export function CardCarousel<T>({
   items,
@@ -105,7 +109,9 @@ export function CardCarousel<T>({
 
       {/* Prev/Next controls — icon only, shown only while the track can scroll that way (same
           signal as the fades). They sit above the fades (z-10, which is pointer-events-none) so
-          clicks reach the button, not the card underneath. */}
+          clicks reach the button, not the card underneath. Hidden on mobile (sm:grid below): the
+          peek of the next slide plus the edge fades are affordance enough, and a button would
+          overlap the near-full-width single slide. */}
       {edges.left && (
         <CarouselButton side="left" onClick={() => scrollByPage(-1)} />
       )}
@@ -129,7 +135,7 @@ function CarouselButton({
       type="button"
       onClick={onClick}
       aria-label={left ? "Anterior" : "Siguiente"}
-      className={`absolute top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white text-brand-darker shadow-md ring-1 ring-black/5 transition hover:bg-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+      className={`absolute top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white text-brand-darker shadow-md ring-1 ring-black/5 transition hover:bg-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:grid ${
         left ? "left-1" : "right-1"
       }`}
     >

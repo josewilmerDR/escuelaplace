@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
@@ -43,11 +44,16 @@ export function BusinessCard({
   business,
   tier = null,
   supportedSchools = [],
+  style,
 }: {
   business: BusinessCardData;
   tier?: SupportTier | null;
   /** Schools this business genuinely supports, most buyer-relevant first. */
   supportedSchools?: SupportedSchool[];
+  /** Extra inline styles merged onto the card root. The home feed uses it to set the grid
+   *  `order` that interleaves the schools block — a runtime value Tailwind can't emit as a
+   *  class. Kept generic so the card stays unaware of the feed's layout. */
+  style?: CSSProperties;
 }) {
   const badge = tier ? TIER_BADGE[tier] : null;
   const initial = business.name.charAt(0).toUpperCase();
@@ -60,7 +66,7 @@ export function BusinessCard({
       // Depth, not a hard border: a soft hairline ring + small shadow reads as an
       // elevated surface; hover lifts it via a slightly deeper shadow.
       className="group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md"
-      style={{ viewTransitionName: `business-${business.id}` }}
+      style={{ viewTransitionName: `business-${business.id}`, ...style }}
     >
       {/* Cover (YouTube-thumbnail style): the photo sells the business, so it gets the
           top of the card. Fallback ladder keeps the grid scannable while most businesses
