@@ -10,6 +10,7 @@ import {
   arrayUnion,
   collection,
   doc,
+  documentId,
   getDoc,
   getDocs,
   limit as fbLimit,
@@ -39,6 +40,8 @@ import type {
 import { docToTyped, snapToList } from "./converters";
 import { toLocation, type LocationInput } from "./geo";
 import { linkPageToUser } from "./users";
+import { getConfirmedSubscriptionsBySchool } from "./subscriptions";
+import { recentBusinessSupporterIds } from "./ranking";
 import { revalidateBusinessCatalog } from "@/lib/revalidate";
 
 const BUSINESSES = "businesses";
@@ -60,6 +63,67 @@ export const getBusinessesBySchool = cache(
       fbLimit(max),
     );
     return snapToList<Business>(await getDocs(q));
+  },
+);
+
+/** Firestore `in` accepts at most 30 values per query. */
+const BUSINESS_IDS_CHUNK = 30;
+
+/**
+ * Active businesses for an arbitrary set of ids, fetched in chunked `in` queries over
+ * `documentId()` (a handful of reads, not N+1). Draft/suspended businesses are dropped in
+ * memory — a non-active business must never surface as a public card, even when something
+ * still references it. The returned order is NOT the input order (Firestore `in` doesn't
+ * preserve it); callers that need a specific order sort the result themselves.
+ *
+ * The by-id counterpart to getBusinessesBySchool: it hydrates business docs from ids that
+ * come from a DIFFERENT relationship than the linked `schoolId` — e.g. the confirmed
+ * supporters of a school (getSupportingBusinesses).
+ */
+export async function getBusinessesByIds(
+  ids: string[],
+): Promise<BusinessDoc[]> {
+  if (ids.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += BUSINESS_IDS_CHUNK) {
+    chunks.push(ids.slice(i, i + BUSINESS_IDS_CHUNK));
+  }
+  const snaps = await Promise.all(
+    chunks.map((chunk) =>
+      getDocs(
+        query(collection(db, BUSINESSES), where(documentId(), "in", chunk)),
+      ),
+    ),
+  );
+  return snaps
+    .flatMap((snap) => snapToList<Business>(snap))
+    .filter((b) => b.status === "active");
+}
+
+/**
+ * The active businesses that actually SUPPORT a school, ordered by ranking.score (desc) —
+ * the correct "Comercios que apoyan a la escuela" set.
+ *
+ * Resolves the relationship the RIGHT way: from the school's confirmed subscriptions (the
+ * support relationship), NOT from the business's linked `schoolId`. A business that
+ * supports this school but is linked to another school (or to none) genuinely collaborates
+ * and MUST appear — getBusinessesBySchool would wrongly drop it. recentBusinessSupporterIds
+ * applies the same recent-confirmed predicate as the header's supporters chip, so the
+ * carousel, the Comercios tab and the chip never disagree.
+ *
+ * Wrapped in React cache(): the school layout (supporter count + CTA), the Comercios tab and
+ * the landing teaser all read it during one request — the cache collapses that into a single
+ * hydration read. getConfirmedSubscriptionsBySchool is cache()'d too, so the subscriptions
+ * read is shared with the layout's support metrics.
+ */
+export const getSupportingBusinesses = cache(
+  async (schoolId: string): Promise<BusinessDoc[]> => {
+    const confirmedSubs = await getConfirmedSubscriptionsBySchool(schoolId);
+    const supporterIds = [...recentBusinessSupporterIds(confirmedSubs)];
+    const businesses = await getBusinessesByIds(supporterIds);
+    return businesses.sort(
+      (a, b) => (b.ranking?.score ?? 0) - (a.ranking?.score ?? 0),
+    );
   },
 );
 

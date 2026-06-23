@@ -1,23 +1,24 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Section } from "@/components/ui/Section";
 import { TagIcon } from "@/components/ui/icons";
 import {
-  getBusinessesBySchool,
-  getConfirmedSubscriptionsBySchool,
   getSchoolById,
-  recentBusinessSupporterIds,
+  getSupportingBusinesses,
   toBusinessCardData,
 } from "@/lib/firestore";
 
 /**
- * School profile "Comercios" section at /school/[id]/businesses. Lists only businesses with
- * confirmed, recent support (same predicate as the header's recent-supporters chip) — not
- * every business that merely declares this school — so the section is honest. Buying from
- * them is the support action an anonymous buyer CAN take without signing in, so the empty
- * state points to the wider catalog instead of dead-ending.
+ * School profile "Comercios" section at /school/[id]/businesses. Lists the businesses with
+ * confirmed, recent support for THIS school — resolved from the support relationship
+ * (getSupportingBusinesses), not from the business's linked `schoolId`, so a supporter
+ * linked to another school is not dropped. Buying from them is the support action an
+ * anonymous buyer CAN take without signing in; when there are none, the empty state invites
+ * a business to be the first supporter (the highest-intent moment) and still points buyers
+ * to the wider catalog.
  */
 
 interface Props {
@@ -37,14 +38,9 @@ export default async function SchoolBusinessesPage({ params }: Props) {
   const school = await getSchoolById(id);
   if (!school) notFound();
 
-  const [businesses, confirmedSubs] = await Promise.all([
-    getBusinessesBySchool(id).catch(() => []),
-    getConfirmedSubscriptionsBySchool(id).catch(() => []),
-  ]);
-  const supporterIds = recentBusinessSupporterIds(confirmedSubs);
-  const cards = businesses
-    .filter((b) => supporterIds.has(b.id))
-    .map(toBusinessCardData);
+  const cards = (await getSupportingBusinesses(id).catch(() => [])).map(
+    toBusinessCardData,
+  );
 
   return (
     <Section
@@ -60,8 +56,20 @@ export default async function SchoolBusinessesPage({ params }: Props) {
         <EmptyState
           icon={<TagIcon className="h-7 w-7" />}
           title="Todavía no hay comercios que la apoyen"
-          description="Explorá el directorio y apoyá a tu escuela comprándole a los comercios de tu comunidad."
-          cta={{ label: "Explorar comercios", href: "/search" }}
+          description="¿Tenés un comercio? Sé el primero en apoyar a esta escuela y aparecé acá para que la comunidad te compre."
+          cta={
+            <div className="flex flex-col items-center gap-3 sm:flex-row">
+              <Link href="/create" className="btn btn-primary">
+                Crear la página de mi comercio
+              </Link>
+              <Link
+                href="/search"
+                className="text-sm font-medium text-brand-darker hover:underline"
+              >
+                Explorar el directorio
+              </Link>
+            </div>
+          }
         />
       ) : (
         <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

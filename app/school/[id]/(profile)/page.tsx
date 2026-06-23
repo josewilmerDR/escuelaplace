@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SupportersCarousel } from "@/components/business/SupportersCarousel";
 import { DonorWallManagerHint } from "@/components/donors/DonorWallManagerHint";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { ToolCard } from "@/components/tools/ToolCard";
@@ -10,9 +11,11 @@ import {
   getProjectsBySchool,
   getSchoolById,
   getSchoolDonorWall,
+  getSupportingBusinesses,
   getToolsBySchool,
   publicTools,
   schoolCover,
+  toBusinessCardData,
 } from "@/lib/firestore";
 import type { ProjectDoc, ToolDoc } from "@/types";
 
@@ -73,12 +76,21 @@ export default async function SchoolLandingPage({ params }: Props) {
   // The landing feed leads with the school's timely calls to action — its live tools
   // (rifas/ventas/etc.) and its open projects; every read degrades to empty on a transient
   // failure. getProjectsBySchool is cache()'d and already read by the layout, so it's free.
-  const [wall, tools, projects] = await Promise.all([
+  const [wall, tools, projects, supportingBusinesses] = await Promise.all([
     getSchoolDonorWall(id).catch(() => ({ recognized: [], anonymousCount: 0 })),
     getToolsBySchool(id).catch(() => []),
     getProjectsBySchool(id).catch(() => []),
+    // cache()'d and already read by the layout for the supporter count/CTA, so this is free.
+    getSupportingBusinesses(id).catch(() => []),
   ]);
   const hasWall = wall.recognized.length > 0 || wall.anonymousCount > 0;
+
+  // A slim teaser of the businesses that support the school; the full grid lives on the
+  // "Comercios" tab. Capped low so it stays a teaser, not a second listing.
+  const TEASER_SUPPORTERS = 4;
+  const supporterCards = supportingBusinesses
+    .slice(0, TEASER_SUPPORTERS)
+    .map(toBusinessCardData);
 
   // Merge live tools and OPEN projects into one feed, newest-first. The landing surfaces only
   // current calls to action: publicTools already drops non-active tools, and we likewise keep
@@ -147,6 +159,35 @@ export default async function SchoolLandingPage({ params }: Props) {
             o apoyala con una donación.
           </p>
         </Section>
+      )}
+
+      {/* The businesses that support the school: buying from them is the no-login way to
+          help, so it leads after the school's own publications. A teaser carousel — the
+          full grid lives on the "Comercios" tab. Omitted entirely when there are none, so
+          the landing never shows an empty supporter shelf. */}
+      {supporterCards.length > 0 && (
+        <section className="mt-10 scroll-mt-6">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Comercios que la apoyan
+            </h2>
+            <Link
+              href={`/school/${id}/businesses`}
+              className="shrink-0 text-sm font-medium text-brand-darker hover:underline"
+            >
+              Ver todos
+            </Link>
+          </div>
+          <p className="mt-1 text-sm text-muted">
+            Apoyá a la escuela comprándole a los comercios que ya la apoyan.
+          </p>
+          <div className="mt-5">
+            <SupportersCarousel
+              businesses={supporterCards}
+              ariaLabel="Comercios que apoyan a la escuela"
+            />
+          </div>
+        </section>
       )}
 
       {!hasWall && (
