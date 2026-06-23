@@ -25,17 +25,16 @@ export function RankedFeed({
   initial,
   relevanceById,
   interleave,
-  interleaveAfter = 3,
 }: {
   initial: BusinessCardData[];
   /** Relevance R per business id (search mode). Omit for explore mode. */
   relevanceById?: Record<string, number>;
-  /** Optional node rendered between the first `interleaveAfter` cards and the rest — the home's
-   * schools block, so the feed reads "top businesses → schools → the rest". The split is here
-   * (not server-side) because it must follow the CLIENT-re-ranked order the buyer actually sees.
-   * Omit to render a single uninterrupted grid. */
+  /** Optional node rendered after the first VISUAL ROW of businesses — the home's schools block,
+   * so the feed reads "top businesses → schools → the rest". The position is responsive (after
+   * 1 / 2 / 3 cards at the mobile / sm / lg breakpoints, matching the grid's columns) and lives
+   * here (not server-side) because it must follow the CLIENT-re-ranked order the buyer actually
+   * sees. Omit to render a single uninterrupted grid. */
   interleave?: ReactNode;
-  interleaveAfter?: number;
 }) {
   const { prefs, ready } = useBuyerPreferences();
   // The personalized order, tagged with the community that produced it. The tag is what
@@ -119,42 +118,74 @@ export function RankedFeed({
 
   if (initial.length === 0) return null;
 
-  const grid = (items: typeof cards) => (
-    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map(({ business, tier, supportedSchools }) => (
-        <BusinessCard
-          key={business.id}
-          business={business}
-          tier={tier}
-          supportedSchools={supportedSchools}
-        />
-      ))}
-    </div>
-  );
-
-  // Split the grid around the interleaved node. With fewer than `interleaveAfter` cards the head
-  // holds them all and the tail is empty (businesses → schools, no "rest").
   const showInterleave = interleave != null;
-  const head = showInterleave ? cards.slice(0, interleaveAfter) : cards;
-  const tail = showInterleave ? cards.slice(interleaveAfter) : [];
 
-  return (
-    <div>
+  // Status lines shown above the feed in both layouts.
+  const status = (
+    <>
       {/* Announce the reorder to screen readers; sighted users see the badges appear. */}
       <p aria-live="polite" className="sr-only">
         {personalized ? "Resultados ordenados según tu comunidad." : ""}
       </p>
-
       {rankFailed && hasCommunity && (
         <p role="status" className="mb-4 text-sm text-muted">
           No pudimos personalizar el orden según tu comunidad — mostramos el orden
           general.
         </p>
       )}
+    </>
+  );
 
-      {grid(head)}
-      {showInterleave && interleave}
-      {tail.length > 0 && grid(tail)}
+  // Search / category mode: one uninterrupted grid.
+  if (!showInterleave) {
+    return (
+      <div>
+        {status}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {cards.map(({ business, tier, supportedSchools }) => (
+            <BusinessCard
+              key={business.id}
+              business={business}
+              tier={tier}
+              supportedSchools={supportedSchools}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Home mode: interleave the schools block AFTER THE FIRST VISUAL ROW of businesses — 1 / 2 / 3
+  // cards at the mobile / sm / lg breakpoints. A fixed array index can't express that (3 is one
+  // row on desktop but three stacked rows on mobile), so rather than split the array we keep ALL
+  // cards in ONE grid and position the block with CSS `order`:
+  //   - cards take even orders 0, 2, 4, … (their source / re-ranked order is preserved);
+  //   - the block is `col-span-full` with an odd order that lands right after the first row —
+  //     1 (after card 0) on mobile, 3 (after card 1) at sm, 5 (after card 2) at lg.
+  // Desktop is unchanged; only mobile/tablet pull the block up. A col-span-full item can't share
+  // a row, so it always breaks onto its own full-width band wherever its order places it.
+  return (
+    <div>
+      {status}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {cards.map(({ business, tier, supportedSchools }, i) => (
+          // `order` is a runtime value, so it goes inline (Tailwind can't JIT `order-[N]`); it
+          // places each card around the interleaved block below.
+          <BusinessCard
+            key={business.id}
+            business={business}
+            tier={tier}
+            supportedSchools={supportedSchools}
+            style={{ order: i * 2 }}
+          />
+        ))}
+        {/* min-w-0 lets this grid item shrink to the column width so the carousel's own
+            overflow-x scroll contains the horizontal scroll — without it the track's intrinsic
+            width forces the whole page wider on mobile. */}
+        <div className="order-1 col-span-full min-w-0 sm:order-3 lg:order-5">
+          {interleave}
+        </div>
+      </div>
     </div>
   );
 }
