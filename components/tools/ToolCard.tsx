@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ToolCardActions } from "@/components/tools/ToolCardActions";
-import { ToolTypeBadge } from "@/components/tools/ToolTypeBadge";
 import { toolBuyHref, toolBuyLabel, toolTypeMeta } from "@/lib/tools/registry";
 import { toolContactPhone, toolWindowLabel } from "@/lib/firestore";
 import { buildWhatsAppLink } from "@/lib/contact";
@@ -68,21 +67,25 @@ export function ToolCard({
             <Icon className="h-10 w-10" />
           </span>
         )}
+        {/* Type chip overlaid on the cover (Bingo, Rifa, Visita guiada…) so the activity kind
+            reads at a glance. The white-backed chip + icon stays legible over any photo;
+            pointer-events-none lets the card's stretched link stay clickable underneath it. */}
+        <span className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-brand-darker shadow-sm ring-1 ring-black/5 backdrop-blur-sm">
+          <Icon className="h-3.5 w-3.5" aria-hidden />
+          {toolTypeMeta(tool.type).label}
+        </span>
       </div>
       <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold leading-snug text-foreground group-hover:text-brand-darker">
-            {/* Stretched link: the ::after covers the whole card, so cover/title/body all navigate
-                to the detail page, while the footer actions (relative z-10) stay clickable. */}
-            <Link
-              href={detailHref}
-              className="after:absolute after:inset-0 focus-visible:underline focus-visible:outline-none"
-            >
-              {tool.title}
-            </Link>
-          </h3>
-          <ToolTypeBadge type={tool.type} />
-        </div>
+        <h3 className="font-semibold leading-snug text-foreground group-hover:text-brand-darker">
+          {/* Stretched link: the ::after covers the whole card, so cover/title/body all navigate
+              to the detail page, while the footer actions (relative z-10) stay clickable. */}
+          <Link
+            href={detailHref}
+            className="after:absolute after:inset-0 focus-visible:underline focus-visible:outline-none"
+          >
+            {tool.title}
+          </Link>
+        </h3>
         {tool.description && (
           <p className="line-clamp-2 text-sm text-muted">{tool.description}</p>
         )}

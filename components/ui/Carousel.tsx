@@ -19,9 +19,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 
-/** Each slide: ~1 visible on mobile (a peek of the next), ~2 on small, ~3 on desktop. */
-const SLIDE = "snap-start shrink-0 w-[80%] sm:w-[46%] lg:w-[31%]";
+/** Each slide: ~1 visible on mobile (a peek of the next), ~2 on small, ~3 on desktop. The
+ *  `[&>*]:h-full` stretches each card to fill the slide so a row of mixed cards (e.g. a tall
+ *  project next to a short rifa) lines up to a uniform height — the flex track stretches every
+ *  slide to the tallest, and this passes that height down to the card. */
+const SLIDE = "snap-start shrink-0 w-[80%] sm:w-[46%] lg:w-[31%] [&>*]:h-full";
 
 export function CardCarousel<T>({
   items,
@@ -45,6 +49,13 @@ export function CardCarousel<T>({
       left: scrollLeft > 1,
       right: scrollLeft + clientWidth < scrollWidth - 1,
     });
+  }, []);
+
+  // Page the track ~one viewport at a time; snap-mandatory then settles it onto a slide edge.
+  const scrollByPage = useCallback((dir: -1 | 1) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.9, behavior: "smooth" });
   }, []);
 
   // Recompute the fades on scroll, on resize, and whenever the item count changes (the content
@@ -91,6 +102,42 @@ export function CardCarousel<T>({
           className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-background to-transparent"
         />
       )}
+
+      {/* Prev/Next controls — icon only, shown only while the track can scroll that way (same
+          signal as the fades). They sit above the fades (z-10, which is pointer-events-none) so
+          clicks reach the button, not the card underneath. */}
+      {edges.left && (
+        <CarouselButton side="left" onClick={() => scrollByPage(-1)} />
+      )}
+      {edges.right && (
+        <CarouselButton side="right" onClick={() => scrollByPage(1)} />
+      )}
     </div>
+  );
+}
+
+function CarouselButton({
+  side,
+  onClick,
+}: {
+  side: "left" | "right";
+  onClick: () => void;
+}) {
+  const left = side === "left";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={left ? "Anterior" : "Siguiente"}
+      className={`absolute top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white text-brand-darker shadow-md ring-1 ring-black/5 transition hover:bg-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+        left ? "left-1" : "right-1"
+      }`}
+    >
+      {left ? (
+        <ChevronLeftIcon className="h-5 w-5" />
+      ) : (
+        <ChevronRightIcon className="h-5 w-5" />
+      )}
+    </button>
   );
 }
