@@ -42,7 +42,7 @@ export function SaleProducts({
           <WarningIcon className="mt-0.5 h-5 w-5 shrink-0" />
           <p>
             Vas a poder comprar en cuanto el equipo de escuelaplace verifique a la
-            escuela y publique sus medios de pago. Mientras tanto podés consultar.
+            escuela y publique sus medios de pago. Mientras tanto puedes consultar.
           </p>
         </div>
       )}

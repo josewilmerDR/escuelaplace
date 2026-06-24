@@ -112,7 +112,7 @@ export default function SchoolToolsPage() {
       <main>
         <Heading schoolId={id} />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar las herramientas. Revisá tu conexión e intentá de
+          No pudimos cargar las herramientas. Revisa tu conexión e intenta de
           nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
@@ -144,7 +144,7 @@ export default function SchoolToolsPage() {
     return (
       <main>
         <Heading schoolId={id} subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -158,8 +158,8 @@ export default function SchoolToolsPage() {
 
       <p className="mt-6 text-sm text-muted">
         Cada herramienta te deja crear o anunciar una actividad puntual: rifas,
-        ventas, bingos, servicios, visitas guiadas… Entrá a una tarjeta para crear
-        nuevas o administrar las que ya tenés. Quienes visiten la página de tu
+        ventas, bingos, servicios, visitas guiadas… Entra a una tarjeta para crear
+        nuevas o administrar las que ya tienes. Quienes visiten la página de tu
         escuela las verán en la pestaña “Principal”.
       </p>
 

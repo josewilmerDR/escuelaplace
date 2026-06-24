@@ -320,7 +320,7 @@ function NewToolContent() {
           backLabel={backLabel}
         />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar la escuela. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar la escuela. Revisa tu conexión e intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -362,7 +362,7 @@ function NewToolContent() {
           backHref={backHref}
           backLabel={backLabel}
         />
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -375,7 +375,7 @@ function NewToolContent() {
     if (!user) return;
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setError("Ingresá el título de la herramienta.");
+      setError("Ingresa el título de la herramienta.");
       return;
     }
     // A raffle carries its own configuration — validate and convert it before creating.
@@ -434,8 +434,8 @@ function NewToolContent() {
     if (type === "bingo" && !selectedDeckId) {
       setError(
         decks.length === 0
-          ? "Necesitás un mazo para crear el bingo. Creá uno primero con «Crear o administrar mazos»."
-          : "Elegí un mazo de cartones para el bingo.",
+          ? "Necesitas un mazo para crear el bingo. Crea uno primero con «Crear o administrar mazos»."
+          : "Elige un mazo de cartones para el bingo.",
       );
       return;
     }
@@ -543,7 +543,7 @@ function NewToolContent() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="input"
-            placeholder="Contá de qué se trata la actividad."
+            placeholder="Cuenta de qué se trata la actividad."
           />
         </Field>
 
@@ -605,7 +605,7 @@ function NewToolContent() {
                 Mazo de cartones <span className="text-error">*</span>
               </p>
               <p className="mb-3 text-xs text-muted">
-                Elegí el mazo (lote de cartones) para este bingo. Sus cartones se copian al
+                Elige el mazo (lote de cartones) para este bingo. Sus cartones se copian al
                 bingo al crearlo. Es obligatorio: los cartones viven en el mazo y no se
                 editan dentro del bingo.
               </p>
@@ -613,8 +613,8 @@ function NewToolContent() {
                 <p className="text-sm text-muted">Cargando mazos…</p>
               ) : decks.length === 0 ? (
                 <p className="rounded-xl bg-brand-tint p-3 text-sm text-brand-darker ring-1 ring-brand-darker/10">
-                  Necesitás un mazo para crear un bingo y todavía no tenés ninguno. Creá uno
-                  primero (con sus cartones) y volvé a crear el bingo.
+                  Necesitas un mazo para crear un bingo y todavía no tienes ninguno. Crea uno
+                  primero (con sus cartones) y vuelve a crear el bingo.
                 </p>
               ) : (
                 <BingoDeckPicker

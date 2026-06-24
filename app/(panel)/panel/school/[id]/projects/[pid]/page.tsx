@@ -214,7 +214,7 @@ export default function ProjectEditPage() {
       <main>
         <Heading />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar el proyecto. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar el proyecto. Revisa tu conexión e intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -245,7 +245,7 @@ export default function ProjectEditPage() {
       <main>
         <Heading subtitle={school.name} />
         {/* Not a system failure — the user simply lacks access here, so muted, not error. */}
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -506,7 +506,7 @@ export default function ProjectEditPage() {
               />
             </span>
             <p className="text-xs text-muted">
-              Esta es la portada actual. Subí una nueva para reemplazarla.
+              Esta es la portada actual. Sube una nueva para reemplazarla.
             </p>
           </div>
         )}
@@ -654,8 +654,8 @@ export default function ProjectEditPage() {
           Estado del proyecto
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Alcanzar la meta de dinero no cierra el proyecto: marcalo como
-          completado cuando lo concretés (o cuando aceptes una donación en
+          Alcanzar la meta de dinero no cierra el proyecto: márcalo como
+          completado cuando lo concretes (o cuando aceptes una donación en
           especie que lo cumpla).
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
@@ -731,7 +731,7 @@ export default function ProjectEditPage() {
       >
         <p>
           Cancelar oculta el botón “Financiar” de la página pública del
-          proyecto, así nadie puede seguir aportando. Podés reabrirlo más
+          proyecto, así nadie puede seguir aportando. Puedes reabrirlo más
           adelante.
         </p>
       </ConfirmDialog>
@@ -965,7 +965,7 @@ function StageCard({
               </label>
             ) : (
               <p className="mt-1 text-xs text-muted">
-                Guardá la etapa para poder subir fotos, video y cotizaciones.
+                Guarda la etapa para poder subir fotos, video y cotizaciones.
               </p>
             ))}
         </div>
@@ -1013,7 +1013,7 @@ function StageCard({
                       duration = await videoDurationSeconds(f);
                     } catch {
                       setMediaError(
-                        "No pudimos leer el video. Probá con otro archivo.",
+                        "No pudimos leer el video. Prueba con otro archivo.",
                       );
                       return;
                     }

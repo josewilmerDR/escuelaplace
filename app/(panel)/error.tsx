@@ -28,7 +28,7 @@ export default function PanelError({
         Algo salió mal
       </h1>
       <p className="mt-6 text-sm text-muted">
-        No pudimos cargar esta sección. Probá de nuevo.
+        No pudimos cargar esta sección. Prueba de nuevo.
       </p>
       <button type="button" onClick={reset} className="btn btn-outline mt-4">
         Reintentar

@@ -174,7 +174,7 @@ function FundContent() {
           Financiar un proyecto
         </h1>
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar los datos. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar los datos. Revisa tu conexión e intenta de nuevo.
         </p>
         <button
           type="button"
@@ -277,7 +277,7 @@ function FundContent() {
       setError(
         userErrorMessage(
           err,
-          "El aporte se registró, pero no se pudo subir el comprobante. Podés subirlo desde la lista.",
+          "El aporte se registró, pero no se pudo subir el comprobante. Puedes subirlo desde la lista.",
         ),
       );
     }
@@ -377,7 +377,7 @@ function FundContent() {
             <div className={`text-sm ${cardClass("inset")}`}>
               {canFund ? (
                 <p className="text-muted">
-                  Donás bienes o trabajo en vez de dinero (por ejemplo, “los
+                  Donas bienes o trabajo en vez de dinero (por ejemplo, “los
                   trabajos previos” o “el tanque”). La escuela coordina y valida
                   la entrega; su valor estimado suma al avance del proyecto igual
                   que un aporte en dinero.
@@ -389,7 +389,7 @@ function FundContent() {
           )}
 
           {type === "in_kind" && (
-            <Field label="¿Qué donás?">
+            <Field label="¿Qué donas?">
               <textarea
                 rows={2}
                 required
@@ -425,8 +425,8 @@ function FundContent() {
                 ))}
               </select>
               <span className="text-muted">
-                Al elegir una etapa, el valor se completa con su costo. Ajustalo
-                si aportás solo una parte.
+                Al elegir una etapa, el valor se completa con su costo. Ajústalo
+                si aportas solo una parte.
               </span>
             </Field>
           )}

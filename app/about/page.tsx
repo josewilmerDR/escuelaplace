@@ -123,7 +123,7 @@ export default function AboutPage() {
         name: "¿Necesito una cuenta para comprar?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "No. Navegás todo el catálogo sin registrarte; tu preferencia de comunidad se guarda solo en tu navegador, no creamos ninguna cuenta a tu nombre.",
+          text: "No. Navegas todo el catálogo sin registrarte; tu preferencia de comunidad se guarda solo en tu navegador, no creamos ninguna cuenta a tu nombre.",
         },
       },
       {
@@ -196,19 +196,19 @@ export default function AboutPage() {
         <RoleCard
           icon={<SearchIcon className="h-6 w-6" />}
           title="Para quien compra"
-          lead="No necesitás cuenta ni registro para navegar escuelaplace. Busca un negocio y ponte en contacto con este."
+          lead="No necesitas cuenta ni registro para navegar escuelaplace. Busca un negocio y ponte en contacto con este."
         >
-          <Step n={1} title="Elegí tu comunidad">
-            Seleccioná tu escuela y tu zona. Esa preferencia se guarda solo en tu
+          <Step n={1} title="Elige tu comunidad">
+            Selecciona tu escuela y tu zona. Esa preferencia se guarda solo en tu
             navegador para ordenar lo que ves; no creamos ninguna cuenta a tu
             nombre.
           </Step>
-          <Step n={2} title="Explorá comercios">
-            Buscá por nombre o rubro y descubrí los negocios que apoyan a la
+          <Step n={2} title="Explora comercios">
+            Busca por nombre o rubro y descubre los negocios que apoyan a la
             escuela de tu comunidad.
           </Step>
-          <Step n={3} title="Apoyá comprando">
-            Elegí con quién gastar. Al preferir a los comercios que apoyan a tu
+          <Step n={3} title="Apoya comprando">
+            Elige con quién gastar. Al preferir a los comercios que apoyan a tu
             escuela, tu compra sostiene a la institución de forma indirecta.
           </Step>
         </RoleCard>
@@ -216,24 +216,24 @@ export default function AboutPage() {
         <RoleCard
           icon={<TagIcon className="h-6 w-6" />}
           title="Para tu comercio"
-          lead="Creás la página de tu negocio, apoyás a una o varias escuelas y ganás visibilidad en el directorio de esa comunidad, y en el feed principal."
+          lead="Creas la página de tu negocio, apoyas a una o varias escuelas y ganas visibilidad en el directorio de esa comunidad, y en el feed principal."
           footer={
             <>
-              Si no podés o no querés apoyar a una escuela, publicá tu negocio
+              Si no puedes o no quieres apoyar a una escuela, publica tu negocio
               igual: si es relevante para la búsqueda del usuario, aparecerá en
               esos resultados.
             </>
           }
         >
-          <Step n={1} title="Creá tu página">
-            Registrate con Google y publicá tu comercio: descripción, fotos,
+          <Step n={1} title="Crea tu página">
+            Regístrate con Google y publica tu comercio: descripción, fotos,
             contacto, horario y descuentos.
           </Step>
-          <Step n={2} title="Apoyá a una escuela">
-            Elegí la escuela o escuelas que querés apoyar y hacé tu aporte
+          <Step n={2} title="Apoya a una escuela">
+            Elige la escuela o escuelas que quieres apoyar y haz tu aporte
             directo por los métodos que ella publica. La escuela lo confirma.
           </Step>
-          <Step n={3} title="Ganá visibilidad e insignia">
+          <Step n={3} title="Gana visibilidad e insignia">
             Tu apoyo confirmado te da una insignia pública y un mejor lugar en el
             directorio de esa comunidad, donde los compradores te encuentran.
           </Step>
@@ -363,7 +363,7 @@ function ShareRow() {
   // Mirrors SITE_URL (lib/site) — the canonical public origin used across the app.
   const url = SITE_URL;
   const text =
-    "Descubrí los comercios que apoyan a las escuelas de tu comunidad en escuelaplace";
+    "Descubre los comercios que apoyan a las escuelas de tu comunidad en escuelaplace";
   const u = encodeURIComponent(url);
   const t = encodeURIComponent(text);
 
@@ -388,7 +388,7 @@ function ShareRow() {
   return (
     <section className="mt-12 border-t border-border pt-8 text-center">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-        Compartí escuelaplace
+        Comparte escuelaplace
       </h2>
       <ul className="mt-4 flex flex-wrap justify-center gap-3">
         {networks.map(({ label, href, icon }) => (

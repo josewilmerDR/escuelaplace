@@ -18,7 +18,7 @@ import type { SchoolDoc } from "@/types";
 type SchoolsState = "loading" | "error" | "loaded";
 
 export function CommunityPicker({
-  description = "Elegí tu escuela o activá tu ubicación para ver primero los comercios que la apoyan.",
+  description = "Elige tu escuela o activa tu ubicación para ver primero los comercios que la apoyan.",
   subject = "businesses",
 }: {
   /** Lead copy — override it on surfaces that order something other than businesses
@@ -135,12 +135,12 @@ export function CommunityPicker({
       ? prefs.schoolName
         ? `Mostrando primero las escuelas más cercanas a ${prefs.schoolName}`
         : locationWithoutSchools
-          ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elegí una de la lista.`
+          ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elige una de la lista.`
           : "Mostrando primero las escuelas más cercanas a tu ubicación"
       : prefs.schoolName
         ? `Mostrando primero quienes apoyan a ${prefs.schoolName}`
         : locationWithoutSchools
-          ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elegí una de la lista.`
+          ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elige una de la lista.`
           : "Mostrando primero quienes apoyan cerca de tu ubicación";
 
   // Dismissed entirely: leave only a quiet chip so the buyer can bring it back.
@@ -153,7 +153,7 @@ export function CommunityPicker({
           className="inline-flex items-center gap-2 rounded-full border border-border bg-surface py-2 pl-3 pr-4 text-sm font-medium text-muted shadow-sm hover:border-brand-dark hover:text-brand-darker"
         >
           <AcademicCapIcon className="h-4 w-4 shrink-0 text-brand-dark" />
-          Elegí tu escuela
+          Elige tu escuela
         </button>
       </div>
     );
@@ -237,7 +237,7 @@ export function CommunityPicker({
           }))}
           value={ready ? (prefs.schoolId ?? "") : ""}
           onChange={onSchool}
-          placeholder="Elegí tu escuela…"
+          placeholder="Elige tu escuela…"
           ariaLabel="Tu escuela"
           className="flex-1"
           // Opaque white field so the blue card doesn't bleed through. The input also has
@@ -250,7 +250,7 @@ export function CommunityPicker({
             schoolsState === "loading"
               ? "Cargando escuelas…"
               : schoolsState === "error"
-                ? "No pudimos cargar las escuelas. Recargá la página."
+                ? "No pudimos cargar las escuelas. Recarga la página."
                 : "Sin resultados"
           }
         />

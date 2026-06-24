@@ -198,7 +198,7 @@ export function CatalogSchools({ initial }: { initial: SchoolCardData[] }) {
     ? "Las instituciones educativas más cercanas a tu ubicación."
     : hasAnySupport
       ? "Las instituciones que más apoyo están recibiendo en la plataforma."
-      : "Sumate a una de las instituciones educativas de la comunidad.";
+      : "Súmate a una de las instituciones educativas de la comunidad.";
 
   return (
     <Section
@@ -291,7 +291,7 @@ function EmptyPublications({
         href={`/school/${schoolId}`}
         className="font-medium text-brand-darker hover:underline"
       >
-        Conocé su página
+        Conoce su página
       </Link>
       .
     </div>

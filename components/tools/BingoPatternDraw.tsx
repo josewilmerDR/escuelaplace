@@ -46,7 +46,7 @@ export function BingoPatternDraw({
 
   const useAdHoc = () => {
     if (cells.size === 0) {
-      setError("Marcá al menos una casilla.");
+      setError("Marca al menos una casilla.");
       return;
     }
     const c = sortedCells();
@@ -60,12 +60,12 @@ export function BingoPatternDraw({
 
   const saveAndUse = async () => {
     if (cells.size === 0) {
-      setError("Marcá al menos una casilla.");
+      setError("Marca al menos una casilla.");
       return;
     }
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("Poné un nombre para guardar el patrón.");
+      setError("Pon un nombre para guardar el patrón.");
       return;
     }
     const c = sortedCells();
@@ -88,7 +88,7 @@ export function BingoPatternDraw({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-muted">
-        Tocá las casillas que forman el patrón. Para ganar habrá que completarlas todas.
+        Toca las casillas que forman el patrón. Para ganar habrá que completarlas todas.
       </p>
       <BingoPatternPreview
         editable

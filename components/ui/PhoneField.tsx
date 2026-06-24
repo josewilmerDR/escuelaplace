@@ -44,7 +44,7 @@ export function PhoneField({
       </label>
       {showError ? (
         <p role="alert" className="text-xs font-medium text-error">
-          No parece un número marcable. Usá 8888-8888, o con código de país si
+          No parece un número marcable. Usa 8888-8888, o con código de país si
           no es de Costa Rica.
         </p>
       ) : display ? (

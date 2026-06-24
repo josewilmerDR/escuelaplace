@@ -115,7 +115,7 @@ function SchoolBingoLiveInner() {
       <main>
         <Heading />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar la escuela. Intentá de nuevo.
+          No pudimos cargar la escuela. Intenta de nuevo.
         </p>
       </main>
     );
@@ -131,7 +131,7 @@ function SchoolBingoLiveInner() {
     return (
       <main>
         <Heading subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -167,12 +167,12 @@ function SchoolBingoLiveInner() {
 
       {bingos.length === 0 ? (
         <p className="mt-8 text-sm text-muted">
-          Todavía no creaste ningún bingo. Creá uno desde Herramientas.
+          Todavía no creaste ningún bingo. Crea uno desde Herramientas.
         </p>
       ) : !selected ? (
         <section className="mt-8">
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            Elegí el bingo a dirigir
+            Elige el bingo a dirigir
           </h2>
           <ul className="mt-4 flex flex-col gap-3">
             {bingos.map((b) => {
@@ -261,7 +261,7 @@ function BingoConsole({
   useEffect(() => {
     const unsubState = subscribeBingoEventState(schoolId, toolId, setState);
     const unsubClaims = subscribeBingoClaims(schoolId, toolId, setClaims, () =>
-      setError("No pudimos cargar los reclamos en vivo. Recargá la página."),
+      setError("No pudimos cargar los reclamos en vivo. Recarga la página."),
     );
     return () => {
       unsubState();
@@ -498,8 +498,8 @@ function BingoConsole({
             {status === "closed" && (
               <p className="rounded-xl bg-surface p-3 text-sm text-muted ring-1 ring-black/5">
                 {winner?.isGrand
-                  ? `🏆 El bingo terminó: el premio mayor lo ganó el cartón #${winner.cardLabel}. Reiniciá para jugar otro bingo (se limpia el tablero).`
-                  : "Bingo cerrado. Reiniciá para jugar otra ronda (se limpia el tablero)."}
+                  ? `🏆 El bingo terminó: el premio mayor lo ganó el cartón #${winner.cardLabel}. Reinicia para jugar otro bingo (se limpia el tablero).`
+                  : "Bingo cerrado. Reinicia para jugar otra ronda (se limpia el tablero)."}
               </p>
             )}
             <button
@@ -518,7 +518,7 @@ function BingoConsole({
       <div className={cardClass("inset")}>
         <div className="flex items-baseline justify-between">
           <h3 className="text-sm font-semibold tracking-tight text-foreground">
-            Tablero {status === "live" ? "(tocá para cantar)" : ""}
+            Tablero {status === "live" ? "(toca para cantar)" : ""}
           </h3>
           <p className="text-xs text-muted">
             {called.size} cantados
@@ -634,7 +634,7 @@ function BingoConsole({
                       )}
                       {valid === false && (
                         <p className="mt-1 text-xs font-medium text-error">
-                          ✗ Aún no válido con los números cantados. Revisá antes de
+                          ✗ Aún no válido con los números cantados. Revisa antes de
                           confirmar.
                         </p>
                       )}

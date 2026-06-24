@@ -17,9 +17,9 @@ import { LoginButton } from "./LoginButton";
 // páginas" reads as a dead end. Give the contribution flows donor-oriented copy that names
 // why an account is needed (the school confirms the aport) and reassures on money handling.
 const CONTRIBUTION_COPY = {
-  title: "Iniciá sesión para registrar tu aporte",
+  title: "Inicia sesión para registrar tu aporte",
   description:
-    "Necesitás una cuenta (con Google) para que la escuela pueda confirmar tu aporte. La plataforma nunca toca el dinero: pagás directo a la escuela por los medios que ella publica.",
+    "Necesitas una cuenta (con Google) para que la escuela pueda confirmar tu aporte. La plataforma nunca toca el dinero: pagas directo a la escuela por los medios que ella publica.",
 };
 
 const SIGN_IN_COPY: Record<string, { title: string; description: string }> = {
@@ -28,9 +28,9 @@ const SIGN_IN_COPY: Record<string, { title: string; description: string }> = {
 };
 
 const DEFAULT_COPY = {
-  title: "Ingresá para administrar tus páginas",
+  title: "Ingresa para administrar tus páginas",
   description:
-    "Creá o gestioná tu comercio o escuela. Navegar el catálogo no requiere cuenta.",
+    "Crea o gestiona tu comercio o escuela. Navegar el catálogo no requiere cuenta.",
 };
 
 export function RequireAuth({ children }: { children: ReactNode }) {

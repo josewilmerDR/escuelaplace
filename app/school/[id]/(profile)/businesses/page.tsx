@@ -48,7 +48,7 @@ export default async function SchoolBusinessesPage({ params }: Props) {
       title="Comercios que apoyan a la escuela"
       description={
         cards.length > 0
-          ? "Apoyá a la escuela comprándole a los comercios que ya la apoyan."
+          ? "Apoya a la escuela comprándole a los comercios que ya la apoyan."
           : undefined
       }
     >
@@ -56,7 +56,7 @@ export default async function SchoolBusinessesPage({ params }: Props) {
         <EmptyState
           icon={<TagIcon className="h-7 w-7" />}
           title="Todavía no hay comercios que la apoyen"
-          description="¿Tenés un comercio? Sé el primero en apoyar a esta escuela y aparecé acá para que la comunidad te compre."
+          description="¿Tienes un comercio? Sé el primero en apoyar a esta escuela y aparece aquí para que la comunidad te compre."
           cta={
             <div className="flex flex-col items-center gap-3 sm:flex-row">
               <Link href="/create" className="btn btn-primary">

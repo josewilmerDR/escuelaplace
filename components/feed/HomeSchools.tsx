@@ -79,12 +79,12 @@ export function HomeSchools({
     ? "Escuelas cerca de ti"
     : hasAnySupport
       ? "Escuelas con más apoyo de la comunidad"
-      : "Conocé las escuelas de tu comunidad";
+      : "Conoce las escuelas de tu comunidad";
   const subtext = hasLocation
     ? "Las instituciones educativas más cercanas a tu ubicación."
     : hasAnySupport
       ? "Las instituciones que más apoyo están recibiendo en la plataforma."
-      : "Sumate a una de las instituciones educativas de la comunidad.";
+      : "Súmate a una de las instituciones educativas de la comunidad.";
 
   // The businesses shelf, pinned at slot 2. Heading-led on the page background (no card wrapper)
   // so the carousel's edge fades — which assume the page background — stay seamless. null when no
@@ -107,7 +107,7 @@ export function HomeSchools({
           </Link>
         </div>
         <p className="mt-1 text-sm text-muted">
-          Comprándoles, apoyás a las escuelas que cada uno sostiene.
+          Comprándoles, apoyas a las escuelas que cada uno sostiene.
         </p>
         <div className="mt-4">
           <CardCarousel

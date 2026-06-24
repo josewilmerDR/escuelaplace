@@ -57,7 +57,7 @@ export function PaymentMethodsInfo({
 
   return (
     <div>
-      <p>Pagá directo a la escuela por cualquiera de estos medios:</p>
+      <p>Paga directo a la escuela por cualquiera de estos medios:</p>
       {/* Scannable list: each method on its own padded row on a white inset, so the
           label/value pairs read as a clean table rather than a run-on line. */}
       <ul className="mt-2 divide-y divide-border overflow-hidden rounded-xl bg-white ring-1 ring-black/5">

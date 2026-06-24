@@ -17,10 +17,10 @@ export default function NewPageChoice() {
         <BackLink href="/panel">Mis páginas</BackLink>
       </div>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        ¿Qué querés crear?
+        ¿Qué quieres crear?
       </h1>
       <p className="mt-1 text-sm text-muted">
-        Tu cuenta puede administrar varias páginas. Elegí el tipo para empezar.
+        Tu cuenta puede administrar varias páginas. Elige el tipo para empezar.
       </p>
 
       <div className="mt-8">
@@ -30,12 +30,12 @@ export default function NewPageChoice() {
       {/* Bridge for the user who only wants to donate, not run a page. Quiet and
           visually subordinate to the two choice cards above. */}
       <p className="mt-8 text-sm text-muted">
-        ¿Solo querés apoyar a una escuela?{" "}
+        ¿Solo quieres apoyar a una escuela?{" "}
         <Link
           href="/panel/donate"
           className="font-medium text-brand-darker underline hover:text-brand-darkest"
         >
-          Doná directamente
+          Dona directamente
         </Link>
         .
       </p>

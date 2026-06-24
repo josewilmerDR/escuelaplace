@@ -260,7 +260,7 @@ export default function BusinessEditPage() {
     // OLD doc, or a profile with no category / no map pin.
     if (dirty) {
       setStatusError(
-        "Tenés cambios sin guardar. Guardá el perfil antes de publicarlo.",
+        "Tienes cambios sin guardar. Guarda el perfil antes de publicarlo.",
       );
       return;
     }
@@ -290,19 +290,19 @@ export default function BusinessEditPage() {
     }
     if (!coords) {
       // validateBusinessProfile already guarantees this; the guard narrows the type.
-      setError("Elegí la ubicación en el mapa.");
+      setError("Elige la ubicación en el mapa.");
       return;
     }
     if (discountActive && !discountText.trim()) {
-      setError("Escribí la descripción del descuento o desactivá la opción.");
+      setError("Escribe la descripción del descuento o desactiva la opción.");
       return;
     }
     if (whatsapp.trim() && !normalizePhoneInternational(whatsapp)) {
-      setError("Revisá el número de WhatsApp: no parece un número marcable.");
+      setError("Revisa el número de WhatsApp: no parece un número marcable.");
       return;
     }
     if (phone.trim() && !normalizePhoneInternational(phone)) {
-      setError("Revisá el número de teléfono: no parece un número marcable.");
+      setError("Revisa el número de teléfono: no parece un número marcable.");
       return;
     }
     setError(null);
@@ -457,7 +457,7 @@ export default function BusinessEditPage() {
           Editar comercio
         </h1>
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar los datos del comercio. Revisá tu conexión e intentá
+          No pudimos cargar los datos del comercio. Revisa tu conexión e intenta
           de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
@@ -498,7 +498,7 @@ export default function BusinessEditPage() {
           Editar comercio
         </h1>
         <p role="alert" className="mt-4 text-sm text-error">
-          No administrás este comercio.
+          No administras este comercio.
         </p>
         <p className="mt-4 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -560,8 +560,8 @@ export default function BusinessEditPage() {
           <>
             <p>
               Tu página está en <strong>borrador</strong>: no aparece en el
-              catálogo ni se puede abrir su URL pública. Completá el perfil y
-              publicala cuando esté lista.
+              catálogo ni se puede abrir su URL pública. Completa el perfil y
+              publícala cuando esté lista.
             </p>
             <button
               type="button"
@@ -577,7 +577,7 @@ export default function BusinessEditPage() {
           <p>
             {business.status === "pending"
               ? "Tu página está en revisión por el equipo; todavía no es visible al público."
-              : "Tu página fue suspendida por el equipo y no es visible. Escribinos si creés que es un error."}
+              : "Tu página fue suspendida por el equipo y no es visible. Escríbenos si crees que es un error."}
           </p>
         )}
         {/* Publish/unpublish error next to its button (not at the far-bottom form
@@ -655,8 +655,8 @@ export default function BusinessEditPage() {
                   setSchoolId(next);
                   setDirty(true);
                 }}
-                placeholder="Buscá tu escuela por nombre o lugar…"
-                emptyMessage="Ninguna escuela coincide — probá otro nombre o lugar."
+                placeholder="Busca tu escuela por nombre o lugar…"
+                emptyMessage="Ninguna escuela coincide — prueba otro nombre o lugar."
               />
             </Field>
             {/* Non-accional copy: this field only denormalizes the association on the
@@ -664,20 +664,20 @@ export default function BusinessEditPage() {
                 /subscribe flow). */}
             <p className="mt-1 text-xs text-muted">
               Asocia tu comercio a una escuela en tu perfil. Para apoyarla con una
-              suscripción, andá a “Apoyar una escuela” desde el panel. Borrá el texto
+              suscripción, ve a “Apoyar una escuela” desde el panel. Borra el texto
               para quitar la escuela vinculada.
             </p>
           </div>
 
           <fieldset>
             <legend className="text-sm font-medium">
-              Categorías (elegí al menos una)
+              Categorías (elige al menos una)
             </legend>
             {categories.length === 0 ? (
               // System failure (the fetch returned nothing), not "you didn't choose":
               // say so instead of rendering an empty fieldset that reads as no options.
               <p role="alert" className="mt-2 text-sm text-error">
-                No pudimos cargar las categorías. Recargá la página.
+                No pudimos cargar las categorías. Recarga la página.
               </p>
             ) : (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -712,7 +712,7 @@ export default function BusinessEditPage() {
 
           <TagsInput
             label="Etiquetas de búsqueda (opcional)"
-            hint="Palabras o frases que la gente busca y que vendés o ofrecés — “cuadernos”, “útiles escolares”, “tijeras”. Ayudan a que tu comercio aparezca aunque no estén en el nombre. Enter o coma para agregar cada una."
+            hint="Palabras o frases que la gente busca y que vendes u ofreces — “cuadernos”, “útiles escolares”, “tijeras”. Ayudan a que tu comercio aparezca aunque no estén en el nombre. Enter o coma para agregar cada una."
             value={tags}
             onChange={(next) => {
               setTags(next);
@@ -726,7 +726,7 @@ export default function BusinessEditPage() {
 
         <FormSection
           legend="Ubicación"
-          description="Se completan solos al mover el pin en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
+          description="Se completan solos al mover el pin en el mapa — revísalos, corrígelos o déjalos en blanco si no aplican."
           boxed
         >
           <div

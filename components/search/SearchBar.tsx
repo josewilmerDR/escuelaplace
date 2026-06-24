@@ -93,7 +93,7 @@ export function SearchBar({
           onChange={(e) => setQ(e.target.value)}
           autoFocus={autoFocus}
           placeholder="Buscar comercios"
-          aria-label="¿Qué buscás?"
+          aria-label="¿Qué buscas?"
           className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
         />
         {q && (
@@ -137,8 +137,8 @@ export function SearchBar({
         value={q}
         onChange={(e) => setQ(e.target.value)}
         autoFocus={autoFocus}
-        placeholder="¿Qué buscás? Ej: Panadería, Clases de Inglés"
-        aria-label="¿Qué buscás?"
+        placeholder="¿Qué buscas? Ej: Panadería, Clases de Inglés"
+        aria-label="¿Qué buscas?"
         className="min-w-0 flex-1 bg-transparent py-3 text-base text-foreground outline-none placeholder:text-muted"
       />
       {/* Clear button: only while there's text. Clears the input (and, on the results page,

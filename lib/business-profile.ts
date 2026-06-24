@@ -49,10 +49,10 @@ export function validateBusinessProfile(
   // Without a category the business never appears in the /category/* listings — one of
   // the main discovery paths — so it can't be emptied (or published) silently.
   if (fields.categories.length === 0) {
-    return "Elegí al menos una categoría: sin categoría tu comercio no aparece en los listados.";
+    return "Elige al menos una categoría: sin categoría tu comercio no aparece en los listados.";
   }
   if (!fields.hasCoords) {
-    return "Elegí la ubicación en el mapa.";
+    return "Elige la ubicación en el mapa.";
   }
   return null;
 }

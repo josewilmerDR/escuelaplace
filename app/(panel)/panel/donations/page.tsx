@@ -247,7 +247,7 @@ export default function DonationsPage() {
           className="mt-10"
           icon={<HeartIcon className="h-7 w-7" />}
           title="Todavía no registraste ninguna donación"
-          description="Cuando apoyés a una escuela o aportes a un proyecto, vas a ver acá el resumen y el estado de cada aporte."
+          description="Cuando apoyes a una escuela o aportes a un proyecto, vas a ver acá el resumen y el estado de cada aporte."
           cta={{ label: "Donar a una escuela", href: "/panel/donate" }}
         />
       ) : (
@@ -291,7 +291,7 @@ export default function DonationsPage() {
                 Mensajes de tus escuelas
               </h2>
               <p className="mt-1 text-sm text-muted">
-                Un gracias de las comunidades que apoyás.
+                Un gracias de las comunidades que apoyas.
               </p>
               <ul className="mt-4 flex flex-col gap-3">
                 {sentThankYous.map((t) => (

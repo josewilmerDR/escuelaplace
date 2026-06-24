@@ -56,7 +56,7 @@ const INSPIRATION = {
   anniversaryGeneric:
     "Ej.: «Gracias {nombre}. Hoy es una fecha especial para nosotros: gracias por llevarnos en tu corazón».",
   prompt:
-    "Hacé algo simple y memorable: un video corto dedicado, unas líneas escritas por los alumnos, una carta, una placa con su nombre. Lo que construye comunidad.",
+    "Haz algo simple y memorable: un video corto dedicado, unas líneas escritas por los alumnos, una carta, una placa con su nombre. Lo que construye comunidad.",
 };
 
 /** A template as the editor holds it: text + at most one media (a new file, or a saved url). */
@@ -210,7 +210,7 @@ export default function SchoolThanksPage() {
           className="mt-8"
           icon={<HeartIcon className="h-7 w-7" />}
           title="No pudimos cargar esta sección"
-          description="Revisá tu conexión e intentá de nuevo."
+          description="Revisa tu conexión e intenta de nuevo."
         />
         <p className="mt-4 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -224,7 +224,7 @@ export default function SchoolThanksPage() {
       <main>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">{TITLE}</h1>
         <p role="alert" className="mt-4 text-sm text-error">
-          No administrás esta escuela.
+          No administras esta escuela.
         </p>
         <p className="mt-4 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -248,7 +248,7 @@ export default function SchoolThanksPage() {
         <p className="text-sm text-muted">
           Agradecer construye comunidad. La idea es algo <strong>simple, barato y
           memorable</strong>: un video corto de los niños, unas líneas sinceras, una
-          carta. Escribí <code className="rounded bg-surface px-1">{"{nombre}"}</code>{" "}
+          carta. Escribe <code className="rounded bg-surface px-1">{"{nombre}"}</code>{" "}
           donde quieras que aparezca el nombre de quien apoya.
         </p>
       </section>
@@ -283,7 +283,7 @@ export default function SchoolThanksPage() {
           Plantillas automáticas
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Se envían solas cuando ocurre el momento. Dejá una en blanco para no enviar nada
+          Se envían solas cuando ocurre el momento. Deja una en blanco para no enviar nada
           en ese caso (los aniversarios especiales siempre te avisan para que los hagas a
           mano).
         </p>
@@ -323,7 +323,7 @@ export default function SchoolThanksPage() {
                 className="input"
               />
               <span className="text-xs text-muted">
-                Separá con comas. En estos aniversarios te pedimos un gesto personal en
+                Separa con comas. En estos aniversarios te pedimos un gesto personal en
                 lugar de enviar la plantilla.
               </span>
             </Field>
@@ -443,7 +443,7 @@ function PromptCard({
 
   const send = async () => {
     if (!message.trim() && !mediaFile) {
-      setError("Escribí un mensaje o adjuntá una foto o video.");
+      setError("Escribe un mensaje o adjunta una foto o video.");
       return;
     }
     setBusy(true);
@@ -495,7 +495,7 @@ function PromptCard({
           maxLength={THANK_YOU_MESSAGE_MAX}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Escribí unas líneas para esta persona o comercio."
+          placeholder="Escribe unas líneas para esta persona o comercio."
           className="input min-h-20"
         />
       </Field>

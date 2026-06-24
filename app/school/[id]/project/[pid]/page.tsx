@@ -196,10 +196,10 @@ export default async function ProjectPage({ params }: Props) {
                   <p className="mt-2 text-sm text-muted">
                     {reached
                       ? "La escuela sigue recibiendo aportes (en dinero o en especie) por encima de la meta."
-                      : "Podés aportar en dinero o donar en especie (bienes o trabajo, como una etapa completa); su valor estimado suma al avance."}
+                      : "Puedes aportar en dinero o donar en especie (bienes o trabajo, como una etapa completa); su valor estimado suma al avance."}
                   </p>
                   <p className="mt-2 text-xs text-muted">
-                    Para registrar tu aporte iniciás sesión con Google.{" "}
+                    Para registrar tu aporte inicias sesión con Google.{" "}
                     {PLATFORM_MONEY_DISCLAIMER_TEXT}
                   </p>
                 </div>

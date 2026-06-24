@@ -29,7 +29,7 @@ export function ReviewForm({
   const { user, loading } = useAuth();
   // "Ver como visitante" (toggled from ManageBar by the page's managers): pretend
   // signed-out so the owner sees the sign-in prompt an anonymous buyer gets, not the
-  // "No podés reseñar tu propio comercio" notice.
+  // "No puedes reseñar tu propio comercio" notice.
   const [asVisitor] = useViewAsVisitor();
 
   if (loading) {
@@ -46,7 +46,7 @@ export function ReviewForm({
   if (!user || asVisitor) {
     return (
       <div className="rounded-2xl bg-surface p-5 text-sm ring-1 ring-black/5">
-        <p className="mb-3 text-muted">Iniciá sesión con Google para dejar tu reseña.</p>
+        <p className="mb-3 text-muted">Inicia sesión con Google para dejar tu reseña.</p>
         {/* "primary": the default on-brand chip is white-on-white here. */}
         <LoginButton variant="primary" />
       </div>
@@ -56,7 +56,7 @@ export function ReviewForm({
   if (user.id === ownerId || editorIds?.includes(user.id)) {
     return (
       <p className="rounded-2xl bg-surface p-5 text-sm text-muted ring-1 ring-black/5">
-        No podés reseñar tu propio comercio.
+        No puedes reseñar tu propio comercio.
       </p>
     );
   }
@@ -109,7 +109,7 @@ function ReviewFormInner({
         // blindly, so warn instead of failing silently.
         if (cancelled) return;
         setError(
-          "No pudimos comprobar si ya tenías una reseña. Recargá la página antes de publicar.",
+          "No pudimos comprobar si ya tenías una reseña. Recarga la página antes de publicar.",
         );
       });
     return () => {
@@ -136,7 +136,7 @@ function ReviewFormInner({
     e.preventDefault();
     setSuccess(null);
     if (rating === 0) {
-      setError("Elegí una calificación antes de publicar.");
+      setError("Elige una calificación antes de publicar.");
       return;
     }
     setSaving(true);
@@ -186,7 +186,7 @@ function ReviewFormInner({
       className="rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-black/5"
     >
       <p className="text-base font-semibold tracking-tight text-foreground">
-        {hasExisting ? "Editá tu reseña" : "Dejá tu reseña"}
+        {hasExisting ? "Edita tu reseña" : "Deja tu reseña"}
       </p>
 
       {/* h-10/w-10 buttons keep the tap targets ≥40px (the .btn rule in globals.css);
@@ -218,8 +218,8 @@ function ReviewFormInner({
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Contá tu experiencia (opcional)"
-        aria-label="Contá tu experiencia (opcional)"
+        placeholder="Cuenta tu experiencia (opcional)"
+        aria-label="Cuenta tu experiencia (opcional)"
         maxLength={600}
         className="input mt-3 min-h-20 w-full"
       />

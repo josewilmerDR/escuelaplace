@@ -126,7 +126,7 @@ export default function BingoDecksPage() {
       <main>
         <Heading schoolId={id} />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar los mazos. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar los mazos. Revisa tu conexión e intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -157,7 +157,7 @@ export default function BingoDecksPage() {
     return (
       <main>
         <Heading schoolId={id} subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -195,7 +195,7 @@ export default function BingoDecksPage() {
         const count = Number(trimmedCount);
         if (!Number.isInteger(count) || count <= 0) {
           setError(
-            "La cantidad de cartones debe ser un entero mayor a 0 (o dejala vacía).",
+            "La cantidad de cartones debe ser un entero mayor a 0 (o déjala vacía).",
           );
           return;
         }
@@ -253,8 +253,8 @@ export default function BingoDecksPage() {
       <Heading schoolId={id} subtitle={school.name} />
 
       <p className="mt-6 text-sm text-muted">
-        Un mazo es un lote de cartones que guardás una vez y reutilizás en varios bingos.
-        Creá uno acá, generá o importá sus cartones, y al crear un bingo elegilo para no
+        Un mazo es un lote de cartones que guardas una vez y reutilizas en varios bingos.
+        Crea uno acá, genera o importa sus cartones, y al crear un bingo elígelo para no
         tener que generarlos de nuevo.
       </p>
 
@@ -371,7 +371,7 @@ export default function BingoDecksPage() {
                   />
                 </Field>
                 <p className="mt-1 text-xs text-muted">
-                  Se generan al crear el mazo, con números aleatorios. Dejá el campo vacío
+                  Se generan al crear el mazo, con números aleatorios. Deja el campo vacío
                   para crear un mazo vacío y agregar cartones después.
                 </p>
               </div>
@@ -385,8 +385,8 @@ export default function BingoDecksPage() {
                   placeholder={`Un cartón por línea (${Number(rows) * Number(cols) || "—"} números separados por coma o espacio).\nCada columna usa su propio rango (col. 1: ${poolMin}–…, como el bingo tradicional).\nOpcional: un identificador y dos puntos al inicio.\nEj.: 001: 5, 12, 33, ...`}
                 />
                 <p className="mt-1 text-xs text-muted">
-                  Pegá tus cartones ya impresos, uno por línea. Útil cuando el mazo tiene
-                  una versión física que no querés volver a generar.
+                  Pega tus cartones ya impresos, uno por línea. Útil cuando el mazo tiene
+                  una versión física que no quieres volver a generar.
                 </p>
               </div>
             )}
@@ -407,7 +407,7 @@ export default function BingoDecksPage() {
         </h2>
         {decks.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
-            Todavía no tenés mazos. Creá el primero arriba.
+            Todavía no tienes mazos. Crea el primero arriba.
           </p>
         ) : (
           <ul className="mt-4 flex flex-col gap-2">

@@ -145,7 +145,7 @@ function ToolKindContent({
       <main>
         <Heading schoolId={schoolId} title={title} />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar las herramientas. Revisá tu conexión e intentá de
+          No pudimos cargar las herramientas. Revisa tu conexión e intenta de
           nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
@@ -177,7 +177,7 @@ function ToolKindContent({
     return (
       <main>
         <Heading schoolId={schoolId} title={title} subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -223,8 +223,8 @@ function ToolKindContent({
           <div className="mt-4">
             <EmptyState
               icon={<Icon className="h-7 w-7" />}
-              title={`Todavía no tenés ${title.toLowerCase()}`}
-              description={`Creá la primera con el botón “${createLabel}”.`}
+              title={`Todavía no tienes ${title.toLowerCase()}`}
+              description={`Crea la primera con el botón “${createLabel}”.`}
             />
           </div>
         ) : activeTools.length === 0 ? (

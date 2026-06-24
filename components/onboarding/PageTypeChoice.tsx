@@ -16,8 +16,8 @@ import { AcademicCapIcon, ArrowRightIcon, TagIcon } from "@/components/ui/icons"
  * comercios, mortarboard for escuelas), lifting on hover.
  *
  * `headingLevel` sets the card title tag so each host keeps a correct heading hierarchy:
- * default "h2" on /panel/new (where the page h1 is "¿Qué querés crear?"), "h3" on /create
- * (where a section "¿Qué querés crear?" h2 precedes the cards).
+ * default "h2" on /panel/new (where the page h1 is "¿Qué quieres crear?"), "h3" on /create
+ * (where a section "¿Qué quieres crear?" h2 precedes the cards).
  */
 export function PageTypeChoice({
   headingLevel = "h2",

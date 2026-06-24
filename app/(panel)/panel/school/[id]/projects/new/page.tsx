@@ -129,7 +129,7 @@ export default function NewProjectPage() {
       <main>
         <Heading schoolId={id} />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar la escuela. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar la escuela. Revisa tu conexión e intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -161,7 +161,7 @@ export default function NewProjectPage() {
       <main>
         <Heading schoolId={id} subtitle={school.name} />
         {/* Not a system failure — the user simply lacks access here, so muted, not error. */}
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -175,7 +175,7 @@ export default function NewProjectPage() {
     // Whitespace-only passes the native `required`, so check the trimmed value.
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setError("Ingresá el título del proyecto.");
+      setError("Ingresa el título del proyecto.");
       return;
     }
     // Keep each stage's already-uploaded media (photos/video) and drop the local-only id —
@@ -190,7 +190,7 @@ export default function NewProjectPage() {
       }))
       .filter((s) => s.title);
     if (cleanStages.length === 0) {
-      setError("Agregá al menos una etapa con título.");
+      setError("Agrega al menos una etapa con título.");
       return;
     }
     // Stage costs are the project goal; a total of 0 yields a degenerate progress bar.
@@ -232,12 +232,12 @@ export default function NewProjectPage() {
         <p className="mt-6 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
           {school.verificationStatus === "needs_reverification"
             ? "Editaste datos sensibles y la escuela quedó pendiente de re-verificación: el botón “Financiar” permanece apagado hasta que el equipo apruebe los cambios."
-            : "Podés preparar proyectos desde ya, pero el botón “Financiar” recién se activa cuando el equipo verifique la escuela."}{" "}
+            : "Puedes preparar proyectos desde ya, pero el botón “Financiar” recién se activa cuando el equipo verifique la escuela."}{" "}
           <Link
             href={`/panel/school/${id}/edit`}
             className="font-medium underline underline-offset-2"
           >
-            Completá los datos de la escuela
+            Completa los datos de la escuela
           </Link>{" "}
           para empezar.
         </p>
@@ -267,7 +267,7 @@ export default function NewProjectPage() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="input"
-            placeholder="Contá qué se busca lograr y por qué importa."
+            placeholder="Cuenta qué se busca lograr y por qué importa."
           />
         </Field>
         <Field label="Moneda">

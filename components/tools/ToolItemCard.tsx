@@ -249,7 +249,7 @@ export function ToolItemCard({
                       duration = await videoDurationSeconds(f);
                     } catch {
                       setMediaError(
-                        "No pudimos leer el video. Probá con otro archivo.",
+                        "No pudimos leer el video. Prueba con otro archivo.",
                       );
                       return;
                     }

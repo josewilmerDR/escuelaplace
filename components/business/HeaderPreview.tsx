@@ -46,7 +46,7 @@ export function HeaderPreview({
     <div className="flex flex-col gap-1 text-sm">
       <span className="font-medium">Así se verá el encabezado</span>
       <span className="text-xs text-muted">
-        El círculo del logo se superpone a la portada — revisá que no tape una
+        El círculo del logo se superpone a la portada — revisa que no tape una
         cara ni un texto importante.
       </span>
       <div className="mt-1 max-w-md overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">

@@ -41,7 +41,7 @@ export function DonorWallManagerHint({
           <HeartIcon className="h-5 w-5 text-brand" />
           Muro de agradecimiento
         </h2>
-        <Badge tone="neutral">Solo vos ves esto</Badge>
+        <Badge tone="neutral">Solo tú ves esto</Badge>
       </div>
       <p className="mt-2 text-sm text-muted">
         Cuando confirmes tu primer aporte, acá aparece un muro público que
@@ -54,7 +54,7 @@ export function DonorWallManagerHint({
           href={`/panel/school/${schoolId}/edit`}
           className="font-medium text-brand-darker hover:underline"
         >
-          Personalizá el mensaje de agradecimiento
+          Personaliza el mensaje de agradecimiento
         </Link>{" "}
         que encabeza el muro.
       </p>

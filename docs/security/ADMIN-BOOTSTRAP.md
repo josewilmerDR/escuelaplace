@@ -25,7 +25,7 @@ isAdmin() = signedIn && (request.auth.token.admin == true || users/{uid}.role ==
   no-admins (create forzado a `'user'`, update no-admin exige `role` sin cambios). Por eso leer
   el campo en `isAdmin()` ya es seguro.
 
-Cuando **todos** los admins tengan el claim, eliminá el fallback al campo en ambas reglas (y el
+Cuando **todos** los admins tengan el claim, elimina el fallback al campo en ambas reglas (y el
 `get()` que cuesta) — queda solo `request.auth.token.admin == true`.
 
 ## Bootstrap del primer admin
@@ -48,7 +48,7 @@ El usuario debe **cerrar sesión y volver a entrar** (o refrescar su ID token) p
 tome efecto — el script revoca sus refresh tokens para forzarlo.
 
 > Alternativa sin script: en la consola de Firebase/GCP no se pueden setear custom claims a mano;
-> usá el script, `firebase functions:shell`, o un Cloud Function temporal. El script es lo más simple.
+> usa el script, `firebase functions:shell`, o un Cloud Function temporal. El script es lo más simple.
 
 ## Gestión de admins (después del primero)
 
@@ -68,16 +68,16 @@ import { getFirebaseFunctions } from "@/lib/firebase";
 await httpsCallable(getFirebaseFunctions(), "grantAdminRole")({ uid });
 ```
 
-(La UI de gestión de admins aún no está cableada — pendiente; por ahora usá el script o la
+(La UI de gestión de admins aún no está cableada — pendiente; por ahora usa el script o la
 callable directo.)
 
 ## Orden de despliegue (importante para no perder acceso)
 
 1. **Deploy de las Cloud Functions** (`grantAdminRole`/`revokeAdminRole`) — aditivo, sin riesgo.
-2. **Bootstrap**: corré `set-admin.mjs` para darte el claim a vos (y a cualquier admin actual).
-   Verificá: el usuario, tras re-loguear, tiene `request.auth.token.admin == true`.
+2. **Bootstrap**: corre `set-admin.mjs` para darte el claim a ti (y a cualquier admin actual).
+   Verifica: el usuario, tras re-loguear, tiene `request.auth.token.admin == true`.
 3. **Deploy de las reglas** (`firestore.rules` + `storage.rules`). Aunque el claim no estuviera
-   seteado, el fallback al campo `role` evita lockout — pero hacé el bootstrap igual para no
+   seteado, el fallback al campo `role` evita lockout — pero haz el bootstrap igual para no
    depender del fallback.
-4. Más adelante, cuando todos los admins tengan claim: quitá el fallback `|| ...role == 'admin'`
+4. Más adelante, cuando todos los admins tengan claim: quita el fallback `|| ...role == 'admin'`
    de `isAdmin()` en ambos archivos.

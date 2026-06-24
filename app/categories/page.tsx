@@ -20,7 +20,7 @@ import type { CategoryDoc } from "@/types";
 export const revalidate = 300;
 
 const DESCRIPTION =
-  "Explorá el directorio por rubro y encontrá comercios de tu comunidad.";
+  "Explora el directorio por rubro y encuentra comercios de tu comunidad.";
 
 export const metadata: Metadata = {
   title: "Todas las categorías",
@@ -86,7 +86,7 @@ export default async function CategoriesPage() {
           Todas las categorías
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Explorá el directorio por rubro y encontrá comercios de tu comunidad.
+          Explora el directorio por rubro y encuentra comercios de tu comunidad.
         </p>
       </header>
 
@@ -94,13 +94,13 @@ export default async function CategoriesPage() {
         <EmptyState
           icon={<WarningIcon className="h-7 w-7" />}
           title="No pudimos cargar las categorías"
-          description="Recargá la página para intentarlo de nuevo."
+          description="Recarga la página para intentarlo de nuevo."
         />
       ) : categories.length === 0 ? (
         <EmptyState
           icon={<TagIcon className="h-7 w-7" />}
           title="Todavía no hay categorías publicadas"
-          description="Volvé más tarde: el directorio crece con la comunidad."
+          description="Vuelve más tarde: el directorio crece con la comunidad."
           cta={{ label: "Volver al inicio", href: "/" }}
         />
       ) : (

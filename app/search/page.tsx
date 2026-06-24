@@ -120,12 +120,12 @@ export default async function SearchPage({ searchParams }: Props) {
         <>
           <h1 className="sr-only">Buscar comercios</h1>
           <p className="mx-auto max-w-sm text-center text-sm text-muted">
-            Escribí lo que necesitás, o{" "}
+            Escribe lo que necesitas, o{" "}
             <Link
               href="/categories"
               className="font-medium text-brand-darker underline-offset-2 hover:underline"
             >
-              explorá por categoría
+              explora por categoría
             </Link>
             .
           </p>
@@ -148,13 +148,13 @@ export default async function SearchPage({ searchParams }: Props) {
             <EmptyState
               icon={<WarningIcon className="h-7 w-7" />}
               title="No pudimos cargar el catálogo"
-              description="Recargá la página para intentarlo de nuevo."
+              description="Recarga la página para intentarlo de nuevo."
             />
           ) : cards.length === 0 ? (
             <EmptyState
               icon={<SearchIcon className="h-7 w-7" />}
               title={`No encontramos comercios para “${query}”`}
-              description="Probá con otras palabras o explorá el directorio por categoría."
+              description="Prueba con otras palabras o explora el directorio por categoría."
               cta={{ label: "Explorar por categoría", href: "/categories" }}
             />
           ) : (

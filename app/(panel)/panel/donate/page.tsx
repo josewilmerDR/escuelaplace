@@ -220,7 +220,7 @@ function DonateContent() {
       setError(
         userErrorMessage(
           err,
-          "La donación se registró, pero no se pudo subir el comprobante. Podés subirlo desde la lista.",
+          "La donación se registró, pero no se pudo subir el comprobante. Puedes subirlo desde la lista.",
         ),
       );
     }

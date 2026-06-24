@@ -13,11 +13,11 @@ export function userErrorMessage(err: unknown, fallback: string): string {
     switch (err.code) {
       case "permission-denied":
       case "storage/unauthorized":
-        return "No tenés permiso para hacer esto. Volvé a ingresar e intentá de nuevo.";
+        return "No tienes permiso para hacer esto. Vuelve a ingresar e intenta de nuevo.";
       case "unavailable":
-        return "No hay conexión con el servidor. Revisá tu internet e intentá de nuevo.";
+        return "No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.";
       case "unauthenticated":
-        return "Tu sesión expiró. Volvé a ingresar.";
+        return "Tu sesión expiró. Vuelve a ingresar.";
     }
   }
   return fallback;

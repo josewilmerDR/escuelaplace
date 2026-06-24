@@ -10,7 +10,7 @@ import type { FormEvent } from "react";
 export function spanishRequiredMessage(e: FormEvent): void {
   const el = e.target as HTMLInputElement;
   if (el.validity?.valueMissing) {
-    el.setCustomValidity("Completá este campo.");
+    el.setCustomValidity("Completa este campo.");
   }
 }
 

@@ -185,7 +185,7 @@ export default async function BusinessProfileLayout({ children, params }: Props)
               {business.discount.text || "Descuento"}
             </span>
             <span className="mt-1 block text-xs">
-              Mencioná que lo viste en escuelaplace al contactar para
+              Menciona que lo viste en escuelaplace al contactar para
               aprovecharlo.
             </span>
           </p>

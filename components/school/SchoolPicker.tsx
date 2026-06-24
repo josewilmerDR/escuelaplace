@@ -260,7 +260,7 @@ export function SchoolPicker({
         }))}
         value={value}
         onChange={onChange}
-        placeholder="o buscá tu escuela…"
+        placeholder="o busca tu escuela…"
         ariaLabel="Buscar escuela"
         emptyMessage="Sin resultados"
       />

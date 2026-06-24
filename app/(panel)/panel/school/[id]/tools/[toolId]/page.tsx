@@ -328,7 +328,7 @@ export default function EditToolPage() {
       <main>
         <Heading schoolId={id} />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar la herramienta. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar la herramienta. Revisa tu conexión e intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -363,7 +363,7 @@ export default function EditToolPage() {
     return (
       <main>
         <Heading schoolId={id} subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -375,7 +375,7 @@ export default function EditToolPage() {
     e.preventDefault();
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setError("Ingresá el título de la herramienta.");
+      setError("Ingresa el título de la herramienta.");
       return;
     }
     // The CTA is all-or-nothing: a label without a link (or vice versa) is incomplete, and a
@@ -385,7 +385,7 @@ export default function EditToolPage() {
     const url = ctaUrl.trim();
     if ((label && !url) || (!label && url)) {
       setError(
-        "El botón necesita tanto un texto como un enlace; completá ambos o dejá los dos en blanco.",
+        "El botón necesita tanto un texto como un enlace; completa ambos o deja los dos en blanco.",
       );
       return;
     }
@@ -427,7 +427,7 @@ export default function EditToolPage() {
             Boolean(s.videoUrl),
         );
       if (cleanStages.length === 0) {
-        setError("Agregá al menos una etapa con su nombre.");
+        setError("Agrega al menos una etapa con su nombre.");
         return;
       }
       if (cleanStages.some((s) => !s.title)) {
@@ -890,7 +890,7 @@ export default function EditToolPage() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="input"
-            placeholder="Contá de qué se trata la actividad."
+            placeholder="Cuenta de qué se trata la actividad."
           />
         </Field>
 
@@ -968,7 +968,7 @@ export default function EditToolPage() {
             </Field>
             <p className="-mt-2 text-xs text-muted">
               El botón “Preguntar” de la página abrirá WhatsApp con este número. Si
-              lo dejás en blanco, usa el teléfono de la junta de la escuela.
+              lo dejas en blanco, usa el teléfono de la junta de la escuela.
             </p>
           </section>
         )}
@@ -1028,7 +1028,7 @@ export default function EditToolPage() {
                     Bingo en vivo
                   </p>
                   <p className="text-xs text-muted">
-                    Dirigí el juego: cantá los números y validá los reclamos en
+                    Dirige el juego: canta los números y valida los reclamos en
                     tiempo real.
                   </p>
                 </div>
@@ -1057,7 +1057,7 @@ export default function EditToolPage() {
               <p className="text-sm font-semibold text-foreground">Cartones (mazo)</p>
               <p className="mt-1 text-xs text-muted">
                 Los cartones de este bingo se definen eligiendo un mazo al crearlo. Para
-                generarlos, importarlos o ver todos los cartones, administrá tus mazos en
+                generarlos, importarlos o ver todos los cartones, administra tus mazos en
                 su propia página.
               </p>
               <p className="mt-2 text-xs">
@@ -1104,7 +1104,7 @@ export default function EditToolPage() {
               </ToolItemCard>
             ) : (
               <p className="text-xs text-muted">
-                Guardá el evento para subir fotos y un video.
+                Guarda el evento para subir fotos y un video.
               </p>
             )}
           </section>
@@ -1167,7 +1167,7 @@ export default function EditToolPage() {
               value={ctaLabel}
               onChange={(e) => setCtaLabel(e.target.value)}
               className="input"
-              placeholder="Ej.: Escribinos por WhatsApp"
+              placeholder="Ej.: Escríbenos por WhatsApp"
             />
           </Field>
           <Field label="Enlace del botón (opcional)">
@@ -1220,7 +1220,7 @@ export default function EditToolPage() {
           </div>
           <p className="mt-1 text-sm text-muted">
             Estado actual de los números (vista previa). Los compradores los eligen
-            desde la página pública; confirmá cada pago en “Rifas”.
+            desde la página pública; confirma cada pago en “Rifas”.
           </p>
           <div className="mt-4">
             <RaffleNumberGrid
@@ -1341,7 +1341,7 @@ function TourStageCard({
       schoolId={schoolId}
       toolId={toolId}
       persisted={persisted}
-      unsavedHint="Guardá la etapa para poder subir fotos y un video."
+      unsavedHint="Guarda la etapa para poder subir fotos y un video."
       onMedia={onMedia}
     >
       <Field label="Nombre de la etapa">
@@ -1361,7 +1361,7 @@ function TourStageCard({
           value={stage.description}
           onChange={(e) => onText({ description: e.target.value })}
           className="input"
-          placeholder="Contá qué se ve y se hace en esta etapa."
+          placeholder="Cuenta qué se ve y se hace en esta etapa."
         />
       </Field>
     </ToolItemCard>
