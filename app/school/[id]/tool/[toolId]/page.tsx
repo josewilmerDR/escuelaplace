@@ -182,7 +182,7 @@ export default async function ToolPage({ params }: Props) {
             <ArrowRightIcon className="ml-2 h-5 w-5" />
           </a>
           <p className="mt-2 text-xs text-muted">
-            Coordiná directamente con la escuela. escuelaplace solo da
+            Coordina directamente con la escuela. escuelaplace solo da
             visibilidad: nunca procesa pagos ni participa en la actividad.
           </p>
         </div>
@@ -263,7 +263,7 @@ async function RaffleDetail({ id, toolId, tool, school }: ToolDetailProps) {
       {/* Number grid + buy flow (client island) */}
       <div id="comprar" className="mt-8 scroll-mt-20">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Elegí tus números
+          Elige tus números
         </h2>
         <p className="mt-1 text-sm text-muted">
           {formatMoney(raffle.pricePerNumber, raffle.currency)} cada número.
@@ -340,7 +340,7 @@ async function TourDetail({ id, toolId, tool, school }: ToolDetailProps) {
             Preguntar
           </a>
           <p className="mt-2 text-xs text-muted">
-            Coordiná directamente con la escuela por WhatsApp. escuelaplace
+            Coordina directamente con la escuela por WhatsApp. escuelaplace
             solo da visibilidad: nunca procesa pagos ni participa en la
             actividad.
           </p>
@@ -741,7 +741,7 @@ async function BingoDetail({ id, toolId, tool, school }: ToolDetailProps) {
       {/* Price + availability + buy */}
       <div id="comprar" className="mt-8 scroll-mt-20">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Comprá tus cartones
+          Compra tus cartones
         </h2>
         <p className="mt-1 text-sm text-muted">
           {formatMoney(bingo.pricePerCard, bingo.currency)} cada cartón ·{" "}

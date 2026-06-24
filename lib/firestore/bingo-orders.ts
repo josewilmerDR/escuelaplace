@@ -128,7 +128,7 @@ export async function confirmBingoOrder(
   if (availableSnap.size < order.quantity) {
     throw new Error(
       `Solo hay ${availableSnap.size} cartones disponibles y el pedido pide ${order.quantity}. ` +
-        "Generá más cartones o ajustá el pedido.",
+        "Genera más cartones o ajusta el pedido.",
     );
   }
   const chosen = [...availableSnap.docs]

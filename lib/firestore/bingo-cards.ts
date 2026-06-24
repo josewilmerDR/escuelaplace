@@ -142,7 +142,7 @@ export function parseImportedCards(
     .map((l) => l.trim())
     .filter(Boolean);
   if (lines.length === 0) {
-    return { ok: false, error: "Pegá al menos un cartón (uno por línea)." };
+    return { ok: false, error: "Pega al menos un cartón (uno por línea)." };
   }
   if (lines.length > BINGO_CARD_MAX) {
     return { ok: false, error: `Máximo ${BINGO_CARD_MAX} cartones por lote.` };

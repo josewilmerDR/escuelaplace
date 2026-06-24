@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     template: "%s | escuelaplace",
   },
   description:
-    "Directorio comunitario que conecta comercios locales con escuelas de Costa Rica. Descubrí negocios que apoyan a la escuela de tu comunidad.",
+    "Directorio comunitario que conecta comercios locales con escuelas de Costa Rica. Descubre negocios que apoyan a la escuela de tu comunidad.",
 };
 
 // Mobile viewport config. `viewportFit: "cover"` is the prerequisite that makes

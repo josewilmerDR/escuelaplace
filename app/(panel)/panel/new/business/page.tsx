@@ -160,18 +160,18 @@ export default function NewBusinessPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      setError("Tu sesión expiró. Volvé a ingresar.");
+      setError("Tu sesión expiró. Vuelve a ingresar.");
       return;
     }
     const trimmedName = name.trim();
     // Whitespace-only passes the native `required`, so check the trimmed value.
     if (!trimmedName) {
-      setError("Ingresá el nombre del comercio.");
+      setError("Ingresa el nombre del comercio.");
       return;
     }
     // Same as the name: the textarea is `required`, but whitespace-only passes it.
     if (!description.trim()) {
-      setError("Escribí una descripción del comercio.");
+      setError("Escribe una descripción del comercio.");
       return;
     }
     // Same minimums the edit form enforces — category for the /category/* listings,
@@ -186,12 +186,12 @@ export default function NewBusinessPage() {
     }
     if (!coords) {
       // validateBusinessProfile already guarantees this; the guard narrows the type.
-      setError("Elegí la ubicación en el mapa.");
+      setError("Elige la ubicación en el mapa.");
       return;
     }
     const trimmedWhatsapp = whatsapp.trim();
     if (trimmedWhatsapp && !normalizePhoneInternational(trimmedWhatsapp)) {
-      setError("Revisá el número de WhatsApp: no parece un número marcable.");
+      setError("Revisa el número de WhatsApp: no parece un número marcable.");
       return;
     }
     setError(null);
@@ -238,7 +238,7 @@ export default function NewBusinessPage() {
           Crear comercio
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Empezá con lo esencial: lo publicás como borrador y completás el resto
+          Empieza con lo esencial: lo publicas como borrador y completas el resto
           después.
         </p>
         <div className="mt-8 flex flex-col gap-6" aria-hidden="true">
@@ -260,8 +260,8 @@ export default function NewBusinessPage() {
           Crear comercio
         </h1>
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar las escuelas y categorías. Revisá tu conexión e
-          intentá de nuevo.
+          No pudimos cargar las escuelas y categorías. Revisa tu conexión e
+          intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -276,7 +276,7 @@ export default function NewBusinessPage() {
         Crear comercio
       </h1>
       <p className="mt-1 text-sm text-muted">
-        Empezá con lo esencial: lo publicás como borrador y completás el resto
+        Empieza con lo esencial: lo publicas como borrador y completas el resto
         después.
       </p>
 
@@ -334,14 +334,14 @@ export default function NewBusinessPage() {
 
           <fieldset>
             <legend className="text-sm font-medium">
-              Categorías (elegí al menos una)
+              Categorías (elige al menos una)
             </legend>
             {categories.length === 0 ? (
               // System failure (the fetch returned nothing), not "you didn't choose":
               // say so instead of rendering an empty fieldset that reads as no options.
               // The category is required, so a silent empty leaves the form unsubmittable.
               <p role="alert" className="mt-2 text-sm text-error">
-                No pudimos cargar las categorías. Recargá la página.
+                No pudimos cargar las categorías. Recarga la página.
               </p>
             ) : (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -376,7 +376,7 @@ export default function NewBusinessPage() {
 
           <TagsInput
             label="Etiquetas de búsqueda (opcional)"
-            hint="Palabras o frases que la gente busca y que vendés o ofrecés — “cuadernos”, “útiles escolares”, “tijeras”. Ayudan a que tu comercio aparezca aunque no estén en el nombre. Enter o coma para agregar cada una."
+            hint="Palabras o frases que la gente busca y que vendes o ofreces — “cuadernos”, “útiles escolares”, “tijeras”. Ayudan a que tu comercio aparezca aunque no estén en el nombre. Enter o coma para agregar cada una."
             value={tags}
             onChange={(next) => {
               setTags(next);
@@ -393,7 +393,7 @@ export default function NewBusinessPage() {
             buried after them. */}
         <FormSection
           legend="Ubicación"
-          description="Marcá tu comercio en el mapa (obligatorio). Los demás campos se completan solos al mover el pin — revisalos, corregilos o dejalos en blanco si no aplican."
+          description="Marca tu comercio en el mapa (obligatorio). Los demás campos se completan solos al mover el pin — revísalos, corrígelos o déjalos en blanco si no aplican."
           boxed
         >
           <div
@@ -469,13 +469,13 @@ export default function NewBusinessPage() {
                   setDirty(true);
                   setPreselectedFromBuyer(false);
                 }}
-                placeholder="Buscá tu escuela por nombre o lugar…"
-                emptyMessage="Ninguna escuela coincide — probá otro nombre o lugar."
+                placeholder="Busca tu escuela por nombre o lugar…"
+                emptyMessage="Ninguna escuela coincide — prueba otro nombre o lugar."
               />
             )}
             {schools.length === 0 ? (
               <p className="text-xs text-muted">
-                Todavía no hay escuelas en la plataforma. Podés crear tu comercio
+                Todavía no hay escuelas en la plataforma. Puedes crear tu comercio
                 sin escuela y vincularla después, o{" "}
                 <Link href="/panel/new/school" className="font-medium underline">
                   crear la página de tu escuela
@@ -491,7 +491,7 @@ export default function NewBusinessPage() {
                 <p className="mt-2 text-xs text-muted">
                   Solo indica a qué escuela está vinculado tu comercio, para mostrarlo en
                   tu perfil. No es una donación ni te suma en el ranking. Para apoyarla,
-                  usá{" "}
+                  usa{" "}
                   {/* Deep-links to the donation flow, carrying the chosen school so it
                       lands preselected (donate reads ?schoolId). No school chosen yet →
                       plain link, user picks there. */}
@@ -503,10 +503,10 @@ export default function NewBusinessPage() {
                   >
                     Donar a una escuela
                   </Link>
-                  . Podés dejarla en blanco y vincularla después. ¿Tu escuela no está en la
+                  . Puedes dejarla en blanco y vincularla después. ¿Tu escuela no está en la
                   lista?{" "}
                   <Link href="/panel/new/school" className="font-medium underline">
-                    Creá su página
+                    Crea su página
                   </Link>
                   .
                 </p>
@@ -514,7 +514,7 @@ export default function NewBusinessPage() {
                     user knows we filled it (and can change it). */}
                 {preselectedFromBuyer && (
                   <p className="mt-2 text-xs text-muted">
-                    Preseleccionamos la escuela de tu comunidad — cambiala si no
+                    Preseleccionamos la escuela de tu comunidad — cámbiala si no
                     corresponde.
                   </p>
                 )}
@@ -547,7 +547,7 @@ export default function NewBusinessPage() {
 
           <ImagePicker
             label="Foto de portada (opcional)"
-            hint="La franja ancha arriba de tu página pública (ideal 1200×480 px). Si no subís una, se muestra el logo en su lugar."
+            hint="La franja ancha arriba de tu página pública (ideal 1200×480 px). Si no subes una, se muestra el logo en su lugar."
             variant="cover"
             value={coverFile}
             onChange={(f) => {

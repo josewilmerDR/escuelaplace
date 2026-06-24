@@ -71,11 +71,11 @@ export function toSaleInput(
   product: { name: string; description: string },
 ): { ok: true; input: SaleConfigInput } | { ok: false; error: string } {
   const name = product.name.trim();
-  if (!name) return { ok: false, error: "Ingresá el nombre del producto." };
+  if (!name) return { ok: false, error: "Ingresa el nombre del producto." };
   const priceStr = value.price.trim();
   const price = Number(priceStr);
   if (!priceStr || !Number.isFinite(price) || price <= 0) {
-    return { ok: false, error: "Ingresá un precio mayor a 0 para el producto." };
+    return { ok: false, error: "Ingresa un precio mayor a 0 para el producto." };
   }
   const contactPhone = value.contactPhone.trim();
   return {
@@ -191,7 +191,7 @@ export function SaleProductsEditor({
         />
       </Field>
       <p className="-mt-2 text-xs text-muted">
-        El botón “Consultar” del producto abrirá WhatsApp con este número. Si lo dejás en
+        El botón “Consultar” del producto abrirá WhatsApp con este número. Si lo dejas en
         blanco, usa el teléfono de la junta de la escuela.
       </p>
     </div>

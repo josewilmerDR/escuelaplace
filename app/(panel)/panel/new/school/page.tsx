@@ -88,22 +88,22 @@ export default function NewSchoolPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      setError("Tu sesión expiró. Volvé a ingresar.");
+      setError("Tu sesión expiró. Vuelve a ingresar.");
       return;
     }
     const trimmedName = name.trim();
     // Whitespace-only passes the native `required`, so check the trimmed value.
     if (!trimmedName) {
-      setError("Ingresá el nombre de la escuela.");
+      setError("Ingresa el nombre de la escuela.");
       return;
     }
     if (!coords) {
-      setError("Elegí la ubicación en el mapa.");
+      setError("Elige la ubicación en el mapa.");
       return;
     }
     const trimmedBoardPhone = boardPhone.trim();
     if (trimmedBoardPhone && !normalizePhoneInternational(trimmedBoardPhone)) {
-      setError("Revisá el teléfono del comité: no parece un número marcable.");
+      setError("Revisa el teléfono del comité: no parece un número marcable.");
       return;
     }
     setError(null);
@@ -203,7 +203,7 @@ export default function NewSchoolPage() {
 
         <FormSection
           legend="Ubicación"
-          description="Se completan solos al marcar el punto en el mapa — revisalos, corregilos o dejalos en blanco si no aplican."
+          description="Se completan solos al marcar el punto en el mapa — revísalos, corrígelos o déjalos en blanco si no aplican."
           boxed
         >
           <div

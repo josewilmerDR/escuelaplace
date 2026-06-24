@@ -11,10 +11,10 @@ export const UNVERIFIED_FUNDING_TEXT =
   "Esta escuela todavía no fue verificada por el equipo de escuelaplace. Vas a poder aportar a este proyecto en cuanto la verifiquemos.";
 
 export const UNVERIFIED_DONATION_TEXT =
-  "Esta escuela aún no está verificada, así que sus métodos de pago no están disponibles. Podés registrar la donación igual; la escuela la confirmará al verificarse.";
+  "Esta escuela aún no está verificada, así que sus métodos de pago no están disponibles. Puedes registrar la donación igual; la escuela la confirmará al verificarse.";
 
 export const UNVERIFIED_SUBSCRIPTION_TEXT =
-  "Esta escuela aún no está verificada, así que sus métodos de pago no están disponibles. Podés registrar el apoyo igual; la escuela lo confirmará al verificarse.";
+  "Esta escuela aún no está verificada, así que sus métodos de pago no están disponibles. Puedes registrar el apoyo igual; la escuela lo confirmará al verificarse.";
 
 // Canonical "platform never touches the money" reassurance shown on funding surfaces. Kept
 // in one place (same rationale as the UNVERIFIED_* constants above) so it can't drift.

@@ -181,16 +181,16 @@ export default function SchoolEditPage() {
     const trimmedName = name.trim();
     // Whitespace-only passes the native `required`, so check the trimmed value.
     if (!trimmedName) {
-      setError("Ingresá el nombre de la escuela.");
+      setError("Ingresa el nombre de la escuela.");
       return;
     }
     if (!coords) {
-      setError("Elegí la ubicación en el mapa.");
+      setError("Elige la ubicación en el mapa.");
       return;
     }
     // Whitespace-only passes the native `required` on the board name too.
     if (!boardName.trim()) {
-      setError("Ingresá el nombre del comité escolar.");
+      setError("Ingresa el nombre del comité escolar.");
       return;
     }
     setError(null);
@@ -254,7 +254,7 @@ export default function SchoolEditPage() {
           setError(
             userErrorMessage(
               err,
-              "Guardamos el perfil, pero no los métodos de pago. Reintentá.",
+              "Guardamos el perfil, pero no los métodos de pago. Reintenta.",
             ),
           );
           return;
@@ -322,8 +322,8 @@ export default function SchoolEditPage() {
           Editar escuela
         </h1>
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar los datos de la escuela. Revisá tu conexión e
-          intentá de nuevo.
+          No pudimos cargar los datos de la escuela. Revisa tu conexión e
+          intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -363,7 +363,7 @@ export default function SchoolEditPage() {
           Editar escuela
         </h1>
         <p role="alert" className="mt-4 text-sm text-error">
-          No administrás esta escuela.
+          No administras esta escuela.
         </p>
         <p className="mt-4 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>

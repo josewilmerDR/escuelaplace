@@ -193,9 +193,9 @@ describe("buildFacebookUrl", () => {
 
 describe("buildWhatsAppLink", () => {
   it("normalizes the number and url-encodes the message", () => {
-    const url = buildWhatsAppLink("8888-8888", "Hola, ¿confirmás?");
+    const url = buildWhatsAppLink("8888-8888", "Hola, ¿confirmas?");
     expect(url).toBe(
-      `https://wa.me/50688888888?text=${encodeURIComponent("Hola, ¿confirmás?")}`,
+      `https://wa.me/50688888888?text=${encodeURIComponent("Hola, ¿confirmas?")}`,
     );
   });
 

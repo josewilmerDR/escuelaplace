@@ -64,21 +64,21 @@ export function toRaffleInput(
   | { ok: false; error: string } {
   const prizes = value.prizes.map((p) => p.trim());
   if (!prizes[0]) {
-    return { ok: false, error: "Ingresá al menos el primer premio." };
+    return { ok: false, error: "Ingresa al menos el primer premio." };
   }
   // Prizes are ordered 1→2→3 and must be contiguous: a 3rd prize without a 2nd would, after
   // dropping empties, silently shift down a slot (the 3rd would reappear as the 2nd on
   // re-edit). Require the gap be filled so filter(Boolean) below is order-preserving.
   if (prizes[2] && !prizes[1]) {
-    return { ok: false, error: "Completá el segundo premio antes del tercero." };
+    return { ok: false, error: "Completa el segundo premio antes del tercero." };
   }
   const price = Number(value.pricePerNumber);
   if (!Number.isFinite(price) || price <= 0) {
-    return { ok: false, error: "Ingresá un precio por número mayor a 0." };
+    return { ok: false, error: "Ingresa un precio por número mayor a 0." };
   }
   const drawMethod = value.drawMethod.trim();
   if (!drawMethod) {
-    return { ok: false, error: "Indicá la modalidad del sorteo." };
+    return { ok: false, error: "Indica la modalidad del sorteo." };
   }
   return {
     ok: true,
@@ -199,7 +199,7 @@ export function RaffleConfigFields({
 
       <p className="text-xs text-muted">
         La rifa tiene {RAFFLE_NUMBER_COUNT} números (00–99) por ahora. El público
-        los elige y aparta desde la página de la rifa; vos confirmás cada pago.
+        los elige y aparta desde la página de la rifa; tú confirmas cada pago.
       </p>
     </div>
   );

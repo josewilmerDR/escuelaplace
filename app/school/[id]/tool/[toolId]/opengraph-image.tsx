@@ -8,7 +8,7 @@ import { toolTypeMeta } from "@/lib/tools/registry";
  * This is what WhatsApp / Facebook / Telegram / iMessage render when someone pastes the
  * activity link — NOT the `navigator.share` text. The brief: let the image dominate, with
  * just a title and a small CTA. So we render the cover photo full-bleed, lay a dark gradient
- * over the bottom third, and stack the title + school + a "Apoyá a la escuela" pill on top.
+ * over the bottom third, and stack the title + school + a "Apoya a la escuela" pill on top.
  * When the activity has no cover we fall back to a brand-tinted card with the kind's emoji so
  * the preview is always composed, never blank.
  *
@@ -190,7 +190,7 @@ export default async function Image({ params }: Props) {
                 borderRadius: 999,
               }}
             >
-              Apoyá a tu escuela →
+              Apoya a tu escuela →
             </div>
             <div
               style={{

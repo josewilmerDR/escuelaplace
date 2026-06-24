@@ -21,7 +21,7 @@ describe("googleCalendarUrl", () => {
   it("builds a TEMPLATE link with a UTC date window and the prefilled fields", () => {
     const url = googleCalendarUrl({
       title: "Feria de la escuela",
-      details: "¡Vení!",
+      details: "¡Ven!",
       location: "Gimnasio",
       startMs: at("2026-07-01T18:00:00Z"),
       durationMinutes: 60,

@@ -37,7 +37,7 @@ export function ToolManageBar({
 
   return (
     <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-xl bg-surface px-4 py-3 ring-1 ring-black/5 sm:justify-start">
-      <p className="text-sm font-medium text-muted">Administrás esta actividad</p>
+      <p className="text-sm font-medium text-muted">Administras esta actividad</p>
       <div className="flex flex-wrap justify-center gap-2">
         <Link
           href={`/panel/school/${schoolId}/tools/${toolId}`}

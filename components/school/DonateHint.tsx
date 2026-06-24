@@ -19,7 +19,7 @@ export function DonateHint({ unverified }: { unverified: boolean }) {
     ? "Podrás donar cuando el equipo de escuelaplace verifique esta escuela y publique sus medios de pago."
     : user
       ? "El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero."
-      : "Iniciás sesión con Google para realizar una donación. El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero.";
+      : "Inicias sesión con Google para realizar una donación. El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero.";
 
   return (
     <p className="mt-2 text-center text-xs text-muted sm:text-left">{text}</p>

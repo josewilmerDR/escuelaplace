@@ -93,14 +93,14 @@ export function toServiceInput(
   service: { name: string; description: string },
 ): { ok: true; input: ServiceConfigInput } | { ok: false; error: string } {
   const name = service.name.trim();
-  if (!name) return { ok: false, error: "Ingresá el nombre del servicio." };
+  if (!name) return { ok: false, error: "Ingresa el nombre del servicio." };
   const priceStr = value.price.trim();
   if (priceStr) {
     const price = Number(priceStr);
     if (!Number.isFinite(price) || price <= 0) {
       return {
         ok: false,
-        error: "El precio del servicio debe ser mayor a 0 (o dejalo en blanco).",
+        error: "El precio del servicio debe ser mayor a 0 (o déjalo en blanco).",
       };
     }
   }
@@ -224,7 +224,7 @@ export function ServiceItemsEditor({
             onChange((prev) => ({ ...prev, price }));
           }}
           className="input"
-          placeholder="Dejalo en blanco si es a consultar"
+          placeholder="Déjalo en blanco si es a consultar"
         />
       </Field>
       {/* "Desde" only makes sense with a price; disabled (and off) when blank. */}
@@ -289,7 +289,7 @@ export function ServiceItemsEditor({
         />
       </Field>
       <p className="-mt-2 text-xs text-muted">
-        El botón “Preguntar” del servicio abrirá WhatsApp con este número. Si lo dejás en
+        El botón “Preguntar” del servicio abrirá WhatsApp con este número. Si lo dejas en
         blanco, usa el teléfono de la junta de la escuela.
       </p>
     </div>

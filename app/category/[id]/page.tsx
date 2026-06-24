@@ -142,13 +142,13 @@ export default async function CategoryPage({ params }: Props) {
         <EmptyState
           icon={<WarningIcon className="h-7 w-7" />}
           title="No pudimos cargar el catálogo"
-          description="Recargá la página para intentarlo de nuevo."
+          description="Recarga la página para intentarlo de nuevo."
         />
       ) : cards.length === 0 ? (
         <EmptyState
           icon={<TagIcon className="h-7 w-7" />}
           title="Todavía no hay comercios en esta categoría"
-          description="Probá con otra categoría o volvé más tarde: el directorio crece con la comunidad."
+          description="Prueba con otra categoría o vuelve más tarde: el directorio crece con la comunidad."
           cta={{ label: "Ver todas las categorías", href: "/categories" }}
         />
       ) : (

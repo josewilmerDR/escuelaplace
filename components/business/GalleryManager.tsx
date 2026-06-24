@@ -123,7 +123,7 @@ export function GalleryManager({
         </label>
       ) : (
         <p className="text-xs text-muted">
-          Alcanzaste el máximo de {BUSINESS_GALLERY_MAX} fotos — quitá una para
+          Alcanzaste el máximo de {BUSINESS_GALLERY_MAX} fotos — quita una para
           subir otra.
         </p>
       )}

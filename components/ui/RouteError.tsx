@@ -79,7 +79,7 @@ export function RouteError({
             {`No pudimos cargar ${entityLabel}`}
           </h1>
           <p className="mt-3 text-sm text-muted">
-            {`Ocurrió un problema al cargar ${entityLabel}. Volvé a intentar en un momento.`}
+            {`Ocurrió un problema al cargar ${entityLabel}. Vuelve a intentar en un momento.`}
           </p>
           {error.digest && (
             <p className="mt-2 text-xs text-muted">

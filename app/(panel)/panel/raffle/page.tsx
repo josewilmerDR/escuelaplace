@@ -215,7 +215,7 @@ function RaffleContent() {
 
       {invalid ? (
         <p className="mt-4 text-sm text-muted">
-          No encontramos la rifa. Volvé a la página de la escuela y elegí tus
+          No encontramos la rifa. Vuelve a la página de la escuela y elige tus
           números de nuevo.
         </p>
       ) : done ? (
@@ -236,7 +236,7 @@ function RaffleContent() {
           ) : (
             <div className={`mt-4 ${cardClass("inset")}`}>
               <p className="text-sm text-muted">
-                Si ya pagaste, subí tu comprobante para que la escuela confirme tu
+                Si ya pagaste, sube tu comprobante para que la escuela confirme tu
                 compra.
               </p>
               <div className="mt-2">
@@ -286,8 +286,8 @@ function RaffleContent() {
             <p className="font-medium text-foreground">Tus números</p>
             {available.length === 0 ? (
               <p className="mt-1 text-muted">
-                Ninguno de los números que elegiste sigue disponible. Volvé a la
-                rifa y elegí otros.
+                Ninguno de los números que elegiste sigue disponible. Vuelve a la
+                rifa y elige otros.
               </p>
             ) : (
               <>
@@ -342,7 +342,7 @@ function RaffleContent() {
                 {saving ? "Registrando…" : "Confirmar compra"}
               </button>
               <p className="text-xs text-muted">
-                Pagás directo a la escuela por los medios de arriba; escuelaplace
+                Pagas directo a la escuela por los medios de arriba; escuelaplace
                 nunca procesa pagos.
               </p>
             </>

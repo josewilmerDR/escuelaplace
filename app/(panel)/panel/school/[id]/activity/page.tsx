@@ -284,7 +284,7 @@ function ActivityInner() {
       <main>
         <Heading />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar la actividad. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar la actividad. Revisa tu conexión e intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -315,7 +315,7 @@ function ActivityInner() {
     return (
       <main>
         <Heading subtitle={school.name} />
-        <p className="mt-4 text-sm text-error">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-error">No administras esta escuela.</p>
         <p className="mt-8 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -439,7 +439,7 @@ function ActivityInner() {
           <div className="mt-8">
             <EmptyState
               icon={<ClockIcon className="h-7 w-7" />}
-              title="No tenés nada pendiente"
+              title="No tienes nada pendiente"
               description="Cuando alguien apoye tu escuela, aporte a un proyecto o compre en una de tus herramientas (rifa, bingo, productos…), aparecerá acá para que lo confirmes."
             />
           </div>
@@ -492,7 +492,7 @@ function ActivityInner() {
       ) : historyState === "error" ? (
         <div className="mt-8">
           <p role="alert" className="text-sm text-error">
-            No pudimos cargar el historial. Revisá tu conexión e intentá de nuevo.
+            No pudimos cargar el historial. Revisa tu conexión e intenta de nuevo.
           </p>
           <button type="button" onClick={loadHistory} className="btn btn-outline mt-3">
             Reintentar

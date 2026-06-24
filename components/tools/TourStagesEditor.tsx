@@ -83,7 +83,7 @@ export function toTourInput(
         Boolean(s.videoUrl),
     );
   if (stages.length === 0) {
-    return { ok: false, error: "Agregá al menos una etapa con su nombre." };
+    return { ok: false, error: "Agrega al menos una etapa con su nombre." };
   }
   if (stages.some((s) => !s.title)) {
     return { ok: false, error: "Cada etapa necesita un nombre." };
@@ -179,7 +179,7 @@ export function TourStagesEditor({
                 updateStage(stage.id, { description: e.target.value })
               }
               className="input"
-              placeholder="Contá qué se ve y se hace en esta etapa."
+              placeholder="Cuenta qué se ve y se hace en esta etapa."
             />
           </Field>
         </ToolItemCard>
@@ -208,7 +208,7 @@ export function TourStagesEditor({
       </Field>
       <p className="-mt-2 text-xs text-muted">
         El botón “Preguntar” de la página abrirá WhatsApp con este número. Si lo
-        dejás en blanco, usa el teléfono de la junta de la escuela.
+        dejas en blanco, usa el teléfono de la junta de la escuela.
       </p>
     </div>
   );

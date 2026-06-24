@@ -122,7 +122,7 @@ export default function GlobalActivityPage() {
       <main>
         <Heading />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar la actividad. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar la actividad. Revisa tu conexión e intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -141,8 +141,8 @@ export default function GlobalActivityPage() {
           <div className="mt-8">
             <EmptyState
               icon={<AcademicCapIcon className="h-7 w-7" />}
-              title="No administrás ninguna escuela"
-              description="La actividad (apoyos, aportes y compras a confirmar) es de las escuelas. Creá la página de tu escuela para empezar."
+              title="No administras ninguna escuela"
+              description="La actividad (apoyos, aportes y compras a confirmar) es de las escuelas. Crea la página de tu escuela para empezar."
               cta={{ label: "Crear página", href: "/panel/new" }}
             />
           </div>
@@ -164,7 +164,7 @@ export default function GlobalActivityPage() {
       <Heading
         subtitle={
           total > 0
-            ? `Tenés ${total} ${total === 1 ? "ítem pendiente" : "ítems pendientes"} de confirmar.`
+            ? `Tienes ${total} ${total === 1 ? "ítem pendiente" : "ítems pendientes"} de confirmar.`
             : "Estás al día en todas tus escuelas."
         }
       />

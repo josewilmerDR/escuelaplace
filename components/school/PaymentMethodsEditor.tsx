@@ -78,7 +78,7 @@ export function PaymentMethodsEditor({
                 role="status"
                 className="rounded-xl bg-warning-tint p-2 text-xs text-warning ring-1 ring-warning/10"
               >
-                Completá ambos campos: esta fila no se guardará.
+                Completa ambos campos: esta fila no se guardará.
               </p>
             )}
           </div>

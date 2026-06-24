@@ -29,7 +29,7 @@ export const revalidate = 300;
 const DIRECTORY_LIMIT = 60;
 
 const DESCRIPTION =
-  "Encontrá la escuela de tu comunidad, conocé sus proyectos, qué comercios o personas la apoyan y hazlo tú también. El 100% de tu donación llega a la escuela: la plataforma nunca toca el dinero.";
+  "Encuentra la escuela de tu comunidad, conoce sus proyectos, qué comercios o personas la apoyan y hazlo tú también. El 100% de tu donación llega a la escuela: la plataforma nunca toca el dinero.";
 
 export const metadata: Metadata = {
   title: "Escuelas",
@@ -118,14 +118,14 @@ export default async function SchoolsPage() {
         <EmptyState
           icon={<WarningIcon className="h-7 w-7" />}
           title="No pudimos cargar las escuelas"
-          description="Recargá la página para intentarlo de nuevo."
+          description="Recarga la página para intentarlo de nuevo."
         />
       ) : cards.length === 0 ? (
         <EmptyState
           icon={<AcademicCapIcon className="h-7 w-7" />}
           title="Todavía no hay escuelas publicadas"
-          description="Sé la primera de tu zona en sumarse y aparecé en el directorio."
-          cta={{ label: "Creá la de tu comunidad", href: "/create" }}
+          description="Sé la primera de tu zona en sumarse y aparece en el directorio."
+          cta={{ label: "Crea la de tu comunidad", href: "/create" }}
         />
       ) : (
         // The directory's own filter/sort toolbar lives in this client component; it acts

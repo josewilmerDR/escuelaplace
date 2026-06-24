@@ -34,7 +34,7 @@ export const revalidate = 300;
 export const metadata: Metadata = {
   title: "Comercios",
   description:
-    "El directorio de comercios de tu comunidad. Comprales y apoyá a las escuelas que ellos sostienen.",
+    "El directorio de comercios de tu comunidad. Cómprales y apoya a las escuelas que ellos sostienen.",
 };
 
 // Bound the schools candidate pool shipped to the client: the block shows a few, the rest are the
@@ -94,7 +94,7 @@ export default async function BusinessesPage() {
             Los comercios de tu comunidad
           </h1>
           <p className="mx-auto mt-2 max-w-xl text-sm text-muted">
-            Comprales y apoyá a las escuelas que cada uno sostiene.
+            Cómprales y apoya a las escuelas que cada uno sostiene.
           </p>
           <div className="mx-auto mt-6 max-w-2xl">
             <SearchBar />
@@ -125,14 +125,14 @@ export default async function BusinessesPage() {
             <EmptyState
               icon={<WarningIcon className="h-7 w-7" />}
               title="No pudimos cargar el catálogo"
-              description="Recargá la página para intentarlo de nuevo."
+              description="Recarga la página para intentarlo de nuevo."
             />
           ) : cards.length === 0 ? (
             <EmptyState
               icon={<TagIcon className="h-7 w-7" />}
               title="Todavía no hay comercios publicados"
-              description="Sé el primero en sumarte: creá la página de tu comercio y aparecé en el directorio de tu comunidad."
-              cta={{ label: "Creá la página del tuyo", href: "/create" }}
+              description="Sé el primero en sumarte: crea la página de tu comercio y aparece en el directorio de tu comunidad."
+              cta={{ label: "Crea la página del tuyo", href: "/create" }}
             />
           ) : (
             <RankedFeed

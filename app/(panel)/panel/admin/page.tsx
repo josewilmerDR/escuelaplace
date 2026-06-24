@@ -56,7 +56,7 @@ function PageHeading() {
         Verificación de escuelas
       </h1>
       <p className="mt-1 text-sm text-muted">
-        Revisá los datos de cada escuela y aprobá las que correspondan. Al verificar, sus
+        Revisa los datos de cada escuela y aprueba las que correspondan. Al verificar, sus
         métodos de pago quedan visibles para quienes quieran apoyarla.
       </p>
     </header>
@@ -183,7 +183,7 @@ export default function AdminVerificationPage() {
           Verificación de escuelas
         </h1>
         <p role="alert" className="mt-2 text-error">
-          No tenés acceso a esta sección.
+          No tienes acceso a esta sección.
         </p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -384,7 +384,7 @@ function SchoolReviewCard({
       {school.verificationStatus === "needs_reverification" && (
         <p className="mt-3 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
           Ya estuvo verificada: editó un dato sensible (nombre o métodos de pago) y quedó
-          pendiente de re-aprobación. Verificá el nombre y los métodos de pago antes de
+          pendiente de re-aprobación. Verifica el nombre y los métodos de pago antes de
           confirmar.
         </p>
       )}
@@ -482,7 +482,7 @@ function SchoolReviewCard({
       >
         {paymentMethods.length === 0 ? (
           <>
-            {school.name} no tiene métodos de pago cargados. Si la verificás igual,
+            {school.name} no tiene métodos de pago cargados. Si la verificas igual,
             no habrá datos para que los donantes la apoyen. ¿Verificar de todas
             formas?
           </>

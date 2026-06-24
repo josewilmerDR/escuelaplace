@@ -91,7 +91,7 @@ export function RaffleBoard({
 
         {picked.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
-            Tocá los números disponibles para apartarlos. {formatMoney(pricePerNumber, currency)}{" "}
+            Toca los números disponibles para apartarlos. {formatMoney(pricePerNumber, currency)}{" "}
             cada uno.
           </p>
         ) : (
@@ -134,10 +134,10 @@ export function RaffleBoard({
         )}
         <p className="mt-2 text-xs text-muted">
           {!verified
-            ? "Para comprar iniciás sesión con Google. El pago va directo a la escuela por los medios que ella publica; escuelaplace nunca procesa pagos."
+            ? "Para comprar inicias sesión con Google. El pago va directo a la escuela por los medios que ella publica; escuelaplace nunca procesa pagos."
             : user
               ? "El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero."
-              : "Iniciás sesión con Google para comprar. El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero."}
+              : "Inicias sesión con Google para comprar. El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero."}
         </p>
       </div>
     </div>

@@ -111,7 +111,7 @@ export default function BingoDeckDetailPage() {
       <main>
         <Heading schoolId={id} />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar el mazo. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar el mazo. Revisa tu conexión e intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -146,7 +146,7 @@ export default function BingoDeckDetailPage() {
     return (
       <main>
         <Heading schoolId={id} subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>

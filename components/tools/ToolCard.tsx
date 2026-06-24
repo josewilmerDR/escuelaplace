@@ -105,7 +105,7 @@ export function ToolCard({
             shareTitle={tool.title}
             // Short and warm: the rich link preview (the OG card) carries the visuals, so the
             // text just adds a human nudge above it.
-            shareText={`✨ ${tool.title} — apoyá a ${tool.schoolName} en escuelaplace 💙`}
+            shareText={`✨ ${tool.title} — apoya a ${tool.schoolName} en escuelaplace 💙`}
           />
         </div>
       </div>

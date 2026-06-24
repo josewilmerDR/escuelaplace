@@ -44,7 +44,7 @@ function PageHeading() {
         Categorías
       </h1>
       <p className="mt-1 text-sm text-muted">
-        Creá, renombrá, reordená y borrá los rubros del directorio. El número de
+        Crea, renombra, reordena y borra los rubros del directorio. El número de
         comercios de cada categoría se actualiza solo.
       </p>
     </header>
@@ -101,7 +101,7 @@ export default function AdminCategoriesPage() {
           Categorías
         </h1>
         <p role="alert" className="mt-2 text-error">
-          No tenés acceso a esta sección.
+          No tienes acceso a esta sección.
         </p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -151,7 +151,7 @@ export default function AdminCategoriesPage() {
       await reorderCategories(next.map((c) => c.id));
     } catch {
       setCategories(previous);
-      setError("No se pudo reordenar. Intentá de nuevo.");
+      setError("No se pudo reordenar. Intenta de nuevo.");
     }
   };
 
@@ -182,7 +182,7 @@ export default function AdminCategoriesPage() {
           className="mt-8"
           icon={<TagIcon className="h-7 w-7" />}
           title="Todavía no hay categorías"
-          description="Creá la primera con el formulario de arriba."
+          description="Crea la primera con el formulario de arriba."
         />
       ) : (
         <section className="mt-8">
@@ -463,7 +463,7 @@ function CategoryRow({
                 disabled={busy || hasBusinesses}
                 title={
                   hasBusinesses
-                    ? "Reasigná sus comercios antes de borrarla"
+                    ? "Reasigna sus comercios antes de borrarla"
                     : undefined
                 }
                 className="btn btn-destructive disabled:opacity-40"
@@ -499,7 +499,7 @@ function CategoryRow({
         }}
         onCancel={() => setConfirmDelete(false)}
       >
-        ¿Eliminar la categoría “{category.name}”? Podés volver a crearla más
+        ¿Eliminar la categoría “{category.name}”? Puedes volver a crearla más
         adelante.
       </ConfirmDialog>
     </li>

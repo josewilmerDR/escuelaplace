@@ -976,7 +976,7 @@ async function resolveJose(auth) {
   } catch (err) {
     console.error(
       `✖ No encontré la cuenta ${OWNER_EMAIL} en Firebase Auth del proyecto ${PROJECT_ID}.\n` +
-        "  Iniciá sesión una vez en la app de producción con esa cuenta (o pasá OWNER_UID=<uid>) y reintentá.\n" +
+        "  Inicia sesión una vez en la app de producción con esa cuenta (o pasa OWNER_UID=<uid>) y reintenta.\n" +
         `  Detalle: ${err.message}`,
     );
     process.exit(1);
@@ -1081,7 +1081,7 @@ function printDemoGuide(joseUid) {
       "",
       "Nota: si las Cloud Functions están desplegadas, recomputarán ranking/reseñas/métricas",
       "en segundos y anexarán auditEvents/thankYous; los valores convergen a los ya sembrados.",
-      "Las páginas públicas son ISR (revalidan ~5 min): forzá un refresh o esperá para verlas.",
+      "Las páginas públicas son ISR (revalidan ~5 min): fuerza un refresh o espera para verlas.",
       "───────────────────────────────────────────────────────────────",
     ].join("\n"),
   );
@@ -1125,9 +1125,9 @@ async function main() {
         `   Modo: ${CLEAN ? "LIMPIAR (borrar solo los docs demo)" : "SEMBRAR (aditivo, ids fijos)"}`,
         "",
         "   El seed es ADITIVO: solo escribe/borra sus propios ids conocidos, nunca otra data.",
-        "   Para confirmar, reejecutá agregando  --yes",
+        "   Para confirmar, reejecuta agregando  --yes",
         "",
-        "   Credenciales: Application Default Credentials. Antes corré uno de:",
+        "   Credenciales: Application Default Credentials. Antes corre uno de:",
         "     gcloud auth application-default login",
         "     export GOOGLE_APPLICATION_CREDENTIALS=/ruta/serviceAccount.json   (PowerShell: $env:GOOGLE_APPLICATION_CREDENTIALS=...)",
         "",

@@ -106,18 +106,18 @@ export function toBingoInput(
 
   const first = value.prizeFirst.trim();
   if (!first) {
-    return { ok: false, error: "Ingresá el premio mayor." };
+    return { ok: false, error: "Ingresa el premio mayor." };
   }
   const second = value.prizeSecond.trim();
   const third = value.prizeThird.trim();
   if (third && !second) {
-    return { ok: false, error: "Completá el segundo premio antes del tercero." };
+    return { ok: false, error: "Completa el segundo premio antes del tercero." };
   }
   const others = value.prizeOthers.map((p) => p.trim()).filter(Boolean);
 
   const price = Number(value.pricePerCard);
   if (!Number.isFinite(price) || price <= 0) {
-    return { ok: false, error: "Ingresá un precio por cartón mayor a 0." };
+    return { ok: false, error: "Ingresa un precio por cartón mayor a 0." };
   }
   const drawMethod = value.drawMethod.trim();
   const contactPhone = value.contactPhone.trim();
@@ -219,7 +219,7 @@ export function BingoConfigFields({
         </div>
         <p className="mt-1 text-xs text-muted">
           {lockFormat
-            ? "No se puede cambiar el formato porque ya hay cartones. Limpiá el lote para cambiarlo."
+            ? "No se puede cambiar el formato porque ya hay cartones. Limpia el lote para cambiarlo."
             : `Cada cartón tendrá ${Number(value.rows) * Number(value.cols) || "—"} casillas con números distintos del rango indicado.`}
         </p>
       </div>
@@ -228,7 +228,7 @@ export function BingoConfigFields({
       <div>
         <p className="text-sm font-medium text-foreground">Premios</p>
         <p className="mt-0.5 text-xs text-muted">
-          Indicá los premios del bingo. El premio mayor es obligatorio.
+          Indica los premios del bingo. El premio mayor es obligatorio.
         </p>
         <div className="mt-2 flex flex-col gap-3">
           <Field label="Premio mayor (obligatorio)">
@@ -377,7 +377,7 @@ export function BingoConfigFields({
             <span className="mt-0.5 block text-xs text-muted">
               Por defecto está apagado (modo tradicional): cada jugador marca su
               cartón a mano y puede equivocarse, igual que en un cartón físico; por eso
-              la escuela revisa cada «¡Bingo!» antes de dar el premio. Activá el modo
+              la escuela revisa cada «¡Bingo!» antes de dar el premio. Activa el modo
               fácil para que el sistema impida marcar números no cantados (menos
               fricción, pero los jugadores online quedan en ventaja sobre los de cartón
               físico).

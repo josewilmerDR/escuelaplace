@@ -230,10 +230,10 @@ function BingoPlayContent() {
         {status === "live"
           ? winner != null
             ? "Esta ronda ya tiene ganador."
-            : "El bingo está en vivo. Marcá los números cantados en tus cartones."
+            : "El bingo está en vivo. Marca los números cantados en tus cartones."
           : status === "closed"
             ? "Este bingo ya cerró."
-            : "El bingo aún no comenzó. Esperá a que la escuela lo inicie."}
+            : "El bingo aún no comenzó. Espera a que la escuela lo inicie."}
       </p>
 
       {error && (
@@ -310,7 +310,7 @@ function BingoPlayContent() {
           <p className="mt-2 rounded-lg bg-success-tint p-2 text-sm font-medium text-success ring-1 ring-success/10">
             {winner.isGrand
               ? `🏆 ¡El cartón #${winner.cardLabel} ganó el premio mayor! El bingo terminó.`
-              : `🎉 ¡Ganó el cartón #${winner.cardLabel}${winner.prizeLabel ? ` — ${winner.prizeLabel}` : ""}! Esperá la próxima ronda.`}
+              : `🎉 ¡Ganó el cartón #${winner.cardLabel}${winner.prizeLabel ? ` — ${winner.prizeLabel}` : ""}! Espera la próxima ronda.`}
           </p>
         ) : reviewing ? (
           <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm font-medium text-amber-800 ring-1 ring-amber-200">
@@ -333,14 +333,14 @@ function BingoPlayContent() {
         </h2>
         {cards.length > 0 && status === "live" && !assistMarking && (
           <p className="mt-1 text-sm text-muted">
-            Marcá vos cada número cantado en tus cartones — el sistema no marca por
-            vos. Revisá bien antes de cantar «¡Bingo!»: si el patrón no está completo,
+            Marca tú cada número cantado en tus cartones — el sistema no marca por
+            ti. Revisa bien antes de cantar «¡Bingo!»: si el patrón no está completo,
             la escuela rechazará el reclamo.
           </p>
         )}
         {cards.length === 0 ? (
           <p className="mt-2 text-sm text-muted">
-            Todavía no tenés cartones asignados en este bingo. La escuela los asigna
+            Todavía no tienes cartones asignados en este bingo. La escuela los asigna
             cuando confirma tu compra.{" "}
             <Link
               href={`/panel/bingo-order?schoolId=${schoolId}&toolId=${toolId}`}
@@ -431,7 +431,7 @@ function ClaimStatus({
             <span className="font-medium text-success">¡ganador!</span>
           ) : (
             <span className="font-medium text-error">
-              rechazada — podés volver a cantar «¡Bingo!»
+              rechazada — puedes volver a cantar «¡Bingo!»
             </span>
           )}
         </li>

@@ -1772,7 +1772,7 @@ describe("event tool — owner-only create with an event config map", () => {
     schoolName: "Escuela",
     type: "event",
     title: "Feria de la escuela",
-    description: "¡Vení!",
+    description: "¡Ven!",
     status: "active",
     config: { place: "Gimnasio" },
     ownerId: "bob",

@@ -47,7 +47,7 @@ export function toEventInput(
 ): { ok: true; input: EventConfigInput } | { ok: false; error: string } {
   const date = toolDateTimeFromInput(value.date);
   if (!date) {
-    return { ok: false, error: "Indicá la fecha y hora del evento." };
+    return { ok: false, error: "Indica la fecha y hora del evento." };
   }
   const place = value.place.trim();
   const mapUrl = value.mapUrl.trim();
@@ -121,7 +121,7 @@ export function EventConfigFields({
         />
       </Field>
       <p className="-mt-2 text-xs text-muted">
-        El botón “Preguntar” de la página abrirá WhatsApp con este número. Si lo dejás en
+        El botón “Preguntar” de la página abrirá WhatsApp con este número. Si lo dejas en
         blanco, usa el teléfono de la junta de la escuela. Las fotos y el video del evento
         se agregan al editar la herramienta.
       </p>

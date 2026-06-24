@@ -129,7 +129,7 @@ export default async function SchoolLandingPage({ params }: Props) {
           </Link>
         </div>
         <p className="mt-1 text-sm text-muted">
-          Apoyá a la escuela comprándole a los comercios que ya la apoyan.
+          Apoya a la escuela comprándole a los comercios que ya la apoyan.
         </p>
         <div className="mt-5">
           <SupportersCarousel
@@ -188,7 +188,7 @@ export default async function SchoolLandingPage({ params }: Props) {
         <>
           <Section id="actividades" title="Actividades de la escuela">
             <p className="mt-3 text-muted">
-              Esta escuela todavía no tiene actividades en curso. Conocé más en{" "}
+              Esta escuela todavía no tiene actividades en curso. Conoce más en{" "}
               <Link
                 href={`/school/${id}/info`}
                 className="font-medium text-brand-darker hover:underline"

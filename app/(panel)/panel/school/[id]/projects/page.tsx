@@ -205,7 +205,7 @@ export default function SchoolProjectsPage() {
       <main>
         <Heading schoolId={id} />
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar los proyectos. Revisá tu conexión e intentá de
+          No pudimos cargar los proyectos. Revisa tu conexión e intenta de
           nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
@@ -238,7 +238,7 @@ export default function SchoolProjectsPage() {
       <main>
         <Heading schoolId={id} subtitle={school.name} />
         {/* Not a system failure — the user simply lacks access here, so muted, not error. */}
-        <p className="mt-4 text-sm text-muted">No administrás esta escuela.</p>
+        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
         </p>
@@ -265,12 +265,12 @@ export default function SchoolProjectsPage() {
         <p className="mt-6 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
           {school.verificationStatus === "needs_reverification"
             ? "Editaste datos sensibles y la escuela quedó pendiente de re-verificación: el botón “Financiar” permanece apagado hasta que el equipo apruebe los cambios."
-            : "Podés preparar proyectos desde ya, pero el botón “Financiar” recién se activa cuando el equipo verifique la escuela."}{" "}
+            : "Puedes preparar proyectos desde ya, pero el botón “Financiar” recién se activa cuando el equipo verifique la escuela."}{" "}
           <Link
             href={`/panel/school/${id}/edit`}
             className="font-medium underline underline-offset-2"
           >
-            Completá los datos de la escuela
+            Completa los datos de la escuela
           </Link>{" "}
           para empezar.
         </p>
@@ -288,11 +288,11 @@ export default function SchoolProjectsPage() {
             <EmptyState
               icon={<FlagIcon className="h-7 w-7" />}
               title="Todavía no creaste ningún proyecto"
-              description="Creá tu primer proyecto con el botón “+ Nuevo”: definí sus etapas y el costo de cada una."
+              description="Crea tu primer proyecto con el botón “+ Nuevo”: define sus etapas y el costo de cada una."
             />
           </div>
         ) : activeProjects.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">No tenés proyectos activos.</p>
+          <p className="mt-2 text-sm text-muted">No tienes proyectos activos.</p>
         ) : (
           <ul className="mt-4 flex flex-col gap-4">
             {activeProjects.map((p) => (

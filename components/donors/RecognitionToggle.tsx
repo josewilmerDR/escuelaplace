@@ -53,7 +53,7 @@ function SaveHint({
     >
       {state === "saving" && <span className="text-muted">Guardando…</span>}
       {state === "error" && (
-        <span className="text-error">No se pudo guardar. Intentá de nuevo.</span>
+        <span className="text-error">No se pudo guardar. Intenta de nuevo.</span>
       )}
       {state === "saved" && (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-success-tint px-2.5 py-1 font-medium text-success ring-1 ring-success/10">
@@ -189,7 +189,7 @@ export function RecognitionToggle({ compact = false }: { compact?: boolean }) {
           {compact && (
             <p className="mt-0.5 text-xs text-muted">
               Aplica a todas tus donaciones y aportes a proyectos; por defecto
-              sos anónimo.
+              eres anónimo.
             </p>
           )}
         </div>
@@ -259,8 +259,8 @@ export function RecognitionToggle({ compact = false }: { compact?: boolean }) {
       </h2>
       {loadingStatus}
       <p className="mt-1 text-sm text-muted">
-        Por defecto tus aportes son anónimos: contás en los totales de la
-        escuela, pero tu nombre no se publica. Si querés, podés aparecer en el
+        Por defecto tus aportes son anónimos: cuentas en los totales de la
+        escuela, pero tu nombre no se publica. Si quieres, puedes aparecer en el
         muro de agradecimiento con tu nivel de donante. Aplica a todas tus
         donaciones y aportes a proyectos.
       </p>

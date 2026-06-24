@@ -90,7 +90,7 @@ export function BingoDeckCardsManager({
   const onGenerate = () => {
     const count = Number(genCount);
     if (!Number.isInteger(count) || count <= 0) {
-      setError("Indicá cuántos cartones generar (un entero mayor a 0).");
+      setError("Indica cuántos cartones generar (un entero mayor a 0).");
       return;
     }
     if (total + count > BINGO_CARD_MAX) {
@@ -158,7 +158,7 @@ export function BingoDeckCardsManager({
 
       {!loading && total === 0 && (
         <p className="rounded-xl bg-brand-tint p-3 text-sm text-brand-darker ring-1 ring-brand-darker/10">
-          Generá (o importá) los cartones de este mazo. Después podrás reutilizarlo al
+          Genera (o importa) los cartones de este mazo. Después podrás reutilizarlo al
           crear un bingo.
         </p>
       )}

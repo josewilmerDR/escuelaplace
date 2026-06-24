@@ -199,7 +199,7 @@ function ProductOrderContent() {
 
       {invalid ? (
         <p className="mt-4 text-sm text-muted">
-          No encontramos este producto. Volvé a la página de la escuela y elegilo
+          No encontramos este producto. Vuelve a la página de la escuela y elígelo
           de nuevo.
         </p>
       ) : done ? (
@@ -220,7 +220,7 @@ function ProductOrderContent() {
           ) : (
             <div className={`mt-4 ${cardClass("inset")}`}>
               <p className="text-sm text-muted">
-                Si ya pagaste, subí tu comprobante para que la escuela confirme tu
+                Si ya pagaste, sube tu comprobante para que la escuela confirme tu
                 compra.
               </p>
               <div className="mt-2">
@@ -320,7 +320,7 @@ function ProductOrderContent() {
             {saving ? "Registrando…" : "Confirmar compra"}
           </button>
           <p className="text-xs text-muted">
-            Pagás directo a la escuela por los medios de arriba; escuelaplace nunca
+            Pagas directo a la escuela por los medios de arriba; escuelaplace nunca
             procesa pagos.
           </p>
         </form>

@@ -91,7 +91,7 @@ export function TagsInput({
 
       {full ? (
         <p className="mt-1 text-xs text-muted">
-          Llegaste al máximo de {max} etiquetas. Quitá alguna para agregar otra.
+          Llegaste al máximo de {max} etiquetas. Quita alguna para agregar otra.
         </p>
       ) : (
         <input

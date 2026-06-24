@@ -793,7 +793,7 @@ export const PROJECT_STAGE_PHOTO_MAX = 5;
 export const PROJECT_STAGE_QUOTE_MAX = 3;
 // A stage's optional short video reuses the tool-wide short-video budget
 // (TOOL_VIDEO_MAX_SECONDS / TOOL_VIDEO_MAX_MB, declared with the tools below).
-/** UI cap for a contribution's in-kind description ("¿qué donás?"). */
+/** UI cap for a contribution's in-kind description ("¿qué donas?"). */
 export const CONTRIBUTION_DESCRIPTION_MAX = 500;
 
 /**
@@ -1797,6 +1797,6 @@ export interface BuyerPreferences {
   schoolName?: string;
   location?: { lat: number; lng: number };
   /** The buyer dismissed the community picker; remember it so it stays hidden across
-   * visits (it can always be reopened from the quiet "Elegí tu escuela" chip). */
+   * visits (it can always be reopened from the quiet "Elige tu escuela" chip). */
   pickerHidden?: boolean;
 }

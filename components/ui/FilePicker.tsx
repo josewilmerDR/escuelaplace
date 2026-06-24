@@ -64,7 +64,7 @@ export function FilePicker({
     // On an invalid pick, keep any previously valid file (like ImagePicker) — just clear the
     // native input and show why, instead of silently swapping in something unusable.
     if (!matchesAccept(file, accept)) {
-      setError("Ese tipo de archivo no es válido. Subí una imagen o un PDF.");
+      setError("Ese tipo de archivo no es válido. Sube una imagen o un PDF.");
       e.target.value = "";
       return;
     }

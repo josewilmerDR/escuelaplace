@@ -80,7 +80,7 @@ export function deckCardsFromLote(
  */
 export function bingoDeckNameError(name: string): string | null {
   const trimmed = name.trim();
-  if (!trimmed) return "Ingresá un nombre para el mazo.";
+  if (!trimmed) return "Ingresa un nombre para el mazo.";
   if (trimmed.length > BINGO_DECK_NAME_MAX) {
     return `El nombre no puede superar los ${BINGO_DECK_NAME_MAX} caracteres.`;
   }

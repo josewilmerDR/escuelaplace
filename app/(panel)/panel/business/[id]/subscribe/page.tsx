@@ -160,7 +160,7 @@ export default function BusinessSubscribePage() {
           Apoyar una escuela
         </h1>
         <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar los datos. Revisá tu conexión e intentá de nuevo.
+          No pudimos cargar los datos. Revisa tu conexión e intenta de nuevo.
         </p>
         <button type="button" onClick={retry} className="btn btn-outline mt-3">
           Reintentar
@@ -198,7 +198,7 @@ export default function BusinessSubscribePage() {
           Apoyar una escuela
         </h1>
         <p role="alert" className="mt-4 text-sm text-error">
-          No administrás este comercio.
+          No administras este comercio.
         </p>
         <p className="mt-4 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -210,7 +210,7 @@ export default function BusinessSubscribePage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      setError("Tu sesión expiró. Volvé a ingresar.");
+      setError("Tu sesión expiró. Vuelve a ingresar.");
       return;
     }
     if (!schoolId) return; // the submit button is disabled without a school
@@ -245,7 +245,7 @@ export default function BusinessSubscribePage() {
       await reloadSubscriptions();
       if (proofFailed) {
         setError(
-          "Apoyo registrado, pero no se pudo subir el comprobante. Podés subirlo desde la lista.",
+          "Apoyo registrado, pero no se pudo subir el comprobante. Puedes subirlo desde la lista.",
         );
       } else {
         setDone(true);

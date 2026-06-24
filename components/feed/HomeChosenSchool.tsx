@@ -119,7 +119,7 @@ export function HomeChosenSchool({
       <EmptyState
         icon={<WarningIcon className="h-7 w-7" />}
         title="No pudimos cargar la escuela"
-        description="Recargá la página para intentarlo de nuevo."
+        description="Recarga la página para intentarlo de nuevo."
       />
     );
   }
@@ -145,7 +145,7 @@ export function HomeChosenSchool({
           </Link>
         </div>
         <p className="mt-1 text-sm text-muted">
-          Apoyá a la escuela comprándole a los comercios que ya la apoyan.
+          Apoya a la escuela comprándole a los comercios que ya la apoyan.
         </p>
         <div className="mt-4">
           <SupportersCarousel
@@ -204,7 +204,7 @@ export function HomeChosenSchool({
           <EmptyState
             icon={<HeartIcon className="h-7 w-7" />}
             title="Esta escuela todavía no tiene actividades en curso"
-            description="Conocé más sobre la institución y las formas de apoyarla en su página."
+            description="Conoce más sobre la institución y las formas de apoyarla en su página."
             cta={{ label: "Ver la escuela", href: `/school/${schoolId}` }}
           />
           {supportersShelf && <div className="mt-8">{supportersShelf}</div>}

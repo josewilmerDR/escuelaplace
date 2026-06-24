@@ -112,7 +112,7 @@ export function BuyerStrip() {
                 onClick={() => setOpen(true)}
                 className="text-brand-darker hover:underline"
               >
-                Elegí tu escuela
+                Elige tu escuela
               </button>{" "}
               o{" "}
               <button
@@ -121,7 +121,7 @@ export function BuyerStrip() {
                 disabled={locating}
                 className="text-brand-darker hover:underline disabled:opacity-60"
               >
-                {locating ? "activando…" : "activá tu ubicación"}
+                {locating ? "activando…" : "activa tu ubicación"}
               </button>
             </h3>
             {error && !open && (
@@ -133,7 +133,7 @@ export function BuyerStrip() {
         </div>
       )}
 
-      <Modal open={open} title="Elegí tu escuela" onClose={() => setOpen(false)}>
+      <Modal open={open} title="Elige tu escuela" onClose={() => setOpen(false)}>
         {/* Deliberate: the list includes UNVERIFIED schools (getSchools filters by status
             only). Choosing a community is not a trust signal — verification gates the
             payment/donation flows elsewhere, and a buyer whose school just joined must
@@ -146,13 +146,13 @@ export function BuyerStrip() {
           }))}
           value={ready ? (prefs.schoolId ?? "") : ""}
           onChange={onSchool}
-          placeholder="Buscá tu escuela…"
+          placeholder="Busca tu escuela…"
           ariaLabel="Tu escuela"
           emptyMessage={
             schoolsState === "loading"
               ? "Cargando escuelas…"
               : schoolsState === "error"
-                ? "No pudimos cargar las escuelas. Recargá la página."
+                ? "No pudimos cargar las escuelas. Recarga la página."
                 : "Sin resultados"
           }
         />

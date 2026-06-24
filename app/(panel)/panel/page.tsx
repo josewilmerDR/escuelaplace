@@ -114,7 +114,7 @@ function PanelHeading({ count }: { count?: number }) {
         )}
       </div>
       <p className="mt-1 text-sm text-muted">
-        Administrá tus comercios y escuelas.
+        Administra tus comercios y escuelas.
       </p>
     </header>
   );
@@ -232,8 +232,8 @@ function PanelHomeInner() {
         <PanelHeading count={0} />
         <EmptyState
           icon={<PagesIcon className="h-7 w-7" />}
-          title="Todavía no administrás ninguna página"
-          description="Creá la página de tu comercio o de tu escuela para empezar a aparecer en el directorio de tu comunidad."
+          title="Todavía no administras ninguna página"
+          description="Crea la página de tu comercio o de tu escuela para empezar a aparecer en el directorio de tu comunidad."
           cta={{ label: "Crear página", href: "/panel/new" }}
         />
         <DonateCallout />
@@ -328,7 +328,7 @@ function CreatedBanner({
             href={`/panel/business/${page.doc.id}/edit`}
             className="font-medium underline"
           >
-            Completá el perfil y publicalo
+            Completa el perfil y publícalo
           </Link>
           .
         </p>
@@ -364,11 +364,11 @@ function DonateCallout() {
       </IconTile>
       <div className="min-w-0">
         <h2 className="font-semibold tracking-tight text-foreground">
-          Apoyá como persona
+          Apoya como persona
         </h2>
         <p className="mt-1 text-sm text-muted">
-          No necesitás una página para apoyar: doná directamente a una escuela
-          y, si querés, aparecé en su muro de agradecimiento.
+          No necesitas una página para apoyar: dona directamente a una escuela
+          y, si quieres, aparece en su muro de agradecimiento.
         </p>
         <Link
           href="/panel/donate"
@@ -513,7 +513,7 @@ function PageCard({
     setRemoveError(null);
     void onRemove()
       .catch(() => {
-        setRemoveError("No se pudo quitar la página de tu lista. Intentá de nuevo.");
+        setRemoveError("No se pudo quitar la página de tu lista. Intenta de nuevo.");
         setConfirmRemove(false);
       })
       .finally(() => setBusy(false));
@@ -581,7 +581,7 @@ function PageCard({
           ? "Editaste datos sensibles: la escuela quedó pendiente de re-verificación. Los métodos de pago siguen ocultos hasta una nueva aprobación del equipo."
           : "Datos sin verificar. Los métodos de pago permanecen ocultos hasta que el equipo verifique la escuela."
         : page.type === "business" && page.doc.status === "draft"
-          ? "Esta página está en borrador y no es visible al público. Publicala desde “Editar”."
+          ? "Esta página está en borrador y no es visible al público. Publícala desde “Editar”."
           : undefined;
 
   const coverSizes = "(min-width: 1280px) 300px, (min-width: 640px) 50vw, 100vw";

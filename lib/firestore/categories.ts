@@ -114,7 +114,7 @@ export async function deleteCategory(id: string): Promise<void> {
   const count = (snap.get("businessCount") as number | undefined) ?? 0;
   if (count > 0) {
     throw new Error(
-      "No se puede borrar una categoría con comercios. Reasigná esos comercios primero.",
+      "No se puede borrar una categoría con comercios. Reasigna esos comercios primero.",
     );
   }
   await deleteDoc(ref);

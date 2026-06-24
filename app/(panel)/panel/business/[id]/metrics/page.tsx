@@ -144,7 +144,7 @@ export default function BusinessMetricsPage() {
           : c,
       );
     } catch {
-      setWalkInError("No se pudo registrar. Probá de nuevo.");
+      setWalkInError("No se pudo registrar. Prueba de nuevo.");
     } finally {
       setRecording(false);
     }
@@ -169,7 +169,7 @@ export default function BusinessMetricsPage() {
           Métricas
         </h1>
         <p className="mt-6 text-sm text-error">
-          No administrás este comercio o no se pudieron cargar sus métricas.
+          No administras este comercio o no se pudieron cargar sus métricas.
         </p>
         <button type="button" onClick={load} className="btn btn-outline mt-4">
           Reintentar
@@ -212,7 +212,7 @@ export default function BusinessMetricsPage() {
 
       <Section
         title="Clientes de escuelaplace"
-        description="Tocá el botón cada vez que un cliente mencione escuelaplace en el local — por ejemplo, al pedir el descuento."
+        description="Toca el botón cada vez que un cliente mencione escuelaplace en el local — por ejemplo, al pedir el descuento."
       >
         <div className="mt-4 flex flex-wrap items-center gap-4">
           <button
@@ -333,7 +333,7 @@ export default function BusinessMetricsPage() {
 
       <p className="mt-4 text-xs text-muted">
         Estas métricas son privadas: solo las ven quienes administran esta página y no
-        afectan tu posición en el catálogo. El conteo de chats lo podés verificar en tu
+        afectan tu posición en el catálogo. El conteo de chats lo puedes verificar en tu
         propio WhatsApp — cada conversación que llega desde tu perfil empieza
         mencionando escuelaplace.
       </p>

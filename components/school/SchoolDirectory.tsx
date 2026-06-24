@@ -109,7 +109,7 @@ export function SchoolDirectory({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscá una escuela por nombre o localidad…"
+            placeholder="Busca una escuela por nombre o localidad…"
             aria-label="Filtrar escuelas"
             className="w-full rounded-lg border border-border py-2 pl-10 pr-10 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
           />
@@ -161,7 +161,7 @@ export function SchoolDirectory({
         <EmptyState
           icon={<AcademicCapIcon className="h-7 w-7" />}
           title="Ninguna escuela coincide con tu búsqueda"
-          description={`No encontramos escuelas para «${query.trim()}». Probá con otro nombre o localidad.`}
+          description={`No encontramos escuelas para «${query.trim()}». Prueba con otro nombre o localidad.`}
           cta={
             <button
               type="button"

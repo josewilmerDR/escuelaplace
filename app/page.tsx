@@ -146,14 +146,14 @@ export default async function HomePage() {
             <EmptyState
               icon={<WarningIcon className="h-7 w-7" />}
               title="No pudimos cargar las escuelas"
-              description="Recargá la página para intentarlo de nuevo."
+              description="Recarga la página para intentarlo de nuevo."
             />
           ) : schoolCards.length === 0 ? (
             <EmptyState
               icon={<HeartIcon className="h-7 w-7" />}
               title="Todavía no hay escuelas publicadas"
-              description="Sé la primera institución en sumarse: registrá tu escuela y empezá a recibir el apoyo de tu comunidad."
-              cta={{ label: "Registrá tu escuela", href: "/create" }}
+              description="Sé la primera institución en sumarse: registra tu escuela y empieza a recibir el apoyo de tu comunidad."
+              cta={{ label: "Registra tu escuela", href: "/create" }}
             />
           ) : (
             <HomeSchools

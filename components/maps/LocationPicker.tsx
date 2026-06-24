@@ -115,8 +115,8 @@ function PickerInner({ value, onChange, onAddress }: Props) {
       </div>
       <p className="text-xs text-muted">
         {value
-          ? `Ubicación: ${value.lat.toFixed(5)}, ${value.lng.toFixed(5)} — arrastrá el pin o tocá el mapa para ajustar.`
-          : "Buscá la dirección o tocá el mapa para colocar el pin."}
+          ? `Ubicación: ${value.lat.toFixed(5)}, ${value.lng.toFixed(5)} — arrastra el pin o toca el mapa para ajustar.`
+          : "Busca la dirección o toca el mapa para colocar el pin."}
       </p>
     </div>
   );
@@ -267,7 +267,7 @@ function ManualFallback({ value, onChange }: Props) {
   return (
     <div>
       <p className="mb-2 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">
-        El mapa no está disponible en este momento. Ingresá las coordenadas
+        El mapa no está disponible en este momento. Ingresa las coordenadas
         manualmente.
       </p>
       <div className="grid grid-cols-2 gap-3">
