@@ -39,8 +39,7 @@ export function PageTypeChoice({
           Comercio
         </Heading>
         <p className="mt-1 text-sm text-muted">
-          Mostrá tu negocio, tus ofertas y la escuela que apoyás. Se crea como
-          borrador hasta que lo publiques.
+          Muestra tu negocio, tus ofertas y las escuelas que apoyas.
         </p>
         <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-darker transition-colors group-hover:text-brand-darkest">
           Crear comercio <ArrowRightIcon className="h-4 w-4" />
@@ -59,8 +58,8 @@ export function PageTypeChoice({
           Escuela
         </Heading>
         <p className="mt-1 text-sm text-muted">
-          Creá la página de tu escuela. Se publica como <strong>sin verificar</strong> hasta que
-          el equipo la apruebe.
+          Crea la página de tu escuela, construye tu propia comunidad y recauda
+          fondos para su sostenimiento o proyectos.
         </p>
         <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-darker transition-colors group-hover:text-brand-darkest">
           Crear escuela <ArrowRightIcon className="h-4 w-4" />

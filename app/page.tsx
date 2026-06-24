@@ -106,7 +106,7 @@ export default async function HomePage() {
           {/* The home now leads with the school directory, so the headline names both halves of
               the relationship: the schools and the businesses that sustain them. */}
           <h1 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-4xl">
-            Las escuelas de tu comunidad y los comercios que las apoyan
+            La escuela de tu comunidad y los comercios que la apoyan
           </h1>
 
           {/* No autoFocus: this is the SEO landing page — stealing focus on load pops the mobile

@@ -76,11 +76,14 @@ function RoleCard({
   title,
   lead,
   children,
+  footer,
 }: {
   icon: React.ReactNode;
   title: string;
   lead: string;
   children: React.ReactNode;
+  /** Optional closing note rendered under the steps. */
+  footer?: React.ReactNode;
 }) {
   return (
     <section className={cardClass("elevated")}>
@@ -92,6 +95,9 @@ function RoleCard({
       </header>
       <p className="mt-3 text-sm leading-relaxed text-muted">{lead}</p>
       <ol className="mt-6 space-y-5">{children}</ol>
+      {footer ? (
+        <p className="mt-6 text-sm leading-relaxed text-muted">{footer}</p>
+      ) : null}
     </section>
   );
 }
@@ -141,6 +147,9 @@ export default function AboutPage() {
 
   return (
     <PageContainer variant="narrow">
+      {/* Long-form explainer: narrow the shared 6xl column to a comfortable reading
+          measure, kept centered within the page padding. */}
+      <div className="mx-auto max-w-3xl">
       {/* "<" escaped so text can't close the script tag. */}
       <script
         type="application/ld+json"
@@ -154,14 +163,12 @@ export default function AboutPage() {
           Cómo funciona
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-          Un directorio que pone a las escuelas en el centro
+          Ayuda a una escuela y gana visibilidad
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-muted">
-          escuelaplace es un <strong className="text-foreground">directorio
-          comunitario</strong>: conecta a los comercios de tu barrio con las
-          escuelas de tu comunidad. Los comercios apoyan a una escuela y, a
-          cambio, ganan visibilidad, una insignia y un mejor lugar en el
-          directorio. No es una tienda en línea ni un intermediario de pagos.
+          Los comercios apoyan a una escuela y, a cambio, ganan{" "}
+          <strong className="text-foreground">visibilidad</strong>, una insignia
+          y un mejor lugar en el directorio.
         </p>
       </header>
 
@@ -189,7 +196,7 @@ export default function AboutPage() {
         <RoleCard
           icon={<SearchIcon className="h-6 w-6" />}
           title="Para quien compra"
-          lead="No necesitás cuenta ni registro. Navegás todo el catálogo como en cualquier directorio."
+          lead="No necesitás cuenta ni registro para navegar escuelaplace. Busca un negocio y ponte en contacto con este."
         >
           <Step n={1} title="Elegí tu comunidad">
             Seleccioná tu escuela y tu zona. Esa preferencia se guarda solo en tu
@@ -209,15 +216,22 @@ export default function AboutPage() {
         <RoleCard
           icon={<TagIcon className="h-6 w-6" />}
           title="Para tu comercio"
-          lead="Creás la página de tu negocio, apoyás a una o varias escuelas y ganás visibilidad en el directorio de esa comunidad."
+          lead="Creás la página de tu negocio, apoyás a una o varias escuelas y ganás visibilidad en el directorio de esa comunidad, y en el feed principal."
+          footer={
+            <>
+              Si no podés o no querés apoyar a una escuela, publicá tu negocio
+              igual: si es relevante para la búsqueda del usuario, aparecerá en
+              esos resultados.
+            </>
+          }
         >
           <Step n={1} title="Creá tu página">
             Registrate con Google y publicá tu comercio: descripción, fotos,
             contacto, horario y descuentos.
           </Step>
           <Step n={2} title="Apoyá a una escuela">
-            Elegí la escuela que querés apoyar y hacé tu aporte directo por los
-            métodos que ella publica. La escuela lo confirma.
+            Elegí la escuela o escuelas que querés apoyar y hacé tu aporte
+            directo por los métodos que ella publica. La escuela lo confirma.
           </Step>
           <Step n={3} title="Ganá visibilidad e insignia">
             Tu apoyo confirmado te da una insignia pública y un mejor lugar en el
@@ -230,18 +244,20 @@ export default function AboutPage() {
           title="Para tu escuela"
           lead="La escuela se autoadministra: publica sus datos, recibe el apoyo directo y confirma cada aporte."
         >
-          <Step n={1} title="Creá la página de la escuela">
-            Cualquier miembro de la comunidad puede crearla. Nace sin verificar:
-            sus métodos de pago quedan ocultos hasta que nuestro equipo la
-            apruebe.
+          <Step n={1} title="Crea la página de la escuela">
+            Cualquier miembro de la comunidad puede crearla y solicitar la
+            verificación.
           </Step>
           <Step n={2} title="Verificación">
-            Revisamos la escuela y la marcamos como verificada. Desde ahí sus
-            métodos de pago son visibles y muestra la insignia de confianza.
+            Revisamos que los métodos de pago existan y pertenezcan a la escuela.
+            No comprobamos si quien solicita la verificación es una autoridad de
+            la escuela. Solo tras la verificación sus métodos de pago se vuelven
+            visibles y la escuela muestra la insignia de confianza.
           </Step>
-          <Step n={3} title="Recibí y confirmá el apoyo">
+          <Step n={3} title="Recibe y confirma el apoyo">
             Los comercios y donantes aportan directo a la escuela. La escuela
-            confirma cada aporte; podés abrir proyectos para metas concretas.
+            confirma cada donación o aporte a sus actividades y proyectos; una
+            donación o aporte computa como real solo después de esa confirmación.
           </Step>
         </RoleCard>
       </div>
@@ -262,8 +278,7 @@ export default function AboutPage() {
           El orden de los comercios refleja su{" "}
           <strong className="text-foreground">apoyo confirmado por las
           escuelas</strong>. Pesa el apoyo sostenido en el tiempo y a la
-          comunidad, no un pago puntual. Lo importante es que el ranking premia el
-          apoyo real, no el que se inventa:
+          comunidad, no un pago puntual.
         </p>
         <ul className="mt-4 space-y-3 text-sm leading-relaxed text-muted">
           <li className="flex gap-3">
@@ -277,7 +292,7 @@ export default function AboutPage() {
             <VerifiedIcon className="h-5 w-5 shrink-0 text-success" />
             <span>
               <strong>No cuenta el auto-apoyo</strong>: apoyar tu propia escuela
-              no sube tu posición.
+              no sube tu posición, pero sí puede penalizar tu cuenta.
             </span>
           </li>
           <li className="flex gap-3">
@@ -306,12 +321,15 @@ export default function AboutPage() {
         }
       >
         <p className="mt-3 text-sm leading-relaxed text-muted">
-          La insignia de verificada significa que nuestro equipo revisó la
-          escuela. Mientras una escuela no esté verificada, sus métodos de pago
-          permanecen ocultos y mostramos un aviso de “datos sin verificar”, para
-          que nadie aporte a datos que no hemos comprobado. Si una escuela
-          verificada edita información sensible, vuelve a revisión hasta que la
-          aprobemos de nuevo.
+          La insignia de verificada significa que nuestro equipo revisó los
+          métodos de pago de la escuela. Mientras una escuela no esté verificada,
+          sus métodos de pago permanecen ocultos y mostramos un aviso de “datos
+          sin verificar”. Si una escuela verificada edita información sensible,
+          vuelve a revisión hasta que la aprobemos de nuevo.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-muted">
+          La verificación puede retirarse a solicitud formal de las autoridades
+          de la escuela o por un uso no legítimo de la misma.
         </p>
       </Section>
 
@@ -330,6 +348,7 @@ export default function AboutPage() {
       </div>
 
       <ShareRow />
+      </div>
     </PageContainer>
   );
 }
