@@ -68,6 +68,14 @@ export default async function HomePage() {
 
   return (
     <main>
+      {/* Catalog section switch, pinned just under the top bar (above the hero) so switching
+          between the school directory and the business catalog is always one tap away. */}
+      <section className="bg-surface">
+        <div className="mx-auto max-w-6xl px-6">
+          <CatalogTabs active="schools" />
+        </div>
+      </section>
+
       {/* Hero: a community/school photo tinted with the brand color.
           Layers (back to front):
             1. photo via next/image (responsive + modern formats + preload: it is the LCP
@@ -122,10 +130,10 @@ export default async function HomePage() {
 
       {/* Value strip: the product breaks marketplace expectations (no checkout, the platform
           never touches money), so the home has to say what it is FOR before showing it.
-          <BuyerStrip> shows the 1→2→3 stepper on a first visit and collapses to a one-line
+          <BuyerStrip> shows the community prompt on a first visit and collapses to a one-line
           community summary once a school/zone is set. */}
       <section className="border-y border-border bg-surface">
-        <div className="mx-auto max-w-6xl px-6 py-10">
+        <div className="mx-auto max-w-6xl px-6 py-7">
           <BuyerStrip />
         </div>
       </section>
@@ -133,8 +141,6 @@ export default async function HomePage() {
       {/* School directory: a vertical feed of school posts (ranked by support, re-ranked by the
           buyer's community client-side), with the supporting-businesses carousel at slot 2. */}
       <section className="mx-auto max-w-2xl px-6 pt-4 pb-20">
-        <CatalogTabs active="schools" />
-
         <div className="mt-6">
           {loadFailed ? (
             <EmptyState

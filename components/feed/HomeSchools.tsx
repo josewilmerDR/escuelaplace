@@ -7,13 +7,17 @@
  * high-attention spot in the feed (the FB "suggested" interleave pattern).
  *
  * SSR baseline + client personalization: the server passes `initial` already ranked by community
- * support (the SEO order, shown on first paint). After mount, a buyer LOCATION re-ranks by
- * proximity and a CHOSEN school is pinned to the top — pure math over each card's lat/lng, no
- * Firestore read. "Ver solo la actividad de una escuela" stays its own page (/school/[id]).
+ * support (the SEO order, shown on first paint). After mount a buyer LOCATION re-ranks the
+ * directory by proximity — pure math over each card's lat/lng, no Firestore read.
+ *
+ * A CHOSEN school is different: showing the whole directory then makes little sense — the buyer
+ * wants that one school's activity. So we hand off to <HomeChosenSchool>, which replicates the
+ * school's own landing tab (its publications + the supporters carousel) right here in the feed.
  */
 import { Fragment, useMemo } from "react";
 import Link from "next/link";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { HomeChosenSchool } from "@/components/feed/HomeChosenSchool";
 import { SchoolCard } from "@/components/school/SchoolCard";
 import { CardCarousel } from "@/components/ui/Carousel";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
@@ -43,21 +47,30 @@ export function HomeSchools({
   const chosenSchoolId = ready ? prefs.schoolId : undefined;
   const hasLocation = ready && !!prefs.location;
 
-  // Order the directory: the server's support baseline, unless a location re-ranks it by
-  // proximity; a chosen school is pinned to the very top so "tu escuela" leads.
+  // Order the directory: the server's support baseline, unless a buyer location re-ranks it by
+  // proximity. (A chosen school never reaches here — it hands off to <HomeChosenSchool> below.)
   const schools = useMemo(() => {
-    let list =
+    const list =
       hasLocation && prefs.location
         ? rankSchoolsByRelevance(initial, { location: prefs.location }).map(
             (r) => r.school,
           )
         : initial;
-    if (chosenSchoolId) {
-      const chosen = list.find((s) => s.id === chosenSchoolId);
-      if (chosen) list = [chosen, ...list.filter((s) => s.id !== chosenSchoolId)];
-    }
     return list.slice(0, SHOWN);
-  }, [initial, hasLocation, prefs.location, chosenSchoolId]);
+  }, [initial, hasLocation, prefs.location]);
+
+  // A specific school is chosen: drop the directory and show that school's activity feed
+  // (its publications + the "comercios que la apoyan" carousel), mirroring its landing tab.
+  // SSR/first paint has no chosen school, so the directory is still the SEO-visible content.
+  if (chosenSchoolId) {
+    return (
+      <HomeChosenSchool
+        key={chosenSchoolId}
+        schoolId={chosenSchoolId}
+        schoolName={prefs.schoolName}
+      />
+    );
+  }
 
   if (schools.length === 0) return null;
 

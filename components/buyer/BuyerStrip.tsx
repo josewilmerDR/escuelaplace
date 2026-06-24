@@ -3,30 +3,20 @@
 /**
  * The home "how it works" value strip, made stateful around the buyer's community.
  *
- * First visit (no community set): the full 1→2→3 stepper teaches the flow — step 1 is
- * interactive (pick a school in a modal or activate location → drives the feed ranking),
- * steps 2–3 are static copy. Once the buyer has a community the teaching is done: showing
- * the trailing steps again is less useful than the first time, so the strip collapses to a
- * single line naming the chosen school (or zone) with Cambiar/Limpiar, and steps 2–3 drop.
+ * First visit (no community set): a single interactive prompt to pick a school in a modal or
+ * activate location → drives the feed ranking. Once the buyer has a community the strip
+ * collapses to a single line naming the chosen school (or zone) with Cambiar/Limpiar.
  *
- * Replaces the old <CommunityStep> + two static <BuyerStep>s that the home rendered apart.
  * The buyer has no account, so the community lives in localStorage via useBuyerPreferences;
  * <RankedFeed> reads the same store and re-ranks automatically when it changes.
  *
  * `ready` is false on the server and first client paint, so the SSR HTML always carries the
- * full stepper (the SEO/teaching content) and the collapse only happens after mount.
+ * prompt and the collapse only happens after mount.
  */
 import { useEffect, useRef, useState } from "react";
 import { Combobox } from "@/components/ui/Combobox";
 import { Modal } from "@/components/ui/Modal";
-import { StepTile } from "@/components/ui/StepTile";
-import {
-  AcademicCapIcon,
-  HeartIcon,
-  InfoIcon,
-  MapPinIcon,
-  SearchIcon,
-} from "@/components/ui/icons";
+import { InfoIcon, MapPinIcon } from "@/components/ui/icons";
 import { useBuyerPreferences } from "@/lib/buyer/preferences";
 import { getSchoolsCached } from "@/lib/firestore";
 import { localityLabel } from "@/lib/location";
@@ -112,57 +102,35 @@ export function BuyerStrip() {
           onClear={clear}
         />
       ) : (
-        <ol className="relative mx-auto grid max-w-4xl gap-4 sm:grid-cols-3 sm:gap-6">
-          {/* Stepper connector: a faint line linking the three icon centers so the steps
-              read as a 1→2→3 flow, not three independent items. Desktop only (the mobile
-              layout is a vertical row where the numbers carry the order). top-6 = the h-12
-              icon's vertical center; insets stop at the outer icons. */}
-          <span
-            aria-hidden
-            className="absolute left-[16.6%] right-[16.6%] top-6 hidden h-px bg-border sm:block"
-          />
-          {/* Step 1 is interactive (picks the buyer's community → drives the feed). */}
-          <li className="flex items-start gap-3 text-left sm:flex-col sm:items-center sm:text-center">
-            <StepTile step={1}>
-              <AcademicCapIcon className="h-5 w-5" />
-            </StepTile>
-            <div className="w-full min-w-0 sm:mt-3">
-              <h3 className="font-semibold tracking-tight text-foreground">
-                <button
-                  type="button"
-                  onClick={() => setOpen(true)}
-                  className="text-brand-darker hover:underline"
-                >
-                  Elegí tu escuela
-                </button>{" "}
-                o{" "}
-                <button
-                  type="button"
-                  onClick={useMyLocation}
-                  disabled={locating}
-                  className="text-brand-darker hover:underline disabled:opacity-60"
-                >
-                  {locating ? "activando…" : "activá tu ubicación"}
-                </button>
-              </h3>
-              {error && !open && (
-                <p role="alert" className="mt-0.5 text-sm text-red-600">
-                  {error}
-                </p>
-              )}
-            </div>
-          </li>
-          <BuyerStep
-            step={2}
-            icon={<SearchIcon className="h-5 w-5" />}
-            title="Descubrí los comercios que la apoyan"
-          />
-          <BuyerStep
-            step={3}
-            icon={<HeartIcon className="h-5 w-5" />}
-            title="Comprá en ellos y apoyá tu institución"
-          />
-        </ol>
+        // The buyer's first action: pick a community (a school, or just a location) to drive
+        // the feed ranking. Centered single prompt — no stepper, since it's the only step.
+        <div className="mx-auto max-w-xl text-center">
+          <div className="w-full min-w-0">
+            <h3 className="font-semibold tracking-tight text-foreground">
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="text-brand-darker hover:underline"
+              >
+                Elegí tu escuela
+              </button>{" "}
+              o{" "}
+              <button
+                type="button"
+                onClick={useMyLocation}
+                disabled={locating}
+                className="text-brand-darker hover:underline disabled:opacity-60"
+              >
+                {locating ? "activando…" : "activá tu ubicación"}
+              </button>
+            </h3>
+            {error && !open && (
+              <p role="alert" className="mt-0.5 text-sm text-red-600">
+                {error}
+              </p>
+            )}
+          </div>
+        </div>
       )}
 
       <Modal open={open} title="Elegí tu escuela" onClose={() => setOpen(false)}>
@@ -342,28 +310,5 @@ function CommunitySummary({
         </p>
       )}
     </div>
-  );
-}
-
-/** A static buyer "how it works" step (2–3) on the home value strip: numbered icon tile +
- *  title. The number badge + the connector line behind the icons (see the <ol> above) make
- *  the three read as an ordered flow. Compact: a horizontal row on mobile (icon left, text
- *  right) to keep the strip short; recenters into a column on the 3-up grid (sm+). */
-function BuyerStep({
-  step,
-  icon,
-  title,
-}: {
-  step: number;
-  icon: React.ReactNode;
-  title: string;
-}) {
-  return (
-    <li className="flex items-start gap-3 text-left sm:flex-col sm:items-center sm:text-center">
-      <StepTile step={step}>{icon}</StepTile>
-      <div className="min-w-0 sm:mt-3">
-        <h3 className="font-semibold tracking-tight text-foreground">{title}</h3>
-      </div>
-    </li>
   );
 }

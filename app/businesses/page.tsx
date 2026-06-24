@@ -80,6 +80,14 @@ export default async function BusinessesPage() {
 
   return (
     <main>
+      {/* Catalog section switch, pinned just under the top bar (above the hero) so switching
+          between the school directory and the business catalog is always one tap away. */}
+      <section className="bg-surface">
+        <div className="mx-auto max-w-6xl px-6">
+          <CatalogTabs active="businesses" />
+        </div>
+      </section>
+
       <section className="border-b border-border bg-surface">
         <div className="mx-auto max-w-3xl px-6 py-10 text-center">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
@@ -95,8 +103,6 @@ export default async function BusinessesPage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-6 pt-4 pb-20">
-        <CatalogTabs active="businesses" />
-
         <div className="mt-6">
           {categories.length > 0 && (
             <nav aria-label="Categorías" className="mb-4 flex items-start gap-2">
