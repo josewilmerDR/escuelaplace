@@ -21,13 +21,12 @@ import { PAGE_COVER_SIZES } from "@/lib/layout";
 import {
   averageConfirmationTimeMs,
   countRecentUniqueSupporters,
-  getBusinessesBySchool,
   getConfirmedSubscriptionsBySchool,
   getProjectsBySchool,
   getSchoolById,
   getSchoolDonorWall,
+  getSupportingBusinesses,
   isSchoolVerified,
-  recentBusinessSupporterIds,
   schoolCover,
 } from "@/lib/firestore";
 import { formatApproxDuration } from "@/lib/format";
@@ -69,29 +68,27 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
   // Secondary reads feed the header's CTAs/chips and decide which tabs exist. Each degrades
   // to a safe empty fallback on a transient failure so a flaky read doesn't take down the
   // whole profile. All four are cached(), shared with the section pages below.
-  const [businesses, wall, confirmedSubs, allProjects] = await Promise.all([
-    getBusinessesBySchool(id).catch((err) => {
-      console.error("school layout: getBusinessesBySchool failed", err);
-      return [];
-    }),
-    getSchoolDonorWall(id).catch((err) => {
-      console.error("school layout: getSchoolDonorWall failed", err);
-      return { recognized: [], anonymousCount: 0 };
-    }),
-    getConfirmedSubscriptionsBySchool(id).catch((err) => {
-      console.error("school layout: getConfirmedSubscriptionsBySchool failed", err);
-      return [];
-    }),
-    getProjectsBySchool(id).catch((err) => {
-      console.error("school layout: getProjectsBySchool failed", err);
-      return [];
-    }),
-  ]);
+  const [supportingBusinesses, wall, confirmedSubs, allProjects] =
+    await Promise.all([
+      getSupportingBusinesses(id).catch((err) => {
+        console.error("school layout: getSupportingBusinesses failed", err);
+        return [];
+      }),
+      getSchoolDonorWall(id).catch((err) => {
+        console.error("school layout: getSchoolDonorWall failed", err);
+        return { recognized: [], anonymousCount: 0 };
+      }),
+      getConfirmedSubscriptionsBySchool(id).catch((err) => {
+        console.error("school layout: getConfirmedSubscriptionsBySchool failed", err);
+        return [];
+      }),
+      getProjectsBySchool(id).catch((err) => {
+        console.error("school layout: getProjectsBySchool failed", err);
+        return [];
+      }),
+    ]);
 
-  const supporterIds = recentBusinessSupporterIds(confirmedSubs);
-  const supportingBusinessCount = businesses.filter((b) =>
-    supporterIds.has(b.id),
-  ).length;
+  const supportingBusinessCount = supportingBusinesses.length;
   const hasProjects = allProjects.some((p) => p.status !== "cancelled");
   const hasWall = wall.recognized.length > 0 || wall.anonymousCount > 0;
   const gallery = school.photos ?? [];

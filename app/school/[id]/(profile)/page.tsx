@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Fragment } from "react";
+import { SupportersCarousel } from "@/components/business/SupportersCarousel";
 import { DonorWallManagerHint } from "@/components/donors/DonorWallManagerHint";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { ToolCard } from "@/components/tools/ToolCard";
@@ -10,9 +12,11 @@ import {
   getProjectsBySchool,
   getSchoolById,
   getSchoolDonorWall,
+  getSupportingBusinesses,
   getToolsBySchool,
   publicTools,
   schoolCover,
+  toBusinessCardData,
 } from "@/lib/firestore";
 import type { ProjectDoc, ToolDoc } from "@/types";
 
@@ -73,12 +77,21 @@ export default async function SchoolLandingPage({ params }: Props) {
   // The landing feed leads with the school's timely calls to action — its live tools
   // (rifas/ventas/etc.) and its open projects; every read degrades to empty on a transient
   // failure. getProjectsBySchool is cache()'d and already read by the layout, so it's free.
-  const [wall, tools, projects] = await Promise.all([
+  const [wall, tools, projects, supportingBusinesses] = await Promise.all([
     getSchoolDonorWall(id).catch(() => ({ recognized: [], anonymousCount: 0 })),
     getToolsBySchool(id).catch(() => []),
     getProjectsBySchool(id).catch(() => []),
+    // cache()'d and already read by the layout for the supporter count/CTA, so this is free.
+    getSupportingBusinesses(id).catch(() => []),
   ]);
   const hasWall = wall.recognized.length > 0 || wall.anonymousCount > 0;
+
+  // A slim teaser of the businesses that support the school; the full grid lives on the
+  // "Comercios" tab. Capped low so it stays a teaser, not a second listing.
+  const TEASER_SUPPORTERS = 4;
+  const supporterCards = supportingBusinesses
+    .slice(0, TEASER_SUPPORTERS)
+    .map(toBusinessCardData);
 
   // Merge live tools and OPEN projects into one feed, newest-first. The landing surfaces only
   // current calls to action: publicTools already drops non-active tools, and we likewise keep
@@ -98,6 +111,35 @@ export default async function SchoolLandingPage({ params }: Props) {
       ),
   ].sort((a, b) => b.at - a.at);
 
+  // The businesses that support the school, rendered as a shelf interleaved into the feed
+  // (after the first activity) — buying from them is the no-login way to help. A teaser; the
+  // full grid lives on the "Comercios" tab. null when there are none, so nothing is inserted.
+  const supportersShelf =
+    supporterCards.length > 0 ? (
+      <section className="scroll-mt-6">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Comercios que la apoyan
+          </h2>
+          <Link
+            href={`/school/${id}/businesses`}
+            className="shrink-0 text-sm font-medium text-brand-darker hover:underline"
+          >
+            Ver todos
+          </Link>
+        </div>
+        <p className="mt-1 text-sm text-muted">
+          Apoyá a la escuela comprándole a los comercios que ya la apoyan.
+        </p>
+        <div className="mt-5">
+          <SupportersCarousel
+            businesses={supporterCards}
+            ariaLabel="Comercios que apoyan a la escuela"
+          />
+        </div>
+      </section>
+    ) : null;
+
   return (
     // The "Principal" tab is the school's activity FEED: a single centered column of stacked
     // post cards (Facebook-style), narrower than the full-width header above. Wrapping the whole
@@ -115,38 +157,49 @@ export default async function SchoolLandingPage({ params }: Props) {
             organizando.
           </p>
           <div className="mt-5 flex flex-col gap-5">
-            {publications.map((pub) =>
-              pub.kind === "project" ? (
-                <ProjectCard
-                  key={`p-${pub.project.id}`}
-                  project={pub.project}
-                  coverSizes={FEED_COVER_SIZES}
-                />
-              ) : (
-                <ToolCard
-                  key={`t-${pub.tool.id}`}
-                  tool={pub.tool}
-                  boardPhone={school.boardContact?.phone}
-                />
-              ),
-            )}
+            {publications.map((pub, i) => (
+              <Fragment
+                key={
+                  pub.kind === "project"
+                    ? `p-${pub.project.id}`
+                    : `t-${pub.tool.id}`
+                }
+              >
+                {pub.kind === "project" ? (
+                  <ProjectCard
+                    project={pub.project}
+                    coverSizes={FEED_COVER_SIZES}
+                  />
+                ) : (
+                  <ToolCard
+                    tool={pub.tool}
+                    boardPhone={school.boardContact?.phone}
+                  />
+                )}
+                {/* Interleave the supporters shelf between the first and second activity. */}
+                {i === 0 && supportersShelf}
+              </Fragment>
+            ))}
           </div>
         </section>
       ) : (
         // No live activity yet: rather than an empty landing, point visitors to the school's
-        // identity and the ways they can help.
-        <Section id="actividades" title="Actividades de la escuela">
-          <p className="mt-3 text-muted">
-            Esta escuela todavía no tiene actividades en curso. Conocé más en{" "}
-            <Link
-              href={`/school/${id}/info`}
-              className="font-medium text-brand-darker hover:underline"
-            >
-              Información
-            </Link>{" "}
-            o apoyala con una donación.
-          </p>
-        </Section>
+        // identity and the ways they can help — and still surface the supporters, if any.
+        <>
+          <Section id="actividades" title="Actividades de la escuela">
+            <p className="mt-3 text-muted">
+              Esta escuela todavía no tiene actividades en curso. Conocé más en{" "}
+              <Link
+                href={`/school/${id}/info`}
+                className="font-medium text-brand-darker hover:underline"
+              >
+                Información
+              </Link>{" "}
+              o apoyala con una donación.
+            </p>
+          </Section>
+          {supportersShelf && <div className="mt-8">{supportersShelf}</div>}
+        </>
       )}
 
       {!hasWall && (

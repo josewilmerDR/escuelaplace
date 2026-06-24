@@ -15,6 +15,7 @@
  * Firestore); the caller passes those in.
  */
 import type { BusinessDoc, SubscriptionDoc } from "@/types";
+import { getActiveBusinessesCached } from "./businesses";
 import { getNearbySchoolIds } from "./geo";
 import {
   DEFAULT_RANKING_WEIGHTS,
@@ -211,4 +212,71 @@ export async function rankBusinessFeed<T extends RankableBusiness>(
       (b.business.ranking?.score ?? 0) - (a.business.ranking?.score ?? 0) ||
       (a.business.name ?? "").localeCompare(b.business.name ?? ""),
   );
+}
+
+/** A business paired with the distinct schools it genuinely supports (gated, deduped). */
+export interface SupportingBusiness<T extends RankableBusiness = BusinessDoc> {
+  business: T;
+  /** Schools it supports, most relevant first (see supportedSchoolsOf). */
+  supportedSchools: SupportedSchool[];
+}
+
+/**
+ * Size of the candidate pool the breadth ranking scans. Reuses getActiveBusinessesCached (the
+ * same TTL-cached top-by-score set /search starts from), so a warm cache makes this nearly free.
+ */
+const BREADTH_CANDIDATE_POOL = 200;
+
+/**
+ * Top active businesses ranked by SUPPORT BREADTH — the count of distinct schools each one
+ * genuinely supports (the gated, deduped supportedSchoolsOf set) — tie-broken by the stored
+ * ranking.score, then name. Powers the home's "los comercios que más escuelas apoyan" carousel:
+ * a business earns home visibility by supporting MORE schools, which nudges support toward the
+ * smaller ones rather than only the podium.
+ *
+ * Breadth is community-INDEPENDENT (the buyer's community only reorders a card's named schools,
+ * it doesn't change the count), so this runs on the server for the no-community home state and is
+ * SEO-visible. Businesses that support no school are dropped, so at cold start (no confirmed
+ * support yet) it returns [] and the carousel simply doesn't render.
+ *
+ * v1 approximates "global top by breadth" over the top-by-score candidate pool: a business with
+ * high breadth but a low ranking.score that falls outside the pool can be missed. An exact ranking
+ * would need a function-maintained supportedSchoolsCount + index (deferred until it matters).
+ */
+export async function getTopSupportingBusinesses(
+  displayMax = 10,
+  poolSize: number = BREADTH_CANDIDATE_POOL,
+  nowMs: number = Date.now(),
+): Promise<SupportingBusiness[]> {
+  const businesses = await getActiveBusinessesCached(poolSize);
+  const subs = await getSubscriptionsForBusinesses(businesses.map((b) => b.id));
+
+  const byBusiness = new Map<string, SubscriptionDoc[]>();
+  for (const s of subs) {
+    if (!s.businessId) continue;
+    const arr = byBusiness.get(s.businessId);
+    if (arr) arr.push(s);
+    else byBusiness.set(s.businessId, [s]);
+  }
+
+  return businesses
+    .map((business) => ({
+      business,
+      // Empty community: supportedSchoolsOf still applies the dual gate (counting + eligible) and
+      // dedupes; with no community the order collapses to decayed magnitude, which only changes
+      // which school the card names first — not the breadth count this ranks by.
+      supportedSchools: supportedSchoolsOf(
+        byBusiness.get(business.id) ?? [],
+        [],
+        nowMs,
+      ),
+    }))
+    .filter((entry) => entry.supportedSchools.length > 0)
+    .sort(
+      (a, b) =>
+        b.supportedSchools.length - a.supportedSchools.length ||
+        (b.business.ranking?.score ?? 0) - (a.business.ranking?.score ?? 0) ||
+        (a.business.name ?? "").localeCompare(b.business.name ?? ""),
+    )
+    .slice(0, displayMax);
 }
