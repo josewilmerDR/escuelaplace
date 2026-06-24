@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { CatalogSchools } from "@/components/feed/CatalogSchools";
+import { type SupportingBusinessCard } from "@/components/feed/HomeSchools";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { CatalogTabs } from "@/components/layout/CatalogTabs";
 import { SearchBar } from "@/components/search/SearchBar";
@@ -7,16 +9,27 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { TagIcon, WarningIcon } from "@/components/ui/icons";
 import {
   getCategories,
+  getSchoolIdsWithActiveProject,
+  getSchoolsCached,
   getTopBusinesses,
+  getTopSupportingBusinesses,
+  rankSchoolsByRelevance,
   toBusinessCardData,
+  toSchoolCardData,
 } from "@/lib/firestore";
-import type { BusinessCardData, CategoryDoc } from "@/types";
+import type {
+  BusinessCardData,
+  CategoryDoc,
+  SchoolCardData,
+} from "@/types";
 
 /**
- * Comercios (/businesses) — the business catalog. Server component for SEO. This is the "what
- * can I buy / who supports the schools" surface that used to be the home; the home now leads
- * with the school directory and links here via <CatalogTabs>. The feed is rendered SSR in the
- * baseline ranking.score order and re-ranked client-side per the buyer's community by <RankedFeed>.
+ * Comercios (/businesses) — the business catalog. Server component for SEO. This is the "what can
+ * I buy / who supports the schools" surface, reached via <CatalogTabs> from the school directory
+ * home. The feed is the list of businesses (re-ranked client-side per the buyer's community by
+ * <RankedFeed>), with the schools block interleaved after the first row (<CatalogSchools>): top
+ * supported schools + the breadth carousel when no school is chosen, or the chosen school's latest
+ * publications once the buyer picked one.
  */
 export const revalidate = 300;
 
@@ -25,6 +38,10 @@ export const metadata: Metadata = {
   description:
     "El directorio de comercios de tu comunidad. Comprales y apoyá a las escuelas que ellos sostienen.",
 };
+
+// Bound the schools candidate pool shipped to the client: the block shows a few, the rest are the
+// proximity re-rank pool when the buyer sets a location.
+const SCHOOL_CANDIDATES = 24;
 
 export default async function BusinessesPage() {
   // Empty vs error are different states: "no businesses yet" gets an onboarding CTA,
@@ -42,6 +59,34 @@ export default async function BusinessesPage() {
   let categories: CategoryDoc[] = [];
   try {
     categories = (await getCategories()).filter((c) => c.businessCount > 0);
+  } catch {}
+
+  // Schools interleaved into the catalog feed (<CatalogSchools>): ranked by community support on
+  // the server (SEO-visible), personalized client-side. Best-effort — a failed read just omits
+  // the block.
+  let schoolCards: SchoolCardData[] = [];
+  try {
+    const schools = await getSchoolsCached();
+    const activeProjectSchoolIds = await getSchoolIdsWithActiveProject().catch(
+      () => new Set<string>(),
+    );
+    schoolCards = rankSchoolsByRelevance(
+      schools.map((s) =>
+        toSchoolCardData(s, { hasActiveProject: activeProjectSchoolIds.has(s.id) }),
+      ),
+      {},
+    )
+      .slice(0, SCHOOL_CANDIDATES)
+      .map((r) => r.school);
+  } catch {}
+
+  // Top businesses by support breadth, for the no-community state of <CatalogSchools>.
+  let supportingBusinessCards: SupportingBusinessCard[] = [];
+  try {
+    supportingBusinessCards = (await getTopSupportingBusinesses(10)).map((r) => ({
+      business: toBusinessCardData(r.business),
+      supportedSchools: r.supportedSchools,
+    }));
   } catch {}
 
   return (
@@ -95,7 +140,17 @@ export default async function BusinessesPage() {
               cta={{ label: "Creá la página del tuyo", href: "/create" }}
             />
           ) : (
-            <RankedFeed initial={cards} />
+            <RankedFeed
+              initial={cards}
+              interleave={
+                schoolCards.length > 0 ? (
+                  <CatalogSchools
+                    initial={schoolCards}
+                    supportingBusinesses={supportingBusinessCards}
+                  />
+                ) : undefined
+              }
+            />
           )}
         </div>
       </section>
