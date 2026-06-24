@@ -24,8 +24,8 @@ const SCHOOL_CANDIDATES = 24;
 /**
  * Home (/) — the school DIRECTORY. Server component, rendered on the server for SEO. Leads with
  * a vertical feed of school "posts" (ranked by community support, re-ranked client-side by the
- * buyer's community), with the supporting-businesses carousel pinned at slot 2. The full business
- * catalog lives one tab away at /businesses (<CatalogTabs>).
+ * buyer's community), with the supporting-businesses carousel pinned at slot 3 (between the 2nd
+ * and 3rd school). The full business catalog lives one tab away at /businesses (<CatalogTabs>).
  *
  * ISR: re-render the baseline (support order) every 5 minutes so SEO stays fresh as the ranking
  * changes, without a Firestore read per request. Per-buyer personalization happens client-side.
@@ -56,7 +56,7 @@ export default async function HomePage() {
   }
 
   // Top businesses by support breadth (# distinct schools each supports), pinned as the carousel
-  // at slot 2 of the directory. Community-independent, so computed here on the server (SEO-visible)
+  // at slot 3 of the directory. Community-independent, so computed here on the server (SEO-visible)
   // and degrades to nothing until businesses start confirming support. Best-effort.
   let supportingBusinessCards: SupportingBusinessCard[] = [];
   try {

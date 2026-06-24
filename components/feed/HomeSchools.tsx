@@ -3,8 +3,8 @@
 /**
  * The home's school DIRECTORY: a single vertical column of school "post" cards (mobile and
  * desktop alike — never a grid), with the "los comercios que más escuelas apoyan" carousel
- * pinned at the SECOND slot (right after the first school) so the businesses keep a guaranteed,
- * high-attention spot in the feed (the FB "suggested" interleave pattern).
+ * pinned right after the second school (between the 2nd and 3rd) so the businesses keep a
+ * guaranteed, high-attention spot in the feed (the FB "suggested" interleave pattern).
  *
  * SSR baseline + client personalization: the server passes `initial` already ranked by community
  * support (the SEO order, shown on first paint). After mount a buyer LOCATION re-ranks the
@@ -39,7 +39,7 @@ export function HomeSchools({
   supportingBusinesses = [],
 }: {
   initial: SchoolCardData[];
-  /** Top businesses by support breadth, server-ranked; shown as the carousel at slot 2. */
+  /** Top businesses by support breadth, server-ranked; shown as the carousel at slot 3. */
   supportingBusinesses?: SupportingBusinessCard[];
 }) {
   const { prefs, ready } = useBuyerPreferences();
@@ -140,8 +140,8 @@ export function HomeSchools({
         {schools.map((school, i) => (
           <Fragment key={school.id}>
             <SchoolCard school={school} />
-            {/* Businesses pinned at the SECOND slot, right after the first school. */}
-            {i === 0 && businessesShelf}
+            {/* Businesses pinned right after the second school (between the 2nd and 3rd). */}
+            {i === 1 && businessesShelf}
           </Fragment>
         ))}
       </div>
