@@ -23,7 +23,6 @@
  */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { BusinessCard } from "@/components/business/BusinessCard";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { SchoolCard } from "@/components/school/SchoolCard";
 import { ToolCard } from "@/components/tools/ToolCard";
@@ -38,7 +37,6 @@ import {
   schoolSupportersCount,
 } from "@/lib/firestore";
 import type { ProjectDoc, SchoolCardData, ToolDoc } from "@/types";
-import type { SupportingBusinessCard } from "@/components/feed/HomeSchools";
 
 /** How many schools / publications the carousel shows. A carousel scrolls horizontally, so this
  *  can grow without the section taking the whole page (the candidate pool from the server bounds
@@ -62,14 +60,7 @@ function millis(ts: { toMillis?: () => number } | undefined): number {
   return ts?.toMillis?.() ?? 0;
 }
 
-export function CatalogSchools({
-  initial,
-  supportingBusinesses = [],
-}: {
-  initial: SchoolCardData[];
-  /** Top businesses by support breadth, server-ranked; shown in the no-community state. */
-  supportingBusinesses?: SupportingBusinessCard[];
-}) {
+export function CatalogSchools({ initial }: { initial: SchoolCardData[] }) {
   const { prefs, ready } = useBuyerPreferences();
 
   // A chosen school takes over the block; otherwise a location (if any) orders by proximity.
@@ -210,73 +201,40 @@ export function CatalogSchools({
       : "Sumate a una de las instituciones educativas de la comunidad.";
 
   return (
-    <>
-      <Section
-        heading={heading}
-        subtext={subtext}
-        footer={<FooterLink href="/schools">Ver todas las escuelas</FooterLink>}
-      >
-        <div className="mt-5">
-          <CardCarousel
-            ariaLabel={heading}
-            items={topSchools}
-            getKey={(school) => school.id}
-            renderItem={(school) => <SchoolCard school={school} />}
-          />
-        </div>
-      </Section>
-
-      {/* No-community baseline (no chosen school, no location): pair the schools with a breadth
-          carousel — the businesses that support the MOST schools. Community-independent and
-          server-rendered, so this is the SSR baseline; it gives way to the nearby schools once the
-          buyer sets a location. Omitted when no business supports any school yet. */}
-      {!nearby && supportingBusinesses.length > 0 && (
-        <Section
-          headingId={BUSINESSES_HEADING_ID}
-          heading="Los comercios que más escuelas apoyan"
-          subtext="Comprándoles, apoyás a las escuelas que cada uno sostiene."
-          footer={<FooterLink href="/search">Ver todos los comercios</FooterLink>}
-        >
-          <div className="mt-5">
-            <CardCarousel
-              ariaLabel="Los comercios que más escuelas apoyan"
-              items={supportingBusinesses}
-              getKey={(item) => item.business.id}
-              renderItem={(item) => (
-                <BusinessCard
-                  business={item.business}
-                  supportedSchools={item.supportedSchools}
-                />
-              )}
-            />
-          </div>
-        </Section>
-      )}
-    </>
+    <Section
+      heading={heading}
+      subtext={subtext}
+      footer={<FooterLink href="/schools">Ver todas las escuelas</FooterLink>}
+    >
+      <div className="mt-5">
+        <CardCarousel
+          ariaLabel={heading}
+          items={topSchools}
+          getKey={(school) => school.id}
+          renderItem={(school) => <SchoolCard school={school} />}
+        />
+      </div>
+    </Section>
   );
 }
 
 const HEADING_ID = "catalog-schools-heading";
-const BUSINESSES_HEADING_ID = "catalog-supporting-businesses-heading";
 
 function Section({
   heading,
   subtext,
   footer,
   children,
-  headingId = HEADING_ID,
 }: {
   heading: string;
   subtext: string;
   footer: ReactNode;
   children: ReactNode;
-  /** Unique id so two Sections rendered together (schools + businesses) don't collide. */
-  headingId?: string;
 }) {
   return (
-    <section aria-labelledby={headingId} className="my-12">
+    <section aria-labelledby={HEADING_ID} className="my-12">
       <h2
-        id={headingId}
+        id={HEADING_ID}
         className="text-lg font-semibold tracking-tight text-foreground"
       >
         {heading}

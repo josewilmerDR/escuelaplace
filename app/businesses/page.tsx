@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { CatalogSchools } from "@/components/feed/CatalogSchools";
-import { type SupportingBusinessCard } from "@/components/feed/HomeSchools";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { CatalogTabs } from "@/components/layout/CatalogTabs";
 import { SearchBar } from "@/components/search/SearchBar";
@@ -12,7 +11,6 @@ import {
   getSchoolIdsWithActiveProject,
   getSchoolsCached,
   getTopBusinesses,
-  getTopSupportingBusinesses,
   rankSchoolsByRelevance,
   toBusinessCardData,
   toSchoolCardData,
@@ -80,15 +78,6 @@ export default async function BusinessesPage() {
       .map((r) => r.school);
   } catch {}
 
-  // Top businesses by support breadth, for the no-community state of <CatalogSchools>.
-  let supportingBusinessCards: SupportingBusinessCard[] = [];
-  try {
-    supportingBusinessCards = (await getTopSupportingBusinesses(10)).map((r) => ({
-      business: toBusinessCardData(r.business),
-      supportedSchools: r.supportedSchools,
-    }));
-  } catch {}
-
   return (
     <main>
       <section className="border-b border-border bg-surface">
@@ -144,10 +133,7 @@ export default async function BusinessesPage() {
               initial={cards}
               interleave={
                 schoolCards.length > 0 ? (
-                  <CatalogSchools
-                    initial={schoolCards}
-                    supportingBusinesses={supportingBusinessCards}
-                  />
+                  <CatalogSchools initial={schoolCards} />
                 ) : undefined
               }
             />
