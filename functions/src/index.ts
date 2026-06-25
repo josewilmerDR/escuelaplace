@@ -67,6 +67,9 @@ const PROJECT_CONTRIBUTIONS = "projectContributions";
 const AUDIT_EVENTS = "auditEvents";
 const CATEGORIES = "categories";
 const THANK_YOUS = "thankYous";
+const PAGEANT_VOTES = "pageantVotes";
+const TOOLS = "tools";
+const CANDIDATES = "candidates";
 
 /** The uids that administer a page (owner + editors) as a set — the self-dealing key. */
 function principalsOf(
@@ -110,7 +113,7 @@ function tsMillis(t: unknown): number | null {
 async function privateRecord(
   collectionName: string,
   docId: string,
-): Promise<{ donorName?: string; units?: number; amount?: number }> {
+): Promise<{ donorName?: string; buyerName?: string; units?: number; amount?: number }> {
   const snap = await db
     .collection(collectionName)
     .doc(docId)
@@ -118,7 +121,9 @@ async function privateRecord(
     .doc("data")
     .get();
   return (
-    (snap.data() as { donorName?: string; units?: number; amount?: number } | undefined) ?? {}
+    (snap.data() as
+      | { donorName?: string; buyerName?: string; units?: number; amount?: number }
+      | undefined) ?? {}
   );
 }
 
@@ -793,6 +798,132 @@ export const onProjectContributionWritten = onDocumentWritten(
   },
 );
 
+/**
+ * Append a non-sensitive audit event for a PAGEANT-SUPPORT confirmation, mirroring
+ * recordContributionAudit. The supporter is the backing user, so the collusion signals compare the
+ * buyer against the school's administrators. Stores the support `units` (a COUNT, never money) and
+ * the candidate backed — never the proof or any amount. The buyer's real name lives in the private
+ * subdoc (off the public doc); read it with Admin privileges.
+ */
+async function recordPageantVoteAudit(
+  auditId: string,
+  voteId: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const schoolId = data.schoolId as string | undefined;
+  const buyerId = data.buyerId as string | undefined;
+  if (!schoolId || !buyerId) return;
+  const confirmedBy = (data.confirmedBy as string | undefined) ?? null;
+  const supporterPrincipals = new Set([buyerId]);
+
+  await appendAuditOnce(auditId, {
+    type: "pageant_vote_confirmed",
+    voteId,
+    supporterType: "user",
+    donorId: buyerId,
+    schoolId,
+    schoolName: (data.schoolName as string | undefined) ?? "",
+    supporterName: (await privateRecord(PAGEANT_VOTES, voteId)).buyerName ?? "",
+    ...(data.toolId ? { toolId: data.toolId as string } : {}),
+    ...(data.candidateId ? { candidateId: data.candidateId as string } : {}),
+    ...(data.candidateName ? { candidateName: data.candidateName as string } : {}),
+    units: (data.units as number | undefined) ?? 0,
+    confirmedBy,
+    confirmedAt: (data.confirmedAt as Timestamp | null) ?? null,
+    ...(await confirmationSignals(schoolId, supporterPrincipals, confirmedBy)),
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
+/**
+ * Recompute a pageant candidate's economic-support tally: `voteSupport` (sum of CONFIRMED + eligible
+ * support units) and `supportCount` (distinct eligible confirmed supporters). `units` is a COUNT and
+ * lives on the PUBLIC support doc, so no private read is needed (unlike a project's amount).
+ *
+ * Anti-fraud eligibility gate (decision #5, same as recomputeBusinessRanking): support counts ONLY
+ * when the candidate's school is `verified` AND the supporter does not administer it. An unverified
+ * school's support counts nothing; a school admin can't self-confirm support for their own candidate
+ * to climb for free. Resolved once from the school doc. Runs with Admin privileges because clients
+ * can never write these fields (firestore.rules freeze them).
+ */
+async function recomputePageantCandidate(
+  schoolId: string,
+  toolId: string,
+  candidateId: string,
+): Promise<void> {
+  const ref = db
+    .collection(SCHOOLS)
+    .doc(schoolId)
+    .collection(TOOLS)
+    .doc(toolId)
+    .collection(CANDIDATES)
+    .doc(candidateId);
+  if (!(await ref.get()).exists) return; // candidate deleted — nothing to update
+
+  const school = await db.collection(SCHOOLS).doc(schoolId).get();
+  const schoolVerified =
+    school.exists && school.get("verificationStatus") === "verified";
+  const schoolPrincipals = principalsOf(school.data());
+
+  const snap = await db
+    .collection(PAGEANT_VOTES)
+    .where("candidateId", "==", candidateId)
+    .get();
+
+  let voteSupport = 0;
+  const supporters = new Set<string>();
+  for (const d of snap.docs) {
+    if (!d.get("confirmedAt")) continue; // pending — the school never confirmed it
+    if (!schoolVerified) continue; // verified-only gate (whole school)
+    const buyerId = d.get("buyerId") as string | undefined;
+    if (!buyerId || schoolPrincipals.has(buyerId)) continue; // self-dealing
+    voteSupport += (d.get("units") as number | undefined) ?? 0;
+    supporters.add(buyerId);
+  }
+
+  await ref.update({ voteSupport, supportCount: supporters.size });
+}
+
+export const onPageantVoteWritten = onDocumentWritten(
+  `${PAGEANT_VOTES}/{id}`,
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+
+    // Collect the affected (schoolId, toolId, candidateId) triples from both sides (handles
+    // create/update/delete). The identity fields are frozen by the rules, but unioning is cheap.
+    const targets = new Map<
+      string,
+      { schoolId: string; toolId: string; candidateId: string }
+    >();
+    for (const d of [before, after]) {
+      if (!d) continue;
+      if (d.schoolId && d.toolId && d.candidateId) {
+        targets.set(`${d.schoolId}/${d.toolId}/${d.candidateId}`, {
+          schoolId: d.schoolId as string,
+          toolId: d.toolId as string,
+          candidateId: d.candidateId as string,
+        });
+      }
+    }
+
+    // Audit a support confirmation (confirmedAt newly set). Support is pending → confirmed (no
+    // renewal); the same guard keeps the recompute cascade from re-auditing.
+    const audit =
+      after?.confirmedAt != null &&
+      tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt)
+        ? recordPageantVoteAudit(auditIdOf(event.id), event.params.id, after)
+        : Promise.resolve();
+
+    await Promise.all([
+      audit,
+      ...[...targets.values()].map((t) =>
+        recomputePageantCandidate(t.schoolId, t.toolId, t.candidateId),
+      ),
+    ]);
+  },
+);
+
 export const onReviewWritten = onDocumentWritten(
   `${BUSINESSES}/{businessId}/${REVIEWS}/{userId}`,
   async (event) => {
@@ -854,7 +985,8 @@ export const onBusinessWritten = onDocumentWritten(
  * gate in recomputeBusinessRanking (verified-only + no self-dealing). Both can change with
  * no subscription being written — admin approves the school, or an owner adds/removes an
  * editor — so onSubscriptionWritten wouldn't fire. When they do, recompute every business
- * supporting this school. Every other school write (name, photos, and the
+ * supporting this school AND every pageant candidate of this school (their voteSupport tally gates
+ * the same way). Every other school write (name, photos, and the
  * metrics.* fields recomputeSchool itself writes) is ignored, so this never fans out on its
  * own metric updates.
  */
@@ -871,16 +1003,41 @@ export const onSchoolWritten = onDocumentWritten(
     );
     if (!verificationChanged && !principalsChanged) return;
 
+    const schoolId = event.params.id;
+
+    // Businesses supporting this school: their ranking gates on the school's verification + admins.
     const snap = await db
       .collection(SUBSCRIPTIONS)
-      .where("schoolId", "==", event.params.id)
+      .where("schoolId", "==", schoolId)
       .get();
     const businessIds = new Set<string>();
     for (const d of snap.docs) {
       const businessId = d.get("businessId") as string | undefined;
       if (businessId) businessIds.add(businessId);
     }
-    await Promise.all([...businessIds].map(recomputeBusinessRanking));
+
+    // Pageant candidates of this school gate the SAME way, and no pageantVote write fires when the
+    // school's verification/admins change — so re-tally them here too.
+    const toolsSnap = await db
+      .collection(SCHOOLS)
+      .doc(schoolId)
+      .collection(TOOLS)
+      .where("type", "==", "pageant")
+      .get();
+    const candidateRecomputes: Promise<void>[] = [];
+    for (const tool of toolsSnap.docs) {
+      const candSnap = await tool.ref.collection(CANDIDATES).get();
+      for (const cand of candSnap.docs) {
+        candidateRecomputes.push(
+          recomputePageantCandidate(schoolId, tool.id, cand.id),
+        );
+      }
+    }
+
+    await Promise.all([
+      ...[...businessIds].map(recomputeBusinessRanking),
+      ...candidateRecomputes,
+    ]);
   },
 );
 

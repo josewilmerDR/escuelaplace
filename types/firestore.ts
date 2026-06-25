@@ -553,17 +553,27 @@ export type SubscriptionDoc = Subscription & { id: string };
  */
 export interface AuditEvent {
   /** Which confirmation this records (extensible). */
-  type: "subscription_confirmed" | "project_contribution_confirmed";
+  type:
+    | "subscription_confirmed"
+    | "project_contribution_confirmed"
+    | "pageant_vote_confirmed";
   /** Source doc id of a subscription confirmation. */
   subscriptionId?: string;
   /** Source doc id of a project-contribution confirmation. */
   contributionId?: string;
+  /** Source doc id of a pageant-support confirmation (pageant_vote_confirmed only). */
+  voteId?: string;
   /** Project funded (project_contribution_confirmed only). */
   projectId?: string;
   /** Denormalized project title (project_contribution_confirmed only). */
   projectTitle?: string;
   /** Money vs in-kind (project_contribution_confirmed only). */
   contributionType?: ProjectContributionType;
+  /** Reinado tool the support backed (pageant_vote_confirmed only). */
+  toolId?: string;
+  /** Candidate backed + denormalized name (pageant_vote_confirmed only). */
+  candidateId?: string;
+  candidateName?: string;
   supporterType: SupporterType;
   /** Present iff a business support confirmation. */
   businessId?: string;
@@ -575,8 +585,8 @@ export interface AuditEvent {
   /** Business page name or donor account name. Fine here — `auditEvents` is an admin-only
    * surface (unlike public surfaces, which must not render a donor name). */
   supporterName: string;
-  /** Support magnitude (integer n in n × SUBSCRIPTION_UNIT_CRC; subscriptions only) — a
-   * COUNT, never a money figure. Absent on project contributions (no units). */
+  /** Support magnitude — a COUNT, never a money figure (subscriptions: n × SUBSCRIPTION_UNIT_CRC;
+   * pageant votes: support units). Absent on project contributions (no units). */
   units?: number;
   /** uid that confirmed (the school side); null on legacy/unknown. */
   confirmedBy: string | null;

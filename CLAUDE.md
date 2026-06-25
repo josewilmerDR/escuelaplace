@@ -270,11 +270,17 @@ Paquete aparte (Gen 2, Admin SDK) que mantiene las señales que el cliente no pu
   `auditEvents` (quién/cuándo + señales de colusión) para revisión de fraude y la IA futura.
 - `onSchoolWritten` — cuando cambia `verificationStatus` o los administradores de una
   escuela (ambos alimentan ese gate), recalcula el ranking de **todos** los comercios que la
-  apoyan; esos cambios no tocan ninguna suscripción, así que `onSubscriptionWritten` no se
-  dispararía. Ignora el resto de las ediciones de la escuela (no hace fan-out solo).
+  apoyan **y el `voteSupport` de las candidaturas de los reinados de esa escuela** (mismo gate);
+  esos cambios no tocan ninguna suscripción ni `pageantVote`, así que ni `onSubscriptionWritten`
+  ni `onPageantVoteWritten` se dispararían. Ignora el resto de las ediciones de la escuela.
 - `onProjectContributionWritten` — recalcula `raised`/`contributorsCount` del proyecto y
   `projectsSupported` del donante; en cada confirmación anexa un evento a `auditEvents`
   (igual que las suscripciones).
+- `onPageantVoteWritten` — al confirmarse un apoyo económico (`pageantVotes`) recalcula el
+  `voteSupport`/`supportCount` de la candidata del reinado, aplicando el mismo gate anti-fraude
+  (escuela verificada + sin auto-trato: el partidario no administra la escuela). En cada
+  confirmación anexa un evento `pageant_vote_confirmed` a `auditEvents`. `units` es un conteo,
+  nunca dinero.
 - `onReviewWritten` — recalcula `reviewStats` del comercio (y su ranking).
 - `onBusinessWritten` — recalcula el `businessCount` (comercios activos) de cada categoría a
   la que pertenece el comercio, al crear/editar/borrar/cambiar status. El cliente escribe el
