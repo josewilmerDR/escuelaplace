@@ -20,6 +20,7 @@ export * from "./bingo-orders";
 export * from "./bingo-event";
 export * from "./bingo-patterns-catalog";
 export * from "./bingo-decks";
+export * from "./pageant";
 export * from "./donors";
 export * from "./thanks";
 export * from "./reviews";

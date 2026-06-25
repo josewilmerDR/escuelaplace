@@ -36,6 +36,7 @@
 import type { ComponentType } from "react";
 import {
   CalendarIcon,
+  CrownIcon,
   GridIcon,
   MapPinIcon,
   ShoppingBagIcon,
@@ -136,6 +137,17 @@ const META: Record<ToolType, ToolTypeMeta> = {
       "Este evento no está activo por el momento, así que no aparece en la página de la escuela.",
     icon: CalendarIcon,
   },
+  pageant: {
+    key: "pageant",
+    label: "Reinado",
+    pluralLabel: "Reinados",
+    hint: "Reinado escolar: candidatas/os que la comunidad apoya pro fondos.",
+    titleLabel: "Título",
+    titlePlaceholder: "Ej.: Reinado pro fondos para la gira",
+    inactiveNotice:
+      "Este reinado no está activo por el momento, así que no aparece en la página de la escuela.",
+    icon: CrownIcon,
+  },
   other: {
     key: "other",
     label: "Otro",
@@ -181,9 +193,10 @@ export function editToolTitle(type: ToolType): string {
 }
 
 /**
- * The buy CTA label for the kinds that have a purchase flow (rifa/bingo/venta), or null for kinds
- * that don't (tour/servicio/evento/otro — those use "Consultar" instead). Drives the optional
- * "Comprar" button on the feed card. Keep its non-null kinds in sync with `toolBuyHref`.
+ * The buy CTA label for the kinds with a purchase/support flow (rifa/bingo/venta + reinado→
+ * "Apoyar"), or null for kinds that don't (tour/servicio/evento/otro — those use "Consultar"
+ * instead). Drives the optional action button on the feed card. Keep its non-null kinds in sync
+ * with `toolBuyHref`.
  */
 export function toolBuyLabel(type: ToolType): string | null {
   switch (type) {
@@ -193,6 +206,8 @@ export function toolBuyLabel(type: ToolType): string | null {
       return "Comprar cartones";
     case "sale":
       return "Comprar";
+    case "pageant":
+      return "Apoyar";
     default:
       return null;
   }
@@ -216,6 +231,9 @@ export function toolBuyHref(
     case "raffle":
     case "sale":
       return `${ids.detailHref}#comprar`;
+    // A reinado's support is per-candidate, picked on the detail page — land on its roster section.
+    case "pageant":
+      return `${ids.detailHref}#candidatas`;
     default:
       return null;
   }

@@ -63,6 +63,8 @@ import type {
   BingoPrizes,
   BingoWinningPattern,
   EventConfig,
+  PageantConfig,
+  PageantCrownFormula,
   ProjectCurrency,
   RaffleConfig,
   SaleConfig,
@@ -125,6 +127,7 @@ interface ToolConfigByType {
   service: ServiceConfig;
   guided_tour: TourConfig;
   event: EventConfig;
+  pageant: PageantConfig;
 }
 
 /**
@@ -493,6 +496,43 @@ function buildEventConfig(input: EventConfigInput): EventConfig {
   };
 }
 
+/** Form-shaped pageant config — dates as Date, weights/price already parsed. The candidate roster
+ * is NOT here; it lives in a subcollection managed by lib/firestore/pageant (later slice). */
+export interface PageantConfigInput {
+  criteria?: string;
+  cause?: string;
+  opensAt?: Date | null;
+  closesAt?: Date | null;
+  currency: ProjectCurrency;
+  pricePerSupportUnit: number;
+  freeVotingEnabled: boolean;
+  crownFormula: PageantCrownFormula;
+  fundProjectId?: string;
+}
+
+/**
+ * Build the stored PageantConfig from form input. Drops empty optional fields (Firestore rejects
+ * `undefined`): no criteria / cause / window / destination project is omitted. The crown weights,
+ * currency, price and free-voting flag are always written.
+ */
+function buildPageantConfig(input: PageantConfigInput): PageantConfig {
+  return {
+    currency: input.currency,
+    pricePerSupportUnit: input.pricePerSupportUnit,
+    freeVotingEnabled: input.freeVotingEnabled,
+    crownFormula: {
+      jury: input.crownFormula.jury,
+      support: input.crownFormula.support,
+      sympathy: input.crownFormula.sympathy,
+    },
+    ...(input.criteria ? { criteria: input.criteria } : {}),
+    ...(input.cause ? { cause: input.cause } : {}),
+    ...(input.opensAt ? { opensAt: Timestamp.fromDate(input.opensAt) } : {}),
+    ...(input.closesAt ? { closesAt: Timestamp.fromDate(input.closesAt) } : {}),
+    ...(input.fundProjectId ? { fundProjectId: input.fundProjectId } : {}),
+  };
+}
+
 /**
  * Build the stored per-kind config from whichever *ConfigInput the create/edit form carries, or
  * null for the config-less `other` kind (or a partial update that omits the kind's input). Single
@@ -508,6 +548,7 @@ function buildToolConfig(input: {
   service?: ServiceConfigInput;
   bingo?: BingoConfigInput;
   event?: EventConfigInput;
+  pageant?: PageantConfigInput;
 }): ToolConfig | null {
   switch (input.type) {
     case "raffle":
@@ -522,6 +563,8 @@ function buildToolConfig(input: {
       return input.bingo ? buildBingoConfig(input.bingo) : null;
     case "event":
       return input.event ? buildEventConfig(input.event) : null;
+    case "pageant":
+      return input.pageant ? buildPageantConfig(input.pageant) : null;
     default:
       return null;
   }
@@ -545,6 +588,8 @@ export interface CreateToolInput {
   bingo?: BingoConfigInput;
   /** Event configuration — pass only when type === 'event'. */
   event?: EventConfigInput;
+  /** Pageant configuration — pass only when type === 'pageant'. */
+  pageant?: PageantConfigInput;
 }
 
 /**
@@ -622,6 +667,8 @@ export interface ToolPatch {
   bingo?: BingoConfigInput;
   /** Event config — pass only when type === 'event'; omit to leave it untouched. */
   event?: EventConfigInput;
+  /** Pageant config — pass only when type === 'pageant'; omit to leave it untouched. */
+  pageant?: PageantConfigInput;
 }
 
 /**

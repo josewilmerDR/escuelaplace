@@ -29,6 +29,13 @@ import {
   type EventFormValue,
 } from "@/components/tools/EventConfigFields";
 import {
+  PageantConfigFields,
+  emptyPageantForm,
+  pageantFormFromConfig,
+  toPageantInput,
+  type PageantFormValue,
+} from "@/components/tools/PageantConfigFields";
+import {
   RaffleConfigFields,
   emptyRaffleForm,
   raffleFormFromConfig,
@@ -93,6 +100,7 @@ import {
   TOUR_STAGE_TITLE_MAX,
   type BingoConfig,
   type EventConfig,
+  type PageantConfig,
   type RaffleConfig,
   type RaffleOrderDoc,
   type SaleConfig,
@@ -182,6 +190,10 @@ export default function EditToolPage() {
   // gallery (photos/video) persists immediately against the saved event config, like the catalog kinds.
   const [eventForm, setEventForm] = useState<EventFormValue>(emptyEventForm);
 
+  // Pageant ("Reinado") editable config (criteria/cause/window/support unit/crown weights/free-
+  // voting flag). The candidate roster is a subcollection managed separately, not through this form.
+  const [pageantForm, setPageantForm] = useState<PageantFormValue>(emptyPageantForm);
+
   // Guided-tour editable state. Stage text + the contact phone save with the form button; stage
   // media (photos/video) persists immediately, the way the project editor handles stage media.
   const [tourStages, setTourStages] = useState<EditableTourStage[]>([]);
@@ -257,6 +269,8 @@ export default function EditToolPage() {
           if (bingoCfg) setBingoForm(bingoFormFromConfig(bingoCfg));
           const eventCfg = toolConfigOf(t, "event");
           if (eventCfg) setEventForm(eventFormFromConfig(eventCfg));
+          const pageantCfg = toolConfigOf(t, "pageant");
+          if (pageantCfg) setPageantForm(pageantFormFromConfig(pageantCfg));
           const tourCfg = toolConfigOf(t, "guided_tour");
           if (tourCfg) {
             setTourStages(keyTourStages(tourCfg.stages));
@@ -499,6 +513,15 @@ export default function EditToolPage() {
       };
     }
 
+    // A reinado carries its config (criteria/cause/window/support unit/crown weights/free-voting).
+    // The candidate roster is a subcollection edited separately, not through this form.
+    const pageantResult = type === "pageant" ? toPageantInput(pageantForm) : null;
+    if (pageantResult && !pageantResult.ok) {
+      setError(pageantResult.error);
+      return;
+    }
+    const pageant = pageantResult?.ok ? pageantResult.input : undefined;
+
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -523,6 +546,7 @@ export default function EditToolPage() {
         ...(service ? { service } : {}),
         ...(bingo ? { bingo } : {}),
         ...(event ? { event } : {}),
+        ...(pageant ? { pageant } : {}),
       });
       // The local persisted bases (the Input shapes are structurally the stored shapes).
       const savedRaffle: RaffleConfig | undefined = raffle
@@ -594,6 +618,25 @@ export default function EditToolPage() {
             ...(event.contactPhone ? { contactPhone: event.contactPhone } : {}),
           }
         : undefined;
+      // Pageant's input carries the window as Dates; rebuild the stored shape (Timestamp) so the
+      // persisted base mirrors what updateTool wrote (mirrors buildPageantConfig).
+      const savedPageant: PageantConfig | undefined = pageant
+        ? {
+            currency: pageant.currency,
+            pricePerSupportUnit: pageant.pricePerSupportUnit,
+            freeVotingEnabled: pageant.freeVotingEnabled,
+            crownFormula: pageant.crownFormula,
+            ...(pageant.criteria ? { criteria: pageant.criteria } : {}),
+            ...(pageant.cause ? { cause: pageant.cause } : {}),
+            ...(pageant.opensAt
+              ? { opensAt: Timestamp.fromDate(pageant.opensAt) }
+              : {}),
+            ...(pageant.closesAt
+              ? { closesAt: Timestamp.fromDate(pageant.closesAt) }
+              : {}),
+            ...(pageant.fundProjectId ? { fundProjectId: pageant.fundProjectId } : {}),
+          }
+        : undefined;
       // The single generic config for the active kind, mirroring what updateTool stored; a switch
       // to the config-less `other` kind clears it.
       const savedConfig: ToolConfig | undefined =
@@ -609,7 +652,9 @@ export default function EditToolPage() {
                   ? savedBingo
                   : type === "event"
                     ? savedEvent
-                    : undefined;
+                    : type === "pageant"
+                      ? savedPageant
+                      : undefined;
       setTool((prev) =>
         prev
           ? {
@@ -659,6 +704,10 @@ export default function EditToolPage() {
       // Re-hydrate the event form from the saved config (the gallery media card reads that config).
       if (type === "event" && savedEvent) {
         setEventForm(eventFormFromConfig(savedEvent));
+      }
+      // Re-sync the pageant form from the saved config (normalizes weights/price strings back).
+      if (type === "pageant" && savedPageant) {
+        setPageantForm(pageantFormFromConfig(savedPageant));
       }
       setCoverFile(null);
       setSaved(true);
@@ -1108,6 +1157,18 @@ export default function EditToolPage() {
               </p>
             )}
           </section>
+        )}
+
+        {type === "pageant" && (
+          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+            <p className="mb-3 text-sm font-semibold text-foreground">
+              Configuración del reinado
+            </p>
+            <PageantConfigFields value={pageantForm} onChange={setPageantForm} />
+            <p className="mt-3 text-xs text-muted">
+              Las candidatas o candidatos del reinado se administran por separado (próximamente).
+            </p>
+          </div>
         )}
 
         {/* Existing cover preview (the picker only previews a NEW file). */}

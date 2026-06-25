@@ -912,6 +912,7 @@ export type ToolType =
   | "service"
   | "guided_tour"
   | "event"
+  | "pageant"
   | "other";
 
 /** Stored discriminator values, mirrored in firestore.rules (which can't import TS). */
@@ -922,6 +923,7 @@ export const TOOL_TYPES: ToolType[] = [
   "service",
   "guided_tour",
   "event",
+  "pageant",
   "other",
 ];
 
@@ -1423,6 +1425,108 @@ export interface BingoDeckCard {
 
 export type BingoDeckCardDoc = BingoDeckCard & { id: string };
 
+// ── Pageant (type: 'pageant') — "Reinado escolar" ────────────────────────────
+//
+// A school pageant ("reinado escolar"): a roster of candidates the community backs to build
+// community AND raise funds. Two never-summed tallies per candidate — a FREE "simpatía" applause
+// count and an ECONOMIC "apoyo" count (the existing pending→proof→school-confirms order rail,
+// pageantVotes) — plus the school's jury score. The crown is the school's HUMAN verdict, never a
+// platform-computed outcome; a weighted formula only SUGGESTS a ranking. PURELY INFORMATIONAL like
+// every tool — the platform never processes money. Only the config below lives on the tool doc
+// (under `config`); the roster, the applause ledger, the economic votes and the live coronación are
+// heavy subcollections / a top-level collection keyed by {schoolId, toolId}, wired in later slices
+// (see docs/school-pageant.md).
+
+/** Free-text caps for the pageant config (enforced by the panel UI + rules). */
+export const PAGEANT_CRITERIA_MAX = 600;
+export const PAGEANT_CAUSE_MAX = 300;
+
+/**
+ * Weights of the crown formula (the school's "mixta" choice). Each is an integer 0..100 and the
+ * three SHOULD sum to 100 (the panel enforces it). The formula only orders a SUGGESTED ranking; the
+ * school still ratifies the winner by hand. When free voting is off, the `sympathy` axis is dropped
+ * and the other two are renormalized (see lib/firestore/pageant — effectiveWeights, later slice).
+ */
+export interface PageantCrownFormula {
+  /** Weight of the school-entered jury score. */
+  jury: number;
+  /** Weight of confirmed economic support ("apoyo"). */
+  support: number;
+  /** Weight of free applause ("simpatía"). */
+  sympathy: number;
+}
+
+/** Suggested default split — jury-led, with a capped, non-binding sympathy weight. */
+export const PAGEANT_DEFAULT_CROWN_FORMULA: PageantCrownFormula = {
+  jury: 50,
+  support: 30,
+  sympathy: 20,
+};
+
+/**
+ * The pageant's configuration, stored on the tool doc under `config`. The roster of candidates, the
+ * applause ledger, the economic votes and the live coronación are NOT here — they are heavy
+ * subcollections / a top-level collection keyed by {schoolId, toolId} (see docs/school-pageant.md).
+ */
+export interface PageantConfig {
+  /** Criteria/values of the pageant (free text, shown publicly). */
+  criteria?: string;
+  /** What the funds are for (free text). */
+  cause?: string;
+  /** Voting window: opens/closes (informational + a soft UI gate; the CF also validates it). */
+  opensAt?: Timestamp;
+  closesAt?: Timestamp;
+  /** Currency of the economic support. */
+  currency: ProjectCurrency;
+  /** Informational price per support unit — NOT a charge; it only bounds the recorded relationship
+   * (like a raffle's pricePerNumber). The platform never moves money. */
+  pricePerSupportUnit: number;
+  /** Whether the free "simpatía" applause layer is on. Default false until App Check is proven in
+   * prod — until then a non-tamper-proof count must never weigh on a real crown. */
+  freeVotingEnabled: boolean;
+  /** Weights of the crown formula (the school's mixta choice). */
+  crownFormula: PageantCrownFormula;
+  /** Optional destination project: when set, the support feeds that project's ProjectProgress. */
+  fundProjectId?: string;
+}
+
+/** Caps for a pageant's candidate roster (enforced by the panel UI + rules). */
+export const PAGEANT_CANDIDATES_MAX = 40;
+export const PAGEANT_CANDIDATE_NAME_MAX = 80;
+export const PAGEANT_CANDIDATE_BIO_MAX = 600;
+/** Jury score is an integer 0..100 (the school's human input). */
+export const PAGEANT_JURY_SCORE_MAX = 100;
+
+/**
+ * One candidate of a reinado, a doc in schools/{schoolId}/tools/{toolId}/candidates/{candidateId}.
+ * The school owns name/bio/photo/order and the HUMAN `juryScore`; the four tally fields are
+ * Cloud-Function-maintained (the client can't write them — rules freeze them) and read 0 until a
+ * later slice wires the CFs. The crown is the school's verdict; pageantStandings only SUGGESTS a
+ * ranking from these (see lib/firestore/pageant).
+ */
+export interface Candidate {
+  /** Candidate's display name. */
+  name: string;
+  /** Short bio / "por qué me postulo" (free text). */
+  bio: string;
+  /** Optional photo (public Storage URL, on the tool's asset path). */
+  photoUrl?: string;
+  /** Presentation order in the roster (ascending). */
+  order: number;
+  /** The school's jury score, 0..100 — a HUMAN input (not function-maintained). */
+  juryScore: number;
+  /** (fn) Free "simpatía" applause count. Maintained by a Cloud Function; 0 until then. */
+  voteFree: number;
+  /** (fn) Confirmed economic "apoyo" count (sum of confirmed eligible support units). */
+  voteSupport: number;
+  /** (fn) Distinct confirmed supporters. */
+  supportCount: number;
+  /** (fn) Distinct confirmed recurring padrinos. */
+  padrinoCount: number;
+}
+
+export type CandidateDoc = Candidate & { id: string };
+
 /**
  * The per-kind configuration map stored under a tool's `config`. Exactly one kind's shape; which
  * one is told by the tool's `type` (raffle → RaffleConfig, …). Read it typed via
@@ -1435,7 +1539,8 @@ export type ToolConfig =
   | SaleConfig
   | ServiceConfig
   | TourConfig
-  | EventConfig;
+  | EventConfig
+  | PageantConfig;
 
 export interface Tool {
   /** Denormalized parent id (the doc lives under the school; kept for the detail page and

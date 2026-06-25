@@ -381,6 +381,27 @@ export function CalendarIcon({ className }: IconProps) {
   );
 }
 
+/** Crown — the "Reinado" (school pageant) tool kind. */
+export function CrownIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3.75 8.25 8.25 12 12 5.25 15.75 12l4.5-3.75-1.5 10.5H5.25l-1.5-10.5Z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 18.75h13.5" />
+    </svg>
+  );
+}
+
 /** Outline speech bubble, used for the WhatsApp "Preguntar" call to action. */
 export function ChatBubbleIcon({ className }: IconProps) {
   return (
