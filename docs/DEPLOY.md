@@ -60,9 +60,12 @@ firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_APP_ID
 firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 firebase apphosting:secrets:set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+# Only when turning on the pageant free "simpatía" vote — see docs/pageant-free-vote-golive.md.
+firebase apphosting:secrets:set NEXT_PUBLIC_APPCHECK_RECAPTCHA_SITE_KEY
 ```
 
-(`NEXT_PUBLIC_USE_EMULATORS` is a plain `value: "false"` in `apphosting.yaml`, no secret.)
+(`NEXT_PUBLIC_USE_EMULATORS`, `NEXT_PUBLIC_TRACK_INTERACTION_URL`, `NEXT_PUBLIC_CAST_APPLAUSE_URL`
+and `NEXT_PUBLIC_SITE_URL` are plain `value:` entries in `apphosting.yaml`, no secret.)
 
 ### 2b. Create the backend and connect the repo
 
