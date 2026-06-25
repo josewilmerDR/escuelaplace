@@ -26,6 +26,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   ClockIcon,
+  CrownIcon,
   FlagIcon,
   GridIcon,
   HeartIcon,
@@ -36,12 +37,14 @@ import {
   ACTIVITY_KINDS,
   confirmBingoOrder,
   confirmContribution,
+  confirmPageantVote,
   confirmProductOrder,
   confirmRaffleOrder,
   confirmSubscription,
   getActivityHistoryBySchool,
   getBingoOrderProofUrl,
   getContributionProofUrl,
+  getPageantVoteProofUrl,
   getPendingActivityBySchool,
   getProductOrderProofUrl,
   getRaffleOrderProofUrl,
@@ -73,6 +76,7 @@ const KIND_META: Record<
   raffle_order: { label: "Rifa", icon: TicketIcon },
   product_order: { label: "Pedido", icon: ShoppingBagIcon },
   bingo_order: { label: "Bingo", icon: GridIcon },
+  pageant_vote: { label: "Reinado", icon: CrownIcon },
 };
 
 const CHIP_BASE =
@@ -94,6 +98,8 @@ function confirmItem(item: ActivityItem, uid: string): Promise<void> {
       return confirmProductOrder(item.id, uid);
     case "bingo_order":
       return confirmBingoOrder(item.doc, uid);
+    case "pageant_vote":
+      return confirmPageantVote(item.id, uid);
   }
 }
 
@@ -110,6 +116,8 @@ function proofUrlOf(item: ActivityItem): Promise<string | null> {
       return getProductOrderProofUrl(item.id);
     case "bingo_order":
       return getBingoOrderProofUrl(item.id);
+    case "pageant_vote":
+      return getPageantVoteProofUrl(item.id);
   }
 }
 
@@ -132,6 +140,8 @@ function detailOf(item: ActivityItem): string {
       return `${item.doc.quantity}× ${item.doc.productName}`;
     case "bingo_order":
       return `${item.doc.quantity} ${item.doc.quantity === 1 ? "cartón" : "cartones"}`;
+    case "pageant_vote":
+      return `${item.doc.units}× apoyo · ${item.doc.candidateName}`;
   }
 }
 

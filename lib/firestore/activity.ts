@@ -1,8 +1,8 @@
 /**
  * The school's unified "Actividad" feed — one inbox that folds together every pending thing
- * the board must act on, across all five activity collections (support subscriptions, project
- * contributions, and the per-tool orders: raffles, product catalogs, bingos). Each of those
- * already has its own typed reads; this layer NORMALIZES a pending item from any of them into a
+ * the board must act on, across all six activity collections (support subscriptions, project
+ * contributions, and the per-tool orders: raffles, product catalogs, bingos, reinado support).
+ * Each of those already has its own typed reads; this layer NORMALIZES a pending item into a
  * common `ActivityItem` and merges them into a single oldest-first list, so the panel renders one
  * queue with type-filter chips instead of one tab per kind.
  *
@@ -25,6 +25,7 @@ import {
 import { db } from "@/lib/firebase";
 import type {
   BingoOrderDoc,
+  PageantVoteDoc,
   ProductOrderDoc,
   ProjectContributionDoc,
   ProjectCurrency,
@@ -32,6 +33,7 @@ import type {
   SubscriptionDoc,
 } from "@/types";
 import { getBingoOrdersBySchool } from "./bingo-orders";
+import { getPageantVotesBySchool } from "./pageant";
 import { getProductOrdersBySchool } from "./product-orders";
 import {
   getContributionsBySchool,
@@ -53,7 +55,8 @@ export type ActivityKind =
   | "project_contribution"
   | "raffle_order"
   | "product_order"
-  | "bingo_order";
+  | "bingo_order"
+  | "pageant_vote";
 
 /** The kinds in chip order — the UI maps each to a Spanish label/icon. */
 export const ACTIVITY_KINDS: readonly ActivityKind[] = [
@@ -62,6 +65,7 @@ export const ACTIVITY_KINDS: readonly ActivityKind[] = [
   "raffle_order",
   "product_order",
   "bingo_order",
+  "pageant_vote",
 ] as const;
 
 /** The fields every pending item exposes, regardless of which collection it came from. */
@@ -96,7 +100,8 @@ export type ActivityItem =
   | (ActivityBase & { kind: "project_contribution"; doc: ProjectContributionDoc })
   | (ActivityBase & { kind: "raffle_order"; doc: RaffleOrderDoc })
   | (ActivityBase & { kind: "product_order"; doc: ProductOrderDoc })
-  | (ActivityBase & { kind: "bingo_order"; doc: BingoOrderDoc });
+  | (ActivityBase & { kind: "bingo_order"; doc: BingoOrderDoc })
+  | (ActivityBase & { kind: "pageant_vote"; doc: PageantVoteDoc });
 
 /** Oldest first — a stale pending item is the most urgent. Missing timestamps sort last. */
 function byAgeAsc(a: ActivityItem, b: ActivityItem): number {
@@ -179,13 +184,28 @@ function fromBingoOrder(doc: BingoOrderDoc): ActivityItem {
   };
 }
 
-/** All five source lists, already fetched and filtered to the statuses the caller wants. */
+function fromPageantVote(doc: PageantVoteDoc): ActivityItem {
+  return {
+    kind: "pageant_vote",
+    id: doc.id,
+    createdAt: doc.createdAt,
+    proofUploaded: doc.proofUploaded ?? false,
+    who: doc.buyerName ?? "—",
+    amount: doc.amount,
+    currency: doc.currency,
+    title: doc.toolTitle,
+    doc,
+  };
+}
+
+/** All six source lists, already fetched and filtered to the statuses the caller wants. */
 interface ActivitySources {
   subscriptions: SubscriptionDoc[];
   contributions: ProjectContributionDoc[];
   raffleOrders: RaffleOrderDoc[];
   productOrders: ProductOrderDoc[];
   bingoOrders: BingoOrderDoc[];
+  pageantVotes: PageantVoteDoc[];
 }
 
 /** Normalize every source doc to an ActivityItem (unsorted). The kind-specific mapping lives in
@@ -197,6 +217,7 @@ function normalizeSources(sources: ActivitySources): ActivityItem[] {
     ...sources.raffleOrders.map(fromRaffleOrder),
     ...sources.productOrders.map(fromProductOrder),
     ...sources.bingoOrders.map(fromBingoOrder),
+    ...sources.pageantVotes.map(fromPageantVote),
   ];
 }
 
@@ -215,12 +236,13 @@ const PROJECT_CONTRIBUTIONS = "projectContributions";
 const RAFFLE_ORDERS = "raffleOrders";
 const PRODUCT_ORDERS = "productOrders";
 const BINGO_ORDERS = "bingoOrders";
+const PAGEANT_VOTES = "pageantVotes";
 
 /**
- * The school's whole pending queue, normalized and oldest-first. Runs the five source reads in
- * parallel and folds them with mergePendingActivity. The per-tool reads (raffle/product/bingo)
- * have no server-side status filter — they fetch by school and we keep the `pending` ones in JS,
- * matching the rest of the MVP (only `subscriptions` carries the composite (schoolId, status)
+ * The school's whole pending queue, normalized and oldest-first. Runs the six source reads in
+ * parallel and folds them with mergePendingActivity. The per-tool reads (raffle/product/bingo/
+ * pageant) have no server-side status filter — they fetch by school and we keep the `pending` ones
+ * in JS, matching the rest of the MVP (only `subscriptions` carries the composite (schoolId, status)
  * index). Each underlying read merges the buyer/donor name + amount from the private subdoc
  * client-side, so the feed renders the board's view with no extra work here.
  *
@@ -231,65 +253,85 @@ const BINGO_ORDERS = "bingoOrders";
 export async function getPendingActivityBySchool(
   schoolId: string,
 ): Promise<ActivityItem[]> {
-  const [subscriptions, contributions, raffleOrders, productOrders, bingoOrders] =
-    await Promise.all([
-      // getSubscriptionsBySchool (not the count's pending-only read) so donor names are merged.
-      getSubscriptionsBySchool(schoolId).then((subs) =>
-        subs.filter((s) => s.status === "pending"),
-      ),
-      getPendingContributionsBySchool(schoolId),
-      getRaffleOrdersBySchool(schoolId).then((os) =>
-        os.filter((o) => o.status === "pending"),
-      ),
-      getProductOrdersBySchool(schoolId).then((os) =>
-        os.filter((o) => o.status === "pending"),
-      ),
-      getBingoOrdersBySchool(schoolId).then((os) =>
-        os.filter((o) => o.status === "pending"),
-      ),
-    ]);
+  const [
+    subscriptions,
+    contributions,
+    raffleOrders,
+    productOrders,
+    bingoOrders,
+    pageantVotes,
+  ] = await Promise.all([
+    // getSubscriptionsBySchool (not the count's pending-only read) so donor names are merged.
+    getSubscriptionsBySchool(schoolId).then((subs) =>
+      subs.filter((s) => s.status === "pending"),
+    ),
+    getPendingContributionsBySchool(schoolId),
+    getRaffleOrdersBySchool(schoolId).then((os) =>
+      os.filter((o) => o.status === "pending"),
+    ),
+    getProductOrdersBySchool(schoolId).then((os) =>
+      os.filter((o) => o.status === "pending"),
+    ),
+    getBingoOrdersBySchool(schoolId).then((os) =>
+      os.filter((o) => o.status === "pending"),
+    ),
+    getPageantVotesBySchool(schoolId).then((os) =>
+      os.filter((o) => o.status === "pending"),
+    ),
+  ]);
   return mergePendingActivity({
     subscriptions,
     contributions,
     raffleOrders,
     productOrders,
     bingoOrders,
+    pageantVotes,
   });
 }
 
 /**
  * The school's settled history — everything that's no longer pending (confirmed orders/aportes,
  * plus expiring/expired subscriptions), normalized and NEWEST-first. The "Ver historial" toggle
- * of the Actividad inbox loads this on demand. Same five sources as the pending feed, filtered to
+ * of the Actividad inbox loads this on demand. Same six sources as the pending feed, filtered to
  * `status !== "pending"`; each underlying read merges the buyer/donor name + amount client-side.
  */
 export async function getActivityHistoryBySchool(
   schoolId: string,
 ): Promise<ActivityItem[]> {
-  const [subscriptions, contributions, raffleOrders, productOrders, bingoOrders] =
-    await Promise.all([
-      getSubscriptionsBySchool(schoolId).then((l) =>
-        l.filter((s) => s.status !== "pending"),
-      ),
-      getContributionsBySchool(schoolId).then((l) =>
-        l.filter((c) => c.status !== "pending"),
-      ),
-      getRaffleOrdersBySchool(schoolId).then((l) =>
-        l.filter((o) => o.status !== "pending"),
-      ),
-      getProductOrdersBySchool(schoolId).then((l) =>
-        l.filter((o) => o.status !== "pending"),
-      ),
-      getBingoOrdersBySchool(schoolId).then((l) =>
-        l.filter((o) => o.status !== "pending"),
-      ),
-    ]);
+  const [
+    subscriptions,
+    contributions,
+    raffleOrders,
+    productOrders,
+    bingoOrders,
+    pageantVotes,
+  ] = await Promise.all([
+    getSubscriptionsBySchool(schoolId).then((l) =>
+      l.filter((s) => s.status !== "pending"),
+    ),
+    getContributionsBySchool(schoolId).then((l) =>
+      l.filter((c) => c.status !== "pending"),
+    ),
+    getRaffleOrdersBySchool(schoolId).then((l) =>
+      l.filter((o) => o.status !== "pending"),
+    ),
+    getProductOrdersBySchool(schoolId).then((l) =>
+      l.filter((o) => o.status !== "pending"),
+    ),
+    getBingoOrdersBySchool(schoolId).then((l) =>
+      l.filter((o) => o.status !== "pending"),
+    ),
+    getPageantVotesBySchool(schoolId).then((l) =>
+      l.filter((o) => o.status !== "pending"),
+    ),
+  ]);
   return normalizeSources({
     subscriptions,
     contributions,
     raffleOrders,
     productOrders,
     bingoOrders,
+    pageantVotes,
   }).sort(byAgeDesc);
 }
 
@@ -310,7 +352,7 @@ async function countPendingInCollection(
 }
 
 /**
- * Total number of pending items across all five collections — the badge on the "Actividad" tab,
+ * Total number of pending items across all six collections — the badge on the "Actividad" tab,
  * the panel card and the public manage strip. Deliberately lean: it skips the private-field
  * merges the feed does (a badge needs only the number), and subscriptions use their indexed
  * pending read. Reads scale with the school's order volume, not the platform's; if that grows,
@@ -326,6 +368,7 @@ export async function getPendingActivityCountBySchool(
     countPendingInCollection(RAFFLE_ORDERS, schoolId),
     countPendingInCollection(PRODUCT_ORDERS, schoolId),
     countPendingInCollection(BINGO_ORDERS, schoolId),
+    countPendingInCollection(PAGEANT_VOTES, schoolId),
   ]);
   return counts.reduce((sum, n) => sum + n, 0);
 }

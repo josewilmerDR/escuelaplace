@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mergePendingActivity, type ActivityItem } from "./activity";
 import type {
   BingoOrderDoc,
+  PageantVoteDoc,
   ProductOrderDoc,
   ProjectContributionDoc,
   RaffleOrderDoc,
@@ -111,18 +112,41 @@ const bingoOrder = (over: Partial<BingoOrderDoc> = {}): BingoOrderDoc =>
     ...over,
   }) as BingoOrderDoc;
 
+const pageantVote = (over: Partial<PageantVoteDoc> = {}): PageantVoteDoc =>
+  ({
+    id: "pageant-1",
+    schoolId: "s1",
+    schoolName: "Escuela",
+    toolId: "t4",
+    toolTitle: "Reinado escolar",
+    candidateId: "c1",
+    candidateName: "Sofía",
+    buyerId: "u4",
+    buyerName: "Lucía",
+    units: 5,
+    amount: 5_000,
+    currency: "CRC",
+    status: "pending",
+    confirmedAt: null,
+    proofUploaded: true,
+    createdAt: ts(500),
+    updatedAt: ts(500),
+    ...over,
+  }) as PageantVoteDoc;
+
 const allSources = () => ({
   subscriptions: [businessSub()],
   contributions: [contribution()],
   raffleOrders: [raffleOrder()],
   productOrders: [productOrder()],
   bingoOrders: [bingoOrder()],
+  pageantVotes: [pageantVote()],
 });
 
 describe("mergePendingActivity", () => {
-  it("folds all five collections into one feed", () => {
+  it("folds all six collections into one feed", () => {
     const feed = mergePendingActivity(allSources());
-    expect(feed).toHaveLength(5);
+    expect(feed).toHaveLength(6);
     expect(new Set(feed.map((i) => i.kind))).toEqual(
       new Set([
         "subscription",
@@ -130,12 +154,13 @@ describe("mergePendingActivity", () => {
         "raffle_order",
         "product_order",
         "bingo_order",
+        "pageant_vote",
       ]),
     );
   });
 
   it("orders oldest first (most overdue on top)", () => {
-    // createdAt: raffle 50, sub 100, contrib 200, product 300, bingo 400.
+    // createdAt: raffle 50, sub 100, contrib 200, product 300, bingo 400, pageant 500.
     const feed = mergePendingActivity(allSources());
     expect(feed.map((i) => i.id)).toEqual([
       "raffle-1",
@@ -143,6 +168,7 @@ describe("mergePendingActivity", () => {
       "contrib-1",
       "product-1",
       "bingo-1",
+      "pageant-1",
     ]);
   });
 
@@ -163,6 +189,8 @@ describe("mergePendingActivity", () => {
     expect(byKind("product_order").title).toBe("Kermés");
     expect(byKind("bingo_order").who).toBe("Pedro");
     expect(byKind("project_contribution").title).toBe("Techo nuevo");
+    expect(byKind("pageant_vote").title).toBe("Reinado escolar");
+    expect(byKind("pageant_vote").who).toBe("Lucía");
   });
 
   it("uses the donor name for a personal donation", () => {
@@ -187,6 +215,7 @@ describe("mergePendingActivity", () => {
       raffleOrders: [raffleOrder({ buyerName: undefined, amount: undefined })],
       productOrders: [],
       bingoOrders: [],
+      pageantVotes: [],
     });
     expect(feed[0].who).toBe("—");
     expect(feed[0].amount).toBeUndefined();
@@ -200,6 +229,7 @@ describe("mergePendingActivity", () => {
         raffleOrders: [],
         productOrders: [],
         bingoOrders: [],
+        pageantVotes: [],
       }),
     ).toEqual([]);
   });
