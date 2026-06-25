@@ -874,6 +874,7 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
                 schoolId={id}
                 toolId={toolId}
                 canSupport={verified}
+                freeVotingEnabled={pageant.freeVotingEnabled}
               />
             </div>
           </>
