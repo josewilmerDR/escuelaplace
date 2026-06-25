@@ -148,7 +148,9 @@ Campos marcados **(fn)** los mantiene una Cloud Function; el cliente no los escr
   schoolId, schoolName, units (entero × `SUBSCRIPTION_UNIT_CRC`), amount, status
   ('pending'|'confirmed'|'expiring'|'expired'), confirmedAt, firstConfirmedAt, expiresAt,
   confirmedBy, proofUploaded, **countsForRanking (fn)** (elegibilidad anti-fraude: escuela
-  verificada y sin auto-trato; el cliente filtra por él), createdAt, updatedAt
+  verificada y sin auto-trato; el cliente filtra por él), pageantToolId?/candidateId? (padrino:
+  donación personal recurrente que apadrina a una candidata de reinado; públicos y congelados,
+  alimentan `candidate.padrinoCount`), createdAt, updatedAt
 - `projectContributions/{id}`: aporte único a un proyecto. schoolId, schoolName, projectId,
   projectTitle, type('money'|'in_kind'), donorId, donorName, amount (in-kind = valor
   asignado), currency, description?, stageIndex?, stageTitle?,
@@ -263,16 +265,19 @@ Paquete aparte (Gen 2, Admin SDK) que mantiene las señales que el cliente no pu
 
 - `onSubscriptionWritten` — al crear/editar/borrar una suscripción recalcula el
   `ranking.score`/`totalDonated` del comercio, los contadores de la escuela y —si es
-  donación personal— el `donorProfiles` del donante. El ranking del comercio aplica un
+  donación personal— el `donorProfiles` del donante. Si la donación apadrina a una candidata
+  (`pageantToolId`+`candidateId`), recalcula además el `padrinoCount` de esa candidata
+  (padrinos activos distintos, mismo gate anti-fraude). El ranking del comercio aplica un
   **gate anti-fraude**: una suscripción solo cuenta si la escuela está `verified` **y** no
   comparte dueño/editor con el comercio (auto-trato) — así nadie se autoconfirma soporte
   para ganar visibilidad gratis. En cada confirmación además anexa un evento no sensible a
   `auditEvents` (quién/cuándo + señales de colusión) para revisión de fraude y la IA futura.
 - `onSchoolWritten` — cuando cambia `verificationStatus` o los administradores de una
   escuela (ambos alimentan ese gate), recalcula el ranking de **todos** los comercios que la
-  apoyan **y el `voteSupport` de las candidaturas de los reinados de esa escuela** (mismo gate);
-  esos cambios no tocan ninguna suscripción ni `pageantVote`, así que ni `onSubscriptionWritten`
-  ni `onPageantVoteWritten` se dispararían. Ignora el resto de las ediciones de la escuela.
+  apoyan **y el `voteSupport`/`padrinoCount` de las candidaturas de los reinados de esa escuela**
+  (mismo gate); esos cambios no tocan ninguna suscripción ni `pageantVote`, así que ni
+  `onSubscriptionWritten` ni `onPageantVoteWritten` se dispararían. Ignora el resto de las
+  ediciones de la escuela.
 - `onProjectContributionWritten` — recalcula `raised`/`contributorsCount` del proyecto y
   `projectsSupported` del donante; en cada confirmación anexa un evento a `auditEvents`
   (igual que las suscripciones).

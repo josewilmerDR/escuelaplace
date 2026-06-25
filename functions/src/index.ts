@@ -10,6 +10,8 @@
  * - onSubscriptionWritten: recompute the affected business's baseline score + totalDonated,
  *   the affected school's supportingBusinesses/uniqueSupporters, and — for personal
  *   donations — the donor's recognition profile, on any subscription create/update/delete.
+ *   A personal donation tagged with a pageant candidate (a padrino) also recomputes that
+ *   candidate's padrinoCount.
  *   The business ranking applies an anti-fraud eligibility gate (verified school + no
  *   self-dealing) — see recomputeBusinessRanking. On a confirmation it also appends a
  *   non-sensitive audit event (auditEvents) for fraud review / the risk-scoring feature store.
@@ -644,11 +646,24 @@ export const onSubscriptionWritten = onDocumentWritten(
     const businessIds = new Set<string>();
     const schoolIds = new Set<string>();
     const donorIds = new Set<string>();
+    // Padrino subscriptions (a personal donation backing a pageant candidate) also feed that
+    // candidate's padrinoCount. Collect the affected (schoolId, toolId, candidateId) triples.
+    const padrinoTargets = new Map<
+      string,
+      { schoolId: string; toolId: string; candidateId: string }
+    >();
     for (const d of [before, after]) {
       if (!d) continue;
       if (d.businessId) businessIds.add(d.businessId as string);
       if (d.schoolId) schoolIds.add(d.schoolId as string);
       if (d.donorId) donorIds.add(d.donorId as string);
+      if (d.schoolId && d.pageantToolId && d.candidateId) {
+        padrinoTargets.set(`${d.schoolId}/${d.pageantToolId}/${d.candidateId}`, {
+          schoolId: d.schoolId as string,
+          toolId: d.pageantToolId as string,
+          candidateId: d.candidateId as string,
+        });
+      }
     }
 
     // A confirmation: `confirmedAt` newly set (first confirm) or advanced (renewal). Flag-only
@@ -677,6 +692,9 @@ export const onSubscriptionWritten = onDocumentWritten(
       ...[...businessIds].map(recomputeBusinessRanking),
       ...[...schoolIds].map(recomputeSchool),
       ...[...donorIds].map(recomputeDonorProfile),
+      ...[...padrinoTargets.values()].map((t) =>
+        recomputeCandidatePadrinos(t.schoolId, t.toolId, t.candidateId),
+      ),
     ]);
   },
 );
@@ -898,6 +916,57 @@ async function recomputePageantCandidate(
   }
 
   await ref.update({ voteSupport, supportCount: supporters.size });
+}
+
+/**
+ * Recompute a pageant candidate's `padrinoCount`: distinct CURRENTLY-ACTIVE confirmed personal
+ * sponsors (padrinos) backing it. A padrino is a recurring `subscriptions` donation
+ * (`supporterType: 'user'`) tagged with this `pageantToolId` + `candidateId`. Same anti-fraud gate as
+ * the support tally (school `verified` + the donor doesn't administer the school), with the SAME
+ * "currently supporting" semantics as the school's uniqueSupporters (isCounting: confirmed/expiring,
+ * not pending/expired) — a padrino badge reflects CURRENT sponsors, so a recurring sponsorship that
+ * lapsed stops counting. `candidateId` lives on the PUBLIC doc, so no private read is needed.
+ */
+async function recomputeCandidatePadrinos(
+  schoolId: string,
+  toolId: string,
+  candidateId: string,
+): Promise<void> {
+  const ref = db
+    .collection(SCHOOLS)
+    .doc(schoolId)
+    .collection(TOOLS)
+    .doc(toolId)
+    .collection(CANDIDATES)
+    .doc(candidateId);
+  const snap = await ref.get();
+  if (!snap.exists) return; // candidate deleted — nothing to update
+
+  const school = await db.collection(SCHOOLS).doc(schoolId).get();
+  const schoolVerified =
+    school.exists && school.get("verificationStatus") === "verified";
+  const schoolPrincipals = principalsOf(school.data());
+
+  const subs = await db
+    .collection(SUBSCRIPTIONS)
+    .where("candidateId", "==", candidateId)
+    .get();
+
+  const nowMs = Date.now();
+  const padrinos = new Set<string>();
+  for (const d of subs.docs) {
+    const s = d.data();
+    if (s.pageantToolId !== toolId) continue; // belt-and-suspenders (candidateId is globally unique)
+    if (!schoolVerified) continue; // verified-only gate (whole school)
+    const donorId = s.donorId as string | undefined;
+    if (!donorId || schoolPrincipals.has(donorId)) continue; // self-dealing
+    if (!isCounting(s as ScorableSubscription, nowMs)) continue; // currently-active confirmed
+    padrinos.add(donorId);
+  }
+
+  const padrinoCount = padrinos.size;
+  if (snap.get("padrinoCount") === padrinoCount) return; // already current — no write
+  await ref.update({ padrinoCount });
 }
 
 export const onPageantVoteWritten = onDocumentWritten(
@@ -1214,8 +1283,11 @@ export const onSchoolWritten = onDocumentWritten(
     for (const tool of toolsSnap.docs) {
       const candSnap = await tool.ref.collection(CANDIDATES).get();
       for (const cand of candSnap.docs) {
+        // Both tallies gate the same way (verified + no self-dealing), so re-verification flips
+        // both: the economic support tally AND the recurring-padrino count.
         candidateRecomputes.push(
           recomputePageantCandidate(schoolId, tool.id, cand.id),
+          recomputeCandidatePadrinos(schoolId, tool.id, cand.id),
         );
       }
     }
