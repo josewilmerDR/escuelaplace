@@ -793,6 +793,9 @@ async function BingoDetail({ id, toolId, tool, school }: ToolDetailProps) {
 async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const pageant = toolConfigOf(tool, "pageant")!;
   const candidates = await getCandidates(id, toolId).catch(() => []);
+  // Support is recorded only against a verified school (the create rule gates on it) — so the
+  // "Apoyar" CTA shows only then; otherwise a note explains it isn't enabled yet.
+  const verified = isSchoolVerified(school);
   const opensMs = pageant.opensAt ? pageant.opensAt.toMillis() : null;
   const closesMs = pageant.closesAt ? pageant.closesAt.toMillis() : null;
   const windowLabel =
@@ -859,9 +862,21 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
           Candidatas y candidatos
         </h2>
         {candidates.length > 0 ? (
-          <div className="mt-4">
-            <PageantCandidates candidates={candidates} />
-          </div>
+          <>
+            {!verified && (
+              <p className="mt-2 text-sm text-warning">
+                El apoyo económico se habilitará cuando la escuela esté verificada.
+              </p>
+            )}
+            <div className="mt-4">
+              <PageantCandidates
+                candidates={candidates}
+                schoolId={id}
+                toolId={toolId}
+                canSupport={verified}
+              />
+            </div>
+          </>
         ) : (
           <p className="mt-2 text-sm text-muted">
             Aún no hay candidaturas publicadas.
