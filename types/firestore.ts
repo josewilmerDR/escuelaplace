@@ -1765,6 +1765,33 @@ export interface PageantApplauseBallot {
   createdAt: Timestamp;
 }
 
+/**
+ * The reinado's live coronación phase. registration → voting → gala (reveal + crown) → closed. The
+ * director drives every transition by hand; nothing advances automatically.
+ */
+export type PageantPhase = "registration" | "voting" | "gala" | "closed";
+
+/**
+ * A reinado's live-event state (`schools/{schoolId}/tools/{toolId}/event/state` — the SAME doc shape
+ * the bingo uses, sharing the public-read / school-write rule). One doc the school drives during the
+ * coronación: the current phase, whether the SUGGESTED standings have been revealed at the gala, and
+ * the school's HUMAN crown verdict. The platform NEVER auto-crowns — `winnerCandidateId` is the
+ * school ratifying `pageantStandings` (a suggestion), never a platform-computed outcome. No money, no
+ * function-maintained fields: the school owns every write.
+ */
+export interface PageantEventState {
+  phase: PageantPhase;
+  /** Whether the suggested standings are revealed publicly (the gala "reveal" moment). */
+  revealed: boolean;
+  /** The crowned candidate — the school's verdict, set at the gala (null/absent until then). */
+  winnerCandidateId?: string | null;
+  /** The runner-up candidate, same human verdict (optional). */
+  runnerUpCandidateId?: string | null;
+  /** When the live event first opened (stamped on the first phase write). */
+  startedAt?: Timestamp;
+  updatedAt: Timestamp;
+}
+
 // ── Bingo live event (Phase 2) ───────────────────────────────────────────────
 //
 // The live game: the school "calls" numbers one by one; virtual players watch the board in

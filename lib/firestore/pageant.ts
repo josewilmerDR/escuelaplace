@@ -22,8 +22,13 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
   updateDoc,
+  type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type {
@@ -31,6 +36,8 @@ import type {
   CandidateDoc,
   PageantConfig,
   PageantCrownFormula,
+  PageantEventState,
+  PageantPhase,
   PageantVote,
   PageantVoteDoc,
   ProjectCurrency,
@@ -51,9 +58,15 @@ import {
 const SCHOOLS = "schools";
 const TOOLS = "tools";
 const CANDIDATES = "candidates";
+const EVENT = "event";
+const STATE = "state";
 
 function candidatesCol(schoolId: string, toolId: string) {
   return collection(db, SCHOOLS, schoolId, TOOLS, toolId, CANDIDATES);
+}
+
+function eventStateRef(schoolId: string, toolId: string) {
+  return doc(db, SCHOOLS, schoolId, TOOLS, toolId, EVENT, STATE);
 }
 
 // ── Pure helpers (unit-tested) ─────────────────────────────────────────────────
@@ -300,4 +313,94 @@ export function confirmPageantVote(voteId: string, confirmedBy: string): Promise
 /** Delete a support order (the supporter cancels, or admin). */
 export function deletePageantVote(voteId: string): Promise<void> {
   return deleteOrder(PAGEANT_VOTES, voteId);
+}
+
+// ── Live coronación — event/state ────────────────────────────────────────────────
+//
+// The reinado's live phase lives in the single doc schools/{schoolId}/tools/{toolId}/event/state —
+// the SAME path + rule the bingo uses (public read so the virtual audience watches the gala in real
+// time; only the school writes it). The director drives every transition by hand; the platform NEVER
+// auto-crowns. `winnerCandidateId` is the school RATIFYING the SUGGESTED standings (pageantStandings),
+// never a computed outcome. No money, no function-maintained fields — the school owns every write.
+
+/** One-shot read of a reinado's live-event state (null before the school first opens it). Public. */
+export async function getPageantEventState(
+  schoolId: string,
+  toolId: string,
+): Promise<PageantEventState | null> {
+  const snap = await getDoc(eventStateRef(schoolId, toolId));
+  return snap.exists() ? (snap.data() as PageantEventState) : null;
+}
+
+/**
+ * Subscribe to a reinado's live-event state. Calls `cb` immediately with the current value (or null)
+ * and again on every change; returns the unsubscribe fn the caller MUST call on unmount. The public
+ * gala leaderboard and the director console both watch this live (cloned from subscribeBingoEventState).
+ */
+export function subscribePageantEventState(
+  schoolId: string,
+  toolId: string,
+  cb: (state: PageantEventState | null) => void,
+): Unsubscribe {
+  return onSnapshot(
+    eventStateRef(schoolId, toolId),
+    (snap) => cb(snap.exists() ? (snap.data() as PageantEventState) : null),
+    () => cb(null),
+  );
+}
+
+/**
+ * Move the reinado to a live phase (registration → voting → gala → closed). Upserts the single
+ * event/state doc (merge), stamping `startedAt` only on the first write so the doc exists from phase 1
+ * without clobbering the original start time. The platform never auto-advances — the director drives
+ * every transition.
+ */
+export async function setPageantPhase(
+  schoolId: string,
+  toolId: string,
+  phase: PageantPhase,
+): Promise<void> {
+  const ref = eventStateRef(schoolId, toolId);
+  const prev = await getDoc(ref);
+  await setDoc(
+    ref,
+    {
+      phase,
+      ...(prev.exists() ? {} : { startedAt: serverTimestamp() }),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+/** Reveal (or hide) the SUGGESTED standings publicly — the gala "reveal" moment. Upsert (merge). */
+export async function revealPageantStandings(
+  schoolId: string,
+  toolId: string,
+  revealed: boolean,
+): Promise<void> {
+  await setDoc(
+    eventStateRef(schoolId, toolId),
+    { revealed, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
+}
+
+/**
+ * Record the school's HUMAN crown verdict: the winning candidate (+ an optional runner-up). The
+ * platform NEVER auto-crowns — `pageantStandings` only suggests; THIS write is the school ratifying.
+ * Pass null to un-crown. Caller passes both ids so setting one preserves the other (merge can't tell
+ * "absent" from "clear"). Phase/reveal are separate controls (setPageantPhase / revealPageantStandings).
+ */
+export async function setPageantWinner(
+  schoolId: string,
+  toolId: string,
+  winnerCandidateId: string | null,
+  runnerUpCandidateId: string | null = null,
+): Promise<void> {
+  await setDoc(
+    eventStateRef(schoolId, toolId),
+    { winnerCandidateId, runnerUpCandidateId, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
 }

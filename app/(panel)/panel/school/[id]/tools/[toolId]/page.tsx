@@ -1161,15 +1161,35 @@ export default function EditToolPage() {
         )}
 
         {type === "pageant" && (
-          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-            <p className="mb-3 text-sm font-semibold text-foreground">
-              Configuración del reinado
-            </p>
-            <PageantConfigFields value={pageantForm} onChange={setPageantForm} />
-            <p className="mt-3 text-xs text-muted">
-              Las candidatas o candidatos se administran más abajo, en «Candidaturas».
-            </p>
-          </div>
+          <section className="flex flex-col gap-4">
+            {/* Run the gala from inside the reinado it belongs to: drive the phases, reveal the
+                suggested standings, and crown the winner (the school's verdict, never automatic). */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand-tint p-4 ring-1 ring-brand/10">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">
+                  Coronación en vivo
+                </p>
+                <p className="text-xs text-muted">
+                  Dirige la gala: revela las posiciones y corona en tiempo real.
+                </p>
+              </div>
+              <Link
+                href={`/panel/school/${id}/pageant-live?tool=${toolId}`}
+                className="btn btn-primary shrink-0"
+              >
+                Dirigir coronación
+              </Link>
+            </div>
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Configuración del reinado
+              </p>
+              <PageantConfigFields value={pageantForm} onChange={setPageantForm} />
+              <p className="mt-3 text-xs text-muted">
+                Las candidatas o candidatos se administran más abajo, en «Candidaturas».
+              </p>
+            </div>
+          </section>
         )}
 
         {/* Existing cover preview (the picker only previews a NEW file). */}
