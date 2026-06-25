@@ -281,6 +281,15 @@ Paquete aparte (Gen 2, Admin SDK) que mantiene las señales que el cliente no pu
   (escuela verificada + sin auto-trato: el partidario no administra la escuela). En cada
   confirmación anexa un evento `pageant_vote_confirmed` a `auditEvents`. `units` es un conteo,
   nunca dinero.
+- `castPageantApplause` (`onRequest`) — el voto libre de "simpatía" del visitante **sin cuenta**
+  para una candidata (la única vía, porque el ledger `applause` está cerrado al cliente). Exige
+  **App Check** (el muro anti-bots de un voto que pesa en la corona), revalida el gate en servidor
+  (escuela verificada + reinado activo con `freeVotingEnabled` + candidata existente + ventana) y
+  escribe un ballot idempotente `applause/{sha256(toolId+voterKey)}` — un voto por dispositivo/
+  reinado. El eje simpatía es no vinculante y topado, y `freeVotingEnabled` queda **apagado** hasta
+  probar App Check en prod.
+- `onApplauseWritten` — recalcula `candidate.voteFree = COUNT(applause de esa candidata)` por
+  agregación (idempotente bajo redelivery). El ledger no cascada.
 - `onReviewWritten` — recalcula `reviewStats` del comercio (y su ranking).
 - `onBusinessWritten` — recalcula el `businessCount` (comercios activos) de cada categoría a
   la que pertenece el comercio, al crear/editar/borrar/cambiar status. El cliente escribe el

@@ -11,6 +11,12 @@
  */
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import {
+  initializeAppCheck,
+  getToken,
+  ReCaptchaV3Provider,
+  type AppCheck,
+} from "firebase/app-check";
+import {
   getFirestore,
   connectFirestoreEmulator,
   type Firestore,
@@ -68,6 +74,42 @@ export function getFirebaseFunctions(): Functions {
     }
   }
   return _functions;
+}
+
+/**
+ * App Check (reCAPTCHA v3) — the bot wall for accountless, unauthenticated calls that matter, today
+ * just the pageant "simpatía" applause (castPageantApplause). Initialized LAZILY and ONLY in the
+ * browser when NEXT_PUBLIC_APPCHECK_RECAPTCHA_SITE_KEY is set; absent (the default), App Check is a
+ * no-op and getAppCheckToken() returns null. Merely initializing it attaches tokens to requests but
+ * enforces NOTHING — enforcement is flipped per service in the Firebase console — so this never
+ * breaks the existing anonymous catalog reads.
+ */
+const appCheckSiteKey = process.env.NEXT_PUBLIC_APPCHECK_RECAPTCHA_SITE_KEY;
+let _appCheck: AppCheck | null | undefined;
+function getAppCheckInstance(): AppCheck | null {
+  if (typeof window === "undefined" || !appCheckSiteKey) return null; // SSR or unconfigured
+  if (_appCheck === undefined) {
+    _appCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(appCheckSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
+  return _appCheck;
+}
+
+/**
+ * A fresh App Check token for a protected call, or null when App Check isn't configured yet (so the
+ * feature that needs it stays gated off until it is). Never throws — a token failure resolves to
+ * null and the caller treats the action as unavailable.
+ */
+export async function getAppCheckToken(): Promise<string | null> {
+  const appCheck = getAppCheckInstance();
+  if (!appCheck) return null;
+  try {
+    return (await getToken(appCheck, /* forceRefresh */ false)).token;
+  } catch {
+    return null;
+  }
 }
 
 // Auth DOES validate the apiKey on init (throws auth/invalid-api-key without config).

@@ -1745,6 +1745,26 @@ export interface PageantVote {
 
 export type PageantVoteDoc = PageantVote & { id: string };
 
+/**
+ * One ballot in a reinado's free "simpatía" applause ledger
+ * (`schools/{schoolId}/tools/{toolId}/applause/{ballotId}`). CLOUD-FUNCTION-ONLY: the rules deny all
+ * client read/write (`if false`); the public reads `candidate.voteFree` (the COUNT), never the
+ * ledger. The accountless voter leaves a trace only here (+ a UX memory in localStorage). The ballot
+ * id is deterministic — `sha256(toolId + voterKey)` — so one device casts at most one vote per
+ * pageant: a re-tap hits the same doc and is a no-op, and the vote is locked to the first candidate
+ * chosen. No PII, no money — just which candidate, plus coarse hashes for dedup and a future
+ * rate-cap. Written by `castPageantApplause` (which verifies App Check first) with the Admin SDK.
+ */
+export interface PageantApplauseBallot {
+  /** The candidate this device applauded. */
+  candidateId: string;
+  /** sha256 of the device's localStorage voter key — the dedup substrate, never the raw key. */
+  voterKeyHash: string;
+  /** Coarse sha256 of the caller IP, kept for a future per-IP rate-cap; never an exact address. */
+  ipHash: string;
+  createdAt: Timestamp;
+}
+
 // ── Bingo live event (Phase 2) ───────────────────────────────────────────────
 //
 // The live game: the school "calls" numbers one by one; virtual players watch the board in
@@ -1957,4 +1977,12 @@ export interface BuyerPreferences {
   /** The buyer dismissed the community picker; remember it so it stays hidden across
    * visits (it can always be reopened from the quiet "Elige tu escuela" chip). */
   pickerHidden?: boolean;
+  /** A stable, random per-device key (minted on first use) the accountless voter sends with a
+   * pageant applause so the Cloud Function can dedup "one vote per device per pageant". NOT an
+   * identity — just a localStorage handle; clearing storage resets it (acceptable: App Check is the
+   * real bot wall and the sympathy axis is capped + non-binding). */
+  deviceKey?: string;
+  /** UX memory of which candidate this device applauded, per reinado tool (`toolId` → `candidateId`),
+   * so the applause button shows "ya aplaudiste" without a server read. */
+  pageantApplause?: Record<string, string>;
 }

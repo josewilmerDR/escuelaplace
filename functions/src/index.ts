@@ -27,12 +27,18 @@
  *   report — anonymous buyers can't write Firestore directly.
  * - recordWalkIn (./track): manager-only counter of walk-in customers who mentioned
  *   escuelaplace at the counter.
+ * - castPageantApplause: the accountless "simpatía" vote for a pageant candidate. App
+ *   Check-gated (the bot wall), it writes the closed applause ledger; onApplauseWritten
+ *   then recomputes the candidate's voteFree COUNT. The sympathy axis is non-binding and
+ *   capped, and freeVotingEnabled stays off until App Check is proven in prod.
  */
 import { createHash } from "node:crypto";
+import { getAppCheck } from "firebase-admin/app-check";
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { donorTierForUnits } from "./donors";
 import {
@@ -70,6 +76,16 @@ const THANK_YOUS = "thankYous";
 const PAGEANT_VOTES = "pageantVotes";
 const TOOLS = "tools";
 const CANDIDATES = "candidates";
+const APPLAUSE = "applause";
+
+/** A document-id-safe, deterministic hex digest of a string (sha256). Same primitive as auditIdOf,
+ * reused for the applause ballot id (one stable id per device+pageant) and the coarse hashes. */
+function sha256Hex(input: string): string {
+  return createHash("sha256").update(input).digest("hex");
+}
+
+/** Auto-id / seeded-id shape — anything else in a path component is garbage we reject early. */
+const PAGEANT_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 
 /** The uids that administer a page (owner + editors) as a set — the self-dealing key. */
 function principalsOf(
@@ -921,6 +937,176 @@ export const onPageantVoteWritten = onDocumentWritten(
         recomputePageantCandidate(t.schoolId, t.toolId, t.candidateId),
       ),
     ]);
+  },
+);
+
+/**
+ * Cast a free "simpatía" applause for a pageant candidate — the ONLY path for an accountless,
+ * unauthenticated visitor, since the applause ledger is closed to all clients (rules `if false`).
+ * Clone of trackInteraction's shape (onRequest + cors), hardened for a vote that WEIGHS on the crown:
+ *
+ * - **App Check is mandatory.** A missing/invalid `X-Firebase-AppCheck` token is rejected (401). It
+ *   is the bot wall for an accountless vote; the sympathy axis must never be scriptable. Until App
+ *   Check is configured + proven in prod, `freeVotingEnabled` stays off so the UI never reaches this
+ *   path — the enforcement here is the backstop.
+ * - **Server-side gate.** The target school must be `verified`, the tool an `active` pageant with
+ *   `config.freeVotingEnabled == true`, the candidate must exist, and (if set) `now` must fall inside
+ *   the `opensAt..closesAt` window. Re-checked here so a patched client can't bypass the school's
+ *   switch. (The live-event `phase == 'voting'` check arrives with the coronación slice.)
+ * - **One vote per device per pageant.** The ballot id is deterministic — `sha256(toolId+voterKey)`,
+ *   where `voterKey` is the caller's stable localStorage handle — so a re-tap hits the same doc:
+ *   `create()` rejects ALREADY_EXISTS (gRPC 6), mapped to 409, and the vote stays locked to the first
+ *   candidate chosen. `ipHash` is stored coarse for a future per-IP rate-cap (deferred).
+ */
+export const castPageantApplause = onRequest({ cors: true }, async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).end();
+    return;
+  }
+
+  const appCheckToken = req.header("X-Firebase-AppCheck");
+  if (!appCheckToken) {
+    res.status(401).end();
+    return;
+  }
+  try {
+    await getAppCheck().verifyToken(appCheckToken);
+  } catch {
+    res.status(401).end();
+    return;
+  }
+
+  // A JSON fetch arrives parsed; a text/plain body (beacon) arrives raw.
+  let payload: unknown = req.body;
+  if (typeof payload === "string") {
+    try {
+      payload = JSON.parse(payload);
+    } catch {
+      res.status(400).end();
+      return;
+    }
+  }
+  const { schoolId, toolId, candidateId, voterKey } = (payload ?? {}) as {
+    schoolId?: unknown;
+    toolId?: unknown;
+    candidateId?: unknown;
+    voterKey?: unknown;
+  };
+  if (
+    typeof schoolId !== "string" ||
+    !PAGEANT_ID_RE.test(schoolId) ||
+    typeof toolId !== "string" ||
+    !PAGEANT_ID_RE.test(toolId) ||
+    typeof candidateId !== "string" ||
+    !PAGEANT_ID_RE.test(candidateId) ||
+    typeof voterKey !== "string" ||
+    voterKey.length < 8 ||
+    voterKey.length > 200
+  ) {
+    res.status(400).end();
+    return;
+  }
+
+  const toolRef = db
+    .collection(SCHOOLS)
+    .doc(schoolId)
+    .collection(TOOLS)
+    .doc(toolId);
+  const [schoolSnap, toolSnap, candSnap] = await Promise.all([
+    db.collection(SCHOOLS).doc(schoolId).get(),
+    toolRef.get(),
+    toolRef.collection(CANDIDATES).doc(candidateId).get(),
+  ]);
+
+  const config =
+    (toolSnap.get("config") as Record<string, unknown> | undefined) ?? {};
+  const nowMs = Date.now();
+  const opensMs = tsMillis(config.opensAt);
+  const closesMs = tsMillis(config.closesAt);
+  if (
+    !schoolSnap.exists ||
+    schoolSnap.get("verificationStatus") !== "verified" ||
+    !toolSnap.exists ||
+    toolSnap.get("type") !== "pageant" ||
+    toolSnap.get("status") !== "active" ||
+    config.freeVotingEnabled !== true ||
+    !candSnap.exists ||
+    (opensMs != null && nowMs < opensMs) ||
+    (closesMs != null && nowMs > closesMs)
+  ) {
+    res.status(403).end();
+    return;
+  }
+
+  const ballotId = sha256Hex(`${toolId}:${voterKey}`);
+  try {
+    await toolRef.collection(APPLAUSE).doc(ballotId).create({
+      candidateId,
+      voterKeyHash: sha256Hex(voterKey),
+      ipHash: sha256Hex(req.ip ?? ""),
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    if ((err as { code?: number }).code === 6) {
+      res.status(409).end(); // ALREADY_EXISTS — this device already applauded; no double count
+      return;
+    }
+    logger.debug("castPageantApplause dropped", { schoolId, toolId, err });
+    res.status(500).end();
+    return;
+  }
+  res.status(204).end();
+});
+
+/**
+ * Recompute a candidate's free "simpatía" tally: `voteFree = COUNT(applause ballots for X)`. A COUNT
+ * aggregation makes the recompute idempotent under the trigger's at-least-once redelivery (unlike an
+ * increment). Skips the write when already current — candidate writes have no trigger, so this never
+ * cascades, but the skip keeps it quiet. Returns nothing.
+ */
+async function recomputeCandidateApplause(
+  schoolId: string,
+  toolId: string,
+  candidateId: string,
+): Promise<void> {
+  const toolRef = db
+    .collection(SCHOOLS)
+    .doc(schoolId)
+    .collection(TOOLS)
+    .doc(toolId);
+  const ref = toolRef.collection(CANDIDATES).doc(candidateId);
+  const snap = await ref.get();
+  if (!snap.exists) return; // candidate deleted — nothing to update
+
+  const agg = await toolRef
+    .collection(APPLAUSE)
+    .where("candidateId", "==", candidateId)
+    .count()
+    .get();
+  const voteFree = agg.data().count;
+
+  if (snap.get("voteFree") === voteFree) return; // already current — no write
+  await ref.update({ voteFree });
+}
+
+export const onApplauseWritten = onDocumentWritten(
+  `${SCHOOLS}/{schoolId}/${TOOLS}/{toolId}/${APPLAUSE}/{ballotId}`,
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+
+    // Union the candidateId from both sides so a (rare) ballot move or delete re-tallies both.
+    const candidateIds = new Set<string>();
+    for (const d of [before, after]) {
+      if (d?.candidateId) candidateIds.add(d.candidateId as string);
+    }
+    const { schoolId, toolId } = event.params;
+
+    await Promise.all(
+      [...candidateIds].map((cid) =>
+        recomputeCandidateApplause(schoolId, toolId, cid),
+      ),
+    );
   },
 );
 

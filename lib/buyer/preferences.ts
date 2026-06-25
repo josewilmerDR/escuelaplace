@@ -49,6 +49,40 @@ export function writeBuyerPreferences(prefs: BuyerPreferences): void {
   }
 }
 
+/**
+ * The device's stable voter key, minting and persisting one on first use. The accountless pageant
+ * voter sends this with an applause so the Cloud Function can dedup "one vote per device per
+ * pageant". NOT an identity — a localStorage handle; clearing storage resets it (acceptable: App
+ * Check is the real bot wall and the sympathy axis is capped + non-binding). Returns "" on the
+ * server (the caller runs in the browser).
+ */
+export function ensureDeviceKey(): string {
+  if (typeof window === "undefined") return "";
+  const prefs = readBuyerPreferences();
+  if (prefs.deviceKey) return prefs.deviceKey;
+  const deviceKey = crypto.randomUUID();
+  writeBuyerPreferences({ ...prefs, deviceKey });
+  return deviceKey;
+}
+
+/** Remember that this device applauded `candidateId` in reinado `toolId`, so the button can show
+ * "ya aplaudiste" without a server read. Merges into the existing map (read-merge-write). */
+export function recordPageantApplause(toolId: string, candidateId: string): void {
+  const prefs = readBuyerPreferences();
+  writeBuyerPreferences({
+    ...prefs,
+    pageantApplause: { ...prefs.pageantApplause, [toolId]: candidateId },
+  });
+}
+
+/** Which candidate this device already applauded in reinado `toolId`, or undefined. Pure read. */
+export function applaudedCandidateId(
+  prefs: BuyerPreferences,
+  toolId: string,
+): string | undefined {
+  return prefs.pageantApplause?.[toolId];
+}
+
 function subscribe(onChange: () => void): () => void {
   window.addEventListener(CHANGE_EVENT, onChange);
   window.addEventListener("storage", onChange);
