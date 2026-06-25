@@ -47,12 +47,24 @@ En <https://www.google.com/recaptcha/admin> → **+** (crear):
 Firebase console → **App Check** → pestaña **Apps** → elegí el app **Web** → **Register**:
 
 - Proveedor: **reCAPTCHA v3** → pegá la **clave SECRETA** del paso 1.
+- **El SITE key del cliente (`NEXT_PUBLIC_APPCHECK_RECAPTCHA_SITE_KEY`) y la SECRET key que pegás acá
+  deben ser del MISMO par de reCAPTCHA v3.** Si no coinciden (o registraste Enterprise/v2), el
+  intercambio del token falla con **400** y el aplauso reporta "no disponible" (ver Troubleshooting).
 - TTL del token: el default (1 h) está bien.
-- En la pestaña **APIs / Products**, dejá Firestore / Storage / Authentication en **Unenforced**
-  (ver la regla de oro). No prendas enforcement en ninguno.
+
+> **El enforcement NO está acá.** Registrar el app (pestaña **Apps**) **no** activa nada. El
+> *enforcement* vive en otra zona, la pestaña **APIs** (o "Productos"), **uno por producto** (Cloud
+> Firestore, Cloud Storage, Authentication…), y **por defecto cada uno está en "No aplicado"
+> (Unenforced)**. O sea: "dejarlos en Unenforced" = **no entres a esa pestaña a darles "Aplicar"**.
+> No hay nada que setear; el default ya es el correcto.
+>
+> Verificación opcional: pestaña **APIs** → Cloud Firestore / Cloud Storage / Authentication deben
+> decir **"No aplicado"**. Si alguno dijera "Aplicado", volvelo a "No aplicado" (un Firestore
+> *Aplicado* rompe el SSR del catálogo — ver la regla de oro).
 
 > App Check no tiene "enforcement" propio para funciones `onRequest`: la verificación la hace el
-> código de `castPageantApplause`. Con el app registrado, sus tokens ya validan.
+> código de `castPageantApplause` (verifica el token él mismo). Con el app registrado, sus tokens ya
+> validan — por eso el aplauso queda protegido **sin** tocar el enforcement de ningún producto.
 
 ### 3. Crear el secreto del site key
 
@@ -114,6 +126,32 @@ en las posiciones sugeridas (`effectiveWeights` renormaliza la simpatía a 0 cua
      **`unavailable`** en la UI = falta el site key o la URL (revisá pasos 3–5).
 3. El conteo `voteFree` sube tras `onApplauseWritten` (la página pública es ISR, `revalidate=300`,
    así que la barra refleja el nuevo conteo en el próximo render, no al instante).
+
+## Troubleshooting
+
+**"El voto libre aún no está disponible"** + en la consola `POST …/exchangeRecaptchaV3Token … 400
+(Bad Request)` y `@firebase/app-check: 400 error`.
+El cliente sí inicializó y reCAPTCHA sí generó el token, pero **App Check rechazó el intercambio**.
+El problema está en el **registro de App Check (consola)**, no en el código ni el deploy. Revisá, en
+orden: (1) que el **SECRET** registrado en App Check sea el del **mismo par** que el SITE key del
+cliente (abrí la clave con ese site key en el reCAPTCHA admin y copiá *su* secret); (2) que el
+proveedor sea **reCAPTCHA v3**, no Enterprise/v2; (3) que `escuelaplace.com` + `www` estén en los
+dominios de la clave. Tras corregir, **esperá ~1–2 min** (el SDK throttlea tras los 400:
+`appCheck/initial-throttle`) y hacé **hard-reload**. No hace falta re-desplegar.
+
+**"…no disponible"** pero **sin** ninguna llamada a `castPageantApplause` ni a App Check en la pestaña
+Red. Falta `NEXT_PUBLIC_APPCHECK_RECAPTCHA_SITE_KEY` o `NEXT_PUBLIC_CAST_APPLAUSE_URL` en el bundle →
+revisá el secreto (paso 3) y **re-desplegá App Hosting** (paso 5: los `NEXT_PUBLIC_*` se hornean en
+BUILD).
+
+**`castPageantApplause` responde 401** (con App Check ya resolviendo). El token no llegó o no validó:
+confirmá que el app web esté **registrado** en App Check y que el token se adjunte (el llamador manda
+el header `X-Firebase-AppCheck`).
+
+**CSP report-only:** `Connecting to 'https://www.google.com/recaptcha/…' violates … connect-src …
+The policy is report-only`. **No bloquea** (es observación). Aun así se agregó `https://www.google.com`
+a `script-src`/`connect-src` en [next.config.ts](../next.config.ts) para que pare el ruido y reCAPTCHA
+siga funcionando si algún día la CSP estricta pasa a *enforce*.
 
 ## Apagar / rollback
 

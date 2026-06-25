@@ -31,7 +31,8 @@ function reportOnlyCsp(): string {
     "'self'",
     "'unsafe-inline'",
     "https://apis.google.com", // gapi loader for signInWithPopup
-    "https://www.gstatic.com", // Firebase Auth helper scripts
+    "https://www.gstatic.com", // Firebase Auth helper scripts + reCAPTCHA runtime
+    "https://www.google.com", // reCAPTCHA v3 api.js (App Check bot wall for the pageant vote)
     "https://maps.googleapis.com", // @googlemaps/js-api-loader injected script
     ...(isDev ? ["'unsafe-eval'"] : []), // Next dev tooling + some Maps WASM paths
   ].join(" ");
@@ -49,7 +50,8 @@ function reportOnlyCsp(): string {
     "https://*.run.app", // Gen2 functions (Cloud Run)
     "https://maps.googleapis.com",
     "https://places.googleapis.com",
-    "https://*.googleapis.com", // Maps tile/shard hosts (narrow before enforcing)
+    "https://*.googleapis.com", // Maps tile/shard hosts + content-firebaseappcheck (narrow before enforcing)
+    "https://www.google.com", // reCAPTCHA v3 telemetry (App Check token exchange for the pageant vote)
     "data:",
     "blob:",
     ...(isDev
