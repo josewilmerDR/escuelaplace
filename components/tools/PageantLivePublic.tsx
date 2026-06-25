@@ -4,9 +4,10 @@
  * The live-coronación slice of the PUBLIC reinado page. The detail page is SSR, but the gala streams,
  * so this small client island subscribes to the event state and surfaces it: a phase chip while it
  * runs, the SUGGESTED standings once the school reveals them, and the crown banner once the school
- * ratifies a winner. When nothing is running (no event doc, still in registration with nothing shown)
- * it stays quiet. Read-only — the school drives the gala from its console; the platform NEVER
- * auto-crowns (the standings are pageantStandings' non-binding suggestion).
+ * ratifies a winner. It stays quiet only until the school OPENS the live event (no event doc yet);
+ * once opened it surfaces the phase from registration onward. Read-only — the school drives the gala
+ * from its console; the platform NEVER auto-crowns (the standings are pageantStandings' non-binding
+ * suggestion).
  */
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
@@ -60,9 +61,6 @@ export function PageantLivePublic({
   const winner = winnerId ? byId.get(winnerId) : undefined;
   const runnerUp = runnerUpId ? byId.get(runnerUpId) : undefined;
   const showStandings = revealed && standings.length > 0;
-
-  // Registration with nothing revealed/crowned adds nothing over the roster below — stay quiet.
-  if (phase === "registration" && !winner && !showStandings) return null;
 
   const galaOrClosed = phase === "gala" || phase === "closed";
 

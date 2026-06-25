@@ -193,6 +193,18 @@ export function editToolTitle(type: ToolType): string {
 }
 
 /**
+ * Section / button label for deleting ONE tool of a kind — "Eliminar rifa", "Eliminar reinado"… —
+ * the delete-action counterpart of create/editToolTitle, built from the same registry label. It names
+ * the kind to make clear it removes a SINGLE tool instance, not the kind itself; the catch-all "Otro"
+ * keeps the generic "Eliminar herramienta" rather than the awkward "Eliminar otro".
+ */
+export function deleteToolTitle(type: ToolType): string {
+  return type === "other"
+    ? "Eliminar herramienta"
+    : `Eliminar ${toolTypeMeta(type).label.toLowerCase()}`;
+}
+
+/**
  * The buy CTA label for the kinds with a purchase/support flow (rifa/bingo/venta + reinado→
  * "Apoyar"), or null for kinds that don't (tour/servicio/evento/otro — those use "Consultar"
  * instead). Drives the optional action button on the feed card. Keep its non-null kinds in sync

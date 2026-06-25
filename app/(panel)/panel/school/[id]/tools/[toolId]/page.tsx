@@ -35,7 +35,10 @@ import {
   toPageantInput,
   type PageantFormValue,
 } from "@/components/tools/PageantConfigFields";
-import { PageantCandidatesEditor } from "@/components/tools/PageantCandidatesEditor";
+import {
+  PageantCandidatesEditor,
+  type PageantCandidatesHandle,
+} from "@/components/tools/PageantCandidatesEditor";
 import {
   RaffleConfigFields,
   emptyRaffleForm,
@@ -60,7 +63,7 @@ import {
   type ServiceFormValue,
 } from "@/components/tools/ServiceItemsEditor";
 import { ToolItemCard } from "@/components/tools/ToolItemCard";
-import { editToolTitle, toolTypeMeta } from "@/lib/tools/registry";
+import { deleteToolTitle, editToolTitle, toolTypeMeta } from "@/lib/tools/registry";
 import { BackLink } from "@/components/ui/BackLink";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
@@ -73,6 +76,7 @@ import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 import { safeExternalUrl } from "@/lib/url";
 import {
+  clearToolCover,
   deleteTool,
   getRaffleOrdersByTool,
   getSchoolById,
@@ -233,6 +237,12 @@ export default function EditToolPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Removing the SAVED cover (immediate, confirmed) — separate from picking a replacement (coverFile).
+  const [confirmRemoveCover, setConfirmRemoveCover] = useState(false);
+  const [removingCover, setRemovingCover] = useState(false);
+  // The pageant roster editor (mounted only for type 'pageant'). The form's "Guardar cambios" drives
+  // its validate()/saveAll() so the candidate subcollection persists with the tool — not per row.
+  const candidatesRef = useRef<PageantCandidatesHandle>(null);
 
   useUnsavedChangesGuard(dirty);
 
@@ -514,14 +524,22 @@ export default function EditToolPage() {
       };
     }
 
-    // A reinado carries its config (criteria/cause/window/support unit/crown weights/free-voting).
-    // The candidate roster is a subcollection edited separately, not through this form.
+    // A reinado carries its config (criteria/cause/window/support unit/crown weights/free-voting)
+    // plus its candidate roster (a subcollection edited below; it persists with this save, not per row).
     const pageantResult = type === "pageant" ? toPageantInput(pageantForm) : null;
     if (pageantResult && !pageantResult.ok) {
       setError(pageantResult.error);
       return;
     }
     const pageant = pageantResult?.ok ? pageantResult.input : undefined;
+    // Validate the roster before any write, so an invalid candidate never leaves a half-saved tool.
+    if (type === "pageant") {
+      const candidatesError = candidatesRef.current?.validate();
+      if (candidatesError) {
+        setError(candidatesError);
+        return;
+      }
+    }
 
     setSaving(true);
     setSaved(false);
@@ -549,6 +567,11 @@ export default function EditToolPage() {
         ...(event ? { event } : {}),
         ...(pageant ? { pageant } : {}),
       });
+      // Persist the candidate roster in the same save (creates/updates/deletes staged in the editor).
+      // Throws on failure → the catch below surfaces it; already-validated above.
+      if (type === "pageant") {
+        await candidatesRef.current?.saveAll();
+      }
       // The local persisted bases (the Input shapes are structurally the stored shapes).
       const savedRaffle: RaffleConfig | undefined = raffle
         ? {
@@ -730,6 +753,24 @@ export default function EditToolPage() {
       setError(userErrorMessage(err, "No se pudo eliminar la herramienta."));
       setDeleting(false);
       setConfirmDelete(false);
+    }
+  };
+
+  // Remove the saved cover right away (confirmed): clear the field, drop it from local state and any
+  // half-picked replacement. The public page is ISR, so it catches up on its next revalidate — like
+  // every other write here, which is why this needs no on-demand revalidation.
+  const onRemoveCover = async () => {
+    setError(null);
+    setRemovingCover(true);
+    try {
+      await clearToolCover(id, toolId);
+      setTool((prev) => (prev ? { ...prev, coverUrl: undefined } : prev));
+      setCoverFile(null);
+      setConfirmRemoveCover(false);
+    } catch (err) {
+      setError(userErrorMessage(err, "No se pudo eliminar la portada."));
+    } finally {
+      setRemovingCover(false);
     }
   };
 
@@ -916,6 +957,7 @@ export default function EditToolPage() {
       />
 
       <form
+        id="tool-edit-form"
         onSubmit={onSave}
         onChange={() => setDirty(true)}
         onInvalidCapture={spanishRequiredMessage}
@@ -1161,25 +1203,10 @@ export default function EditToolPage() {
         )}
 
         {type === "pageant" && (
+          // The live gala (phases, reveal, crown) lives on the reinado's management panel — the
+          // control surface the board lands on from its card; this editor is reached from there via
+          // "Editar reinado", so it stays focused on configuration only.
           <section className="flex flex-col gap-4">
-            {/* Run the gala from inside the reinado it belongs to: drive the phases, reveal the
-                suggested standings, and crown the winner (the school's verdict, never automatic). */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand-tint p-4 ring-1 ring-brand/10">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">
-                  Coronación en vivo
-                </p>
-                <p className="text-xs text-muted">
-                  Dirige la gala: revela las posiciones y corona en tiempo real.
-                </p>
-              </div>
-              <Link
-                href={`/panel/school/${id}/pageant-live?tool=${toolId}`}
-                className="btn btn-primary shrink-0"
-              >
-                Dirigir coronación
-              </Link>
-            </div>
             <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
               <p className="mb-3 text-sm font-semibold text-foreground">
                 Configuración del reinado
@@ -1213,9 +1240,22 @@ export default function EditToolPage() {
         )}
         <ImagePicker
           label={tool.coverUrl ? "Reemplazar portada" : "Portada"}
-          hint="Imagen horizontal. Opcional."
+          // With a saved cover, the "Portada actual" block above already names the field and the
+          // remove action exists, so the "…Opcional." caption (and the label) would be misleading —
+          // hide both; with no cover yet it's genuinely optional, so keep them.
+          hint={tool.coverUrl ? undefined : "Imagen horizontal. Opcional."}
+          hideLabel={Boolean(tool.coverUrl)}
           variant="cover"
           value={coverFile}
+          // With a saved cover (shown as "Portada actual" above), skip the empty 5:2 band and show
+          // just the change button + the "Eliminar portada" action; with no cover yet, keep the band
+          // (the picker is the only surface).
+          hidePreviewWhenEmpty={Boolean(tool.coverUrl)}
+          pickLabel={tool.coverUrl ? "Cambiar portada" : "Subir imagen"}
+          onRemoveExisting={
+            tool.coverUrl ? () => setConfirmRemoveCover(true) : undefined
+          }
+          removeLabel="Eliminar portada"
           onChange={(f) => {
             setCoverFile(f);
             setDirty(true);
@@ -1274,17 +1314,6 @@ export default function EditToolPage() {
           </select>
         </Field>
 
-        <FormError message={error} />
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="submit" disabled={saving} className="btn btn-primary">
-            {saving ? "Guardando…" : "Guardar cambios"}
-          </button>
-          <SavedIndicator show={saved} onHide={() => setSaved(false)} />
-          <Link href={`/school/${id}/tool/${toolId}`} className="btn btn-outline">
-            Ver público
-          </Link>
-        </div>
       </form>
 
       {type === "raffle" && raffleConfig && (
@@ -1314,43 +1343,66 @@ export default function EditToolPage() {
         </section>
       )}
 
-      {/* Pageant roster: the candidate subcollection, managed apart from the tool form (each
-          candidate saves on its own — like the bingo lote vs the bingo config). */}
+      {/* Pageant roster: the candidate subcollection. Edited here but persisted with the tool form's
+          "Guardar cambios" (the editor exposes validate()/saveAll(), driven by onSave). */}
       {type === "pageant" && (
         <section className="mt-10">
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
             Candidaturas
           </h2>
           <p className="mt-1 text-sm text-muted">
-            El público las verá en la página del reinado. Cada candidatura se guarda por separado
-            (no necesitas «Guardar cambios» del reinado).
+            El público las verá en la página del reinado. Los cambios se guardan con «Guardar
+            cambios».
           </p>
           <div className="mt-4">
-            <PageantCandidatesEditor schoolId={id} toolId={toolId} />
+            <PageantCandidatesEditor
+              ref={candidatesRef}
+              schoolId={id}
+              toolId={toolId}
+              onDirty={() => setDirty(true)}
+            />
           </div>
         </section>
       )}
 
-      {/* Risk zone: deleting a tool is irreversible. */}
-      <section className="mt-12 border-t border-border pt-6">
-        <h2 className="text-sm font-semibold tracking-tight text-foreground">
-          Eliminar herramienta
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          Se quita de la página de la escuela y no se puede deshacer.
-        </p>
+      {/* Save / view actions, moved BELOW the kind's extra section (raffle preview, pageant roster)
+          so they're the last controls before the risk zone. The submit button lives outside <form>
+          and reaches it via the `form` attribute, so it still submits the tool form above. */}
+      <div className="mt-10 flex flex-col gap-4">
+        <FormError message={error} />
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="submit"
+            form="tool-edit-form"
+            disabled={saving}
+            className="btn btn-primary"
+          >
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
+          <SavedIndicator show={saved} onHide={() => setSaved(false)} />
+          <Link href={`/school/${id}/tool/${toolId}`} className="btn btn-outline">
+            Ver público
+          </Link>
+        </div>
+      </div>
+
+      {/* Risk zone: deleting a tool is irreversible. A centered RED text action (not a button — like
+          "Eliminar portada", but red); its label names the kind ("Eliminar reinado"), and the confirm
+          dialog carries the warning + names this specific activity, so it's clear it removes only THIS
+          one. Kept under a divider so it reads as a risk zone. */}
+      <section className="mt-12 flex justify-center border-t border-border pt-6">
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}
-          className="btn btn-destructive mt-3"
+          className="text-sm font-medium text-error underline-offset-2 transition-colors hover:underline"
         >
-          Eliminar herramienta
+          {deleteToolTitle(type)}
         </button>
       </section>
 
       <ConfirmDialog
         open={confirmDelete}
-        title="Eliminar herramienta"
+        title={deleteToolTitle(type)}
         tone="destructive"
         confirmLabel="Eliminar"
         cancelLabel="Cancelar"
@@ -1360,7 +1412,25 @@ export default function EditToolPage() {
         onCancel={() => setConfirmDelete(false)}
       >
         <p>
-          Vas a eliminar «{tool.title}». No se puede deshacer.
+          Vas a eliminar «{tool.title}» de la página de la escuela. Esta acción no se puede
+          deshacer.
+        </p>
+      </ConfirmDialog>
+
+      {/* Remove the saved cover — confirmed; the board can upload another afterwards. */}
+      <ConfirmDialog
+        open={confirmRemoveCover}
+        title="Eliminar portada"
+        tone="destructive"
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        busy={removingCover}
+        busyLabel="Eliminando…"
+        onConfirm={onRemoveCover}
+        onCancel={() => setConfirmRemoveCover(false)}
+      >
+        <p>
+          Se quita la imagen de portada de «{tool.title}». Podrás subir otra cuando quieras.
         </p>
       </ConfirmDialog>
 

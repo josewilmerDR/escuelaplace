@@ -1,37 +1,28 @@
 "use client";
 
 /**
- * Pageant LIVE coronación console (/panel/school/[id]/pageant-live) — the school runs the gala here.
+ * The reinado LIVE coronación console — the school drives the gala here.
  *
- * Pick one of the school's reinados, drive its phase (inscripciones → votación → gala → cerrado), and
- * at the gala reveal the SUGGESTED standings and crown the winner. The standings are pageantStandings'
- * non-binding suggestion (jury + support + sympathy, weighted); the school RATIFIES by hand — the
- * platform NEVER auto-crowns. No money changes hands here; this is just the stage.
+ * Drive the phase (inscripciones → votación → gala → cerrado), follow the SUGGESTED standings in
+ * real time, decide whether to reveal them to the public ("retransmitir en vivo"), and crown the
+ * winner. The standings are pageantStandings' non-binding suggestion (jury + support + sympathy,
+ * weighted); the school RATIFIES by hand — the platform NEVER auto-crowns. No money changes hands
+ * here; this is just the stage.
+ *
+ * Shared chrome: embedded by the per-reinado management page
+ * (tools/[toolId]/manage). The container owns the page title; this renders the live controls only.
  */
-import {
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import { useAuth } from "@/components/auth/AuthProvider";
-import { BackLink } from "@/components/ui/BackLink";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
 import { CrownIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
 import {
-  getCandidates,
-  getSchoolById,
-  getToolsBySchool,
   pageantStandings,
   revealPageantStandings,
   setPageantPhase,
   setPageantWinner,
+  subscribeCandidates,
   subscribePageantEventState,
   toolConfigOf,
 } from "@/lib/firestore";
@@ -39,11 +30,8 @@ import type {
   CandidateDoc,
   PageantEventState,
   PageantPhase,
-  SchoolDoc,
   ToolDoc,
 } from "@/types";
-
-type LoadState = "loading" | "error" | "loaded";
 
 /** The live phases in order, with the director's button label and a short hint. */
 const PHASES: { key: PageantPhase; label: string; hint: string }[] = [
@@ -53,165 +41,7 @@ const PHASES: { key: PageantPhase; label: string; hint: string }[] = [
   { key: "closed", label: "Cerrado", hint: "El reinado terminó" },
 ];
 
-export default function SchoolPageantLivePage() {
-  // useSearchParams needs a Suspense boundary to keep the route prerenderable.
-  return (
-    <Suspense fallback={<LiveSkeleton />}>
-      <SchoolPageantLiveInner />
-    </Suspense>
-  );
-}
-
-function LiveSkeleton() {
-  return (
-    <main>
-      <Heading />
-      <div className="mt-8 h-40 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
-    </main>
-  );
-}
-
-function SchoolPageantLiveInner() {
-  const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
-  // Deep-linked from the reinado tool's "Dirigir coronación" → pre-select that pageant.
-  const toolParam = useSearchParams().get("tool");
-
-  const [school, setSchool] = useState<SchoolDoc | null>(null);
-  const [pageants, setPageants] = useState<ToolDoc[]>([]);
-  const [loadState, setLoadState] = useState<LoadState>("loading");
-  const [toolId, setToolId] = useState<string | null>(toolParam);
-
-  const load = useCallback(() => {
-    Promise.all([getSchoolById(id), getToolsBySchool(id)])
-      .then(([s, tools]) => {
-        setSchool(s);
-        setPageants(tools.filter((t) => t.type === "pageant"));
-        setLoadState("loaded");
-      })
-      .catch(() => setLoadState("error"));
-  }, [id]);
-
-  useEffect(load, [load]);
-
-  if (loadState === "loading") {
-    return (
-      <main>
-        <Heading />
-        <div className="mt-8 h-40 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
-      </main>
-    );
-  }
-  if (loadState === "error" || !school) {
-    return (
-      <main>
-        <Heading />
-        <p role="alert" className="mt-4 text-sm text-error">
-          No pudimos cargar la escuela. Intenta de nuevo.
-        </p>
-      </main>
-    );
-  }
-
-  const isManager =
-    user != null &&
-    (school.ownerId === user.id ||
-      school.editorIds?.includes(user.id) ||
-      user.role === "admin");
-
-  if (!isManager) {
-    return (
-      <main>
-        <Heading subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
-    );
-  }
-
-  const selected = pageants.find((p) => p.id === toolId) ?? null;
-
-  return (
-    <main>
-      <p className="mb-6 text-sm">
-        <BackLink href={`/panel/school/${id}/tools`}>
-          Todas las herramientas
-        </BackLink>
-      </p>
-      <Heading
-        subtitle={school.name}
-        action={
-          selected ? (
-            <button
-              type="button"
-              onClick={() => setToolId(null)}
-              className="btn btn-outline shrink-0"
-            >
-              <span className="sm:hidden">Salir</span>
-              <span className="hidden sm:inline">Salir del en vivo</span>
-            </button>
-          ) : undefined
-        }
-      />
-
-      {pageants.length === 0 ? (
-        <p className="mt-8 text-sm text-muted">
-          Todavía no creaste ningún reinado. Crea uno desde Herramientas.
-        </p>
-      ) : !selected ? (
-        <section className="mt-8">
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            Elige el reinado a dirigir
-          </h2>
-          <ul className="mt-4 flex flex-col gap-3">
-            {pageants.map((p) => (
-              <li key={p.id} className={cardClass("elevated", false) + " p-5"}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="font-semibold tracking-tight text-foreground">
-                    {p.title}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setToolId(p.id)}
-                    className="btn btn-primary"
-                  >
-                    Dirigir
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : (
-        <PageantConsole schoolId={id} tool={selected} />
-      )}
-    </main>
-  );
-}
-
-function Heading({
-  subtitle,
-  action,
-}: {
-  subtitle?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <header className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Coronación en vivo
-        </h1>
-        <p className="mt-1 truncate text-sm text-muted">{subtitle || " "}</p>
-      </div>
-      {action}
-    </header>
-  );
-}
-
-function PageantConsole({
+export function PageantConsole({
   schoolId,
   tool,
 }: {
@@ -233,12 +63,12 @@ function PageantConsole({
     () => subscribePageantEventState(schoolId, toolId, setState),
     [schoolId, toolId],
   );
-  // The roster (for the names behind the standings ids). One-shot: edits happen on the edit page.
-  useEffect(() => {
-    getCandidates(schoolId, toolId)
-      .then(setCandidates)
-      .catch(() => setCandidates([]));
-  }, [schoolId, toolId]);
+  // The roster, LIVE: as the Cloud Function moves the tallies (confirmed apoyo/simpatía) the
+  // suggested standings refresh on their own, so the director follows the votes in real time.
+  useEffect(
+    () => subscribeCandidates(schoolId, toolId, setCandidates),
+    [schoolId, toolId],
+  );
 
   const byId = useMemo(
     () => new Map(candidates.map((c) => [c.id, c] as const)),
@@ -254,7 +84,7 @@ function PageantConsole({
   const winnerId = state?.winnerCandidateId ?? null;
   const runnerUpId = state?.runnerUpCandidateId ?? null;
 
-  const run = async (op: () => Promise<void>) => {
+  const run = useCallback(async (op: () => Promise<void>) => {
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
@@ -267,7 +97,7 @@ function PageantConsole({
       inFlight.current = false;
       setBusy(false);
     }
-  };
+  }, []);
 
   // Crown / un-crown / runner-up — always pass BOTH ids so setting one preserves the other, and a
   // candidate can't be both winner and runner-up at once.
@@ -290,18 +120,13 @@ function PageantConsole({
   const winnerName = winnerId ? byId.get(winnerId)?.name : undefined;
 
   return (
-    <section className="mt-8 flex flex-col gap-6">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          {tool.title}
-        </h2>
-        <p className="text-xs text-muted">
-          Fase actual:{" "}
-          <span className="font-medium text-foreground">
-            {phase ? (PHASES.find((p) => p.key === phase)?.label ?? phase) : "sin iniciar"}
-          </span>
-        </p>
-      </div>
+    <section className="flex flex-col gap-6">
+      <p className="text-xs text-muted">
+        Fase actual:{" "}
+        <span className="font-medium text-foreground">
+          {phase ? (PHASES.find((p) => p.key === phase)?.label ?? phase) : "sin iniciar"}
+        </span>
+      </p>
 
       {error && (
         <p role="alert" className="text-sm text-error">
