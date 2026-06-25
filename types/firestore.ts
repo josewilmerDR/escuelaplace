@@ -535,6 +535,16 @@ export interface Subscription {
    * at confirm time (see getSubscriptionProofUrl).
    */
   proofUploaded?: boolean;
+  /**
+   * Optional PADRINO context: a recurring personal donation (`supporterType: 'user'`) that backs a
+   * specific pageant candidate. Both set together at create, then FROZEN (part of the supporter
+   * identity — see firestore.rules keepsSupporterIdentity). PUBLIC (which candidate, not the
+   * magnitude — that stays in private/data), so a Cloud Function can recompute the candidate's
+   * `padrinoCount` without a private read, exactly like pageantVotes' candidateId. Absent on a plain
+   * school donation. The donor's tier/recognition still flows through `donorProfiles` unchanged.
+   */
+  pageantToolId?: string;
+  candidateId?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

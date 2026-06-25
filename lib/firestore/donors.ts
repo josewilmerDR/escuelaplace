@@ -150,6 +150,14 @@ export interface CreateDonationInput {
   schoolName: string; // denormalized
   /** Integer n in `n × SUBSCRIPTION_UNIT_CRC`. */
   units: number;
+  /**
+   * Optional PADRINO context: back a specific pageant candidate with this recurring donation. Both
+   * are written PUBLIC (which candidate, not the magnitude) so the Cloud Function recomputes the
+   * candidate's `padrinoCount` without a private read; frozen on update (create-only identity). Omit
+   * for a plain school donation. The donor's tier/recognition is unaffected (still via donorProfiles).
+   */
+  pageantToolId?: string;
+  candidateId?: string;
 }
 
 /**
@@ -169,6 +177,11 @@ export async function createDonation(
     confirmedAt: null,
     firstConfirmedAt: null,
     expiresAt: null,
+    // Padrino context (back a pageant candidate) — only when both are present, written PUBLIC so the
+    // CF reads them without a private read. A plain school donation omits them.
+    ...(input.pageantToolId && input.candidateId
+      ? { pageantToolId: input.pageantToolId, candidateId: input.candidateId }
+      : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

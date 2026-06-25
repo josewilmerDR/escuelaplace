@@ -822,7 +822,7 @@ service cloud.firestore {
     // create time (delete and re-create is the legitimate way to change it).
     function keepsSupporterIdentity() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-        ['supporterType', 'businessId', 'donorId', 'schoolId']
+        ['supporterType', 'businessId', 'donorId', 'schoolId', 'pageantToolId', 'candidateId']
       );
     }
 
@@ -866,9 +866,14 @@ service cloud.firestore {
         request.resource.data.amount == request.resource.data.units * 5000
       ) || (
         request.resource.data.supporterType == 'user' &&
+        // A personal donation OMITS units/amount/businessId/donorName (magnitude lives in
+        // private/data). pageantToolId+candidateId are OPTIONAL padrino context (back a candidate);
+        // public on purpose so the CF reads them without a private read, frozen on update by
+        // keepsSupporterIdentity. hasOnly tolerates their absence (a plain school donation).
         request.resource.data.keys().hasOnly([
           'supporterType', 'donorId', 'schoolId', 'schoolName', 'status', 'confirmedAt',
-          'firstConfirmedAt', 'expiresAt', 'createdAt', 'updatedAt'])
+          'firstConfirmedAt', 'expiresAt', 'createdAt', 'updatedAt',
+          'pageantToolId', 'candidateId'])
       );
     }
     function validSubscriptionUpdate() {
