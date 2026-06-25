@@ -318,5 +318,19 @@ service firebase.storage {
       allow create, update: if canWriteOrderProof(order());
       allow delete: if canDeleteOrderProof(order());
     }
+
+    // Pageant support proofs (sensitive): pageant-vote-proofs/{voteId}/... NOT public; ownership
+    // resolved via the pageant support order doc (supporter + target school). Authz lives in the
+    // shared order-proof helpers above; only the `order()` get is pageant-specific.
+    match /pageant-vote-proofs/{voteId}/{allPaths=**} {
+      function order() {
+        return firestore.get(
+          /databases/(default)/documents/pageantVotes/$(voteId)
+        ).data;
+      }
+      allow read: if canReadOrderProof(order());
+      allow create, update: if canWriteOrderProof(order());
+      allow delete: if canDeleteOrderProof(order());
+    }
   }
 }

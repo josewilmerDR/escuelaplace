@@ -108,6 +108,9 @@ service cloud.firestore {
     function bingoOrderData(id) {
       return get(/databases/$(database)/documents/bingoOrders/$(id)).data;
     }
+    function pageantVoteData(id) {
+      return get(/databases/$(database)/documents/pageantVotes/$(id)).data;
+    }
 
     // ── users/{uid} ─────────────────────────────────────────────────────────
     // Each user can only read/write their own document. Admin can do everything. The `role`
@@ -1217,6 +1220,60 @@ service cloud.firestore {
     function validBingoOrderUpdate() {
       return changedKeys().hasOnly([
         'status', 'confirmedAt', 'confirmedBy', 'proofUploaded', 'cardIds', 'updatedAt']);
+    }
+
+    // ── pageantVotes/{id} ──────────────────────────────────────────────────────
+    // A supporter's recorded ECONOMIC support ("apoyo") for one candidate of a reinado (a tool of
+    // type 'pageant'), awaiting the school's confirmation. Top-level (like raffle/product/bingo
+    // orders) so its proof file + private subdoc resolve by id. The doc holds NO sensitive data —
+    // the supporter's name + amount live in the private subdoc, the proof file in Storage
+    // (pageant-vote-proofs/{id}); only `proofUploaded` is public. `units` is a COUNT, never money.
+    // Mirrors productOrders exactly (candidate/units in place of product/quantity).
+    // - read: public.
+    // - create: the supporter themselves, forced 'pending', and ONLY while the target school is
+    //   'verified' — same gate as the other order kinds.
+    // - update: the supporter may edit their own pending doc (the proof flag) but may NEVER
+    //   self-confirm or rewrite who/which candidate/units; only the TARGET school's owner/editors
+    //   or admin may confirm. Identity (candidate + units) frozen at create.
+    // - delete: the supporter or admin.
+    match /pageantVotes/{id} {
+      allow read: if true;
+      allow create: if isAdmin() || (orderCreateGate() && validPageantVoteCreate());
+      allow update: if isAdmin() || (
+        keepsPageantVoteIdentity() && validOrderUpdateFields() &&
+        confirmsOrderFromPending() && orderUpdateActor(changesOrderConfirmation())
+      );
+      allow delete: if isAdmin() ||
+        (isSignedIn() && resource.data.buyerId == request.auth.uid);
+
+      match /private/{doc} {
+        allow read: if orderPrivateCanRead(pageantVoteData(id));
+        allow create: if orderPrivateCanCreate(pageantVoteData(id));
+        allow update: if orderPrivateCanUpdate(pageantVoteData(id));
+        allow delete: if orderPrivateCanDelete(pageantVoteData(id));
+      }
+    }
+
+    // No update may rewrite who backed which candidate with how many units (frozen at create).
+    function keepsPageantVoteIdentity() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['schoolId', 'toolId', 'candidateId', 'buyerId', 'units', 'currency']
+      );
+    }
+    // CREATE pins the PUBLIC field set — it OMITS buyerName/amount (those live in private/data),
+    // validates the currency enum, the title/name caps and the units bounds.
+    function validPageantVoteCreate() {
+      return request.resource.data.keys().hasOnly([
+          'schoolId', 'schoolName', 'toolId', 'toolTitle', 'candidateId', 'candidateName',
+          'buyerId', 'units', 'currency', 'status', 'confirmedAt', 'createdAt', 'updatedAt']) &&
+        request.resource.data.currency in ['CRC', 'USD', 'NIO', 'MXN', 'EUR'] &&
+        request.resource.data.toolTitle is string &&
+        request.resource.data.toolTitle.size() <= 120 &&
+        request.resource.data.candidateName is string &&
+        request.resource.data.candidateName.size() <= 80 &&
+        request.resource.data.units is int &&
+        request.resource.data.units >= 1 &&
+        request.resource.data.units <= 1000;
     }
 
     // ── auditEvents/{id} ──────────────────────────────────────────────────────

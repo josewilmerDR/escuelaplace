@@ -1692,6 +1692,49 @@ export interface BingoOrder {
 
 export type BingoOrderDoc = BingoOrder & { id: string };
 
+// ── pageantVotes/{voteId} ─────────────────────────────────────────────────────
+//
+// A supporter's recorded ECONOMIC support ("apoyo") for one candidate of a reinado (a tool of
+// `type: 'pageant'`), awaiting the school's confirmation. Top-level (like raffle/product/bingo
+// orders) so its proof file and private subdoc resolve by id alone. The supporter's real name and
+// the amount live in a PRIVATE subdoc (pageantVotes/{id}/private/data) — off the public doc. The
+// `units` are a COUNT of support units, NOT a charge: the platform never moves money; the supporter
+// pays the school directly and the school confirms. On confirmation a Cloud Function recomputes the
+// candidate's voteSupport tally (with the verified + no-self-dealing anti-fraud gate) — a later slice.
+
+export const PAGEANT_SUPPORT_UNITS_MAX = 1000;
+
+export type PageantVoteStatus = "pending" | "confirmed";
+
+export interface PageantVote {
+  schoolId: string;
+  schoolName: string;
+  toolId: string;
+  /** Denormalized reinado title so the confirmation queue renders without an extra read. */
+  toolTitle: string;
+  /** Which candidate the support backs + a denormalized name snapshot. */
+  candidateId: string;
+  candidateName: string;
+  /** The supporter (must equal auth.uid on create). */
+  buyerId: string;
+  /** Support units (integer 1..PAGEANT_SUPPORT_UNITS_MAX) — a COUNT, never a money figure. */
+  units: number;
+  currency: ProjectCurrency;
+  status: PageantVoteStatus;
+  confirmedAt: Timestamp | null;
+  confirmedBy?: string;
+  /** Whether a payment proof was uploaded to Storage (the file itself stays private). */
+  proofUploaded?: boolean;
+  /** Merged in CLIENT-SIDE from the private subdoc for the board's queue — NEVER on the public
+   * doc (firestore.rules excludes them). */
+  buyerName?: string;
+  amount?: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type PageantVoteDoc = PageantVote & { id: string };
+
 // ── Bingo live event (Phase 2) ───────────────────────────────────────────────
 //
 // The live game: the school "calls" numbers one by one; virtual players watch the board in

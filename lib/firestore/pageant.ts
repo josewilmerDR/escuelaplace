@@ -31,8 +31,22 @@ import type {
   CandidateDoc,
   PageantConfig,
   PageantCrownFormula,
+  PageantVote,
+  PageantVoteDoc,
+  ProjectCurrency,
 } from "@/types";
 import { snapToList } from "./converters";
+import {
+  confirmOrder,
+  createOrder,
+  deleteOrder,
+  getOrderProofUrl,
+  getOrdersBySchool,
+  getOrdersByTool,
+  orderProofPath,
+  uploadOrderProof,
+  type OrderCollection,
+} from "./orders";
 
 const SCHOOLS = "schools";
 const TOOLS = "tools";
@@ -193,4 +207,97 @@ export async function deleteCandidate(
   candidateId: string,
 ): Promise<void> {
   await deleteDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId, CANDIDATES, candidateId));
+}
+
+// ── Economic support ("apoyo") rail — pageantVotes ───────────────────────────────
+//
+// Thin typed wrappers over the shared informational-order skeleton (./orders): the pending create +
+// the private name/amount split + the proof + the confirm-from-pending privacy model. What is
+// pageant-SPECIFIC and lives here: the public candidateId/candidateName/units fields. PURELY
+// INFORMATIONAL — the platform never processes the money; the supporter pays the school directly by
+// the methods it publishes, and the school confirms the proof, same as donations. On confirmation a
+// Cloud Function recomputes the candidate's voteSupport tally with the anti-fraud gate (later slice).
+
+const PAGEANT_VOTES: OrderCollection = {
+  name: "pageantVotes",
+  proofPrefix: "pageant-vote-proofs",
+};
+
+/** Every support order of one reinado (any status), newest first. PUBLIC, anonymous-safe. Wrapped
+ * in cache() to dedupe the detail page's reads in one request. */
+export const getPageantVotesByTool = cache(
+  (toolId: string): Promise<PageantVoteDoc[]> =>
+    getOrdersByTool<PageantVote>(PAGEANT_VOTES, toolId),
+);
+
+/** Every support order targeting a school (any status), newest first — the board's queue. */
+export const getPageantVotesBySchool = cache(
+  (schoolId: string): Promise<PageantVoteDoc[]> =>
+    getOrdersBySchool<PageantVote>(PAGEANT_VOTES, schoolId),
+);
+
+export interface CreatePageantVoteInput {
+  schoolId: string;
+  schoolName: string;
+  toolId: string;
+  toolTitle: string;
+  candidateId: string;
+  candidateName: string;
+  buyerId: string;
+  buyerName: string;
+  /** Integer 1..PAGEANT_SUPPORT_UNITS_MAX. */
+  units: number;
+  /** units × pricePerSupportUnit, in `currency`. */
+  amount: number;
+  currency: ProjectCurrency;
+}
+
+/**
+ * Create a `pending` support order. Must be called by the signed-in supporter (rules enforce
+ * buyerId == auth.uid) and only against a verified school. The supporter's real name + amount go to
+ * the private subdoc (off the public doc). Returns the new order id (for the proof upload).
+ */
+export function createPageantVote(input: CreatePageantVoteInput): Promise<string> {
+  return createOrder(
+    PAGEANT_VOTES,
+    {
+      schoolId: input.schoolId,
+      schoolName: input.schoolName,
+      toolId: input.toolId,
+      toolTitle: input.toolTitle,
+      candidateId: input.candidateId,
+      candidateName: input.candidateName,
+      buyerId: input.buyerId,
+      units: input.units,
+      currency: input.currency,
+    },
+    { buyerName: input.buyerName, amount: input.amount },
+  );
+}
+
+/** Storage path of a support order's payment proof (the file never appears in the public doc). */
+export function pageantVoteProofPath(voteId: string): string {
+  return orderProofPath(PAGEANT_VOTES, voteId);
+}
+
+export function uploadPageantVoteProof(voteId: string, file: Blob): Promise<void> {
+  return uploadOrderProof(PAGEANT_VOTES, voteId, file);
+}
+
+/** Temporary download URL for the board to view a proof. null if missing/unauthorized. */
+export function getPageantVoteProofUrl(voteId: string): Promise<string | null> {
+  return getOrderProofUrl(PAGEANT_VOTES, voteId);
+}
+
+/**
+ * Confirm a pending support order. School/admin only (rules). A Cloud Function then re-tallies the
+ * candidate's voteSupport with the verified + no-self-dealing anti-fraud gate (later slice).
+ */
+export function confirmPageantVote(voteId: string, confirmedBy: string): Promise<void> {
+  return confirmOrder(PAGEANT_VOTES, voteId, confirmedBy);
+}
+
+/** Delete a support order (the supporter cancels, or admin). */
+export function deletePageantVote(voteId: string): Promise<void> {
+  return deleteOrder(PAGEANT_VOTES, voteId);
 }
