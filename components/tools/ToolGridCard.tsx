@@ -16,9 +16,11 @@ const TOOL_GRID_SIZES = "(min-width: 1024px) 150px, (min-width: 640px) 30vw, 50v
 
 /**
  * Compact management card for one created tool, shared by the Activas and Ocultas grids on the
- * per-kind manage page. The whole card links to the tool's edit page (the board's primary action
- * there); the cover falls back to the kind's icon (mirroring the public ToolCard) and a "Oculta"
- * chip overlays a hidden tool. Kept small so the grid packs many at a glance.
+ * per-kind manage page. The whole card links to the board's primary action for that kind: a reinado
+ * opens its live management panel (tools/[toolId]/manage) so editing is a deliberate step, not the
+ * default landing; every other kind goes straight to its edit page. The cover falls back to the
+ * kind's icon (mirroring the public ToolCard) and a "Oculta" chip overlays a hidden tool. Kept
+ * small so the grid packs many at a glance.
  */
 export function ToolGridCard({
   schoolId,
@@ -28,10 +30,16 @@ export function ToolGridCard({
   tool: ToolDoc;
 }) {
   const Icon = toolTypeMeta(tool.type).icon;
+  // A reinado lands on its control panel (follow votes / run the gala); the edit page sits behind an
+  // explicit "Editar reinado" button there. Other kinds keep the edit page as their primary action.
+  const href =
+    tool.type === "pageant"
+      ? `/panel/school/${schoolId}/tools/${tool.id}/manage`
+      : `/panel/school/${schoolId}/tools/${tool.id}`;
   return (
     <li>
       <Link
-        href={`/panel/school/${schoolId}/tools/${tool.id}`}
+        href={href}
         className={`group flex h-full flex-col overflow-hidden ${cardClass(
           "elevated",
           false,

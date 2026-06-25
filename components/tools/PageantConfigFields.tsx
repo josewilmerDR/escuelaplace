@@ -43,7 +43,8 @@ export function emptyPageantForm(): PageantFormValue {
     closesAt: "",
     pricePerSupportUnit: "",
     currency: "CRC",
-    // Off until App Check is proven in prod — a non-tamper-proof count must never weigh on a crown.
+    // Off by default — free voting is a per-reinado opt-in (App Check, its anti-bot wall, is now
+    // live in prod). While off, the sympathy axis doesn't weigh on the crown.
     freeVotingEnabled: false,
     jury: String(PAGEANT_DEFAULT_CROWN_FORMULA.jury),
     support: String(PAGEANT_DEFAULT_CROWN_FORMULA.support),
@@ -264,8 +265,8 @@ export function PageantConfigFields({
             Activar el voto libre de simpatía
           </span>
           <span className="mt-0.5 block text-xs text-muted">
-            Deja que cualquiera aplauda sin cuenta. Mantenlo apagado hasta que la protección
-            antifraude esté activa: mientras tanto, la simpatía no pesa en la corona.
+            Deja que cualquiera aplauda sin una cuenta de escuelaplace. Solo puede votar una vez
+            por dispositivo.
           </span>
         </span>
       </label>

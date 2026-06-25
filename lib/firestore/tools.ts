@@ -789,6 +789,27 @@ export async function updateToolEvent(
   });
 }
 
+/**
+ * Toggle a reinado's free "simpatía" voting on/off — a live operational control the board flips
+ * from the management panel without entering the full editor. Touches ONLY the nested
+ * `config.freeVotingEnabled` (a surgical dot-path, leaving the rest of the pageant config intact);
+ * the tool update rule allows it (config is the school's, never a function-maintained field). The
+ * sympathy axis only weighs on the SUGGESTED standings when this is on (see effectiveWeights), and
+ * castPageantApplause still re-checks it server-side, so flipping it here can't bypass any gate.
+ * Pageant configs always live under the generic `config` map (a post-refactor kind, no legacy
+ * field), so no self-heal delete is needed.
+ */
+export async function setPageantFreeVoting(
+  schoolId: string,
+  toolId: string,
+  enabled: boolean,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
+    "config.freeVotingEnabled": enabled,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 /** Toggle a tool's visibility (quick action from the list). */
 export async function setToolStatus(
   schoolId: string,
@@ -820,6 +841,22 @@ export async function setToolCover(
 ): Promise<void> {
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
     coverUrl,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Clear a tool's cover (the board removes the current portada). Mirrors setToolCover but DELETES the
+ * field (deleteField) so the doc carries no coverUrl rather than an empty string. The update rule
+ * allows changing coverUrl; the Storage blob is left in place (unreferenced, harmless), the same way
+ * deleteTool leaves a tool's media behind.
+ */
+export async function clearToolCover(
+  schoolId: string,
+  toolId: string,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
+    coverUrl: deleteField(),
     updatedAt: serverTimestamp(),
   });
 }

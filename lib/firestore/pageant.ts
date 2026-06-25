@@ -147,6 +147,30 @@ export const getCandidates = cache(
   },
 );
 
+/**
+ * Subscribe to a reinado's candidate roster, ordered like getCandidates (by `order`, then `name`).
+ * Calls `cb` immediately with the current list and again on every change; returns the unsubscribe fn
+ * the caller MUST call on unmount. The live management console watches this so the suggested
+ * standings refresh on their own as the Cloud Function moves the tallies (apoyo/simpatía confirmed).
+ * Errors degrade to an empty list, mirroring subscribePageantEventState.
+ */
+export function subscribeCandidates(
+  schoolId: string,
+  toolId: string,
+  cb: (candidates: CandidateDoc[]) => void,
+): Unsubscribe {
+  return onSnapshot(
+    candidatesCol(schoolId, toolId),
+    (snap) =>
+      cb(
+        snapToList<Candidate>(snap).sort(
+          (a, b) => a.order - b.order || a.name.localeCompare(b.name),
+        ),
+      ),
+    () => cb([]),
+  );
+}
+
 // ── Writes (school owner/editor/admin only — enforced by rules) ──────────────────
 
 /** New-candidate fields the school provides; the four tallies are forced to 0 (rules require it). */

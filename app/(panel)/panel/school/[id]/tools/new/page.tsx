@@ -48,6 +48,13 @@ import {
   type PageantFormValue,
 } from "@/components/tools/PageantConfigFields";
 import {
+  PageantCandidatesFields,
+  emptyPageantCandidates,
+  persistPageantCandidates,
+  toCandidatesInput,
+  type PageantCandidateDraft,
+} from "@/components/tools/PageantCandidatesFields";
+import {
   ServiceItemsEditor,
   emptyServiceForm,
   toServiceInput,
@@ -229,8 +236,13 @@ function NewToolContent() {
   );
   const [eventForm, setEventForm] = useState<EventFormValue>(emptyEventForm);
   // Pageant ("Reinado") config (criteria, cause, window, support unit, crown weights, free-voting
-  // flag). The candidate roster is added on the edit page (a subcollection, like the bingo lote).
+  // flag) PLUS its candidate roster, collected right here so the board adds candidaturas during
+  // creation instead of detouring to the edit page afterwards (less friction). The roster is a
+  // subcollection, not part of PageantConfig, so it can't ride along in the createTool write — it's
+  // persisted right after, against the pre-allocated tool id (like the bingo copies its mazo).
   const [pageantForm, setPageantForm] = useState<PageantFormValue>(emptyPageantForm);
+  const [pageantCandidates, setPageantCandidates] =
+    useState<PageantCandidateDraft[]>(emptyPageantCandidates);
   // The event's gallery (photos + one short video). Unlike a catalog's per-item media it isn't a
   // list, so it lives here and is merged into the event config on submit. Uploaded immediately to
   // the pre-allocated tool path, like every other kind's media.
@@ -462,14 +474,22 @@ function NewToolContent() {
           ...(eventMedia.videoUrl ? { videoUrl: eventMedia.videoUrl } : {}),
         }
       : undefined;
-    // A reinado carries its config (criteria/cause/window/support unit/crown weights/free-voting);
-    // the candidate roster is added afterwards from the edit page.
+    // A reinado carries its config (criteria/cause/window/support unit/crown weights/free-voting)
+    // plus its candidate roster (collected here, persisted after the tool exists — see below).
     const pageantResult = type === "pageant" ? toPageantInput(pageantForm) : null;
     if (pageantResult && !pageantResult.ok) {
       setError(pageantResult.error);
       return;
     }
     const pageant = pageantResult?.ok ? pageantResult.input : undefined;
+    // Validate the roster before creating the tool (drops blank rows, requires a name on the rest).
+    const candidatesResult =
+      type === "pageant" ? toCandidatesInput(pageantCandidates) : null;
+    if (candidatesResult && !candidatesResult.ok) {
+      setError(candidatesResult.error);
+      return;
+    }
+    const candidateRows = candidatesResult?.ok ? candidatesResult.rows : [];
     setSaving(true);
     setError(null);
     try {
@@ -515,6 +535,23 @@ function NewToolContent() {
           await copyDeckToTool(id, selectedDeckId, toolId);
         } catch {
           // ignore — the bingo is created; the cartones can be generated from the edit page
+        }
+        router.push(`/panel/school/${id}/tools/${toolId}`);
+        return;
+      }
+      // A reinado lands on its OWN tool page after creation (the admin surface where the roster, the
+      // config and the coronación live) rather than the generic manage hub, so the board continues
+      // managing it right there. Its roster, if any, persists first — a subcollection, so it can't ride
+      // along in the createTool write. Best-effort, like the bingo copy: the reinado already exists, so
+      // a mid-roster failure must neither block the flow nor risk duplicates on a form retry — the
+      // board finishes the roster from this same page.
+      if (type === "pageant") {
+        if (candidateRows.length > 0) {
+          try {
+            await persistPageantCandidates(id, toolId, candidateRows);
+          } catch {
+            // ignore — the reinado is created; the roster can be finished from the tool page
+          }
         }
         router.push(`/panel/school/${id}/tools/${toolId}`);
         return;
@@ -706,15 +743,26 @@ function NewToolContent() {
         )}
 
         {type === "pageant" && (
-          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-            <p className="mb-3 text-sm font-semibold text-foreground">
-              Configuración del reinado
-            </p>
-            <PageantConfigFields value={pageantForm} onChange={setPageantForm} />
-            <p className="mt-3 text-xs text-muted">
-              Después de crearlo, agrega las candidatas o candidatos desde la edición del reinado.
-            </p>
-          </div>
+          <>
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Configuración del reinado
+              </p>
+              <PageantConfigFields value={pageantForm} onChange={setPageantForm} />
+            </div>
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-1 text-sm font-semibold text-foreground">
+                Candidaturas (opcional)
+              </p>
+              <p className="mb-3 text-xs text-muted">
+                Agrega aquí las candidatas o candidatos. Siempre puedes editar esto después.
+              </p>
+              <PageantCandidatesFields
+                value={pageantCandidates}
+                onChange={setPageantCandidates}
+              />
+            </div>
+          </>
         )}
 
         {/* The cover is set here for every kind, then the board returns to the hub. */}

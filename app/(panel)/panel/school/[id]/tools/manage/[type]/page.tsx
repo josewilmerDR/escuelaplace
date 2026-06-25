@@ -9,7 +9,7 @@
  * The hub stays a pure directory; this is where the board actually manages a kind's activities.
  * PURELY INFORMATIONAL — the platform never processes money.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -39,10 +39,14 @@ function Heading({
   schoolId,
   title,
   subtitle,
+  action,
 }: {
   schoolId: string;
   title: string;
   subtitle?: string;
+  /** Optional inline action (the "Crear <kind>" button) shown on the title's row. Only the loaded
+   * manager state passes it; the loading/error/no-access states omit it. */
+  action?: ReactNode;
 }) {
   return (
     <>
@@ -52,9 +56,15 @@ function Heading({
         </BackLink>
       </p>
       <header className="mt-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          {title}
-        </h1>
+        {/* Title and the create button share one row. The button is shrink-0 and the title min-w-0
+            (it shrinks/wraps instead), so on mobile the button never collapses to a second row —
+            together they always fit within the viewport. The subtitle sits below, full width. */}
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="min-w-0 text-3xl font-semibold tracking-tight text-foreground">
+            {title}
+          </h1>
+          {action && <div className="shrink-0">{action}</div>}
+        </div>
         <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
       </header>
     </>
@@ -191,13 +201,16 @@ function ToolKindContent({
 
   return (
     <main>
-      <Heading schoolId={schoolId} title={title} subtitle={school.name} />
-
-      <div className="mt-6">
-        <Link href={createHref} className="btn btn-primary">
-          {createLabel}
-        </Link>
-      </div>
+      <Heading
+        schoolId={schoolId}
+        title={title}
+        subtitle={school.name}
+        action={
+          <Link href={createHref} className="btn btn-primary shrink-0">
+            {createLabel}
+          </Link>
+        }
+      />
 
       {/* Bingo only: its cartones live in reusable decks (mazos), shared across the school's
           bingos. Surfaced here (the bingo home) rather than on the hub. */}
