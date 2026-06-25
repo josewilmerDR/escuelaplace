@@ -371,6 +371,24 @@ service cloud.firestore {
             isOwnerOrEditor(schoolData(id)) ||
             (isSignedIn() && resource.data.claimantId == request.auth.uid);
         }
+
+        // Pageant ("Reinado") candidates: the roster of a `type: 'pageant'` tool. READ is public —
+        // the public reinado page renders the fichas. WRITE is the SCHOOL's alone
+        // (owner/editors/admin): the school owns name/bio/photo/order and the HUMAN `juryScore`, but
+        // the four tally fields (voteFree/voteSupport/supportCount/padrinoCount) are
+        // Cloud-Function-maintained — forced to 0 on create and FROZEN on update
+        // (preservesPageantTallies), so no client can inflate a candidate's standing.
+        match /candidates/{candidateId} {
+          allow read: if true;
+          allow create: if isAdmin() || (
+            isOwnerOrEditor(schoolData(id)) && validCandidateCreate()
+          );
+          allow update: if isAdmin() || (
+            isOwnerOrEditor(schoolData(id)) &&
+            validCandidateUpdate() && preservesPageantTallies()
+          );
+          allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
+        }
       }
 
       // Bingo custom-pattern catalog: schools/{id}/bingoPatterns/{patternId} — the school's
@@ -449,6 +467,47 @@ service cloud.firestore {
           resource.data.get('contributorsCount', 0);
     }
 
+    // A pageant candidate's four tally fields are Cloud-Function-maintained — an update must leave
+    // them intact (the client can never write voteFree/voteSupport/supportCount/padrinoCount).
+    function preservesPageantTallies() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['voteFree', 'voteSupport', 'supportCount', 'padrinoCount']);
+    }
+    // CREATE pins the candidate field set, FORCES the four tallies to 0, caps the text, and bounds
+    // the human juryScore (0..100). photoUrl is optional (hasOnly allows a subset).
+    function validCandidateCreate() {
+      return request.resource.data.keys().hasOnly(
+          ['name', 'bio', 'photoUrl', 'order', 'juryScore',
+           'voteFree', 'voteSupport', 'supportCount', 'padrinoCount']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() <= 80 &&
+        request.resource.data.bio is string &&
+        request.resource.data.bio.size() <= 600 &&
+        request.resource.data.order is number &&
+        request.resource.data.juryScore is number &&
+        request.resource.data.juryScore >= 0 &&
+        request.resource.data.juryScore <= 100 &&
+        request.resource.data.voteFree == 0 &&
+        request.resource.data.voteSupport == 0 &&
+        request.resource.data.supportCount == 0 &&
+        request.resource.data.padrinoCount == 0;
+    }
+    // UPDATE keeps the changed keys to the school-owned set (no smuggling new fields, and the four
+    // tallies are out of it — doubly frozen with preservesPageantTallies) and re-checks caps/bounds.
+    function validCandidateUpdate() {
+      return changedKeys().hasOnly(['name', 'bio', 'photoUrl', 'order', 'juryScore']) &&
+        (!changedKeys().hasAny(['name']) ||
+          (request.resource.data.name is string &&
+            request.resource.data.name.size() <= 80)) &&
+        (!changedKeys().hasAny(['bio']) ||
+          (request.resource.data.bio is string &&
+            request.resource.data.bio.size() <= 600)) &&
+        (!changedKeys().hasAny(['juryScore']) ||
+          (request.resource.data.juryScore is number &&
+            request.resource.data.juryScore >= 0 &&
+            request.resource.data.juryScore <= 100));
+    }
+
     // P1-b write-shape validation for projects (non-admin arm only). CREATE pins createProject's
     // field set, forces status 'active', and caps title/description/stage count (no per-stage deep
     // validation — rules can't iterate a list). UPDATE constrains the changed keys (updateProject
@@ -520,7 +579,7 @@ service cloud.firestore {
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
           'config', 'ownerId', 'createdAt', 'updatedAt']) &&
         request.resource.data.type in
-          ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'other'] &&
+          ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'pageant', 'other'] &&
         request.resource.data.status in ['active', 'inactive'] &&
         request.resource.data.title is string &&
         request.resource.data.title.size() <= 120 &&
@@ -537,7 +596,7 @@ service cloud.firestore {
           'cta', 'config', 'raffle', 'tour', 'sale', 'service', 'bingo', 'event', 'updatedAt']) &&
         (!changedKeys().hasAny(['type']) ||
           request.resource.data.type in
-            ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'other']) &&
+            ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'pageant', 'other']) &&
         (!changedKeys().hasAny(['status']) ||
           request.resource.data.status in ['active', 'inactive']) &&
         (!changedKeys().hasAny(['title']) ||

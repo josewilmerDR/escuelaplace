@@ -42,6 +42,12 @@ import {
   type EventFormValue,
 } from "@/components/tools/EventConfigFields";
 import {
+  PageantConfigFields,
+  emptyPageantForm,
+  toPageantInput,
+  type PageantFormValue,
+} from "@/components/tools/PageantConfigFields";
+import {
   ServiceItemsEditor,
   emptyServiceForm,
   toServiceInput,
@@ -222,6 +228,9 @@ function NewToolContent() {
     null,
   );
   const [eventForm, setEventForm] = useState<EventFormValue>(emptyEventForm);
+  // Pageant ("Reinado") config (criteria, cause, window, support unit, crown weights, free-voting
+  // flag). The candidate roster is added on the edit page (a subcollection, like the bingo lote).
+  const [pageantForm, setPageantForm] = useState<PageantFormValue>(emptyPageantForm);
   // The event's gallery (photos + one short video). Unlike a catalog's per-item media it isn't a
   // list, so it lives here and is merged into the event config on submit. Uploaded immediately to
   // the pre-allocated tool path, like every other kind's media.
@@ -453,6 +462,14 @@ function NewToolContent() {
           ...(eventMedia.videoUrl ? { videoUrl: eventMedia.videoUrl } : {}),
         }
       : undefined;
+    // A reinado carries its config (criteria/cause/window/support unit/crown weights/free-voting);
+    // the candidate roster is added afterwards from the edit page.
+    const pageantResult = type === "pageant" ? toPageantInput(pageantForm) : null;
+    if (pageantResult && !pageantResult.ok) {
+      setError(pageantResult.error);
+      return;
+    }
+    const pageant = pageantResult?.ok ? pageantResult.input : undefined;
     setSaving(true);
     setError(null);
     try {
@@ -472,6 +489,7 @@ function NewToolContent() {
           ...(service ? { service } : {}),
           ...(bingo ? { bingo } : {}),
           ...(event ? { event } : {}),
+          ...(pageant ? { pageant } : {}),
         },
         toolId,
       );
@@ -685,6 +703,18 @@ function NewToolContent() {
               </p>
             </ToolItemCard>
           </>
+        )}
+
+        {type === "pageant" && (
+          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+            <p className="mb-3 text-sm font-semibold text-foreground">
+              Configuración del reinado
+            </p>
+            <PageantConfigFields value={pageantForm} onChange={setPageantForm} />
+            <p className="mt-3 text-xs text-muted">
+              Después de crearlo, agrega las candidatas o candidatos desde la edición del reinado.
+            </p>
+          </div>
         )}
 
         {/* The cover is set here for every kind, then the board returns to the hub. */}
