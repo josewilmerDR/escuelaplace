@@ -341,10 +341,11 @@ service cloud.firestore {
           allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
         }
 
-        // Bingo LIVE EVENT (Phase 2). The single state doc holds the called-numbers board the
-        // school drives during the game. READ is public — virtual players watch the board live
-        // (onSnapshot); only the school WRITES it (start/call/award/close). The system never
-        // auto-declares a winner; this is just the running tally of what the tómbola drew.
+        // Tool LIVE EVENT state — a single `state` doc the school drives in real time. SHARED by the
+        // bingo (the called-numbers board) and the pageant (the coronación phase + the school's HUMAN
+        // crown verdict). READ is public — virtual players/audience watch it live (onSnapshot); only
+        // the school WRITES it. The system never auto-declares a winner / never auto-crowns; this is
+        // just what the school drives (the bingo's drawn numbers, or the pageant's phase + verdict).
         match /event/{docId} {
           allow read: if true;
           allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
