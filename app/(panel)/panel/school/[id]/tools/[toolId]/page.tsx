@@ -35,6 +35,7 @@ import {
   toPageantInput,
   type PageantFormValue,
 } from "@/components/tools/PageantConfigFields";
+import { PageantCandidatesEditor } from "@/components/tools/PageantCandidatesEditor";
 import {
   RaffleConfigFields,
   emptyRaffleForm,
@@ -1166,7 +1167,7 @@ export default function EditToolPage() {
             </p>
             <PageantConfigFields value={pageantForm} onChange={setPageantForm} />
             <p className="mt-3 text-xs text-muted">
-              Las candidatas o candidatos del reinado se administran por separado (próximamente).
+              Las candidatas o candidatos se administran más abajo, en «Candidaturas».
             </p>
           </div>
         )}
@@ -1289,6 +1290,23 @@ export default function EditToolPage() {
               states={raffleNumberStates(orders, raffleConfig.numberCount)}
             />
             <RaffleNumberLegend />
+          </div>
+        </section>
+      )}
+
+      {/* Pageant roster: the candidate subcollection, managed apart from the tool form (each
+          candidate saves on its own — like the bingo lote vs the bingo config). */}
+      {type === "pageant" && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Candidaturas
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            El público las verá en la página del reinado. Cada candidatura se guarda por separado
+            (no necesitas «Guardar cambios» del reinado).
+          </p>
+          <div className="mt-4">
+            <PageantCandidatesEditor schoolId={id} toolId={toolId} />
           </div>
         </section>
       )}

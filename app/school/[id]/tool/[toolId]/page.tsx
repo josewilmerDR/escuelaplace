@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { BingoLivePublic } from "@/components/tools/BingoLivePublic";
 import { EventStatusBadge } from "@/components/tools/EventStatusBadge";
+import { PageantCandidates } from "@/components/tools/PageantCandidates";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { SaleProducts } from "@/components/tools/SaleProducts";
 import { ServiceItems } from "@/components/tools/ServiceItems";
@@ -25,6 +26,7 @@ import {
   getBingoCardAvailability,
   getBingoCards,
   getBingoOrdersByTool,
+  getCandidates,
   getRaffleOrdersByTool,
   getSchoolById,
   getToolById,
@@ -108,6 +110,7 @@ const TOOL_DETAIL_RENDERERS: Partial<Record<ToolType, ToolDetailRenderer>> = {
   service: ServiceDetail,
   bingo: BingoDetail,
   event: EventDetail,
+  pageant: ReinadoDetail,
 };
 
 /**
@@ -776,6 +779,100 @@ async function BingoDetail({ id, toolId, tool, school }: ToolDetailProps) {
         poolMin={bingo.format.poolMin}
         poolMax={bingo.format.poolMax}
       />
+    </ToolDetailShell>
+  );
+}
+
+/**
+ * The reinado's public experience: its criteria + cause + voting window, then the roster of
+ * candidates (photo + bio). The economic "apoyo" and free "simpatía" actions, plus the live
+ * standings, arrive with the vote layers (later slices); for now the page presents the contest and
+ * its candidates. PURELY INFORMATIONAL — the platform never processes money; the crown is the
+ * school's verdict, never a platform-computed outcome.
+ */
+async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
+  const pageant = toolConfigOf(tool, "pageant")!;
+  const candidates = await getCandidates(id, toolId).catch(() => []);
+  const opensMs = pageant.opensAt ? pageant.opensAt.toMillis() : null;
+  const closesMs = pageant.closesAt ? pageant.closesAt.toMillis() : null;
+  const windowLabel =
+    opensMs && closesMs
+      ? `${formatDate(opensMs)} – ${formatDate(closesMs)}`
+      : closesMs
+        ? `Hasta ${formatDate(closesMs)}`
+        : opensMs
+          ? `Desde ${formatDate(opensMs)}`
+          : null;
+
+  return (
+    <ToolDetailShell
+      id={id}
+      toolId={toolId}
+      tool={tool}
+      school={school}
+      jsonLd={toolEventJsonLd(
+        tool,
+        school,
+        id,
+        toolId,
+        closesMs ? { endDate: new Date(closesMs).toISOString() } : {},
+      )}
+    >
+      <ul className="mt-3 space-y-1 text-sm text-muted">
+        {pageant.cause && (
+          <li className="flex items-start gap-2">
+            <FlagIcon className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Pro fondos:</span>{" "}
+              {pageant.cause}
+            </span>
+          </li>
+        )}
+        {windowLabel && (
+          <li className="flex items-start gap-2">
+            <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Votación:</span>{" "}
+              {windowLabel}
+            </span>
+          </li>
+        )}
+      </ul>
+
+      {tool.description && (
+        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
+      )}
+
+      {pageant.criteria && (
+        <div className={`mt-6 ${cardClass("inset")}`}>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
+            Criterios
+          </h2>
+          <p className="mt-2 whitespace-pre-line text-sm text-muted">
+            {pageant.criteria}
+          </p>
+        </div>
+      )}
+
+      <div id="candidatas" className="mt-8 scroll-mt-20">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Candidatas y candidatos
+        </h2>
+        {candidates.length > 0 ? (
+          <div className="mt-4">
+            <PageantCandidates candidates={candidates} />
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted">
+            Aún no hay candidaturas publicadas.
+          </p>
+        )}
+      </div>
+
+      <p className="mt-6 text-xs text-muted">
+        El reinado lo administra la escuela. escuelaplace solo da visibilidad: nunca procesa
+        pagos ni decide el resultado.
+      </p>
     </ToolDetailShell>
   );
 }
