@@ -392,6 +392,16 @@ service cloud.firestore {
           );
           allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
         }
+
+        // Pageant free "simpatía" applause ledger: schools/{id}/tools/{toolId}/applause/{ballotId}.
+        // CLOUD-FUNCTION-ONLY. The public reads candidate.voteFree (the COUNT); the ballots
+        // themselves are never client-visible. Every ballot is written by castPageantApplause with
+        // the Admin SDK, AFTER it verifies App Check (the bot wall for an accountless vote that
+        // weighs on the crown) — so both read and write are denied to all clients here.
+        match /applause/{ballotId} {
+          allow read: if false;
+          allow write: if false;
+        }
       }
 
       // Bingo custom-pattern catalog: schools/{id}/bingoPatterns/{patternId} — the school's
