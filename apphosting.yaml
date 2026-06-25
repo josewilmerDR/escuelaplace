@@ -41,6 +41,14 @@ env:
   - variable: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     secret: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     availability: [BUILD, RUNTIME]
+  # reCAPTCHA v3 SITE key for App Check — the bot wall for the pageant free "simpatía" vote
+  # (castPageantApplause). Public (it ships in the client bundle, restricted by domain in the
+  # reCAPTCHA admin), but sourced from Secret Manager like the Maps key so no real value lives in
+  # git. Until this secret exists App Check is a no-op and the free-vote layer stays off (by design).
+  # See docs/pageant-free-vote-golive.md for the one-time setup.
+  - variable: NEXT_PUBLIC_APPCHECK_RECAPTCHA_SITE_KEY
+    secret: NEXT_PUBLIC_APPCHECK_RECAPTCHA_SITE_KEY
+    availability: [BUILD, RUNTIME]
   # Production must never point at the local emulators.
   - variable: NEXT_PUBLIC_USE_EMULATORS
     value: "false"
@@ -50,6 +58,12 @@ env:
   # cloudfunctions.net URL form; BUILD availability matters (NEXT_PUBLIC_* is inlined).
   - variable: NEXT_PUBLIC_TRACK_INTERACTION_URL
     value: "https://us-central1-escuelaplace.cloudfunctions.net/trackInteraction"
+    availability: [BUILD, RUNTIME]
+  # Public URL of the castPageantApplause function (free "simpatía" votes). Same form as
+  # trackInteraction (Gen 2 keeps the cloudfunctions.net alias); verify against the deploy output
+  # or `firebase functions:list` if the region/name ever changes. Not a secret — public anyway.
+  - variable: NEXT_PUBLIC_CAST_APPLAUSE_URL
+    value: "https://us-central1-escuelaplace.cloudfunctions.net/castPageantApplause"
     availability: [BUILD, RUNTIME]
   # Public origin used to build absolute OG/canonical URLs (notably og:image, which
   # WhatsApp/Facebook must be able to fetch). MUST match the origin the site is served from.
