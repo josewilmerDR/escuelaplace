@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { BingoLivePublic } from "@/components/tools/BingoLivePublic";
 import { EventStatusBadge } from "@/components/tools/EventStatusBadge";
 import { PageantCandidates } from "@/components/tools/PageantCandidates";
+import { PageantLivePublic } from "@/components/tools/PageantLivePublic";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { SaleProducts } from "@/components/tools/SaleProducts";
 import { ServiceItems } from "@/components/tools/ServiceItems";
@@ -798,6 +799,12 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const verified = isSchoolVerified(school);
   const opensMs = pageant.opensAt ? pageant.opensAt.toMillis() : null;
   const closesMs = pageant.closesAt ? pageant.closesAt.toMillis() : null;
+  // The reinado's year, for the live crown banner — from the voting window (the year it runs).
+  const year = closesMs
+    ? new Date(closesMs).getFullYear()
+    : opensMs
+      ? new Date(opensMs).getFullYear()
+      : undefined;
   const windowLabel =
     opensMs && closesMs
       ? `${formatDate(opensMs)} – ${formatDate(closesMs)}`
@@ -856,6 +863,20 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
           </p>
         </div>
       )}
+
+      {/* Live coronación: a client island that streams the gala (phase, revealed standings, crown).
+          Stays quiet until the school opens the live event. Only the bits pageantStandings needs are
+          passed so the config's Timestamps never cross the server→client boundary. */}
+      <PageantLivePublic
+        schoolId={id}
+        toolId={toolId}
+        candidates={candidates}
+        config={{
+          crownFormula: pageant.crownFormula,
+          freeVotingEnabled: pageant.freeVotingEnabled,
+        }}
+        year={year}
+      />
 
       <div id="candidatas" className="mt-8 scroll-mt-20">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
