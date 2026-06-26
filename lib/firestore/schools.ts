@@ -138,11 +138,22 @@ export async function getSchoolPrivate(
 }
 
 /**
- * Normalize a private doc into the payment-method list, folding the legacy single
- * SINPE (docs predating `paymentMethods`) into an equivalent entry. Pure — shared by
- * the gated read below and the owner's edit form.
+ * The bare datum a donor actually re-types into their bank app — the part worth not
+ * making them clean up by hand. Strips a trailing human annotation in parentheses, e.g.
+ * "88882222 (Junta de Educación Rep. Argentina)" → "88882222", because the published
+ * value commonly carries the account holder for context but only the number/account/handle
+ * is the transaction input. Conservative and pure: removes only a single clean trailing
+ * "(…)" group (no nested parens), trims surrounding space, and never reduces to empty (a
+ * value that is wholly parenthetical is copied as-is).
  */
-export function paymentMethodsOf(
+export function barePaymentValue(value: string): string {
+  const stripped = value.replace(/\s*\([^()]*\)\s*$/, "").trim();
+  return stripped || value.trim();
+}
+
+/** Stored {label, value} entries of a private doc, folding the legacy single SINPE
+ * (docs predating `paymentMethods`) into an equivalent entry. The raw, persisted shape. */
+function storedPaymentMethods(
   priv: SchoolPrivate | null | undefined,
 ): PaymentMethod[] {
   if (priv?.paymentMethods?.length) return priv.paymentMethods;
@@ -160,6 +171,34 @@ export function paymentMethodsOf(
 }
 
 /**
+ * The payment-method list enriched for read-time DISPLAY: each entry keeps the published
+ * `value` (which may carry an account holder or other context — useful to the donor) but,
+ * when that value isn't already the bare datum, exposes `copyValue` so the "Copiar"
+ * affordance puts only the transaction input on the clipboard, not the parenthetical note.
+ * Pure. Use this for anything the supporter sees; the edit form / admin / writes use
+ * `paymentMethodsOf` (the stored shape), so the display hint is never persisted.
+ */
+export function displayPaymentMethodsOf(
+  priv: SchoolPrivate | null | undefined,
+): PaymentMethod[] {
+  return storedPaymentMethods(priv).map((m) => {
+    const bare = barePaymentValue(m.value);
+    return bare === m.value ? m : { ...m, copyValue: bare };
+  });
+}
+
+/**
+ * The STORED payment-method shape ({ label, value } only) — same normalization without the
+ * read-time `copyValue` hint. Used to seed the owner's edit form and the admin review
+ * (which persist/round-trip the list), so a display-only field never leaks into Firestore.
+ */
+export function paymentMethodsOf(
+  priv: SchoolPrivate | null | undefined,
+): PaymentMethod[] {
+  return storedPaymentMethods(priv).map(({ label, value }) => ({ label, value }));
+}
+
+/**
  * The payment methods intended for display to supporters (donors and businesses wanting
  * to subscribe), gated by verification: returns null unless the school is in
  * `verificationStatus === 'verified'` ([] when verified but none published yet).
@@ -171,7 +210,8 @@ export async function getVerifiedSchoolPaymentMethods(
 ): Promise<PaymentMethod[] | null> {
   const school = await getSchoolById(id);
   if (!school || school.verificationStatus !== "verified") return null;
-  return paymentMethodsOf(await getSchoolPrivate(id));
+  // Display path → keep the copyValue hint so the supporter's "Copiar" copies the bare datum.
+  return displayPaymentMethodsOf(await getSchoolPrivate(id));
 }
 
 // ── Writes (owner panel) ─────────────────────────────────────────────────────
