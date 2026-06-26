@@ -23,15 +23,21 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { PageantConsole } from "@/components/tools/PageantConsole";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
+import { ArrowUpRightIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
 import { formatDate, formatMoney } from "@/lib/format";
 import {
+  getCandidates,
+  getProjectById,
   getSchoolById,
   getToolById,
+  isGoalReached,
+  projectGoal,
+  projectProgress,
   setPageantFreeVoting,
   toolConfigOf,
 } from "@/lib/firestore";
-import type { SchoolDoc, ToolDoc } from "@/types";
+import type { CandidateDoc, ProjectDoc, SchoolDoc, ToolDoc } from "@/types";
 
 type LoadState = "loading" | "error" | "loaded";
 
@@ -78,6 +84,13 @@ export default function PageantManagePage() {
 
   const [school, setSchool] = useState<SchoolDoc | null>(null);
   const [tool, setTool] = useState<ToolDoc | null>(null);
+  // The reinado's destination project (PageantConfig.fundProjectId), if linked — its confirmed
+  // `raised` is the headline recaudación this panel surfaces. Best-effort: a missing/deleted project
+  // degrades to null without failing the whole load (mirrors the public page).
+  const [fundProject, setFundProject] = useState<ProjectDoc | null>(null);
+  // Candidate roster: its Cloud-Function-maintained `voteSupport` tally drives each candidacy's
+  // confirmed economic-support amount (× the config's price per support unit).
+  const [candidates, setCandidates] = useState<CandidateDoc[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   // Live toggle of the free "simpatía" vote — an immediate write, separate from the (form-based) edit page.
   const [freeBusy, setFreeBusy] = useState(false);
@@ -87,9 +100,23 @@ export default function PageantManagePage() {
 
   const load = useCallback(() => {
     Promise.all([getSchoolById(id), getToolById(id, toolId)])
-      .then(([s, t]) => {
+      .then(async ([s, t]) => {
         setSchool(s);
         setTool(t);
+        const pageant = toolConfigOf(t, "pageant");
+        if (pageant) {
+          // The candidate roster (its confirmed economic-support tallies) and the linked destination
+          // project, in parallel. Best-effort — a failed read degrades to an empty roll-up / no
+          // project, never an error page.
+          const [roster, project] = await Promise.all([
+            getCandidates(id, toolId).catch(() => []),
+            pageant.fundProjectId
+              ? getProjectById(id, pageant.fundProjectId).catch(() => null)
+              : Promise.resolve(null),
+          ]);
+          setCandidates(roster);
+          setFundProject(project);
+        }
         setLoadState("loaded");
       })
       .catch(() => setLoadState("error"));
@@ -200,6 +227,32 @@ export default function PageantManagePage() {
   const { jury, support, sympathy } = pageant.crownFormula;
   const freeEnabled = pageant.freeVotingEnabled;
 
+  // Candidate economic-support roll-up (plain consts, not hooks — there are early returns above).
+  // Each candidacy's confirmed amount is its `voteSupport` count × the informational price per unit;
+  // the roster is ranked by that amount, highest first. The board page may show the money figure
+  // (unlike the count-only public surface) — it never leaves this authorized view.
+  const pricePerUnit = pageant.pricePerSupportUnit;
+  const supportRanked = [...candidates]
+    .map((c) => ({ candidate: c, amount: (c.voteSupport ?? 0) * pricePerUnit }))
+    .sort(
+      (a, b) =>
+        b.amount - a.amount || a.candidate.name.localeCompare(b.candidate.name),
+    );
+  const totalCandidateSupport = supportRanked.reduce(
+    (sum, r) => sum + r.amount,
+    0,
+  );
+
+  // Destination-project funding figures (when linked + still resolvable). Guarded so the bar/percent
+  // are safe to reference even before the project loads or when it's gone.
+  const fundGoal = fundProject ? projectGoal(fundProject.stages) : 0;
+  const fundPercent = fundProject
+    ? Math.round(projectProgress(fundProject.raised, fundGoal) * 100)
+    : 0;
+  const fundReached = fundProject
+    ? isGoalReached(fundProject.raised, fundGoal)
+    : false;
+
   // Flip the free-voting flag right away and mirror it into local state so the console's standings
   // (the sympathy axis) recompute without a reload. castPageantApplause re-checks the flag server-
   // side, so this can't enable bot votes on its own.
@@ -270,7 +323,9 @@ export default function PageantManagePage() {
             <div>
               <dt className="text-xs text-muted">Destino</dt>
               <dd className="text-foreground">
-                Los apoyos alimentan un proyecto de la escuela.
+                {fundProject
+                  ? fundProject.title
+                  : "Los apoyos alimentan un proyecto de la escuela."}
               </dd>
             </div>
           )}
@@ -281,6 +336,99 @@ export default function PageantManagePage() {
             <dd className="mt-1 whitespace-pre-line text-sm text-muted">
               {pageant.criteria}
             </dd>
+          </div>
+        )}
+      </section>
+
+      {/* Apoyo económico a las candidaturas — what the reinado has raised. First the linked destination
+          project ("Proyecto ↗" link + its confirmed raised + a slim bar), then each candidacy's
+          confirmed economic support as a money amount (voteSupport × price/unit). The figures are
+          Cloud-Function-maintained; this authorized board view may show money (the public surface
+          stays count-only). The platform never processes the money. */}
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Apoyo económico a las candidaturas
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Lo recaudado para el reinado. escuelaplace solo muestra los montos; nunca
+          procesa el dinero.
+        </p>
+
+        {/* Destination project: the word "Proyecto" as a link (↗) + the raised amount + a slim bar. */}
+        {pageant.fundProjectId &&
+          (fundProject ? (
+            <div className={`mt-4 ${cardClass("inset")}`}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <Link
+                  href={`/panel/school/${id}/projects/${fundProject.id}`}
+                  title={fundProject.title}
+                  className="inline-flex items-center gap-1 font-medium text-brand-darker hover:underline"
+                >
+                  Proyecto
+                  <ArrowUpRightIcon className="h-3.5 w-3.5" />
+                </Link>
+                <span className="tabular-nums text-foreground">
+                  <span className="font-semibold">
+                    {formatMoney(fundProject.raised, fundProject.currency)}
+                  </span>{" "}
+                  <span className="text-muted">recaudado</span>
+                </span>
+              </div>
+              {/* Slim bar (no caption — the amount sits above it), so it fits on mobile. */}
+              <div
+                className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface ring-1 ring-inset ring-black/5"
+                role="progressbar"
+                aria-valuenow={fundPercent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Avance de la meta del proyecto"
+              >
+                <div
+                  className={`h-full rounded-full ${fundReached ? "bg-success" : "bg-brand"}`}
+                  style={{ width: `${fundPercent}%` }}
+                />
+              </div>
+              <p className="mt-1.5 text-xs tabular-nums text-muted">
+                Meta {formatMoney(fundGoal, fundProject.currency)} · {fundPercent}%
+              </p>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted">
+              El proyecto vinculado ya no está disponible. Revisa la configuración del
+              reinado.
+            </p>
+          ))}
+
+        {/* Candidaturas — name + the confirmed economic-support amount, ranked highest first. */}
+        {candidates.length === 0 ? (
+          <p className="mt-6 text-sm text-muted">
+            Aún no hay candidaturas. Agrégalas desde la edición del reinado.
+          </p>
+        ) : (
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold tracking-tight text-foreground">
+              Candidaturas
+            </h3>
+            <ol className="mt-3 flex flex-col gap-2">
+              {supportRanked.map(({ candidate, amount }, i) => (
+                <li
+                  key={candidate.id}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm"
+                >
+                  <span className="min-w-0 text-foreground">
+                    <span className="tabular-nums text-muted">{i + 1}.</span>{" "}
+                    {candidate.name}
+                  </span>
+                  <span className="font-medium tabular-nums text-foreground">
+                    {formatMoney(amount, pageant.currency)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 text-xs tabular-nums text-muted">
+              Total en apoyo a candidaturas:{" "}
+              {formatMoney(totalCandidateSupport, pageant.currency)}
+            </p>
           </div>
         )}
       </section>
