@@ -11,6 +11,7 @@
  * Always carries the disclaimer: the information comes from the school and the
  * platform never processes nor certifies payments.
  */
+import { CopyValue } from "@/components/school/CopyValue";
 import { formatApproxDuration } from "@/lib/format";
 import type { PaymentMethod } from "@/types";
 
@@ -64,10 +65,17 @@ export function PaymentMethodsInfo({
         {methods.map((m, i) => (
           <li
             key={i}
-            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 py-2"
+            // Mobile: rows stack and "Copiar" pins to the top-right corner (absolute). sm+: a single
+            // baseline-aligned row with the button pushed to the far right (static + ml-auto).
+            className="relative flex flex-col gap-y-0.5 py-2 pl-3 pr-20 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 sm:pr-3"
           >
             <span className="font-medium text-foreground">{m.label}</span>
             <span className="text-muted">{m.value}</span>
+            <CopyValue
+              value={m.value}
+              label={m.label}
+              className="absolute right-2 top-1.5 sm:static sm:ml-auto"
+            />
           </li>
         ))}
       </ul>

@@ -18,7 +18,6 @@ import { cardClass } from "@/components/ui/Card";
 import {
   ArrowRightIcon,
   CalendarIcon,
-  ChatBubbleIcon,
   ClockIcon,
   FlagIcon,
   MapPinIcon,
@@ -157,7 +156,6 @@ export default async function ToolPage({ params }: Props) {
   if (renderer) return renderer({ id, toolId, tool, school });
 
   const window = toolWindowLabel(tool);
-  const whatsappUrl = toolContactWhatsAppLink(tool, school);
 
   return (
     <ToolDetailShell
@@ -178,7 +176,7 @@ export default async function ToolPage({ params }: Props) {
         <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
       )}
 
-      <ToolContactButton tool={tool} whatsappUrl={whatsappUrl} />
+      <ToolFooterActions id={id} toolId={toolId} tool={tool} school={school} />
     </ToolDetailShell>
   );
 }
@@ -199,34 +197,46 @@ function toolContactWhatsAppLink(tool: ToolDoc, school: SchoolDoc): string | nul
 }
 
 /**
- * The tool's "Consultar" WhatsApp button (label customizable by the school, default "Consultar"),
- * with the standard "the platform never touches money" note. Renders nothing when no number
- * resolves, so the button is never a dead link. PURELY INFORMATIONAL — it only opens a chat.
+ * The tool's footer actions, closing out every public tool page (mirroring the reinado page and the
+ * school feed card): "Consultar" opens a prefilled WhatsApp chat — hidden when no number resolves,
+ * so it's never a dead link — and "Compartir" spreads the activity through the Web Share sheet
+ * (copy-link fallback). Followed by the standard "the platform never touches money" note. The two
+ * ways to engage (ask the school, spread the word) are the last elements on the page. PURELY
+ * INFORMATIONAL — it only opens a chat or the share sheet.
  */
-function ToolContactButton({
+function ToolFooterActions({
+  id,
+  toolId,
   tool,
-  whatsappUrl,
+  school,
+  showNote = true,
 }: {
+  id: string;
+  toolId: string;
   tool: ToolDoc;
-  whatsappUrl: string | null;
+  school: SchoolDoc;
+  /** Whether to render the "the platform never touches money" note. The raffle hides it — its own
+   * buy tray already carries that disclaimer, so it would only repeat right above this. */
+  showNote?: boolean;
 }) {
-  if (!whatsappUrl) return null;
   return (
-    <div className="mt-6">
-      <a
-        href={whatsappUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
-      >
-        <ChatBubbleIcon className="mr-2 h-5 w-5" />
-        {toolContactLabel(tool)}
-      </a>
-      <p className="mt-2 text-xs text-muted">
-        Coordina directamente con la escuela por WhatsApp. escuelaplace solo da
-        visibilidad: nunca procesa pagos ni participa en la actividad.
-      </p>
-    </div>
+    <>
+      <div className="mt-8 sm:mx-auto sm:max-w-md">
+        <ToolCardActions
+          whatsappUrl={toolContactWhatsAppLink(tool, school)}
+          whatsappLabel={toolContactLabel(tool)}
+          sharePath={`/school/${id}/tool/${toolId}`}
+          shareTitle={tool.title}
+          shareText={`✨ ${tool.title} — apoya a ${school.name} en escuelaplace 💙`}
+        />
+      </div>
+      {showNote && (
+        <p className="mt-6 text-xs text-muted">
+          Coordina directamente con la escuela. escuelaplace solo da visibilidad:
+          nunca procesa pagos ni participa en la actividad.
+        </p>
+      )}
+    </>
   );
 }
 
@@ -320,9 +330,12 @@ async function RaffleDetail({ id, toolId, tool, school }: ToolDetailProps) {
         </div>
       </div>
 
-      <ToolContactButton
+      <ToolFooterActions
+        id={id}
+        toolId={toolId}
         tool={tool}
-        whatsappUrl={toolContactWhatsAppLink(tool, school)}
+        school={school}
+        showNote={false}
       />
     </ToolDetailShell>
   );
@@ -337,7 +350,6 @@ async function RaffleDetail({ id, toolId, tool, school }: ToolDetailProps) {
 async function TourDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const tour = toolConfigOf(tool, "guided_tour")!;
   const window = toolWindowLabel(tool);
-  const whatsappUrl = toolContactWhatsAppLink(tool, school);
 
   return (
     <ToolDetailShell
@@ -367,7 +379,7 @@ async function TourDetail({ id, toolId, tool, school }: ToolDetailProps) {
         </div>
       </div>
 
-      <ToolContactButton tool={tool} whatsappUrl={whatsappUrl} />
+      <ToolFooterActions id={id} toolId={toolId} tool={tool} school={school} />
     </ToolDetailShell>
   );
 }
@@ -431,6 +443,8 @@ async function SaleDetail({ id, toolId, tool, school }: ToolDetailProps) {
           />
         </div>
       </div>
+
+      <ToolFooterActions id={id} toolId={toolId} tool={tool} school={school} />
     </ToolDetailShell>
   );
 }
@@ -495,6 +509,8 @@ async function ServiceDetail({ id, toolId, tool, school }: ToolDetailProps) {
           />
         </div>
       </div>
+
+      <ToolFooterActions id={id} toolId={toolId} tool={tool} school={school} />
     </ToolDetailShell>
   );
 }
@@ -508,16 +524,9 @@ async function ServiceDetail({ id, toolId, tool, school }: ToolDetailProps) {
 async function EventDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const event = toolConfigOf(tool, "event")!;
   const photos = event.photos ?? [];
-  const contactPhone = toolContactPhone(tool) || school.boardContact?.phone || "";
   const dateMs = event.date ? event.date.toMillis() : null;
   // Re-check the map link scheme at render even though it was sanitized on write (defense in depth).
   const mapUrl = event.mapUrl ? safeExternalUrl(event.mapUrl) : null;
-  const askUrl = contactPhone
-    ? buildWhatsAppLink(
-        contactPhone,
-        `¡Hola! Vi el evento «${tool.title}» de ${school.name} en escuelaplace y quiero hacer una consulta.`,
-      )
-    : null;
   const calendarUrl = dateMs
     ? googleCalendarUrl({
         title: tool.title,
@@ -613,20 +622,10 @@ async function EventDetail({ id, toolId, tool, school }: ToolDetailProps) {
         </video>
       )}
 
-      {/* Actions */}
-      <div className="mt-8 flex flex-wrap gap-3">
-        {askUrl && (
-          <a
-            href={askUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary"
-          >
-            <ChatBubbleIcon className="mr-1.5 h-5 w-5" />
-            {toolContactLabel(tool)}
-          </a>
-        )}
-        {calendarUrl && (
+      {/* "Agregar al calendario" — the event-specific action. "Consultar" + "Compartir" close out
+          the page in the shared footer below, like every other tool kind. */}
+      {calendarUrl && (
+        <div className="mt-8">
           <a
             href={calendarUrl}
             target="_blank"
@@ -636,8 +635,10 @@ async function EventDetail({ id, toolId, tool, school }: ToolDetailProps) {
             <CalendarIcon className="mr-1.5 h-5 w-5" />
             Agregar al calendario
           </a>
-        )}
-      </div>
+        </div>
+      )}
+
+      <ToolFooterActions id={id} toolId={toolId} tool={tool} school={school} />
     </ToolDetailShell>
   );
 }
@@ -799,10 +800,7 @@ async function BingoDetail({ id, toolId, tool, school }: ToolDetailProps) {
         poolMax={bingo.format.poolMax}
       />
 
-      <ToolContactButton
-        tool={tool}
-        whatsappUrl={toolContactWhatsAppLink(tool, school)}
-      />
+      <ToolFooterActions id={id} toolId={toolId} tool={tool} school={school} />
     </ToolDetailShell>
   );
 }
