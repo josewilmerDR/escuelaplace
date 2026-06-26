@@ -490,6 +490,26 @@ export function ArrowRightIcon({ className }: IconProps) {
   );
 }
 
+/** Diagonal up-right arrow — the universal "open / external link" glyph. */
+export function ArrowUpRightIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4.5 19.5 19.5 4.5m0 0H8.25m11.25 0v11.25"
+      />
+    </svg>
+  );
+}
+
 export function ChevronLeftIcon({ className }: IconProps) {
   return (
     <svg
