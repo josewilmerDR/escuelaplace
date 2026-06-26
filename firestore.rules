@@ -560,9 +560,11 @@ service cloud.firestore {
     }
 
     // P1-b write-shape validation for tools (non-admin arm only). CREATE pins createTool's field
-    // set (cover/dates/cta are added later via UPDATE, so they are NOT in the create set; the kind
-    // config is written under the generic `config` map) and validates the type/status enums + the
-    // text caps. UPDATE constrains the changed keys (the edit form + setToolStatus) and freezes
+    // set — the COVER is still added later via UPDATE (not in the create set), but dates/cta ARE in
+    // the create set now (the create form sets them like the edit form), validated the same way as
+    // UPDATE; the kind config is written under the generic `config` map — and validates the
+    // type/status enums + the text caps. UPDATE constrains the changed keys (the edit form +
+    // setToolStatus) and freezes
     // ownerId; config/cta/dates/cover are allowed but never required, so clearing them (deleteField)
     // passes. The config map is shape-checked (`is map`) only when PRESENT — the nested per-kind
     // shape (stages, prizes…) can't be iterated by rules, exactly like projects. UPDATE also checks
@@ -591,7 +593,7 @@ service cloud.firestore {
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
-          'config', 'ownerId', 'createdAt', 'updatedAt']) &&
+          'startsAt', 'endsAt', 'cta', 'config', 'ownerId', 'createdAt', 'updatedAt']) &&
         request.resource.data.type in
           ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'pageant', 'other'] &&
         request.resource.data.status in ['active', 'inactive'] &&
@@ -601,7 +603,14 @@ service cloud.firestore {
         request.resource.data.description.size() <= 600 &&
         request.resource.data.ownerId is string &&
         (!request.resource.data.keys().hasAny(['config']) ||
-          request.resource.data.config is map);
+          request.resource.data.config is map) &&
+        // Same optional-CTA scheme check as validToolUpdate — a CTA href must be labelled + http(s).
+        (!request.resource.data.keys().hasAny(['cta']) ||
+          (request.resource.data.cta is map &&
+            request.resource.data.cta.label is string &&
+            request.resource.data.cta.label.size() <= 40 &&
+            request.resource.data.cta.url is string &&
+            request.resource.data.cta.url.matches('^https?://.+')));
     }
     function validToolUpdate() {
       return keepsOwner() &&

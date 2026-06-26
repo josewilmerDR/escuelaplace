@@ -82,8 +82,17 @@ function hasContent(r: CandidateRow): boolean {
 
 export const PageantCandidatesEditor = forwardRef<
   PageantCandidatesHandle,
-  { schoolId: string; toolId: string; onDirty?: () => void }
->(function PageantCandidatesEditor({ schoolId, toolId, onDirty }, ref) {
+  {
+    schoolId: string;
+    toolId: string;
+    onDirty?: () => void;
+    /** Hide the jury score input (the jury hasn't scored yet at creation). Default: shown. */
+    showJuryScore?: boolean;
+  }
+>(function PageantCandidatesEditor(
+  { schoolId, toolId, onDirty, showJuryScore = true },
+  ref,
+) {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [rows, setRows] = useState<CandidateRow[]>([]);
   // Saved candidates removed in the UI but not yet deleted in Firestore — flushed on save.
@@ -279,6 +288,7 @@ export const PageantCandidatesEditor = forwardRef<
               photoFile: row.photoFile,
             }}
             onPatch={(patch) => patchRow(row._key, patch)}
+            showJuryScore={showJuryScore}
           />
         </div>
       ))}

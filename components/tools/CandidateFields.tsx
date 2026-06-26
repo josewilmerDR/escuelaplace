@@ -2,10 +2,9 @@
 
 /**
  * The presentational inputs of ONE pageant ("Reinado") candidate — photo, name, bio and the human
- * jury score — shared by both roster surfaces: the edit page's per-row editor (PageantCandidatesEditor)
- * and the create form's draft collection (PageantCandidatesFields). Pure presentation: it owns no
- * save/dirty state and never touches Firestore — the parent decides when and how the values are
- * persisted.
+ * jury score — used by the shared roster editor (PageantCandidatesEditor), which both the create and
+ * edit pages mount. Pure presentation: it owns no save/dirty state and never touches Firestore — the
+ * parent decides when and how the values are persisted.
  *
  * The photo is a single circular avatar that IS the file picker (CandidatePhoto): a "Cambiar" label
  * sits over a gradient at the bottom of the avatar, always visible, and tapping/clicking anywhere on

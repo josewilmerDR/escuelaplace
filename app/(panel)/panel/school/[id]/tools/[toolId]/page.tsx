@@ -71,20 +71,25 @@ import { FormError } from "@/components/ui/FormError";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { userErrorMessage } from "@/lib/errors";
+import { formatMoney } from "@/lib/format";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
 import { safeExternalUrl } from "@/lib/url";
 import {
+  buildPageantFundProjectInput,
   clearToolCover,
+  createProject,
   deleteTool,
   getRaffleOrdersByTool,
   getSchoolById,
   getToolById,
+  newProjectId,
   raffleNumberStates,
   toolConfigOf,
   toolDateFromInput,
   toolDateInputValue,
+  updateProject,
   updateTool,
   updateToolEvent,
   updateToolTour,
@@ -105,7 +110,6 @@ import {
   TOUR_STAGE_TITLE_MAX,
   type BingoConfig,
   type EventConfig,
-  type PageantConfig,
   type RaffleConfig,
   type RaffleOrderDoc,
   type SaleConfig,
@@ -199,6 +203,17 @@ export default function EditToolPage() {
   // voting flag). The candidate roster is a subcollection managed separately, not through this form.
   const [pageantForm, setPageantForm] = useState<PageantFormValue>(emptyPageantForm);
 
+  // Pageant padrinazgo: opt-in to receive event sponsorships, which auto-creates a single-stage
+  // destination project the public "Apadrinar el reinado" CTA funds. `sponsorGoal` is the ONLY field
+  // the board fills — title/cover/description are derived from the reinado. `existingFundProjectId` is
+  // set on load when the reinado is already linked: then the section shows the link (read-only) and we
+  // PRESERVE it across edits (toPageantInput drops it, so updateTool would otherwise wipe it).
+  const [sponsorEnabled, setSponsorEnabled] = useState(false);
+  const [sponsorGoal, setSponsorGoal] = useState("");
+  const [existingFundProjectId, setExistingFundProjectId] = useState<
+    string | undefined
+  >(undefined);
+
   // Guided-tour editable state. Stage text + the contact phone save with the form button; stage
   // media (photos/video) persists immediately, the way the project editor handles stage media.
   const [tourStages, setTourStages] = useState<EditableTourStage[]>([]);
@@ -281,7 +296,13 @@ export default function EditToolPage() {
           const eventCfg = toolConfigOf(t, "event");
           if (eventCfg) setEventForm(eventFormFromConfig(eventCfg));
           const pageantCfg = toolConfigOf(t, "pageant");
-          if (pageantCfg) setPageantForm(pageantFormFromConfig(pageantCfg));
+          if (pageantCfg) {
+            setPageantForm(pageantFormFromConfig(pageantCfg));
+            // Reflect an existing padrinazgo link: keep the toggle on and remember the project so the
+            // section renders it read-only and the save preserves it.
+            setExistingFundProjectId(pageantCfg.fundProjectId);
+            setSponsorEnabled(Boolean(pageantCfg.fundProjectId));
+          }
           const tourCfg = toolConfigOf(t, "guided_tour");
           if (tourCfg) {
             setTourStages(keyTourStages(tourCfg.stages));
@@ -541,6 +562,23 @@ export default function EditToolPage() {
       }
     }
 
+    // Padrinazgo: enabling it on a not-yet-linked reinado auto-creates the destination project, so the
+    // goal (its only stage cost) is required. An already-linked reinado keeps its project untouched.
+    let sponsorGoalNum = 0;
+    const willCreateFundProject =
+      type === "pageant" && sponsorEnabled && !existingFundProjectId;
+    if (willCreateFundProject) {
+      if (!user) {
+        setError("Inicia sesión para crear el proyecto del padrinazgo.");
+        return;
+      }
+      sponsorGoalNum = Math.round(Number(sponsorGoal));
+      if (!Number.isFinite(sponsorGoalNum) || sponsorGoalNum < 1) {
+        setError("Ingresa una meta de recaudación para el padrinazgo (mayor a 0).");
+        return;
+      }
+    }
+
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -550,6 +588,36 @@ export default function EditToolPage() {
         coverUrl = await uploadToolCover(id, toolId, coverFile);
       }
       const cta = label && url ? { label, url } : null;
+
+      // Padrinazgo: create the destination project FIRST so the reinado never points at a missing
+      // project (an orphan project on a later failure is benign). It inherits the reinado's cover via a
+      // follow-up updateProject (the create rule omits coverUrl). An existing link is preserved as-is.
+      // The resulting id rides into the pageant config — toPageantInput never carries it, so without
+      // this an edit would wipe an existing fundProjectId.
+      let fundProjectId = existingFundProjectId;
+      if (pageant && willCreateFundProject && user) {
+        const projectId = newProjectId(id);
+        await createProject(
+          id,
+          tool?.schoolName ?? school?.name ?? "",
+          user.id,
+          buildPageantFundProjectInput({
+            toolTitle: trimmedTitle,
+            cause: pageant.cause,
+            currency: pageant.currency,
+            goal: sponsorGoalNum,
+          }),
+          projectId,
+        );
+        const eventCover = coverUrl ?? tool?.coverUrl;
+        if (eventCover) {
+          await updateProject(id, projectId, { coverUrl: eventCover }).catch(
+            () => {},
+          );
+        }
+        fundProjectId = projectId;
+      }
+
       await updateTool(id, toolId, {
         type,
         title: trimmedTitle,
@@ -565,7 +633,14 @@ export default function EditToolPage() {
         ...(service ? { service } : {}),
         ...(bingo ? { bingo } : {}),
         ...(event ? { event } : {}),
-        ...(pageant ? { pageant } : {}),
+        ...(pageant
+          ? {
+              pageant: {
+                ...pageant,
+                ...(fundProjectId ? { fundProjectId } : {}),
+              },
+            }
+          : {}),
       });
       // Persist the candidate roster in the same save (creates/updates/deletes staged in the editor).
       // Throws on failure → the catch below surfaces it; already-validated above.
@@ -649,25 +724,8 @@ export default function EditToolPage() {
             ...(event.contactPhone ? { contactPhone: event.contactPhone } : {}),
           }
         : undefined;
-      // Pageant's input carries the window as Dates; rebuild the stored shape (Timestamp) so the
-      // persisted base mirrors what updateTool wrote (mirrors buildPageantConfig).
-      const savedPageant: PageantConfig | undefined = pageant
-        ? {
-            currency: pageant.currency,
-            pricePerSupportUnit: pageant.pricePerSupportUnit,
-            freeVotingEnabled: pageant.freeVotingEnabled,
-            crownFormula: pageant.crownFormula,
-            ...(pageant.criteria ? { criteria: pageant.criteria } : {}),
-            ...(pageant.cause ? { cause: pageant.cause } : {}),
-            ...(pageant.opensAt
-              ? { opensAt: Timestamp.fromDate(pageant.opensAt) }
-              : {}),
-            ...(pageant.closesAt
-              ? { closesAt: Timestamp.fromDate(pageant.closesAt) }
-              : {}),
-            ...(pageant.fundProjectId ? { fundProjectId: pageant.fundProjectId } : {}),
-          }
-        : undefined;
+      // A pageant navigates away right after saving (the early return above), so it has no
+      // persisted-base re-sync down here — only the kinds that stay on the page do.
       // The single generic config for the active kind, mirroring what updateTool stored; a switch
       // to the config-less `other` kind clears it.
       const savedConfig: ToolConfig | undefined =
@@ -683,9 +741,7 @@ export default function EditToolPage() {
                   ? savedBingo
                   : type === "event"
                     ? savedEvent
-                    : type === "pageant"
-                      ? savedPageant
-                      : undefined;
+                    : undefined;
       setTool((prev) =>
         prev
           ? {
@@ -735,10 +791,6 @@ export default function EditToolPage() {
       // Re-hydrate the event form from the saved config (the gallery media card reads that config).
       if (type === "event" && savedEvent) {
         setEventForm(eventFormFromConfig(savedEvent));
-      }
-      // Re-sync the pageant form from the saved config (normalizes weights/price strings back).
-      if (type === "pageant" && savedPageant) {
-        setPageantForm(pageantFormFromConfig(savedPageant));
       }
       setCoverFile(null);
       setSaved(true);
@@ -1351,24 +1403,124 @@ export default function EditToolPage() {
       )}
 
       {/* Pageant roster: the candidate subcollection. Edited here but persisted with the tool form's
-          "Guardar cambios" (the editor exposes validate()/saveAll(), driven by onSave). */}
+          "Guardar cambios" (the editor exposes validate()/saveAll(), driven by onSave). Same card
+          convention + same PageantCandidatesEditor the create page uses. */}
       {type === "pageant" && (
-        <section className="mt-10">
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            Candidaturas
-          </h2>
-          <p className="mt-1 text-sm text-muted">
+        <section className="mt-10 rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+          <p className="mb-1 text-sm font-semibold text-foreground">Candidaturas</p>
+          <p className="mb-3 text-xs text-muted">
             El público las verá en la página del reinado. Los cambios se guardan con «Guardar
             cambios».
           </p>
-          <div className="mt-4">
-            <PageantCandidatesEditor
-              ref={candidatesRef}
-              schoolId={id}
-              toolId={toolId}
-              onDirty={() => setDirty(true)}
-            />
-          </div>
+          <PageantCandidatesEditor
+            ref={candidatesRef}
+            schoolId={id}
+            toolId={toolId}
+            onDirty={() => setDirty(true)}
+          />
+        </section>
+      )}
+
+      {/* Padrinazgo del reinado (opcional) — the LAST pageant section. Opting in auto-creates a
+          single-stage destination project that the public "Apadrinar el reinado" CTA funds; the board
+          only types the goal, everything else is derived from the reinado on save. An already-linked
+          reinado shows the project read-only (the link is preserved on save). */}
+      {type === "pageant" && (
+        <section className="mt-10 rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+          <p className="mb-1 text-sm font-semibold text-foreground">
+            Padrinazgo del reinado (opcional)
+          </p>
+          <p className="mb-3 text-xs text-muted">
+            Habilita un botón «Apadrinar el reinado» en la página pública para recibir aportes hacia
+            los costos del evento (logística, decoración, etc.) — sin apuntar a ninguna candidatura.
+          </p>
+
+          {existingFundProjectId ? (
+            <div className="rounded-xl bg-white p-3 ring-1 ring-black/5">
+              <p className="text-sm text-foreground">
+                Este reinado ya tiene un proyecto de padrinazgo vinculado.
+              </p>
+              <p className="mt-2 text-sm">
+                <Link
+                  href={`/panel/school/${id}/projects/${existingFundProjectId}`}
+                  className="font-medium text-brand-darker hover:underline"
+                >
+                  Gestionar el proyecto (meta, descripción, etapas)
+                </Link>
+              </p>
+            </div>
+          ) : (
+            <>
+              <label className="flex items-start gap-3 rounded-xl bg-white p-3 ring-1 ring-black/5">
+                <input
+                  type="checkbox"
+                  checked={sponsorEnabled}
+                  onChange={(e) => {
+                    setSponsorEnabled(e.target.checked);
+                    setDirty(true);
+                  }}
+                  className="mt-0.5 size-4"
+                />
+                <span className="text-sm">
+                  <span className="font-medium text-foreground">
+                    Recibir padrinazgos para el reinado
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Al guardar se creará un proyecto asociado para recibir los aportes.
+                  </span>
+                </span>
+              </label>
+
+              {sponsorEnabled && (
+                <div className="mt-4 flex flex-col gap-4">
+                  <Field label="Meta de recaudación">
+                    <input
+                      type="number"
+                      min={1}
+                      step="any"
+                      inputMode="decimal"
+                      value={sponsorGoal}
+                      onChange={(e) => {
+                        setSponsorGoal(e.target.value);
+                        setDirty(true);
+                      }}
+                      className="input"
+                      placeholder="Ej.: 150000"
+                    />
+                    <span className="text-muted">
+                      Se creará el proyecto «{title.trim() || "Reinado"} — costos del evento»
+                      {Number(sponsorGoal) > 0
+                        ? `, meta ${formatMoney(Math.round(Number(sponsorGoal)), pageantForm.currency)}`
+                        : ""}
+                      .
+                    </span>
+                  </Field>
+
+                  <div className="rounded-xl bg-white p-3 text-xs text-muted ring-1 ring-black/5">
+                    <p className="font-medium text-foreground">Al activar:</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4">
+                      <li>
+                        Será público y aparecerá en los proyectos de tu escuela, con barra de
+                        recaudación.
+                      </li>
+                      <li>
+                        Los padrinos pagan directo a la escuela; vos confirmás cada aporte en tu
+                        panel de proyectos.
+                      </li>
+                      <li>
+                        Es editable después (meta, descripción, etapas) y lo cerrás cuando termine el
+                        evento.
+                      </li>
+                      <li>
+                        La plataforma nunca toca el dinero; la escuela se compromete a usarlo para el
+                        reinado.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </section>
       )}
 

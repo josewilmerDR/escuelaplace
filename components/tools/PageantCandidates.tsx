@@ -6,16 +6,17 @@ import { PageantApplauseButton } from "./PageantApplauseButton";
 
 /**
  * Public, server-rendered roster of a reinado's candidates: a card per candidate with photo, name,
- * bio, the count-only tallies — free "simpatía" applause (`voteFree`), CONFIRMED economic support
- * (`voteSupport`) and recurring sponsors (`padrinoCount`), never a money figure — plus the matching
- * actions ("Aplaudir", "Apoyar", "Apadrinar"). The card itself is universal (no hooks/directives) so
- * it renders straight from the SSR detail page; the applause button is the lone client island inside.
+ * bio, the count-only tallies — free "simpatía" applause (`voteFree`) and CONFIRMED economic support
+ * (`voteSupport`), never a money figure — plus the matching per-candidate actions ("Aplaudir",
+ * "Apoyar"). The card itself is universal (no hooks/directives) so it renders straight from the SSR
+ * detail page; the applause button is the lone client island inside. Sponsoring the event itself
+ * ("Apadrinar el reinado") is a single event-level CTA on the page, NOT a per-candidate action — it
+ * funds the reinado's destination project, never a single candidate.
  *
  * Every tally is Cloud-Function-maintained, so none can be inflated client-side. The "simpatía" bar +
  * applause appear only when the school turned free voting on (`freeVotingEnabled`). PURELY
- * INFORMATIONAL — the platform never processes money; "Apoyar" (one-time) and "Apadrinar" (recurring)
- * route to the panel flows where the supporter pays the school directly, and "Aplaudir" is a capped,
- * non-binding community signal.
+ * INFORMATIONAL — the platform never processes money; "Apoyar" routes to the panel flow where the
+ * supporter pays the school directly, and "Aplaudir" is a capped, non-binding community signal.
  */
 export function PageantCandidates({
   candidates,
@@ -108,15 +109,10 @@ export function PageantCandidates({
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              {c.padrinoCount > 0 && (
-                <p className="mt-1 text-xs text-muted">
-                  {c.padrinoCount}{" "}
-                  {c.padrinoCount === 1 ? "padrino recurrente" : "padrinos recurrentes"}
-                </p>
-              )}
             </div>
 
-            {/* Actions: the free applause (when enabled) and the economic CTAs. */}
+            {/* Actions: the free applause (when enabled) and the per-candidate economic CTA.
+                Sponsoring the event ("Apadrinar el reinado") lives at the page level, not here. */}
             {freeVotingEnabled && (
               <PageantApplauseButton
                 schoolId={schoolId}
@@ -127,20 +123,12 @@ export function PageantCandidates({
             )}
 
             {canSupport && (
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href={`/panel/pageant-support?schoolId=${schoolId}&toolId=${toolId}&candidateId=${c.id}`}
-                  className="btn btn-primary self-start"
-                >
-                  Apoyar
-                </Link>
-                <Link
-                  href={`/panel/donate?schoolId=${schoolId}&pageantToolId=${toolId}&candidateId=${c.id}&candidateName=${encodeURIComponent(c.name)}`}
-                  className="btn btn-outline self-start"
-                >
-                  Apadrinar
-                </Link>
-              </div>
+              <Link
+                href={`/panel/pageant-support?schoolId=${schoolId}&toolId=${toolId}&candidateId=${c.id}`}
+                className="btn btn-primary self-start"
+              >
+                Apoyar
+              </Link>
             )}
           </li>
         );

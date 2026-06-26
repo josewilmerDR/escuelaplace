@@ -84,15 +84,9 @@ function DonateSkeleton() {
 
 function DonateContent() {
   const { user } = useAuth();
-  // The school page's "Donar" button lands here with the school preselected. The reinado's
-  // "Apadrinar" CTA adds pageantToolId+candidateId(+Name): the SAME donation flow, tagged to back a
-  // specific candidate (padrino), with the school locked to that candidate's school.
+  // The school page's "Donar" button lands here with the school preselected.
   const searchParams = useSearchParams();
   const preselectedSchoolId = searchParams.get("schoolId") ?? "";
-  const pageantToolId = searchParams.get("pageantToolId") ?? "";
-  const candidateId = searchParams.get("candidateId") ?? "";
-  const candidateName = searchParams.get("candidateName") ?? "";
-  const isPadrino = Boolean(pageantToolId && candidateId);
   // Ties the visible "Escuela" group label to the picker (which is not a single <label>).
   const schoolLabelId = useId();
 
@@ -206,9 +200,6 @@ function DonateContent() {
         schoolId,
         schoolName: school.name,
         units: safeUnits,
-        // Padrino context (back a reinado candidate) — only in padrino mode; tags the donation so
-        // the CF recomputes that candidate's padrinoCount. The school is locked above.
-        ...(isPadrino ? { pageantToolId, candidateId } : {}),
       });
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo registrar la donación."));
@@ -257,12 +248,11 @@ function DonateContent() {
   return (
     <main>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        {isPadrino ? `Apadrinar a ${candidateName}` : "Donar a una escuela"}
+        Donar a una escuela
       </h1>
       <p className="mt-1 text-sm text-muted">
-        {isPadrino
-          ? "Tu aporte apadrina a esta candidatura del reinado. El 100% va directo a la escuela por el medio de pago que ella misma publica; la plataforma nunca toca el dinero."
-          : "El 100% de tu aporte va directo a la escuela por el medio de pago que ella misma publica; la plataforma nunca toca el dinero."}
+        El 100% de tu aporte va directo a la escuela por el medio de pago que
+        ella misma publica; la plataforma nunca toca el dinero.
       </p>
 
       {(profile?.tier || (profile?.projectsSupported ?? 0) > 0) && (
@@ -289,30 +279,19 @@ function DonateContent() {
         onInputCapture={clearValidationMessage}
         className="mt-6 flex flex-col gap-4"
       >
-        {/* In padrino mode the school is fixed to the candidate's school (changing it would break
-            the padrino link), so it's shown read-only instead of the picker. */}
-        {isPadrino ? (
-          <div className="flex flex-col gap-1 text-sm">
-            <span className="font-medium">Escuela</span>
-            <p className="text-muted">
-              {schools.find((s) => s.id === schoolId)?.name ?? "—"}
-            </p>
-          </div>
-        ) : (
-          /* Not a <Field>: the picker holds several controls (carousel buttons, a link and
-             a search input), which can't live inside a single wrapping <label>. The submit
-             button stays disabled until a school is chosen, so no native `required` is needed. */
-          <div
-            role="group"
-            aria-labelledby={schoolLabelId}
-            className="flex flex-col gap-1 text-sm"
-          >
-            <span id={schoolLabelId} className="font-medium">
-              Escuela
-            </span>
-            <SchoolPicker schools={schools} value={schoolId} onChange={setSchoolId} />
-          </div>
-        )}
+        {/* Not a <Field>: the picker holds several controls (carousel buttons, a link and
+            a search input), which can't live inside a single wrapping <label>. The submit
+            button stays disabled until a school is chosen, so no native `required` is needed. */}
+        <div
+          role="group"
+          aria-labelledby={schoolLabelId}
+          className="flex flex-col gap-1 text-sm"
+        >
+          <span id={schoolLabelId} className="font-medium">
+            Escuela
+          </span>
+          <SchoolPicker schools={schools} value={schoolId} onChange={setSchoolId} />
+        </div>
 
         {schoolId && (
           <div className={`text-sm ${cardClass("inset")}`}>
@@ -370,9 +349,8 @@ function DonateContent() {
             role="status"
             className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10"
           >
-            {isPadrino
-              ? "¡Apadrinamiento registrado! La escuela lo confirmará por su cuenta; mientras tanto lo ves abajo como pendiente."
-              : "¡Donación registrada! La escuela la confirmará por su cuenta; mientras tanto la ves abajo como pendiente."}
+            ¡Donación registrada! La escuela la confirmará por su cuenta;
+            mientras tanto la ves abajo como pendiente.
           </p>
         )}
 
@@ -382,11 +360,7 @@ function DonateContent() {
           aria-busy={saving}
           className="btn btn-primary"
         >
-          {saving
-            ? "Registrando…"
-            : isPadrino
-              ? "Apadrinar"
-              : "Registrar donación"}
+          {saving ? "Registrando…" : "Registrar donación"}
         </button>
       </form>
 

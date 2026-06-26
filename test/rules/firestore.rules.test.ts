@@ -990,9 +990,10 @@ describe("schools/{id}/projects — write-shape (P1-b)", () => {
 });
 
 describe("tools — write-shape: generic config + cta scheme (P1-b)", () => {
-  // The board's createTool field set (cover/dates/cta are added later via UPDATE, so they are NOT
-  // in the create set). The kind config lives under the single generic `config` map. Defaults to
-  // the config-less catch-all 'other' kind.
+  // The board's createTool field set. The COVER is still added later via UPDATE (not in the create
+  // set), but dates (startsAt/endsAt) and the cta ARE in the create set now (the create form sets them
+  // like the edit form), scheme-validated the same way. The kind config lives under the single generic
+  // `config` map. Defaults to the config-less catch-all 'other' kind.
   const baseTool = (over: Record<string, unknown> = {}) => ({
     schoolId: "sch1",
     schoolName: "Escuela",
@@ -1025,6 +1026,30 @@ describe("tools — write-shape: generic config + cta scheme (P1-b)", () => {
     );
     await assertSucceeds(
       setDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t2"), baseTool()),
+    );
+  });
+
+  it("ALLOWS creating a tool with an activity window AND a valid http(s) CTA", async () => {
+    // Parity with the edit form: dates + cta are now part of the create field set.
+    await assertSucceeds(
+      setDoc(
+        doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
+        baseTool({
+          startsAt: "2026-01-01",
+          endsAt: "2026-02-01",
+          cta: { label: "Más info", url: "https://example.com/x" },
+        }),
+      ),
+    );
+  });
+
+  it("DENIES creating a tool with a CTA whose url scheme is not http(s)", async () => {
+    // The create CTA gets the SAME scheme check as update — a javascript:/data: href is rejected.
+    await assertFails(
+      setDoc(
+        doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
+        baseTool({ cta: { label: "x", url: "javascript:alert(1)" } }),
+      ),
     );
   });
 
