@@ -363,20 +363,19 @@ function DonateCallout() {
         <HeartIcon className="h-6 w-6" />
       </IconTile>
       <div className="min-w-0">
-        <h2 className="font-semibold tracking-tight text-foreground">
-          Apoya como persona
+        <h2 className="font-semibold tracking-tight">
+          <Link
+            href="/panel/donate"
+            className="inline-flex min-h-10 items-center gap-1 py-1 text-brand-darker transition-colors hover:text-brand-darkest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          >
+            Donar a una escuela
+            <ArrowRightIcon className="h-4 w-4" />
+          </Link>
         </h2>
         <p className="mt-1 text-sm text-muted">
-          No necesitas una página para apoyar: dona directamente a una escuela
-          y, si quieres, aparece en su muro de agradecimiento.
+          No necesitas una página para apoyar: dona como persona y, si quieres,
+          aparece en su muro de agradecimiento.
         </p>
-        <Link
-          href="/panel/donate"
-          className="mt-3 inline-flex min-h-10 items-center gap-1 py-1 text-sm font-medium text-brand-darker transition-colors hover:text-brand-darkest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-        >
-          Donar a una escuela
-          <ArrowRightIcon className="h-4 w-4" />
-        </Link>
       </div>
     </section>
   );

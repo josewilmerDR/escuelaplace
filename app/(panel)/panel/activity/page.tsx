@@ -12,7 +12,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Badge } from "@/components/ui/Badge";
-import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
@@ -206,10 +205,6 @@ export default function GlobalActivityPage() {
           </li>
         ))}
       </ul>
-
-      <p className="mt-8 text-sm">
-        <BackLink href="/panel">Volver al panel</BackLink>
-      </p>
     </main>
   );
 }

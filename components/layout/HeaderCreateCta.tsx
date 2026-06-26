@@ -14,8 +14,9 @@
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 
-// Mobile keeps the page-owner reachable too (owners sign up from their phone): icon-only
-// chip under sm, full label from sm up.
+// Mobile keeps the page-owner reachable too (owners sign up from their phone): a short
+// "Crear" label under sm (kept compact so it doesn't crowd the header), the full
+// "+ Crear página" from sm up.
 const CTA_CLASS = "btn btn-on-brand gap-1 font-semibold";
 
 export function HeaderCreateCta() {
@@ -26,8 +27,10 @@ export function HeaderCreateCta() {
   if (loading) {
     return (
       <span aria-hidden className={`${CTA_CLASS} invisible`}>
-        <span className="text-base leading-none">+</span>
-        <span className="hidden sm:inline">Crear</span>
+        <span className="hidden text-base leading-none sm:inline">+</span>
+        <span>
+          Crear<span className="hidden sm:inline">{" "}página</span>
+        </span>
       </span>
     );
   }
@@ -37,10 +40,12 @@ export function HeaderCreateCta() {
 
   return (
     <Link href="/create" aria-label="Crear una página" className={CTA_CLASS}>
-      <span aria-hidden className="text-base leading-none">
+      <span aria-hidden className="hidden text-base leading-none sm:inline">
         +
       </span>
-      <span className="hidden sm:inline">Crear página</span>
+      <span>
+        Crear<span className="hidden sm:inline">{" "}página</span>
+      </span>
     </Link>
   );
 }
