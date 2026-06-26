@@ -20,7 +20,6 @@ import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
 import { ThankYouCard } from "@/components/donors/ThankYouCard";
 import { ProjectContributionItem } from "@/components/projects/ProjectContributionItem";
 import { SupporterContributionItem } from "@/components/subscriptions/SupporterContributionItem";
-import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HeartIcon } from "@/components/ui/icons";
@@ -381,10 +380,6 @@ export default function DonationsPage() {
           )}
         </>
       )}
-
-      <p className="mt-10 text-sm">
-        <BackLink href="/panel">Volver al panel</BackLink>
-      </p>
     </main>
   );
 }
