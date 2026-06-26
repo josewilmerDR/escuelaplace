@@ -289,6 +289,46 @@ export interface CreateProjectInput {
   stages: ProjectStage[];
 }
 
+export interface PageantFundProjectParams {
+  /** The reinado's title — the derived project name is built from it. */
+  toolTitle: string;
+  /** The reinado's declared cause (PageantConfig.cause), if any — seeds the description/justification. */
+  cause?: string;
+  currency: ProjectCurrency;
+  /** The fundraising goal the board typed — becomes the single stage's cost (and thus the goal). */
+  goal: number;
+}
+
+/**
+ * Build the CreateProjectInput for a reinado's auto-generated destination project: ONE cost-justified
+ * stage whose cost IS the goal the board typed, with title/description/justification derived from the
+ * reinado so the board only fills the goal (minimal friction). The cover is NOT set here — the create
+ * rule omits coverUrl, so the caller inherits the reinado's cover via a follow-up updateProject. PURE
+ * (no I/O), unit-tested.
+ */
+export function buildPageantFundProjectInput({
+  toolTitle,
+  cause,
+  currency,
+  goal,
+}: PageantFundProjectParams): CreateProjectInput {
+  const purpose =
+    cause?.trim() ||
+    "Logística, decoración, sonido y demás costos de la realización del reinado.";
+  return {
+    title: `${toolTitle} — costos del evento`,
+    description: purpose,
+    currency,
+    stages: [
+      {
+        title: "Costos del evento",
+        justification: purpose,
+        cost: Math.max(0, Math.round(goal)),
+      },
+    ],
+  };
+}
+
 /**
  * Strip any quote URL whose scheme isn't http(s) before a stage is persisted. quoteUrls are
  * Firebase Storage download URLs in the normal flow, but they ride raw inside the stages[]

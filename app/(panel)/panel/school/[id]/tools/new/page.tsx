@@ -14,7 +14,7 @@
  * the create field set, so it's a follow-up update). PURELY INFORMATIONAL — the platform never
  * processes money.
  */
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
@@ -48,12 +48,9 @@ import {
   type PageantFormValue,
 } from "@/components/tools/PageantConfigFields";
 import {
-  PageantCandidatesFields,
-  emptyPageantCandidates,
-  persistPageantCandidates,
-  toCandidatesInput,
-  type PageantCandidateDraft,
-} from "@/components/tools/PageantCandidatesFields";
+  PageantCandidatesEditor,
+  type PageantCandidatesHandle,
+} from "@/components/tools/PageantCandidatesEditor";
 import {
   ServiceItemsEditor,
   emptyServiceForm,
@@ -77,21 +74,30 @@ import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { TOOL_TYPE_LIST, createToolTitle, toolTypeMeta } from "@/lib/tools/registry";
 import {
+  buildPageantFundProjectInput,
   copyDeckToTool,
+  createProject,
   createTool,
   deleteBingoDeck,
   getBingoDecks,
   getSchoolById,
+  newProjectId,
   newToolId,
   setToolCover,
+  toolDateFromInput,
+  updateProject,
   uploadToolCover,
 } from "@/lib/firestore";
+import { formatMoney } from "@/lib/format";
+import { safeExternalUrl } from "@/lib/url";
 import {
   EVENT_PHOTO_MAX,
+  TOOL_CTA_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
   type BingoDeckDoc,
   type SchoolDoc,
+  type ToolStatus,
   type ToolType,
 } from "@/types";
 
@@ -218,6 +224,13 @@ function NewToolContent() {
   // Create-form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  // Visibility, like the edit page (default published). 'active' shows it on the school page; 'inactive' hides it.
+  const [status, setStatus] = useState<ToolStatus>("active");
+  // Activity window + call-to-action — same optional fields the edit page has (full parity).
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [ctaLabel, setCtaLabel] = useState("");
+  const [ctaUrl, setCtaUrl] = useState("");
   const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
   const [tourForm, setTourForm] = useState<TourFormValue>(emptyTourForm);
   const [saleForm, setSaleForm] = useState<SaleFormValue>(emptySaleForm);
@@ -241,8 +254,14 @@ function NewToolContent() {
   // subcollection, not part of PageantConfig, so it can't ride along in the createTool write — it's
   // persisted right after, against the pre-allocated tool id (like the bingo copies its mazo).
   const [pageantForm, setPageantForm] = useState<PageantFormValue>(emptyPageantForm);
-  const [pageantCandidates, setPageantCandidates] =
-    useState<PageantCandidateDraft[]>(emptyPageantCandidates);
+  // The pageant roster editor (mounted only for type 'pageant'), driven on submit via validate()/
+  // saveAll() — the SAME component the edit page uses (it self-loads, empty for a brand-new tool).
+  const candidatesRef = useRef<PageantCandidatesHandle>(null);
+  // Pageant padrinazgo: opt-in to receive event sponsorships at creation. Enabling it auto-creates a
+  // single-stage destination project (the public "Apadrinar el reinado" CTA funds it); the board only
+  // types the goal — title/cover/description are derived from the reinado on submit.
+  const [sponsorEnabled, setSponsorEnabled] = useState(false);
+  const [sponsorGoal, setSponsorGoal] = useState("");
   // The event's gallery (photos + one short video). Unlike a catalog's per-item media it isn't a
   // list, so it lives here and is merged into the event config on submit. Uploaded immediately to
   // the pre-allocated tool path, like every other kind's media.
@@ -399,6 +418,26 @@ function NewToolContent() {
       setError("Ingresa el título de la herramienta.");
       return;
     }
+    // The CTA is all-or-nothing and must be a safe http(s) URL; the window's end can't precede its
+    // start — the SAME checks the edit form runs (full parity).
+    const label = ctaLabel.trim();
+    const url = ctaUrl.trim();
+    if ((label && !url) || (!label && url)) {
+      setError(
+        "El botón necesita tanto un texto como un enlace; completa ambos o deja los dos en blanco.",
+      );
+      return;
+    }
+    if (url && !safeExternalUrl(url)) {
+      setError("El enlace del botón debe empezar con http:// o https://");
+      return;
+    }
+    const start = toolDateFromInput(startsAt);
+    const end = toolDateFromInput(endsAt);
+    if (start && end && end < start) {
+      setError("La fecha de fin no puede ser anterior a la de inicio.");
+      return;
+    }
     // A raffle carries its own configuration — validate and convert it before creating.
     const raffleResult = type === "raffle" ? toRaffleInput(raffleForm) : null;
     if (raffleResult && !raffleResult.ok) {
@@ -482,17 +521,49 @@ function NewToolContent() {
       return;
     }
     const pageant = pageantResult?.ok ? pageantResult.input : undefined;
-    // Validate the roster before creating the tool (drops blank rows, requires a name on the rest).
-    const candidatesResult =
-      type === "pageant" ? toCandidatesInput(pageantCandidates) : null;
-    if (candidatesResult && !candidatesResult.ok) {
-      setError(candidatesResult.error);
-      return;
+    // Validate the roster before creating the tool (drops blank rows, requires a name on the rest) —
+    // via the SAME imperative handle the edit page uses.
+    if (type === "pageant") {
+      const candidatesError = candidatesRef.current?.validate();
+      if (candidatesError) {
+        setError(candidatesError);
+        return;
+      }
     }
-    const candidateRows = candidatesResult?.ok ? candidatesResult.rows : [];
+    // Padrinazgo: enabling it auto-creates the destination project, so the goal (its only stage cost)
+    // is required.
+    let sponsorGoalNum = 0;
+    if (type === "pageant" && sponsorEnabled) {
+      sponsorGoalNum = Math.round(Number(sponsorGoal));
+      if (!Number.isFinite(sponsorGoalNum) || sponsorGoalNum < 1) {
+        setError("Ingresa una meta de recaudación para el padrinazgo (mayor a 0).");
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
+      // Padrinazgo: create the destination project FIRST (so the reinado never points at a missing
+      // project) and thread its id into the pageant config below. The cover is inherited after the
+      // cover upload, like the tool's own (the create rule omits coverUrl). A later failure leaves at
+      // most a benign orphan project.
+      let fundProjectId: string | undefined;
+      if (type === "pageant" && pageant && sponsorEnabled) {
+        const projectId = newProjectId(id);
+        await createProject(
+          id,
+          school.name,
+          user.id,
+          buildPageantFundProjectInput({
+            toolTitle: trimmedTitle,
+            cause: pageant.cause,
+            currency: pageant.currency,
+            goal: sponsorGoalNum,
+          }),
+          projectId,
+        );
+        fundProjectId = projectId;
+      }
       // One write creates the tool with its kind config AND any per-item media already uploaded
       // to the pre-allocated path (passed as the doc id).
       await createTool(
@@ -503,13 +574,24 @@ function NewToolContent() {
           type,
           title: trimmedTitle,
           description: description.trim(),
+          status,
+          startsAt: start,
+          endsAt: end,
+          cta: label && url ? { label, url } : null,
           ...(raffle ? { raffle } : {}),
           ...(tour ? { tour } : {}),
           ...(sale ? { sale } : {}),
           ...(service ? { service } : {}),
           ...(bingo ? { bingo } : {}),
           ...(event ? { event } : {}),
-          ...(pageant ? { pageant } : {}),
+          ...(pageant
+            ? {
+                pageant: {
+                  ...pageant,
+                  ...(fundProjectId ? { fundProjectId } : {}),
+                },
+              }
+            : {}),
         },
         toolId,
       );
@@ -521,6 +603,10 @@ function NewToolContent() {
         try {
           const coverUrl = await uploadToolCover(id, toolId, coverFile);
           await setToolCover(id, toolId, coverUrl);
+          // Inherit the reinado's cover into its padrinazgo project (best-effort).
+          if (fundProjectId) {
+            await updateProject(id, fundProjectId, { coverUrl }).catch(() => {});
+          }
         } catch {
           // ignore — the tool is created; the cover can be added later from the edit page
         }
@@ -547,12 +633,13 @@ function NewToolContent() {
       // a mid-roster failure must neither block the flow nor risk duplicates on a form retry — the
       // board finishes the roster from the reinado's edit page.
       if (type === "pageant") {
-        if (candidateRows.length > 0) {
-          try {
-            await persistPageantCandidates(id, toolId, candidateRows);
-          } catch {
-            // ignore — the reinado is created; the roster can be finished from the edit page
-          }
+        // Persist the roster the SAME way the edit page does (saveAll on the shared editor). Best-effort:
+        // the reinado already exists, so a mid-roster failure must neither block the flow nor risk
+        // duplicates on a form retry — the board finishes the roster from the reinado's edit page.
+        try {
+          await candidatesRef.current?.saveAll();
+        } catch {
+          // ignore — the reinado is created; the roster can be finished from the edit page
         }
         router.push(`/panel/school/${id}/tools/${toolId}/manage`);
         return;
@@ -758,10 +845,88 @@ function NewToolContent() {
               <p className="mb-3 text-xs text-muted">
                 Agrega aquí las candidatas o candidatos. Siempre puedes editar esto después.
               </p>
-              <PageantCandidatesFields
-                value={pageantCandidates}
-                onChange={setPageantCandidates}
+              <PageantCandidatesEditor
+                ref={candidatesRef}
+                schoolId={id}
+                toolId={toolId}
+                showJuryScore={false}
               />
+            </div>
+
+            {/* Padrinazgo (opcional): opting in auto-creates a single-stage destination project the
+                public "Apadrinar el reinado" CTA funds; the board only types the goal. */}
+            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+              <p className="mb-1 text-sm font-semibold text-foreground">
+                Padrinazgo del reinado (opcional)
+              </p>
+              <p className="mb-3 text-xs text-muted">
+                Habilita un botón «Apadrinar el reinado» en la página pública para recibir aportes
+                hacia los costos del evento (logística, decoración, etc.) — sin apuntar a ninguna
+                candidatura.
+              </p>
+
+              <label className="flex items-start gap-3 rounded-xl bg-white p-3 ring-1 ring-black/5">
+                <input
+                  type="checkbox"
+                  checked={sponsorEnabled}
+                  onChange={(e) => setSponsorEnabled(e.target.checked)}
+                  className="mt-0.5 size-4"
+                />
+                <span className="text-sm">
+                  <span className="font-medium text-foreground">
+                    Recibir padrinazgos para el reinado
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Al crear se generará un proyecto asociado para recibir los aportes.
+                  </span>
+                </span>
+              </label>
+
+              {sponsorEnabled && (
+                <div className="mt-4 flex flex-col gap-4">
+                  <Field label="Meta de recaudación">
+                    <input
+                      type="number"
+                      min={1}
+                      step="any"
+                      inputMode="decimal"
+                      value={sponsorGoal}
+                      onChange={(e) => setSponsorGoal(e.target.value)}
+                      className="input"
+                      placeholder="Ej.: 150000"
+                    />
+                    <span className="text-muted">
+                      Se creará el proyecto «{title.trim() || "Reinado"} — costos del evento»
+                      {Number(sponsorGoal) > 0
+                        ? `, meta ${formatMoney(Math.round(Number(sponsorGoal)), pageantForm.currency)}`
+                        : ""}
+                      .
+                    </span>
+                  </Field>
+
+                  <div className="rounded-xl bg-white p-3 text-xs text-muted ring-1 ring-black/5">
+                    <p className="font-medium text-foreground">Al activar:</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4">
+                      <li>
+                        Será público y aparecerá en los proyectos de tu escuela, con barra de
+                        recaudación.
+                      </li>
+                      <li>
+                        Los padrinos pagan directo a la escuela; vos confirmás cada aporte en tu
+                        panel de proyectos.
+                      </li>
+                      <li>
+                        Es editable después (meta, descripción, etapas) y lo cerrás cuando termine el
+                        evento.
+                      </li>
+                      <li>
+                        La plataforma nunca toca el dinero; la escuela se compromete a usarlo para el
+                        reinado.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -774,6 +939,58 @@ function NewToolContent() {
           value={coverFile}
           onChange={setCoverFile}
         />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Desde (opcional)">
+            <input
+              type="date"
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+              className="input"
+            />
+          </Field>
+          <Field label="Hasta (opcional)">
+            <input
+              type="date"
+              value={endsAt}
+              onChange={(e) => setEndsAt(e.target.value)}
+              className="input"
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Texto del botón (opcional)">
+            <input
+              type="text"
+              maxLength={TOOL_CTA_LABEL_MAX}
+              value={ctaLabel}
+              onChange={(e) => setCtaLabel(e.target.value)}
+              className="input"
+              placeholder="Ej.: Escríbenos por WhatsApp"
+            />
+          </Field>
+          <Field label="Enlace del botón (opcional)">
+            <input
+              type="url"
+              value={ctaUrl}
+              onChange={(e) => setCtaUrl(e.target.value)}
+              className="input"
+              placeholder="https://…"
+            />
+          </Field>
+        </div>
+
+        <Field label="Visibilidad">
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ToolStatus)}
+            className="input"
+          >
+            <option value="active">Visible en la página de la escuela</option>
+            <option value="inactive">Oculta</option>
+          </select>
+        </Field>
 
         <FormError message={error} />
 

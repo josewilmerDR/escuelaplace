@@ -7,11 +7,13 @@ import { BingoLivePublic } from "@/components/tools/BingoLivePublic";
 import { EventStatusBadge } from "@/components/tools/EventStatusBadge";
 import { PageantCandidates } from "@/components/tools/PageantCandidates";
 import { PageantLivePublic } from "@/components/tools/PageantLivePublic";
+import { PageantSponsorButton } from "@/components/tools/PageantSponsorButton";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { SaleProducts } from "@/components/tools/SaleProducts";
 import { ServiceItems } from "@/components/tools/ServiceItems";
 import { ToolDetailShell } from "@/components/tools/ToolDetailShell";
 import { TourStages } from "@/components/tools/TourStages";
+import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { cardClass } from "@/components/ui/Card";
 import {
   ArrowRightIcon,
@@ -28,10 +30,12 @@ import {
   getBingoCards,
   getBingoOrdersByTool,
   getCandidates,
+  getProjectById,
   getRaffleOrdersByTool,
   getSchoolById,
   getToolById,
   isSchoolVerified,
+  projectGoal,
   raffleNumberStates,
   toolConfigOf,
   toolWindowLabel,
@@ -797,6 +801,12 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
   // Support is recorded only against a verified school (the create rule gates on it) — so the
   // "Apoyar" CTA shows only then; otherwise a note explains it isn't enabled yet.
   const verified = isSchoolVerified(school);
+  // The reinado's destination project (event-level "Apadrinar el reinado"). Only when verified and
+  // linked; its progress bar + the sponsor CTA render together. Absent/non-active project → no UI.
+  const fundProject =
+    verified && pageant.fundProjectId
+      ? await getProjectById(id, pageant.fundProjectId).catch(() => null)
+      : null;
   const opensMs = pageant.opensAt ? pageant.opensAt.toMillis() : null;
   const closesMs = pageant.closesAt ? pageant.closesAt.toMillis() : null;
   // The reinado's year, for the live crown banner — from the voting window (the year it runs).
@@ -861,6 +871,41 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
           <p className="mt-2 whitespace-pre-line text-sm text-muted">
             {pageant.criteria}
           </p>
+        </div>
+      )}
+
+      {/* Event-level sponsorship: fund the reinado's destination project (its costs), NEVER a single
+          candidate. Shown only when the school is verified and the reinado is linked to an active
+          project — the progress bar + the "Apadrinar el reinado" CTA + a link to the project. */}
+      {fundProject && fundProject.status === "active" && (
+        <div className={`mt-6 ${cardClass("inset")}`}>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
+            Apadrina el reinado
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            Aportes para los costos del evento — no para una candidatura en particular.
+          </p>
+          <div className="mt-3">
+            <ProjectProgress
+              raised={fundProject.raised}
+              goal={projectGoal(fundProject.stages)}
+              currency={fundProject.currency}
+              contributorsCount={fundProject.contributorsCount}
+            />
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <PageantSponsorButton
+              schoolId={id}
+              fundProjectId={fundProject.id}
+              cause={pageant.cause}
+            />
+            <Link
+              href={`/school/${id}/project/${fundProject.id}`}
+              className="text-sm font-medium text-brand-darker hover:underline"
+            >
+              Ver el proyecto
+            </Link>
+          </div>
         </div>
       )}
 

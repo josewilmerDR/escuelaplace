@@ -576,6 +576,11 @@ export interface CreateToolInput {
   description: string;
   /** Defaults to 'active' (visible). */
   status?: ToolStatus;
+  /** Activity window — written only when set (the create form sets it like the edit form). */
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  /** Call to action — written only when it's both labelled AND a safe http(s) URL. */
+  cta?: { label: string; url: string } | null;
   /** Raffle configuration — pass only when type === 'raffle'. */
   raffle?: RaffleConfigInput;
   /** Guided-tour configuration — pass only when type === 'guided_tour'. */
@@ -620,6 +625,7 @@ export async function createTool(
   toolId?: string,
 ): Promise<string> {
   const config = buildToolConfig(input);
+  const cta = sanitizeCta(input.cta);
   const data = {
     schoolId,
     schoolName,
@@ -630,6 +636,11 @@ export async function createTool(
     // The kind config lives under the single generic `config` map (built by buildToolConfig);
     // absent for the config-less `other` kind.
     ...(config ? { config } : {}),
+    // Dates/CTA are written only when set (a new doc never needs deleteField). validToolCreate
+    // allows them + scheme-checks the CTA, exactly like the update path.
+    ...(input.startsAt ? { startsAt: Timestamp.fromDate(input.startsAt) } : {}),
+    ...(input.endsAt ? { endsAt: Timestamp.fromDate(input.endsAt) } : {}),
+    ...(cta ? { cta } : {}),
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
