@@ -911,7 +911,7 @@ export type ProjectDoc = Project & { id: string };
  * a raffle, a bingo, a sale, a service, a guided tour, etc. Each is a card the school
  * publishes on its public "Principal" tab (plus a detail page). PURELY INFORMATIONAL: like
  * every other surface the platform never processes money — a tool may carry an optional
- * call to action (a link the school controls, e.g. a WhatsApp or a form), nothing more.
+ * WhatsApp contact (an alternate number + custom button label), nothing more.
  *
  * The concrete kinds live in a registry (lib/tools/registry) keyed by `type`; adding a kind
  * is editing that registry (+ this union and the rules list), not the storage shape — the
@@ -956,18 +956,8 @@ export type ToolStatus = "active" | "inactive";
 /** UI caps for the tool form. Enforced by the panel inputs and the rules. */
 export const TOOL_TITLE_MAX = 120;
 export const TOOL_DESCRIPTION_MAX = 600;
-export const TOOL_CTA_LABEL_MAX = 40;
-
-/**
- * Optional call to action: a button the school controls. `url` is scheme-checked on write
- * (safeExternalUrl) — the platform never processes money, this only links out (a WhatsApp
- * chat, a form, an external page).
- */
-export interface ToolCta {
-  label: string;
-  /** Absolute http(s) URL. */
-  url: string;
-}
+/** Cap for the "Consultar" button's custom label. */
+export const TOOL_CONTACT_LABEL_MAX = 40;
 
 // ── Raffle (type: 'raffle') — the first kind with its own configured behavior ──
 //
@@ -1046,8 +1036,8 @@ export interface TourConfig {
   /** Ordered stages shown in sequence on the public page. */
   stages: TourStage[];
   /**
-   * Optional WhatsApp number for the public "Preguntar" button. Free text (the helper
-   * normalizes it); when empty the button falls back to the school's boardContact.phone.
+   * LEGACY — superseded by the tool-level `Tool.contactPhone`; only read as a fallback for docs
+   * saved before the unification (toolContactPhone migrates it up on the next save). Never written.
    */
   contactPhone?: string;
 }
@@ -1094,8 +1084,8 @@ export interface SaleConfig {
   /** One currency for the whole catalog. */
   currency: ProjectCurrency;
   /**
-   * Optional WhatsApp number for the per-product "Consultar" button. Free text (the helper
-   * normalizes it); when empty the button falls back to the school's boardContact.phone.
+   * LEGACY — superseded by the tool-level `Tool.contactPhone`; only read as a fallback for docs
+   * saved before the unification (toolContactPhone migrates it up on the next save). Never written.
    */
   contactPhone?: string;
 }
@@ -1168,8 +1158,8 @@ export interface ServiceConfig {
   /** One currency for the whole catalog (used only to format the prices that are set). */
   currency: ProjectCurrency;
   /**
-   * Optional WhatsApp number for the per-service "Preguntar" button. Free text (the helper
-   * normalizes it); when empty the button falls back to the school's boardContact.phone.
+   * LEGACY — superseded by the tool-level `Tool.contactPhone`; only read as a fallback for docs
+   * saved before the unification (toolContactPhone migrates it up on the next save). Never written.
    */
   contactPhone?: string;
 }
@@ -1199,7 +1189,7 @@ export interface EventConfig {
   photos?: string[];
   /** A single short promo video (≤ TOOL_VIDEO_MAX_SECONDS). */
   videoUrl?: string;
-  /** Optional WhatsApp for the "Preguntar" button; empty falls back to the school's board phone. */
+  /** LEGACY — superseded by the tool-level `Tool.contactPhone`; read-only fallback for old docs. */
   contactPhone?: string;
 }
 
@@ -1374,7 +1364,7 @@ export interface BingoConfig {
   eventDate?: Timestamp;
   /** "Modalidad": how the bingo is run/announced (free text, optional). */
   drawMethod?: string;
-  /** Optional WhatsApp for questions; empty falls back to the school's board phone. */
+  /** LEGACY — superseded by the tool-level `Tool.contactPhone`; read-only fallback for old docs. */
   contactPhone?: string;
   /**
    * Marking assistance for players. Default (absent/false) = traditional mode: the player marks
@@ -1476,11 +1466,11 @@ export interface PageantCrownFormula {
   sympathy: number;
 }
 
-/** Suggested default split — jury-led, with a capped, non-binding sympathy weight. */
+/** Suggested default split — jury-led, with the two community axes balanced and non-binding. */
 export const PAGEANT_DEFAULT_CROWN_FORMULA: PageantCrownFormula = {
-  jury: 50,
+  jury: 40,
   support: 30,
-  sympathy: 20,
+  sympathy: 30,
 };
 
 /**
@@ -1576,8 +1566,14 @@ export interface Tool {
   /** Optional activity window (purely informational). */
   startsAt?: Timestamp;
   endsAt?: Timestamp;
-  /** Optional call to action (a link the school controls). */
-  cta?: ToolCta;
+  /**
+   * Optional WhatsApp contact for the tool's "Consultar" button: an alternate number to the
+   * school's board phone (empty falls back to it) and a custom button label (empty defaults to
+   * "Consultar"). Tool-level so every kind shares one contact — read with toolContactPhone /
+   * toolContactLabel (lib/firestore), which also fall back to a kind's LEGACY config.contactPhone.
+   */
+  contactPhone?: string;
+  contactLabel?: string;
   /**
    * The per-kind configuration, discriminated by `type` (its concrete shape is one member of
    * `ToolConfig`); absent for the catch-all `other`. Read it typed with `toolConfigOf(tool, kind)`

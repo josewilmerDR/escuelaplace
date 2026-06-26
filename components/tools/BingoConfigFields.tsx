@@ -120,7 +120,6 @@ export function toBingoInput(
     return { ok: false, error: "Ingresa un precio por cartón mayor a 0." };
   }
   const drawMethod = value.drawMethod.trim();
-  const contactPhone = value.contactPhone.trim();
   return {
     ok: true,
     input: {
@@ -135,7 +134,6 @@ export function toBingoInput(
       currency: value.currency,
       eventDate: toolDateFromInput(value.eventDate),
       ...(drawMethod ? { drawMethod } : {}),
-      ...(contactPhone ? { contactPhone } : {}),
       ...(value.assistMarking ? { assistMarking: true } : {}),
     },
   };
@@ -349,17 +347,6 @@ export function BingoConfigFields({
           onChange={(e) => set({ drawMethod: e.target.value })}
           className="input"
           placeholder="Ej.: Presencial en el gimnasio, transmitido en vivo"
-        />
-      </Field>
-
-      <Field label="WhatsApp para consultas (opcional)">
-        <input
-          type="tel"
-          inputMode="tel"
-          value={value.contactPhone}
-          onChange={(e) => set({ contactPhone: e.target.value })}
-          className="input"
-          placeholder="Ej.: 8888 8888"
         />
       </Field>
 

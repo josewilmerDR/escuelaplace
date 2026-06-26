@@ -6,10 +6,10 @@
  * A tool DOC is the shared CONFIG SURFACE of an activity a school runs — a raffle, a bingo, a
  * sale, a service, a guided tour, an event. The concrete kinds live in a registry
  * (lib/tools/registry); the storage shape here is the same for every kind. PURELY
- * INFORMATIONAL: like every other surface the platform never touches money — a tool may carry
- * an optional call-to-action LINK (scheme-checked on write AND in firestore.rules), nothing
- * more. No function-maintained fields: the school owns every field (so, unlike projects, there
- * are no counters to preserve).
+ * INFORMATIONAL: like every other surface the platform never touches money — a tool may carry an
+ * optional WhatsApp contact for its "Consultar" button (a tool-level alternate number + custom
+ * label, shared by every kind; see toolContactPhone/toolContactLabel), nothing more. No
+ * function-maintained fields: the school owns every field (so, unlike projects, no counters to keep).
  *
  * CONFIG STORAGE: a kind's configuration lives under a single generic `config` map on the doc,
  * discriminated by `type` (raffle → RaffleConfig, …); read it typed via toolConfigOf(tool, kind).
@@ -72,7 +72,6 @@ import type {
   ServiceModality,
   Tool,
   ToolConfig,
-  ToolCta,
   ToolDoc,
   ToolStatus,
   ToolType,
@@ -194,16 +193,22 @@ export function toolWindowLabel(
 }
 
 /**
- * The tool's own WhatsApp contact, across the kinds that carry one (tour/sale/service/bingo/
- * event). A raffle has none. Empty string when the tool sets no contact — callers fall back to
- * the school's board phone. Used by the feed card's "Consultar" action.
+ * The tool's WhatsApp contact number for the "Consultar" button, for EVERY kind. Prefers the
+ * tool-level `contactPhone`; falls back to a kind's LEGACY `config.contactPhone` (pre-unification
+ * docs that stored the number per kind) so they keep working until re-saved. Empty string when the
+ * tool sets none — callers then fall back to the school's board phone.
  */
-export function toolContactPhone(tool: ToolDoc): string {
+export function toolContactPhone(tool: Pick<ToolDoc, "contactPhone" | "config">): string {
+  if (tool.contactPhone) return tool.contactPhone;
   const config = tool.config;
-  // raffle/other carry no contactPhone; tour/sale/service/bingo/event do (optional).
   return config && "contactPhone" in config && config.contactPhone
     ? config.contactPhone
     : "";
+}
+
+/** The tool's "Consultar" button label — the school's custom text, or "Consultar" by default. */
+export function toolContactLabel(tool: Pick<ToolDoc, "contactLabel">): string {
+  return tool.contactLabel?.trim() || "Consultar";
 }
 
 // ── Date <-> <input type="date"> helpers (day-granular, UTC) ─────────────────
@@ -251,21 +256,6 @@ export function toolDateTimeFromInput(value: string): Date | null {
 }
 
 // ── Writes (board tool CRUD) ─────────────────────────────────────────────────
-
-/**
- * Drop a CTA that isn't both labelled AND a safe http(s) URL. The scheme check (parse, not
- * regex) is what makes the stored link safe to render in an `<a href>` later — a
- * `javascript:`/`data:` value is rejected here (defense in depth with the render-side guard).
- */
-function sanitizeCta(
-  cta: { label: string; url: string } | null | undefined,
-): ToolCta | null {
-  if (!cta) return null;
-  const label = cta.label.trim();
-  const url = safeExternalUrl(cta.url);
-  if (!label || !url) return null;
-  return { label, url };
-}
 
 /** Form-shaped raffle config (dates as Date, prizes pre-trimmed) — see buildRaffleConfig. */
 export interface RaffleConfigInput {
@@ -579,8 +569,10 @@ export interface CreateToolInput {
   /** Activity window — written only when set (the create form sets it like the edit form). */
   startsAt?: Date | null;
   endsAt?: Date | null;
-  /** Call to action — written only when it's both labelled AND a safe http(s) URL. */
-  cta?: { label: string; url: string } | null;
+  /** Alternate WhatsApp number for the "Consultar" button — written (trimmed) only when set. */
+  contactPhone?: string | null;
+  /** Custom label for the "Consultar" button — written (trimmed) only when set. */
+  contactLabel?: string | null;
   /** Raffle configuration — pass only when type === 'raffle'. */
   raffle?: RaffleConfigInput;
   /** Guided-tour configuration — pass only when type === 'guided_tour'. */
@@ -625,7 +617,8 @@ export async function createTool(
   toolId?: string,
 ): Promise<string> {
   const config = buildToolConfig(input);
-  const cta = sanitizeCta(input.cta);
+  const contactPhone = input.contactPhone?.trim();
+  const contactLabel = input.contactLabel?.trim();
   const data = {
     schoolId,
     schoolName,
@@ -636,11 +629,12 @@ export async function createTool(
     // The kind config lives under the single generic `config` map (built by buildToolConfig);
     // absent for the config-less `other` kind.
     ...(config ? { config } : {}),
-    // Dates/CTA are written only when set (a new doc never needs deleteField). validToolCreate
-    // allows them + scheme-checks the CTA, exactly like the update path.
+    // Dates + WhatsApp contact are written only when set (a new doc never needs deleteField).
+    // validToolCreate allows them, exactly like the update path.
     ...(input.startsAt ? { startsAt: Timestamp.fromDate(input.startsAt) } : {}),
     ...(input.endsAt ? { endsAt: Timestamp.fromDate(input.endsAt) } : {}),
-    ...(cta ? { cta } : {}),
+    ...(contactPhone ? { contactPhone } : {}),
+    ...(contactLabel ? { contactLabel } : {}),
     ownerId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -661,11 +655,13 @@ export interface ToolPatch {
   status: ToolStatus;
   /** A NEW cover URL to set; omit to keep the existing cover. */
   coverUrl?: string;
-  /** Activity window — null clears the field. */
-  startsAt: Date | null;
-  endsAt: Date | null;
-  /** Call to action — null (or an unsafe/empty value) clears the field. */
-  cta: { label: string; url: string } | null;
+  /** Activity window — pass a Date to set, null to clear, or omit to leave the stored value untouched. */
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  /** Alternate WhatsApp number for the "Consultar" button — empty/null clears the field. */
+  contactPhone: string | null;
+  /** Custom label for the "Consultar" button — empty/null clears (falls back to "Consultar"). */
+  contactLabel: string | null;
   /** Raffle config — pass only when type === 'raffle'; omit to leave it untouched. */
   raffle?: RaffleConfigInput;
   /** Guided-tour config — pass only when type === 'guided_tour'; omit to leave it untouched. */
@@ -683,16 +679,19 @@ export interface ToolPatch {
 }
 
 /**
- * Update a tool. Optional fields are set when present and DELETED when null (deleteField), so
- * clearing a date or the CTA in the form actually removes it from the doc. updatedAt is
- * always refreshed.
+ * Update a tool. A field passed as empty/null is DELETED (deleteField) so clearing the WhatsApp
+ * contact in the form removes it from the doc; the activity window is touched only when its key is
+ * present (set/clear), and omitted entirely leaves any stored window untouched. Rebuilding `config`
+ * (without the legacy per-kind contactPhone) also migrates an old number up to the tool level — the
+ * form seeds the tool-level field from it on load. updatedAt is always refreshed.
  */
 export async function updateTool(
   schoolId: string,
   toolId: string,
   patch: ToolPatch,
 ): Promise<void> {
-  const cta = sanitizeCta(patch.cta);
+  const contactPhone = patch.contactPhone?.trim();
+  const contactLabel = patch.contactLabel?.trim();
   const config = buildToolConfig(patch);
   await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
     type: patch.type,
@@ -720,9 +719,17 @@ export async function updateTool(
           event: deleteField(),
         }
       : {}),
-    startsAt: patch.startsAt ? Timestamp.fromDate(patch.startsAt) : deleteField(),
-    endsAt: patch.endsAt ? Timestamp.fromDate(patch.endsAt) : deleteField(),
-    cta: cta ?? deleteField(),
+    // Touch the window only when the patch carries the key: a Date sets it, null clears it
+    // (deleteField), and omitting the key entirely leaves any stored window untouched — the edit
+    // form no longer exposes these, so it omits them rather than wiping a previously-set window.
+    ...(patch.startsAt !== undefined
+      ? { startsAt: patch.startsAt ? Timestamp.fromDate(patch.startsAt) : deleteField() }
+      : {}),
+    ...(patch.endsAt !== undefined
+      ? { endsAt: patch.endsAt ? Timestamp.fromDate(patch.endsAt) : deleteField() }
+      : {}),
+    contactPhone: contactPhone ? contactPhone : deleteField(),
+    contactLabel: contactLabel ? contactLabel : deleteField(),
     updatedAt: serverTimestamp(),
   });
 }

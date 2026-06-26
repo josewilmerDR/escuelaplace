@@ -104,7 +104,6 @@ export function toServiceInput(
       };
     }
   }
-  const contactPhone = value.contactPhone.trim();
   const availability = value.availability.trim();
   return {
     ok: true,
@@ -123,7 +122,6 @@ export function toServiceInput(
         },
       ],
       currency: value.currency,
-      ...(contactPhone ? { contactPhone } : {}),
     },
   };
 }
@@ -274,24 +272,6 @@ export function ServiceItemsEditor({
           Fotos del servicio (hasta {SERVICE_PHOTO_MAX}) y un video corto (opcional).
         </p>
       </ToolItemCard>
-
-      <Field label="WhatsApp para consultas (opcional)">
-        <input
-          type="tel"
-          inputMode="tel"
-          value={value.contactPhone}
-          onChange={(e) => {
-            const contactPhone = e.target.value;
-            onChange((prev) => ({ ...prev, contactPhone }));
-          }}
-          className="input"
-          placeholder="Ej.: 8888 8888"
-        />
-      </Field>
-      <p className="-mt-2 text-xs text-muted">
-        El botón “Preguntar” del servicio abrirá WhatsApp con este número. Si lo dejas en
-        blanco, usa el teléfono de la junta de la escuela.
-      </p>
     </div>
   );
 }

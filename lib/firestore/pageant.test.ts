@@ -44,10 +44,12 @@ describe("effectiveWeights", () => {
     expect(w).toEqual({ jury: 0, support: 0, sympathy: 0 });
   });
 
-  it("ships a default formula that sums to 100 with a capped sympathy weight", () => {
+  it("ships a default formula that sums to 100 and stays jury-led", () => {
     const { jury, support, sympathy } = PAGEANT_DEFAULT_CROWN_FORMULA;
     expect(jury + support + sympathy).toBe(100);
-    expect(sympathy).toBeLessThanOrEqual(20);
+    // Jury is the single largest axis, so neither community axis can outweigh it alone.
+    expect(jury).toBeGreaterThanOrEqual(support);
+    expect(jury).toBeGreaterThanOrEqual(sympathy);
   });
 });
 

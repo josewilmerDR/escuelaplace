@@ -256,13 +256,6 @@ export const PageantCandidatesEditor = forwardRef<
 
   return (
     <div className="flex flex-col gap-4">
-      {rows.length === 0 && (
-        <p className="text-sm text-muted">
-          Aún no has agregado candidaturas. Agrega la primera con el botón de abajo; se guardan con
-          «Guardar cambios».
-        </p>
-      )}
-
       {rows.map((row, i) => (
         <div key={row._key} className="rounded-2xl bg-background p-4 ring-1 ring-black/5">
           <div className="mb-3 flex items-center justify-between">

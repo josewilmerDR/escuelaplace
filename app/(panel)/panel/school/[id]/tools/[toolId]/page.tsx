@@ -87,8 +87,7 @@ import {
   newProjectId,
   raffleNumberStates,
   toolConfigOf,
-  toolDateFromInput,
-  toolDateInputValue,
+  toolContactPhone,
   updateProject,
   updateTool,
   updateToolEvent,
@@ -101,7 +100,7 @@ import {
   BINGO_PATTERNS,
   EVENT_PHOTO_MAX,
   RAFFLE_NUMBER_COUNT,
-  TOOL_CTA_LABEL_MAX,
+  TOOL_CONTACT_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
   TOUR_STAGE_DESCRIPTION_MAX,
@@ -183,10 +182,10 @@ export default function EditToolPage() {
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<ToolStatus>("active");
   const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
-  const [ctaLabel, setCtaLabel] = useState("");
-  const [ctaUrl, setCtaUrl] = useState("");
+  // Tool-level WhatsApp contact for the "Consultar" button: an alternate number (empty = school
+  // board phone) and a custom button label (empty = "Consultar").
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactLabel, setContactLabel] = useState("");
   const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
   // Raffle orders, only for the read-only grid preview shown to the board.
   const [orders, setOrders] = useState<RaffleOrderDoc[]>([]);
@@ -214,10 +213,10 @@ export default function EditToolPage() {
     string | undefined
   >(undefined);
 
-  // Guided-tour editable state. Stage text + the contact phone save with the form button; stage
-  // media (photos/video) persists immediately, the way the project editor handles stage media.
+  // Guided-tour editable state. Stage text saves with the form button; stage media (photos/video)
+  // persists immediately, the way the project editor handles stage media. The WhatsApp contact is
+  // tool-level now (contactPhone above), not per-tour.
   const [tourStages, setTourStages] = useState<EditableTourStage[]>([]);
-  const [tourPhone, setTourPhone] = useState("");
   // Deterministic monotonic counter for stable stage ids (no Math.random/Date.now).
   const nextTourKey = useRef(0);
   // Keys of stages currently persisted in Firestore — a media upload can only target a saved
@@ -285,10 +284,11 @@ export default function EditToolPage() {
           setTitle(t.title);
           setDescription(t.description);
           setStatus(t.status);
-          setStartsAt(toolDateInputValue(t.startsAt));
-          setEndsAt(toolDateInputValue(t.endsAt));
-          setCtaLabel(t.cta?.label ?? "");
-          setCtaUrl(t.cta?.url ?? "");
+          // Seed the tool-level WhatsApp contact, migrating a legacy per-kind config.contactPhone up
+          // (toolContactPhone reads it as a fallback) — on save it's written at the tool level and
+          // dropped from config.
+          setContactPhone(toolContactPhone(t));
+          setContactLabel(t.contactLabel ?? "");
           const raffleCfg = toolConfigOf(t, "raffle");
           if (raffleCfg) setRaffleForm(raffleFormFromConfig(raffleCfg));
           const bingoCfg = toolConfigOf(t, "bingo");
@@ -306,7 +306,6 @@ export default function EditToolPage() {
           const tourCfg = toolConfigOf(t, "guided_tour");
           if (tourCfg) {
             setTourStages(keyTourStages(tourCfg.stages));
-            setTourPhone(tourCfg.contactPhone ?? "");
           }
           const saleCfg = toolConfigOf(t, "sale");
           if (saleCfg && saleCfg.products.length > 0) {
@@ -317,7 +316,7 @@ export default function EditToolPage() {
               id: p.id,
               price: String(p.price),
               currency: saleCfg.currency,
-              contactPhone: saleCfg.contactPhone ?? "",
+              contactPhone: "",
               ...(p.photos && p.photos.length > 0 ? { photos: p.photos } : {}),
               ...(p.videoUrl ? { videoUrl: p.videoUrl } : {}),
             });
@@ -335,7 +334,7 @@ export default function EditToolPage() {
               modalities: s.modalities ?? [],
               availability: s.availability ?? "",
               currency: serviceCfg.currency,
-              contactPhone: serviceCfg.contactPhone ?? "",
+              contactPhone: "",
               ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
               ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
             });
@@ -424,27 +423,6 @@ export default function EditToolPage() {
       setError("Ingresa el título de la herramienta.");
       return;
     }
-    // The CTA is all-or-nothing: a label without a link (or vice versa) is incomplete, and a
-    // link must be a safe http(s) URL — caught here so the board gets a clear message instead
-    // of a silently dropped button.
-    const label = ctaLabel.trim();
-    const url = ctaUrl.trim();
-    if ((label && !url) || (!label && url)) {
-      setError(
-        "El botón necesita tanto un texto como un enlace; completa ambos o deja los dos en blanco.",
-      );
-      return;
-    }
-    if (url && !safeExternalUrl(url)) {
-      setError("El enlace del botón debe empezar con http:// o https://");
-      return;
-    }
-    const start = toolDateFromInput(startsAt);
-    const end = toolDateFromInput(endsAt);
-    if (start && end && end < start) {
-      setError("La fecha de fin no puede ser anterior a la de inicio.");
-      return;
-    }
     // A raffle carries its own config — validate it (only when the tool is a raffle).
     const raffleResult = type === "raffle" ? toRaffleInput(raffleForm) : null;
     if (raffleResult && !raffleResult.ok) {
@@ -453,9 +431,9 @@ export default function EditToolPage() {
     }
     const raffle = raffleResult?.ok ? raffleResult.input : undefined;
 
-    // A guided tour carries its ordered stages (text + already-uploaded media) and contact
-    // phone. Build it from the editable stages; require at least one named stage. Empty stages
-    // (no title, description or media — e.g. an "Agregar etapa" never filled) are dropped.
+    // A guided tour carries its ordered stages (text + already-uploaded media). Build it from the
+    // editable stages; require at least one named stage. Empty stages (no title, description or
+    // media — e.g. an "Agregar etapa" never filled) are dropped.
     let tour: TourConfigInput | undefined;
     if (type === "guided_tour") {
       const cleanStages = tourStages
@@ -480,8 +458,7 @@ export default function EditToolPage() {
         setError("Cada etapa necesita un nombre.");
         return;
       }
-      const phone = tourPhone.trim();
-      tour = { stages: cleanStages, ...(phone ? { contactPhone: phone } : {}) };
+      tour = { stages: cleanStages };
     }
 
     // A "Productos" tool is a single product: its name/description are the tool's own
@@ -587,7 +564,6 @@ export default function EditToolPage() {
       if (coverFile) {
         coverUrl = await uploadToolCover(id, toolId, coverFile);
       }
-      const cta = label && url ? { label, url } : null;
 
       // Padrinazgo: create the destination project FIRST so the reinado never points at a missing
       // project (an orphan project on a later failure is benign). It inherits the reinado's cover via a
@@ -624,9 +600,8 @@ export default function EditToolPage() {
         description: description.trim(),
         status,
         ...(coverUrl ? { coverUrl } : {}),
-        startsAt: start,
-        endsAt: end,
-        cta,
+        contactPhone,
+        contactLabel,
         ...(raffle ? { raffle } : {}),
         ...(tour ? { tour } : {}),
         ...(sale ? { sale } : {}),
@@ -760,7 +735,6 @@ export default function EditToolPage() {
       // every surviving stage persisted so its media uploads unlock).
       if (type === "guided_tour" && savedTour) {
         setTourStages(keyTourStages(savedTour.stages));
-        setTourPhone(savedTour.contactPhone ?? "");
       }
       // Re-sync the form from the saved value (normalizes the price string back from the number).
       if (type === "sale" && savedSale && savedSale.products.length > 0) {
@@ -1103,24 +1077,6 @@ export default function EditToolPage() {
                 Máximo {TOUR_STAGE_MAX} etapas.
               </span>
             )}
-
-            <Field label="WhatsApp para consultas (opcional)">
-              <input
-                type="tel"
-                inputMode="tel"
-                value={tourPhone}
-                onChange={(e) => {
-                  setTourPhone(e.target.value);
-                  setDirty(true);
-                }}
-                className="input"
-                placeholder="Ej.: 8888 8888"
-              />
-            </Field>
-            <p className="-mt-2 text-xs text-muted">
-              El botón “Preguntar” de la página abrirá WhatsApp con este número. Si
-              lo dejas en blanco, usa el teléfono de la junta de la escuela.
-            </p>
           </section>
         )}
 
@@ -1322,45 +1278,37 @@ export default function EditToolPage() {
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Desde (opcional)">
+          <Field label="WhatsApp para consultas (opcional)">
             <input
-              type="date"
-              value={startsAt}
-              onChange={(e) => setStartsAt(e.target.value)}
+              type="tel"
+              inputMode="tel"
+              value={contactPhone}
+              onChange={(e) => {
+                setContactPhone(e.target.value);
+                setDirty(true);
+              }}
               className="input"
+              placeholder="Ej.: 8888 8888"
             />
           </Field>
-          <Field label="Hasta (opcional)">
-            <input
-              type="date"
-              value={endsAt}
-              onChange={(e) => setEndsAt(e.target.value)}
-              className="input"
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Texto del botón (opcional)">
             <input
               type="text"
-              maxLength={TOOL_CTA_LABEL_MAX}
-              value={ctaLabel}
-              onChange={(e) => setCtaLabel(e.target.value)}
+              maxLength={TOOL_CONTACT_LABEL_MAX}
+              value={contactLabel}
+              onChange={(e) => {
+                setContactLabel(e.target.value);
+                setDirty(true);
+              }}
               className="input"
-              placeholder="Ej.: Escríbenos por WhatsApp"
-            />
-          </Field>
-          <Field label="Enlace del botón (opcional)">
-            <input
-              type="url"
-              value={ctaUrl}
-              onChange={(e) => setCtaUrl(e.target.value)}
-              className="input"
-              placeholder="https://…"
+              placeholder="Consultar"
             />
           </Field>
         </div>
+        <p className="-mt-2 text-xs text-muted">
+          El botón “{contactLabel.trim() || "Consultar"}” de la página abrirá WhatsApp con este
+          número. Si lo dejas en blanco, usa el teléfono de la junta de la escuela.
+        </p>
 
         <Field label="Visibilidad">
           <select
@@ -1432,7 +1380,7 @@ export default function EditToolPage() {
           </p>
           <p className="mb-3 text-xs text-muted">
             Habilita un botón «Apadrinar el reinado» en la página pública para recibir aportes hacia
-            los costos del evento (logística, decoración, etc.) — sin apuntar a ninguna candidatura.
+            los costos del evento (logística, decoración, etc.).
           </p>
 
           {existingFundProjectId ? (

@@ -2,7 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { ToolCardActions } from "@/components/tools/ToolCardActions";
 import { toolBuyHref, toolBuyLabel, toolTypeMeta } from "@/lib/tools/registry";
-import { toolContactPhone, toolWindowLabel } from "@/lib/firestore";
+import {
+  toolContactLabel,
+  toolContactPhone,
+  toolWindowLabel,
+} from "@/lib/firestore";
 import { buildWhatsAppLink } from "@/lib/contact";
 import { CARD_COVER_ASPECT, FEED_COVER_SIZES } from "@/lib/layout";
 import type { ToolDoc } from "@/types";
@@ -101,6 +105,7 @@ export function ToolCard({
           )}
           <ToolCardActions
             whatsappUrl={whatsappUrl}
+            whatsappLabel={toolContactLabel(tool)}
             sharePath={detailHref}
             shareTitle={tool.title}
             // Short and warm: the rich link preview (the OG card) carries the visuals, so the

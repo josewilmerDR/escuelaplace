@@ -989,11 +989,11 @@ describe("schools/{id}/projects — write-shape (P1-b)", () => {
   });
 });
 
-describe("tools — write-shape: generic config + cta scheme (P1-b)", () => {
+describe("tools — write-shape: generic config + WhatsApp contact (P1-b)", () => {
   // The board's createTool field set. The COVER is still added later via UPDATE (not in the create
-  // set), but dates (startsAt/endsAt) and the cta ARE in the create set now (the create form sets them
-  // like the edit form), scheme-validated the same way. The kind config lives under the single generic
-  // `config` map. Defaults to the config-less catch-all 'other' kind.
+  // set), but dates (startsAt/endsAt) and the WhatsApp contact (contactPhone/contactLabel) ARE in the
+  // create set now (the create form sets them like the edit form), capped the same way. The kind
+  // config lives under the single generic `config` map. Defaults to the config-less 'other' kind.
   const baseTool = (over: Record<string, unknown> = {}) => ({
     schoolId: "sch1",
     schoolName: "Escuela",
@@ -1029,26 +1029,27 @@ describe("tools — write-shape: generic config + cta scheme (P1-b)", () => {
     );
   });
 
-  it("ALLOWS creating a tool with an activity window AND a valid http(s) CTA", async () => {
-    // Parity with the edit form: dates + cta are now part of the create field set.
+  it("ALLOWS creating a tool with an activity window AND a WhatsApp contact", async () => {
+    // Parity with the edit form: dates + contactPhone/contactLabel are part of the create field set.
     await assertSucceeds(
       setDoc(
         doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
         baseTool({
           startsAt: "2026-01-01",
           endsAt: "2026-02-01",
-          cta: { label: "Más info", url: "https://example.com/x" },
+          contactPhone: "8888 8888",
+          contactLabel: "Escríbenos",
         }),
       ),
     );
   });
 
-  it("DENIES creating a tool with a CTA whose url scheme is not http(s)", async () => {
-    // The create CTA gets the SAME scheme check as update — a javascript:/data: href is rejected.
+  it("DENIES creating a tool with a contactLabel over the cap", async () => {
+    // The create contact gets the SAME caps as update — a 41-char label is rejected.
     await assertFails(
       setDoc(
         doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
-        baseTool({ cta: { label: "x", url: "javascript:alert(1)" } }),
+        baseTool({ contactLabel: "x".repeat(41) }),
       ),
     );
   });
@@ -1089,32 +1090,37 @@ describe("tools — write-shape: generic config + cta scheme (P1-b)", () => {
     );
   });
 
-  it("ALLOWS a CTA with an http(s) url and ALLOWS clearing it", async () => {
+  it("ALLOWS setting the WhatsApp contact and ALLOWS clearing it", async () => {
     await seed((db) =>
       setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", config: raffleCfg })),
     );
     await assertSucceeds(
       updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
-        cta: { label: "Más info", url: "https://example.com/rifa" },
+        contactPhone: "8888 8888",
+        contactLabel: "Consultar",
       }),
     );
     await assertSucceeds(
-      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), { cta: deleteField() }),
+      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
+        contactPhone: deleteField(),
+        contactLabel: deleteField(),
+      }),
     );
   });
 
-  it("DENIES a CTA whose url scheme is not http(s) (javascript:/data:)", async () => {
+  it("DENIES a WhatsApp contact that exceeds its caps", async () => {
     await seed((db) =>
       setDoc(doc(db, "schools", "sch1", "tools", "t1"), baseTool({ type: "raffle", config: raffleCfg })),
     );
+    // contactLabel cap is 40; contactPhone cap is 30.
     await assertFails(
       updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
-        cta: { label: "x", url: "javascript:alert(1)" },
+        contactLabel: "x".repeat(41),
       }),
     );
     await assertFails(
       updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
-        cta: { label: "x", url: "data:text/html,<script>alert(1)</script>" },
+        contactPhone: "9".repeat(31),
       }),
     );
   });
