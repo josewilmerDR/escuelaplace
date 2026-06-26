@@ -1506,10 +1506,21 @@ export const PAGEANT_CANDIDATE_NAME_MAX = 80;
 export const PAGEANT_CANDIDATE_BIO_MAX = 600;
 /** Jury score is an integer 0..100 (the school's human input). */
 export const PAGEANT_JURY_SCORE_MAX = 100;
+/** A candidate's presentation carousel: up to 5 images plus at most 1 short video. The video
+ * reuses the tool-wide short-clip budget (TOOL_VIDEO_MAX_SECONDS / TOOL_VIDEO_MAX_MB). */
+export const PAGEANT_CANDIDATE_PHOTOS_MAX = 5;
+export const PAGEANT_CANDIDATE_MEDIA_MAX = 6; // 5 images + 1 video (the list cap, enforced in rules)
+
+/** One slide of a candidate's presentation carousel: a public Storage URL plus its kind. */
+export interface CandidateMediaItem {
+  type: "image" | "video";
+  /** Public Storage URL, on the tool's asset path (uploadToolStageAsset). */
+  url: string;
+}
 
 /**
  * One candidate of a reinado, a doc in schools/{schoolId}/tools/{toolId}/candidates/{candidateId}.
- * The school owns name/bio/photo/order and the HUMAN `juryScore`; the four tally fields are
+ * The school owns name/bio/media/order and the HUMAN `juryScore`; the four tally fields are
  * Cloud-Function-maintained (the client can't write them — rules freeze them) and read 0 until a
  * later slice wires the CFs. The crown is the school's verdict; pageantStandings only SUGGESTS a
  * ranking from these (see lib/firestore/pageant).
@@ -1519,8 +1530,12 @@ export interface Candidate {
   name: string;
   /** Short bio / "por qué me postulo" (free text). */
   bio: string;
-  /** Optional photo (public Storage URL, on the tool's asset path). */
+  /** Avatar cover: the first image of `media`, kept in sync on save. Legacy docs (pre-`media`) carry
+   * only this; reads normalize it into `media` via `candidateMediaOf`. */
   photoUrl?: string;
+  /** Ordered presentation carousel (up to 5 images + 1 video). Source of truth for the public
+   * carousel; absent on legacy docs (fall back to `photoUrl`). */
+  media?: CandidateMediaItem[];
   /** Presentation order in the roster (ascending). */
   order: number;
   /** The school's jury score, 0..100 — a HUMAN input (not function-maintained). */

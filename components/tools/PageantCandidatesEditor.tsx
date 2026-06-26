@@ -21,23 +21,33 @@ import {
   useRef,
   useState,
 } from "react";
-import { CandidateFields, clampScore } from "@/components/tools/CandidateFields";
+import {
+  CandidateFields,
+  clampScore,
+  nextMediaKey,
+  type MediaDraft,
+} from "@/components/tools/CandidateFields";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { TrashIcon } from "@/components/ui/icons";
 import {
+  candidateMediaOf,
   createCandidate,
   deleteCandidate,
   getCandidates,
   updateCandidate,
   uploadToolStageAsset,
 } from "@/lib/firestore";
-import { PAGEANT_CANDIDATES_MAX, type CandidateDoc } from "@/types";
+import {
+  PAGEANT_CANDIDATES_MAX,
+  type CandidateDoc,
+  type CandidateMediaItem,
+} from "@/types";
 
 type LoadState = "loading" | "error" | "loaded";
 
 /** A candidate being edited: its saved doc id once persisted (absent for a new row), a stable local
- * `_key`, the string-shaped jury score, the saved order, an optional freshly-picked photo, and a dirty
- * flag so an unchanged existing row is skipped on save. */
+ * `_key`, the string-shaped jury score, the saved order, its ordered media drafts (saved URLs and/or
+ * freshly-picked files), and a dirty flag so an unchanged existing row is skipped on save. */
 interface CandidateRow {
   _key: number;
   id?: string;
@@ -45,8 +55,7 @@ interface CandidateRow {
   bio: string;
   juryScore: string;
   order: number;
-  photoUrl?: string;
-  photoFile: File | null;
+  media: MediaDraft[];
   dirty: boolean;
 }
 
@@ -69,15 +78,19 @@ function toRow(c: CandidateDoc, key: number): CandidateRow {
     bio: c.bio,
     juryScore: String(c.juryScore ?? 0),
     order: c.order,
-    photoUrl: c.photoUrl,
-    photoFile: null,
+    // Seed the carousel drafts from the saved media (legacy single photoUrl is normalized here too).
+    media: candidateMediaOf(c).map((m) => ({
+      _key: nextMediaKey(),
+      type: m.type,
+      url: m.url,
+    })),
     dirty: false,
   };
 }
 
 /** A content-bearing row (worth persisting); an untouched blank new row is dropped on save. */
 function hasContent(r: CandidateRow): boolean {
-  return Boolean(r.id) || r.name.trim() !== "" || r.bio.trim() !== "" || r.photoFile !== null;
+  return Boolean(r.id) || r.name.trim() !== "" || r.bio.trim() !== "" || r.media.length > 0;
 }
 
 export const PageantCandidatesEditor = forwardRef<
@@ -134,7 +147,7 @@ export const PageantCandidatesEditor = forwardRef<
         bio: "",
         juryScore: "0",
         order: prev.reduce((max, r) => Math.max(max, r.order), -1) + 1,
-        photoFile: null,
+        media: [],
         dirty: true,
       },
     ]);
@@ -181,16 +194,31 @@ export const PageantCandidatesEditor = forwardRef<
         setRows(working);
         for (let i = 0; i < working.length; i++) {
           const row = working[i];
+          const hasPendingUpload = row.media.some((m) => m.file != null);
           const needsWrite =
-            !row.id || row.dirty || row.order !== i || row.photoFile !== null;
+            !row.id || row.dirty || row.order !== i || hasPendingUpload;
           if (!needsWrite) continue;
           const name = row.name.trim();
           const bio = row.bio.trim();
           const juryScore = clampScore(row.juryScore);
-          let photoUrl = row.photoUrl;
-          if (row.photoFile) {
-            photoUrl = await uploadToolStageAsset(schoolId, toolId, "photo", row.photoFile);
+          // Build the ordered carousel: upload each freshly-picked file, reuse already-saved URLs.
+          // Drafts keep their order, so the persisted `media` mirrors the strip exactly. (The Storage
+          // asset kind is "photo"/"video"; the media type is "image"/"video".)
+          const media: CandidateMediaItem[] = [];
+          for (const m of row.media) {
+            const url = m.file
+              ? await uploadToolStageAsset(
+                  schoolId,
+                  toolId,
+                  m.type === "image" ? "photo" : "video",
+                  m.file,
+                )
+              : m.url;
+            if (url) media.push({ type: m.type, url });
           }
+          // Avatar cover = the first image of the carousel ("" clears any stale legacy photoUrl when
+          // the candidate ends up image-less, e.g. video-only).
+          const photoUrl = media.find((m) => m.type === "image")?.url ?? "";
           let savedId = row.id;
           if (savedId) {
             await updateCandidate(schoolId, toolId, savedId, {
@@ -198,8 +226,8 @@ export const PageantCandidatesEditor = forwardRef<
               bio,
               juryScore,
               order: i,
-              // Only write the photo when a new one was uploaded (keep the existing one otherwise).
-              ...(row.photoFile ? { photoUrl } : {}),
+              media,
+              photoUrl,
             });
           } else {
             savedId = await createCandidate(schoolId, toolId, {
@@ -207,9 +235,17 @@ export const PageantCandidatesEditor = forwardRef<
               bio,
               order: i,
               juryScore,
+              media,
               ...(photoUrl ? { photoUrl } : {}),
             });
           }
+          // Reflect the saved row: media drafts now all carry URLs (no pending files), keys preserved.
+          // `media` is built 1:1 from row.media (every draft has a file or url), so indices align.
+          const savedMedia: MediaDraft[] = media.map((mi, k) => ({
+            _key: row.media[k]._key,
+            type: mi.type,
+            url: mi.url,
+          }));
           working = working.map((r, j) =>
             j === i
               ? {
@@ -219,8 +255,7 @@ export const PageantCandidatesEditor = forwardRef<
                   bio,
                   juryScore: String(juryScore),
                   order: i,
-                  photoUrl,
-                  photoFile: null,
+                  media: savedMedia,
                   dirty: false,
                 }
               : r,
@@ -261,7 +296,7 @@ export const PageantCandidatesEditor = forwardRef<
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-semibold text-foreground">Candidatura {i + 1}</p>
             {/* Text on desktop, a trash icon on mobile (saves header width); the aria-label keeps the
-                accessible name when icon-only. The photo's own "Cambiar" handles changing the image. */}
+                accessible name when icon-only. The media block has its own per-element controls. */}
             <button
               type="button"
               onClick={() => onRemoveClick(row)}
@@ -277,8 +312,7 @@ export const PageantCandidatesEditor = forwardRef<
               name: row.name,
               bio: row.bio,
               juryScore: row.juryScore,
-              photoUrl: row.photoUrl,
-              photoFile: row.photoFile,
+              media: row.media,
             }}
             onPatch={(patch) => patchRow(row._key, patch)}
             showJuryScore={showJuryScore}

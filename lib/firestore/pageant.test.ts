@@ -2,9 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   PAGEANT_DEFAULT_CROWN_FORMULA,
   type CandidateDoc,
+  type CandidateMediaItem,
   type PageantConfig,
 } from "@/types";
-import { effectiveWeights, pageantStandings } from "./pageant";
+import {
+  candidateCoverUrl,
+  candidateMediaOf,
+  effectiveWeights,
+  pageantStandings,
+} from "./pageant";
 
 /** A minimal config carrying only what the helpers read. */
 function config(
@@ -97,5 +103,61 @@ describe("pageantStandings", () => {
       candidate("b", 0, 0, 0),
     ]);
     expect(standings.every((s) => s.composite === 0)).toBe(true);
+  });
+});
+
+describe("candidateMediaOf", () => {
+  const media: CandidateMediaItem[] = [
+    { type: "image", url: "a.jpg" },
+    { type: "video", url: "b.mp4" },
+  ];
+
+  it("returns the media list verbatim when present (the source of truth)", () => {
+    expect(candidateMediaOf({ media })).toEqual(media);
+  });
+
+  it("prefers media over a legacy photoUrl when both exist", () => {
+    expect(candidateMediaOf({ media, photoUrl: "legacy.jpg" })).toEqual(media);
+  });
+
+  it("normalizes a legacy photoUrl into a one-image carousel", () => {
+    expect(candidateMediaOf({ photoUrl: "legacy.jpg" })).toEqual([
+      { type: "image", url: "legacy.jpg" },
+    ]);
+  });
+
+  it("treats an empty media array as legacy (falls back to photoUrl)", () => {
+    expect(candidateMediaOf({ media: [], photoUrl: "legacy.jpg" })).toEqual([
+      { type: "image", url: "legacy.jpg" },
+    ]);
+  });
+
+  it("returns an empty list for a candidate with neither media nor photo", () => {
+    expect(candidateMediaOf({})).toEqual([]);
+  });
+});
+
+describe("candidateCoverUrl", () => {
+  it("uses the first IMAGE of the carousel, skipping a leading video", () => {
+    expect(
+      candidateCoverUrl({
+        media: [
+          { type: "video", url: "intro.mp4" },
+          { type: "image", url: "face.jpg" },
+        ],
+      }),
+    ).toBe("face.jpg");
+  });
+
+  it("falls back to the legacy photoUrl when there is no media", () => {
+    expect(candidateCoverUrl({ photoUrl: "legacy.jpg" })).toBe("legacy.jpg");
+  });
+
+  it("is undefined for a video-only candidate (no cover image)", () => {
+    expect(candidateCoverUrl({ media: [{ type: "video", url: "only.mp4" }] })).toBeUndefined();
+  });
+
+  it("is undefined for a candidate with no media at all", () => {
+    expect(candidateCoverUrl({})).toBeUndefined();
   });
 });

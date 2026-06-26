@@ -487,11 +487,19 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
         ['voteFree', 'voteSupport', 'supportCount', 'padrinoCount']);
     }
+    // A candidate's presentation carousel: an OPTIONAL ordered list of up to 6 elements (≤5 images +
+    // ≤1 video). Items are {type, url} maps, but rules can't iterate a list — the per-item shape is
+    // bounded by the UI and the storage.rules that gate the URLs (same precedent as project `stages`).
+    // Only the presence + count are enforced here.
+    function validCandidateMedia(data) {
+      return !data.keys().hasAny(['media']) ||
+        (data.media is list && data.media.size() <= 6);
+    }
     // CREATE pins the candidate field set, FORCES the four tallies to 0, caps the text, and bounds
-    // the human juryScore (0..100). photoUrl is optional (hasOnly allows a subset).
+    // the human juryScore (0..100). photoUrl and media are optional (hasOnly allows a subset).
     function validCandidateCreate() {
       return request.resource.data.keys().hasOnly(
-          ['name', 'bio', 'photoUrl', 'order', 'juryScore',
+          ['name', 'bio', 'photoUrl', 'media', 'order', 'juryScore',
            'voteFree', 'voteSupport', 'supportCount', 'padrinoCount']) &&
         request.resource.data.name is string &&
         request.resource.data.name.size() <= 80 &&
@@ -501,6 +509,7 @@ service cloud.firestore {
         request.resource.data.juryScore is number &&
         request.resource.data.juryScore >= 0 &&
         request.resource.data.juryScore <= 100 &&
+        validCandidateMedia(request.resource.data) &&
         request.resource.data.voteFree == 0 &&
         request.resource.data.voteSupport == 0 &&
         request.resource.data.supportCount == 0 &&
@@ -509,7 +518,7 @@ service cloud.firestore {
     // UPDATE keeps the changed keys to the school-owned set (no smuggling new fields, and the four
     // tallies are out of it — doubly frozen with preservesPageantTallies) and re-checks caps/bounds.
     function validCandidateUpdate() {
-      return changedKeys().hasOnly(['name', 'bio', 'photoUrl', 'order', 'juryScore']) &&
+      return changedKeys().hasOnly(['name', 'bio', 'photoUrl', 'media', 'order', 'juryScore']) &&
         (!changedKeys().hasAny(['name']) ||
           (request.resource.data.name is string &&
             request.resource.data.name.size() <= 80)) &&
@@ -519,7 +528,8 @@ service cloud.firestore {
         (!changedKeys().hasAny(['juryScore']) ||
           (request.resource.data.juryScore is number &&
             request.resource.data.juryScore >= 0 &&
-            request.resource.data.juryScore <= 100));
+            request.resource.data.juryScore <= 100)) &&
+        validCandidateMedia(request.resource.data);
     }
 
     // P1-b write-shape validation for projects (non-admin arm only). CREATE pins createProject's

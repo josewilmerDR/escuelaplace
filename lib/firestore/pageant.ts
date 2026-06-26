@@ -34,6 +34,7 @@ import { db } from "@/lib/firebase";
 import type {
   Candidate,
   CandidateDoc,
+  CandidateMediaItem,
   PageantConfig,
   PageantCrownFormula,
   PageantEventState,
@@ -70,6 +71,30 @@ function eventStateRef(schoolId: string, toolId: string) {
 }
 
 // ── Pure helpers (unit-tested) ─────────────────────────────────────────────────
+
+/**
+ * A candidate's presentation carousel as an ordered list, normalizing legacy docs. When `media` is
+ * present (the source of truth) it's returned as-is; otherwise a legacy single `photoUrl` becomes a
+ * one-image carousel; a candidate with neither yields an empty list. Pure — both the editor (to seed
+ * its drafts) and the public card read through this so legacy and new docs render alike.
+ */
+export function candidateMediaOf(
+  c: Pick<Candidate, "media" | "photoUrl">,
+): CandidateMediaItem[] {
+  if (c.media && c.media.length > 0) return c.media;
+  if (c.photoUrl) return [{ type: "image", url: c.photoUrl }];
+  return [];
+}
+
+/**
+ * The avatar/cover URL for a candidate: the first IMAGE of its carousel, falling back to the legacy
+ * `photoUrl` (a video-only candidate has no cover → undefined, so the card shows the placeholder).
+ */
+export function candidateCoverUrl(
+  c: Pick<Candidate, "media" | "photoUrl">,
+): string | undefined {
+  return candidateMediaOf(c).find((m) => m.type === "image")?.url ?? c.photoUrl;
+}
 
 /**
  * The crown weights actually applied, given whether free voting is on. The three weights are
@@ -177,8 +202,10 @@ export function subscribeCandidates(
 export interface CreateCandidateInput {
   name: string;
   bio: string;
-  /** Already uploaded to the tool's asset path (uploadToolStageAsset) by the time it reaches here. */
+  /** Avatar cover (first image of `media`); already uploaded to the tool's asset path by now. */
   photoUrl?: string;
+  /** Ordered carousel (≤5 images + ≤1 video); every URL already uploaded (uploadToolStageAsset). */
+  media?: CandidateMediaItem[];
   order: number;
   /** The school's jury score, 0..100. */
   juryScore: number;
@@ -186,8 +213,8 @@ export interface CreateCandidateInput {
 
 /**
  * Create one candidate, with the four Cloud-Function-maintained tallies forced to 0 (the rules
- * reject any other value on create). Returns the new candidate id. The photo, if any, is already in
- * Storage — only its URL is written here.
+ * reject any other value on create). Returns the new candidate id. The media, if any, is already in
+ * Storage — only its URLs are written here.
  */
 export async function createCandidate(
   schoolId: string,
@@ -198,6 +225,7 @@ export async function createCandidate(
     name: input.name,
     bio: input.bio,
     ...(input.photoUrl ? { photoUrl: input.photoUrl } : {}),
+    ...(input.media && input.media.length > 0 ? { media: input.media } : {}),
     order: input.order,
     juryScore: input.juryScore,
     voteFree: 0,
@@ -212,15 +240,18 @@ export async function createCandidate(
 export interface CandidatePatch {
   name?: string;
   bio?: string;
-  /** A NEW photo URL to set; omit to keep the existing one. */
+  /** A NEW cover URL (first image of `media`) to set; omit to keep the existing one. */
   photoUrl?: string;
+  /** The new full carousel to set; omit to keep the existing one. An empty array clears it. */
+  media?: CandidateMediaItem[];
   order?: number;
   juryScore?: number;
 }
 
 /**
- * Update a candidate's school-owned fields (name/bio/photo/order/juryScore). Omitted fields are left
- * untouched; the four (fn) tallies are never written here (and the rules reject them if they were).
+ * Update a candidate's school-owned fields (name/bio/media/photo/order/juryScore). Omitted fields are
+ * left untouched; the four (fn) tallies are never written here (and the rules reject them if they
+ * were). `media` is written verbatim (already the full ordered list); `photoUrl` is its first image.
  */
 export async function updateCandidate(
   schoolId: string,
@@ -232,6 +263,7 @@ export async function updateCandidate(
     ...(patch.name !== undefined ? { name: patch.name } : {}),
     ...(patch.bio !== undefined ? { bio: patch.bio } : {}),
     ...(patch.photoUrl !== undefined ? { photoUrl: patch.photoUrl } : {}),
+    ...(patch.media !== undefined ? { media: patch.media } : {}),
     ...(patch.order !== undefined ? { order: patch.order } : {}),
     ...(patch.juryScore !== undefined ? { juryScore: patch.juryScore } : {}),
   });
