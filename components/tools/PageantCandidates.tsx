@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
-import { UserIcon } from "@/components/ui/icons";
+import { candidateMediaOf } from "@/lib/firestore";
 import type { CandidateDoc } from "@/types";
+import { CandidateMediaAvatar } from "./CandidateMediaAvatar";
 import { PageantApplauseButton } from "./PageantApplauseButton";
 
 /**
@@ -51,15 +51,7 @@ export function PageantCandidates({
             className="flex flex-col gap-3 rounded-2xl bg-surface p-4 ring-1 ring-black/5"
           >
             <div className="flex gap-4">
-              <span className="relative block h-20 w-20 shrink-0 overflow-hidden rounded-full bg-brand-tint ring-1 ring-black/5">
-                {c.photoUrl ? (
-                  <Image src={c.photoUrl} alt="" fill sizes="80px" className="object-cover" />
-                ) : (
-                  <span className="flex h-full items-center justify-center text-brand-darker">
-                    <UserIcon className="h-8 w-8" />
-                  </span>
-                )}
-              </span>
+              <CandidateMediaAvatar media={candidateMediaOf(c)} name={c.name} />
               <div className="min-w-0">
                 <h3 className="font-semibold tracking-tight text-foreground">{c.name}</h3>
                 {c.bio && (
