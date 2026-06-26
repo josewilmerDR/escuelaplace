@@ -84,15 +84,13 @@ import {
   newProjectId,
   newToolId,
   setToolCover,
-  toolDateFromInput,
   updateProject,
   uploadToolCover,
 } from "@/lib/firestore";
 import { formatMoney } from "@/lib/format";
-import { safeExternalUrl } from "@/lib/url";
 import {
   EVENT_PHOTO_MAX,
-  TOOL_CTA_LABEL_MAX,
+  TOOL_CONTACT_LABEL_MAX,
   TOOL_DESCRIPTION_MAX,
   TOOL_TITLE_MAX,
   type BingoDeckDoc,
@@ -226,11 +224,10 @@ function NewToolContent() {
   const [description, setDescription] = useState("");
   // Visibility, like the edit page (default published). 'active' shows it on the school page; 'inactive' hides it.
   const [status, setStatus] = useState<ToolStatus>("active");
-  // Activity window + call-to-action — same optional fields the edit page has (full parity).
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
-  const [ctaLabel, setCtaLabel] = useState("");
-  const [ctaUrl, setCtaUrl] = useState("");
+  // WhatsApp contact for the "Consultar" button — same optional fields the edit page has (full
+  // parity): an alternate number (empty = school board phone) and a custom button label.
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactLabel, setContactLabel] = useState("");
   const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
   const [tourForm, setTourForm] = useState<TourFormValue>(emptyTourForm);
   const [saleForm, setSaleForm] = useState<SaleFormValue>(emptySaleForm);
@@ -418,26 +415,6 @@ function NewToolContent() {
       setError("Ingresa el título de la herramienta.");
       return;
     }
-    // The CTA is all-or-nothing and must be a safe http(s) URL; the window's end can't precede its
-    // start — the SAME checks the edit form runs (full parity).
-    const label = ctaLabel.trim();
-    const url = ctaUrl.trim();
-    if ((label && !url) || (!label && url)) {
-      setError(
-        "El botón necesita tanto un texto como un enlace; completa ambos o deja los dos en blanco.",
-      );
-      return;
-    }
-    if (url && !safeExternalUrl(url)) {
-      setError("El enlace del botón debe empezar con http:// o https://");
-      return;
-    }
-    const start = toolDateFromInput(startsAt);
-    const end = toolDateFromInput(endsAt);
-    if (start && end && end < start) {
-      setError("La fecha de fin no puede ser anterior a la de inicio.");
-      return;
-    }
     // A raffle carries its own configuration — validate and convert it before creating.
     const raffleResult = type === "raffle" ? toRaffleInput(raffleForm) : null;
     if (raffleResult && !raffleResult.ok) {
@@ -575,9 +552,8 @@ function NewToolContent() {
           title: trimmedTitle,
           description: description.trim(),
           status,
-          startsAt: start,
-          endsAt: end,
-          cta: label && url ? { label, url } : null,
+          contactPhone,
+          contactLabel,
           ...(raffle ? { raffle } : {}),
           ...(tour ? { tour } : {}),
           ...(sale ? { sale } : {}),
@@ -852,82 +828,6 @@ function NewToolContent() {
                 showJuryScore={false}
               />
             </div>
-
-            {/* Padrinazgo (opcional): opting in auto-creates a single-stage destination project the
-                public "Apadrinar el reinado" CTA funds; the board only types the goal. */}
-            <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
-              <p className="mb-1 text-sm font-semibold text-foreground">
-                Padrinazgo del reinado (opcional)
-              </p>
-              <p className="mb-3 text-xs text-muted">
-                Habilita un botón «Apadrinar el reinado» en la página pública para recibir aportes
-                hacia los costos del evento (logística, decoración, etc.) — sin apuntar a ninguna
-                candidatura.
-              </p>
-
-              <label className="flex items-start gap-3 rounded-xl bg-white p-3 ring-1 ring-black/5">
-                <input
-                  type="checkbox"
-                  checked={sponsorEnabled}
-                  onChange={(e) => setSponsorEnabled(e.target.checked)}
-                  className="mt-0.5 size-4"
-                />
-                <span className="text-sm">
-                  <span className="font-medium text-foreground">
-                    Recibir padrinazgos para el reinado
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted">
-                    Al crear se generará un proyecto asociado para recibir los aportes.
-                  </span>
-                </span>
-              </label>
-
-              {sponsorEnabled && (
-                <div className="mt-4 flex flex-col gap-4">
-                  <Field label="Meta de recaudación">
-                    <input
-                      type="number"
-                      min={1}
-                      step="any"
-                      inputMode="decimal"
-                      value={sponsorGoal}
-                      onChange={(e) => setSponsorGoal(e.target.value)}
-                      className="input"
-                      placeholder="Ej.: 150000"
-                    />
-                    <span className="text-muted">
-                      Se creará el proyecto «{title.trim() || "Reinado"} — costos del evento»
-                      {Number(sponsorGoal) > 0
-                        ? `, meta ${formatMoney(Math.round(Number(sponsorGoal)), pageantForm.currency)}`
-                        : ""}
-                      .
-                    </span>
-                  </Field>
-
-                  <div className="rounded-xl bg-white p-3 text-xs text-muted ring-1 ring-black/5">
-                    <p className="font-medium text-foreground">Al activar:</p>
-                    <ul className="mt-1 list-disc space-y-1 pl-4">
-                      <li>
-                        Será público y aparecerá en los proyectos de tu escuela, con barra de
-                        recaudación.
-                      </li>
-                      <li>
-                        Los padrinos pagan directo a la escuela; vos confirmás cada aporte en tu
-                        panel de proyectos.
-                      </li>
-                      <li>
-                        Es editable después (meta, descripción, etapas) y lo cerrás cuando termine el
-                        evento.
-                      </li>
-                      <li>
-                        La plataforma nunca toca el dinero; la escuela se compromete a usarlo para el
-                        reinado.
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </div>
           </>
         )}
 
@@ -940,46 +840,110 @@ function NewToolContent() {
           onChange={setCoverFile}
         />
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Desde (opcional)">
-            <input
-              type="date"
-              value={startsAt}
-              onChange={(e) => setStartsAt(e.target.value)}
-              className="input"
-            />
-          </Field>
-          <Field label="Hasta (opcional)">
-            <input
-              type="date"
-              value={endsAt}
-              onChange={(e) => setEndsAt(e.target.value)}
-              className="input"
-            />
-          </Field>
-        </div>
+        {/* Padrinazgo (opcional): opting in auto-creates a single-stage destination project the
+            public "Apadrinar el reinado" CTA funds; the board only types the goal. Placed after the
+            cover so the optional money-raising step closes the pageant-specific block. */}
+        {type === "pageant" && (
+          <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
+            <p className="mb-1 text-sm font-semibold text-foreground">
+              Padrinazgo del reinado (opcional)
+            </p>
+            <p className="mb-3 text-xs text-muted">
+              Habilita un botón «Apadrinar el reinado» en la página pública para recibir aportes
+              hacia los costos del evento (logística, decoración, etc.).
+            </p>
+
+            <label className="flex items-start gap-3 rounded-xl bg-white p-3 ring-1 ring-black/5">
+              <input
+                type="checkbox"
+                checked={sponsorEnabled}
+                onChange={(e) => setSponsorEnabled(e.target.checked)}
+                className="mt-0.5 size-4"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-foreground">
+                  Recibir padrinazgos para el reinado
+                </span>
+                <span className="mt-0.5 block text-xs text-muted">
+                  Al crear se generará un proyecto asociado para recibir los aportes.
+                </span>
+              </span>
+            </label>
+
+            {sponsorEnabled && (
+              <div className="mt-4 flex flex-col gap-4">
+                <Field label="Meta de recaudación">
+                  <input
+                    type="number"
+                    min={1}
+                    step="any"
+                    inputMode="decimal"
+                    value={sponsorGoal}
+                    onChange={(e) => setSponsorGoal(e.target.value)}
+                    className="input"
+                    placeholder="Ej.: 150000"
+                  />
+                  <span className="text-muted">
+                    Se creará el proyecto «{title.trim() || "Reinado"} — costos del evento»
+                    {Number(sponsorGoal) > 0
+                      ? `, meta ${formatMoney(Math.round(Number(sponsorGoal)), pageantForm.currency)}`
+                      : ""}
+                    .
+                  </span>
+                </Field>
+
+                <div className="rounded-xl bg-white p-3 text-xs text-muted ring-1 ring-black/5">
+                  <p className="font-medium text-foreground">Al activar:</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    <li>
+                      Será público y aparecerá en los proyectos de tu escuela, con barra de
+                      recaudación.
+                    </li>
+                    <li>
+                      Los padrinos pagan directo a la escuela; vos confirmás cada aporte en tu
+                      panel de proyectos.
+                    </li>
+                    <li>
+                      Es editable después (meta, descripción, etapas) y lo cerrás cuando termine el
+                      evento.
+                    </li>
+                    <li>
+                      La plataforma nunca toca el dinero; la escuela se compromete a usarlo para el
+                      reinado.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="WhatsApp para consultas (opcional)">
+            <input
+              type="tel"
+              inputMode="tel"
+              value={contactPhone}
+              onChange={(e) => setContactPhone(e.target.value)}
+              className="input"
+              placeholder="Ej.: 8888 8888"
+            />
+          </Field>
           <Field label="Texto del botón (opcional)">
             <input
               type="text"
-              maxLength={TOOL_CTA_LABEL_MAX}
-              value={ctaLabel}
-              onChange={(e) => setCtaLabel(e.target.value)}
+              maxLength={TOOL_CONTACT_LABEL_MAX}
+              value={contactLabel}
+              onChange={(e) => setContactLabel(e.target.value)}
               className="input"
-              placeholder="Ej.: Escríbenos por WhatsApp"
-            />
-          </Field>
-          <Field label="Enlace del botón (opcional)">
-            <input
-              type="url"
-              value={ctaUrl}
-              onChange={(e) => setCtaUrl(e.target.value)}
-              className="input"
-              placeholder="https://…"
+              placeholder="Consultar"
             />
           </Field>
         </div>
+        <p className="-mt-2 text-xs text-muted">
+          El botón “{contactLabel.trim() || "Consultar"}” de la página abrirá WhatsApp con este
+          número. Si lo dejas en blanco, usa el teléfono de la junta de la escuela.
+        </p>
 
         <Field label="Visibilidad">
           <select

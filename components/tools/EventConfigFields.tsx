@@ -57,14 +57,12 @@ export function toEventInput(
       error: "El enlace del mapa debe empezar con http:// o https://",
     };
   }
-  const contactPhone = value.contactPhone.trim();
   return {
     ok: true,
     input: {
       date,
       ...(place ? { place } : {}),
       ...(mapUrl ? { mapUrl } : {}),
-      ...(contactPhone ? { contactPhone } : {}),
     },
   };
 }
@@ -110,20 +108,8 @@ export function EventConfigFields({
         />
       </Field>
 
-      <Field label="WhatsApp para consultas (opcional)">
-        <input
-          type="tel"
-          inputMode="tel"
-          value={value.contactPhone}
-          onChange={(e) => set({ contactPhone: e.target.value })}
-          className="input"
-          placeholder="Ej.: 8888 8888"
-        />
-      </Field>
-      <p className="-mt-2 text-xs text-muted">
-        El botón “Preguntar” de la página abrirá WhatsApp con este número. Si lo dejas en
-        blanco, usa el teléfono de la junta de la escuela. Las fotos y el video del evento
-        se agregan al editar la herramienta.
+      <p className="text-xs text-muted">
+        Las fotos y el video del evento se agregan al editar la herramienta.
       </p>
     </div>
   );

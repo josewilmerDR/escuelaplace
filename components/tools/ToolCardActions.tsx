@@ -14,12 +14,15 @@ import { ShareIcon, WhatsAppIcon } from "@/components/ui/icons";
 
 export function ToolCardActions({
   whatsappUrl,
+  whatsappLabel = "Consultar",
   sharePath,
   shareTitle,
   shareText,
 }: {
   /** wa.me deep link, or null when no dialable number resolved (then no "Consultar"). */
   whatsappUrl: string | null;
+  /** The button's label — the school's custom text, "Consultar" by default. */
+  whatsappLabel?: string;
   /** App-relative path to the tool; turned into an absolute URL at click time. */
   sharePath: string;
   shareTitle: string;
@@ -59,7 +62,7 @@ export function ToolCardActions({
           className="btn flex-1 justify-center bg-emerald-700 text-white hover:bg-emerald-800"
         >
           <WhatsAppIcon className="mr-1.5 h-4 w-4" />
-          Consultar
+          {whatsappLabel}
         </a>
       )}
       <button

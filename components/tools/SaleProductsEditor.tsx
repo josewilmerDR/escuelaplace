@@ -77,7 +77,6 @@ export function toSaleInput(
   if (!priceStr || !Number.isFinite(price) || price <= 0) {
     return { ok: false, error: "Ingresa un precio mayor a 0 para el producto." };
   }
-  const contactPhone = value.contactPhone.trim();
   return {
     ok: true,
     input: {
@@ -92,7 +91,6 @@ export function toSaleInput(
         },
       ],
       currency: value.currency,
-      ...(contactPhone ? { contactPhone } : {}),
     },
   };
 }
@@ -176,24 +174,6 @@ export function SaleProductsEditor({
           Fotos del producto (hasta {SALE_PRODUCT_PHOTO_MAX}) y un video corto (opcional).
         </p>
       </ToolItemCard>
-
-      <Field label="WhatsApp para consultas (opcional)">
-        <input
-          type="tel"
-          inputMode="tel"
-          value={value.contactPhone}
-          onChange={(e) => {
-            const contactPhone = e.target.value;
-            onChange((prev) => ({ ...prev, contactPhone }));
-          }}
-          className="input"
-          placeholder="Ej.: 8888 8888"
-        />
-      </Field>
-      <p className="-mt-2 text-xs text-muted">
-        El botón “Consultar” del producto abrirá WhatsApp con este número. Si lo dejas en
-        blanco, usa el teléfono de la junta de la escuela.
-      </p>
     </div>
   );
 }

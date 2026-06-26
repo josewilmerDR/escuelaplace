@@ -88,7 +88,6 @@ export function toTourInput(
   if (stages.some((s) => !s.title)) {
     return { ok: false, error: "Cada etapa necesita un nombre." };
   }
-  const contactPhone = value.contactPhone.trim();
   return {
     ok: true,
     input: {
@@ -98,7 +97,6 @@ export function toTourInput(
         ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
         ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
       })),
-      ...(contactPhone ? { contactPhone } : {}),
     },
   };
 }
@@ -192,24 +190,6 @@ export function TourStagesEditor({
       ) : (
         <span className="text-xs text-muted">Máximo {TOUR_STAGE_MAX} etapas.</span>
       )}
-
-      <Field label="WhatsApp para consultas (opcional)">
-        <input
-          type="tel"
-          inputMode="tel"
-          value={value.contactPhone}
-          onChange={(e) => {
-            const contactPhone = e.target.value;
-            onChange((prev) => ({ ...prev, contactPhone }));
-          }}
-          className="input"
-          placeholder="Ej.: 8888 8888"
-        />
-      </Field>
-      <p className="-mt-2 text-xs text-muted">
-        El botón “Preguntar” de la página abrirá WhatsApp con este número. Si lo
-        dejas en blanco, usa el teléfono de la junta de la escuela.
-      </p>
     </div>
   );
 }

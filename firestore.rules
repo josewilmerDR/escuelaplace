@@ -560,16 +560,16 @@ service cloud.firestore {
     }
 
     // P1-b write-shape validation for tools (non-admin arm only). CREATE pins createTool's field
-    // set — the COVER is still added later via UPDATE (not in the create set), but dates/cta ARE in
-    // the create set now (the create form sets them like the edit form), validated the same way as
-    // UPDATE; the kind config is written under the generic `config` map — and validates the
-    // type/status enums + the text caps. UPDATE constrains the changed keys (the edit form +
-    // setToolStatus) and freezes
-    // ownerId; config/cta/dates/cover are allowed but never required, so clearing them (deleteField)
-    // passes. The config map is shape-checked (`is map`) only when PRESENT — the nested per-kind
-    // shape (stages, prizes…) can't be iterated by rules, exactly like projects. UPDATE also checks
-    // the optional CTA url scheme (must start with http(s)://) and that the LEGACY per-kind config
-    // fields are delete-only (a write self-heals a pre-`config` doc; see toolLegacyConfigDeleteOnly).
+    // set — the COVER is still added later via UPDATE (not in the create set), but dates + the
+    // WhatsApp contact (contactPhone/contactLabel) ARE in the create set (the create form sets them
+    // like the edit form), validated the same way as UPDATE; the kind config is written under the
+    // generic `config` map — and validates the type/status enums + the text caps. UPDATE constrains
+    // the changed keys (the edit form + setToolStatus) and freezes ownerId; config/contact/dates/
+    // cover are allowed but never required, so clearing them (deleteField) passes. The config map is
+    // shape-checked (`is map`) only when PRESENT — the nested per-kind shape (stages, prizes…) can't
+    // be iterated by rules, exactly like projects. UPDATE also caps the optional WhatsApp contact
+    // (validToolContact) and enforces that the LEGACY per-kind config fields are delete-only (a write
+    // self-heals a pre-`config` doc; see toolLegacyConfigDeleteOnly).
 
     // A legacy per-kind config field (raffle/tour/sale/service/bingo/event — how a tool stored its
     // config before the generic `config` map). A client UPDATE may only DELETE one (migrating an old
@@ -593,7 +593,8 @@ service cloud.firestore {
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
-          'startsAt', 'endsAt', 'cta', 'config', 'ownerId', 'createdAt', 'updatedAt']) &&
+          'startsAt', 'endsAt', 'contactPhone', 'contactLabel', 'config',
+          'ownerId', 'createdAt', 'updatedAt']) &&
         request.resource.data.type in
           ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'pageant', 'other'] &&
         request.resource.data.status in ['active', 'inactive'] &&
@@ -604,19 +605,24 @@ service cloud.firestore {
         request.resource.data.ownerId is string &&
         (!request.resource.data.keys().hasAny(['config']) ||
           request.resource.data.config is map) &&
-        // Same optional-CTA scheme check as validToolUpdate — a CTA href must be labelled + http(s).
-        (!request.resource.data.keys().hasAny(['cta']) ||
-          (request.resource.data.cta is map &&
-            request.resource.data.cta.label is string &&
-            request.resource.data.cta.label.size() <= 40 &&
-            request.resource.data.cta.url is string &&
-            request.resource.data.cta.url.matches('^https?://.+')));
+        validToolContact();
+    }
+    // Optional tool-level WhatsApp contact: an alternate number (free-text, dialed via wa.me) and a
+    // custom "Consultar" button label. Both capped; no scheme check (it's a phone, not a URL).
+    function validToolContact() {
+      return (!request.resource.data.keys().hasAny(['contactPhone']) ||
+          (request.resource.data.contactPhone is string &&
+            request.resource.data.contactPhone.size() <= 30)) &&
+        (!request.resource.data.keys().hasAny(['contactLabel']) ||
+          (request.resource.data.contactLabel is string &&
+            request.resource.data.contactLabel.size() <= 40));
     }
     function validToolUpdate() {
       return keepsOwner() &&
         changedKeys().hasOnly([
           'type', 'title', 'description', 'status', 'coverUrl', 'startsAt', 'endsAt',
-          'cta', 'config', 'raffle', 'tour', 'sale', 'service', 'bingo', 'event', 'updatedAt']) &&
+          'contactPhone', 'contactLabel', 'config',
+          'raffle', 'tour', 'sale', 'service', 'bingo', 'event', 'updatedAt']) &&
         (!changedKeys().hasAny(['type']) ||
           request.resource.data.type in
             ['raffle', 'bingo', 'sale', 'service', 'guided_tour', 'event', 'pageant', 'other']) &&
@@ -631,18 +637,7 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['config']) ||
           request.resource.data.config is map) &&
         toolLegacyConfigDeleteOnly() &&
-        (!request.resource.data.keys().hasAny(['cta']) ||
-          (request.resource.data.cta is map &&
-            request.resource.data.cta.label is string &&
-            request.resource.data.cta.label.size() <= 40 &&
-            request.resource.data.cta.url is string &&
-            // Scheme check: a CTA href must start with http(s):// so a javascript:/data: value can
-            // never reach an <a href> on the public page. Mirrors safeExternalUrl on the write side
-            // (lib/firestore/tools.ts sanitizeCta) — rules are the only authority a direct-SDK write
-            // must obey. The app always stores a normalized lowercase scheme, so the lowercase
-            // pattern rejects nothing legitimate; anchored at ^ so a scheme can't be smuggled
-            // mid-string (safe whether matches() is full- or partial-string).
-            request.resource.data.cta.url.matches('^https?://.+')));
+        validToolContact();
     }
 
     // True if this update would elevate the school's verification state. Owners must

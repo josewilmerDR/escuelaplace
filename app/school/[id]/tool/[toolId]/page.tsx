@@ -38,6 +38,8 @@ import {
   projectGoal,
   raffleNumberStates,
   toolConfigOf,
+  toolContactLabel,
+  toolContactPhone,
   toolWindowLabel,
 } from "@/lib/firestore";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
@@ -156,8 +158,7 @@ export default async function ToolPage({ params }: Props) {
   if (renderer) return renderer({ id, toolId, tool, school });
 
   const window = toolWindowLabel(tool);
-  // Re-check the CTA scheme at render even though it was sanitized on write (defense in depth).
-  const ctaUrl = tool.cta ? safeExternalUrl(tool.cta.url) : null;
+  const whatsappUrl = toolContactWhatsAppLink(tool, school);
 
   return (
     <ToolDetailShell
@@ -178,24 +179,55 @@ export default async function ToolPage({ params }: Props) {
         <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
       )}
 
-      {ctaUrl && (
-        <div className="mt-6">
-          <a
-            href={ctaUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
-          >
-            {tool.cta?.label}
-            <ArrowRightIcon className="ml-2 h-5 w-5" />
-          </a>
-          <p className="mt-2 text-xs text-muted">
-            Coordina directamente con la escuela. escuelaplace solo da
-            visibilidad: nunca procesa pagos ni participa en la actividad.
-          </p>
-        </div>
-      )}
+      <ToolContactButton tool={tool} whatsappUrl={whatsappUrl} />
     </ToolDetailShell>
+  );
+}
+
+/**
+ * Resolve the tool's "Consultar" WhatsApp deep link: the tool-level contact number, falling back to
+ * the school's board phone. Null when neither resolves to a dialable number (then no button). The
+ * prefilled message names the tool so the board knows what the chat is about. Shared by every kind.
+ */
+function toolContactWhatsAppLink(tool: ToolDoc, school: SchoolDoc): string | null {
+  const phone = toolContactPhone(tool) || school.boardContact?.phone || "";
+  return phone
+    ? buildWhatsAppLink(
+        phone,
+        `¡Hola! Vi "${tool.title}" de ${school.name} en escuelaplace y quiero hacer una consulta.`,
+      )
+    : null;
+}
+
+/**
+ * The tool's "Consultar" WhatsApp button (label customizable by the school, default "Consultar"),
+ * with the standard "the platform never touches money" note. Renders nothing when no number
+ * resolves, so the button is never a dead link. PURELY INFORMATIONAL — it only opens a chat.
+ */
+function ToolContactButton({
+  tool,
+  whatsappUrl,
+}: {
+  tool: ToolDoc;
+  whatsappUrl: string | null;
+}) {
+  if (!whatsappUrl) return null;
+  return (
+    <div className="mt-6">
+      <a
+        href={whatsappUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
+      >
+        <ChatBubbleIcon className="mr-2 h-5 w-5" />
+        {toolContactLabel(tool)}
+      </a>
+      <p className="mt-2 text-xs text-muted">
+        Coordina directamente con la escuela por WhatsApp. escuelaplace solo da
+        visibilidad: nunca procesa pagos ni participa en la actividad.
+      </p>
+    </div>
   );
 }
 
@@ -288,6 +320,11 @@ async function RaffleDetail({ id, toolId, tool, school }: ToolDetailProps) {
           />
         </div>
       </div>
+
+      <ToolContactButton
+        tool={tool}
+        whatsappUrl={toolContactWhatsAppLink(tool, school)}
+      />
     </ToolDetailShell>
   );
 }
@@ -301,12 +338,7 @@ async function RaffleDetail({ id, toolId, tool, school }: ToolDetailProps) {
 async function TourDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const tour = toolConfigOf(tool, "guided_tour")!;
   const window = toolWindowLabel(tool);
-
-  // Prefer the tour's own WhatsApp contact; fall back to the school's board phone. buildWhatsAppLink
-  // normalizes the number and returns null if it can't be dialed, so the button only shows when usable.
-  const phone = tour.contactPhone || school.boardContact?.phone || "";
-  const askMessage = `¡Hola! Vi la visita guiada "${tool.title}" de ${school.name} en escuelaplace y quiero hacer una consulta.`;
-  const whatsappUrl = phone ? buildWhatsAppLink(phone, askMessage) : null;
+  const whatsappUrl = toolContactWhatsAppLink(tool, school);
 
   return (
     <ToolDetailShell
@@ -336,24 +368,7 @@ async function TourDetail({ id, toolId, tool, school }: ToolDetailProps) {
         </div>
       </div>
 
-      {whatsappUrl && (
-        <div className="mt-8">
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
-          >
-            <ChatBubbleIcon className="mr-2 h-5 w-5" />
-            Preguntar
-          </a>
-          <p className="mt-2 text-xs text-muted">
-            Coordina directamente con la escuela por WhatsApp. escuelaplace
-            solo da visibilidad: nunca procesa pagos ni participa en la
-            actividad.
-          </p>
-        </div>
-      )}
+      <ToolContactButton tool={tool} whatsappUrl={whatsappUrl} />
     </ToolDetailShell>
   );
 }
@@ -366,7 +381,7 @@ async function TourDetail({ id, toolId, tool, school }: ToolDetailProps) {
 async function SaleDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const sale = toolConfigOf(tool, "sale")!;
   const verified = isSchoolVerified(school);
-  const contactPhone = sale.contactPhone || school.boardContact?.phone || "";
+  const contactPhone = toolContactPhone(tool) || school.boardContact?.phone || "";
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -428,7 +443,7 @@ async function SaleDetail({ id, toolId, tool, school }: ToolDetailProps) {
  */
 async function ServiceDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const service = toolConfigOf(tool, "service")!;
-  const contactPhone = service.contactPhone || school.boardContact?.phone || "";
+  const contactPhone = toolContactPhone(tool) || school.boardContact?.phone || "";
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -494,7 +509,7 @@ async function ServiceDetail({ id, toolId, tool, school }: ToolDetailProps) {
 async function EventDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const event = toolConfigOf(tool, "event")!;
   const photos = event.photos ?? [];
-  const contactPhone = event.contactPhone || school.boardContact?.phone || "";
+  const contactPhone = toolContactPhone(tool) || school.boardContact?.phone || "";
   const dateMs = event.date ? event.date.toMillis() : null;
   // Re-check the map link scheme at render even though it was sanitized on write (defense in depth).
   const mapUrl = event.mapUrl ? safeExternalUrl(event.mapUrl) : null;
@@ -609,7 +624,7 @@ async function EventDetail({ id, toolId, tool, school }: ToolDetailProps) {
             className="btn btn-primary"
           >
             <ChatBubbleIcon className="mr-1.5 h-5 w-5" />
-            Preguntar
+            {toolContactLabel(tool)}
           </a>
         )}
         {calendarUrl && (
@@ -784,6 +799,11 @@ async function BingoDetail({ id, toolId, tool, school }: ToolDetailProps) {
         poolMin={bingo.format.poolMin}
         poolMax={bingo.format.poolMax}
       />
+
+      <ToolContactButton
+        tool={tool}
+        whatsappUrl={toolContactWhatsAppLink(tool, school)}
+      />
     </ToolDetailShell>
   );
 }
@@ -798,6 +818,7 @@ async function BingoDetail({ id, toolId, tool, school }: ToolDetailProps) {
 async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const pageant = toolConfigOf(tool, "pageant")!;
   const candidates = await getCandidates(id, toolId).catch(() => []);
+  const whatsappUrl = toolContactWhatsAppLink(tool, school);
   // Support is recorded only against a verified school (the create rule gates on it) — so the
   // "Apoyar" CTA shows only then; otherwise a note explains it isn't enabled yet.
   const verified = isSchoolVerified(school);
@@ -873,6 +894,8 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
           </p>
         </div>
       )}
+
+      <ToolContactButton tool={tool} whatsappUrl={whatsappUrl} />
 
       {/* Event-level sponsorship: fund the reinado's destination project (its costs), NEVER a single
           candidate. Shown only when the school is verified and the reinado is linked to an active
