@@ -67,7 +67,8 @@ export function PageantApplauseButton({
         type="button"
         onClick={applaud}
         disabled={busy || votedOther || !ready}
-        className="btn btn-outline self-start"
+        // Snug shared width, kept in sync with the "Apoyar" button so both CTAs match.
+        className="btn btn-outline w-24 self-start"
       >
         {busy ? "Enviando…" : "Aplaudir"}
       </button>

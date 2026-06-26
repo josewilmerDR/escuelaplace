@@ -11,9 +11,9 @@ import { PageantSponsorButton } from "@/components/tools/PageantSponsorButton";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { SaleProducts } from "@/components/tools/SaleProducts";
 import { ServiceItems } from "@/components/tools/ServiceItems";
+import { ToolCardActions } from "@/components/tools/ToolCardActions";
 import { ToolDetailShell } from "@/components/tools/ToolDetailShell";
 import { TourStages } from "@/components/tools/TourStages";
-import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { cardClass } from "@/components/ui/Card";
 import {
   ArrowRightIcon,
@@ -35,7 +35,6 @@ import {
   getSchoolById,
   getToolById,
   isSchoolVerified,
-  projectGoal,
   raffleNumberStates,
   toolConfigOf,
   toolContactLabel,
@@ -858,6 +857,20 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
         toolId,
         closesMs ? { endDate: new Date(closesMs).toISOString() } : {},
       )}
+      // Event-level sponsorship reduced to its CTA, lifted into the title row: fund the reinado's
+      // destination project (its costs), NEVER a single candidate. Shown only when the school is
+      // verified and the reinado is linked to an active project. Full-width on mobile, pulled right
+      // beside the title on desktop. The disclosure modal still spells out the collective purpose.
+      titleAction={
+        fundProject && fundProject.status === "active" ? (
+          <PageantSponsorButton
+            schoolId={id}
+            fundProjectId={fundProject.id}
+            cause={pageant.cause}
+            className="btn btn-primary w-full justify-center sm:w-auto"
+          />
+        ) : undefined
+      }
     >
       <ul className="mt-3 space-y-1 text-sm text-muted">
         {pageant.cause && (
@@ -892,43 +905,6 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
           <p className="mt-2 whitespace-pre-line text-sm text-muted">
             {pageant.criteria}
           </p>
-        </div>
-      )}
-
-      <ToolContactButton tool={tool} whatsappUrl={whatsappUrl} />
-
-      {/* Event-level sponsorship: fund the reinado's destination project (its costs), NEVER a single
-          candidate. Shown only when the school is verified and the reinado is linked to an active
-          project — the progress bar + the "Apadrinar el reinado" CTA + a link to the project. */}
-      {fundProject && fundProject.status === "active" && (
-        <div className={`mt-6 ${cardClass("inset")}`}>
-          <h2 className="text-sm font-semibold tracking-tight text-foreground">
-            Apadrina el reinado
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            Aportes para los costos del evento — no para una candidatura en particular.
-          </p>
-          <div className="mt-3">
-            <ProjectProgress
-              raised={fundProject.raised}
-              goal={projectGoal(fundProject.stages)}
-              currency={fundProject.currency}
-              contributorsCount={fundProject.contributorsCount}
-            />
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <PageantSponsorButton
-              schoolId={id}
-              fundProjectId={fundProject.id}
-              cause={pageant.cause}
-            />
-            <Link
-              href={`/school/${id}/project/${fundProject.id}`}
-              className="text-sm font-medium text-brand-darker hover:underline"
-            >
-              Ver el proyecto
-            </Link>
-          </div>
         </div>
       )}
 
@@ -972,6 +948,20 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
             Aún no hay candidaturas publicadas.
           </p>
         )}
+      </div>
+
+      {/* Contact + share, mirroring the school feed card's footer actions, moved to the foot of the
+          page so the contest and its candidates lead and the two ways to engage (ask the school,
+          spread the word) close it out. "Consultar" hides when no number resolves; "Compartir"
+          always shows. PURELY INFORMATIONAL — it only opens a chat or the share sheet. */}
+      <div className="mt-8 sm:mx-auto sm:max-w-md">
+        <ToolCardActions
+          whatsappUrl={whatsappUrl}
+          whatsappLabel={toolContactLabel(tool)}
+          sharePath={`/school/${id}/tool/${toolId}`}
+          shareTitle={tool.title}
+          shareText={`✨ ${tool.title} — apoya a ${school.name} en escuelaplace 💙`}
+        />
       </div>
 
       <p className="mt-6 text-xs text-muted">
