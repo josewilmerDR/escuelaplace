@@ -68,13 +68,51 @@ export function PageantCandidates({
               </div>
             </div>
 
-            {/* Free "simpatía" applause — a count-only bar, lighter than the support bar. */}
+            {/* Free "simpatía": the count-only bar (lighter than the support bar) with its "Aplaudir"
+                action in line with it — the tally (label + count + bar) on the left, the button pinned
+                to the right. Same row on mobile and desktop. */}
             {freeVotingEnabled && (
-              <div>
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between text-xs">
+                    <span className="font-medium text-foreground">Simpatía</span>
+                    <span className="tabular-nums text-muted">
+                      {free} {free === 1 ? "aplauso" : "aplausos"}
+                    </span>
+                  </div>
+                  <div
+                    className="mt-1 h-2 overflow-hidden rounded-full bg-brand-tint"
+                    aria-hidden="true"
+                  >
+                    <div
+                      className="h-full rounded-full bg-brand/50"
+                      style={{ width: `${freePct}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="shrink-0">
+                  <PageantApplauseButton
+                    schoolId={schoolId}
+                    toolId={toolId}
+                    candidateId={c.id}
+                    candidateName={c.name}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Confirmed economic support: the count-only bar (no money figures) with its "Apoyar"
+                action in line with it — the tally on the left, the button pinned to the right.
+                Sponsoring the event ("Apadrinar el reinado") lives at the page level, not here. */}
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between text-xs">
-                  <span className="font-medium text-foreground">Simpatía</span>
+                  <span className="font-medium text-foreground">Apoyo confirmado</span>
                   <span className="tabular-nums text-muted">
-                    {free} {free === 1 ? "aplauso" : "aplausos"}
+                    {support}
+                    {c.supportCount > 0
+                      ? ` · ${c.supportCount} ${c.supportCount === 1 ? "partidario" : "partidarios"}`
+                      : ""}
                   </span>
                 </div>
                 <div
@@ -82,54 +120,21 @@ export function PageantCandidates({
                   aria-hidden="true"
                 >
                   <div
-                    className="h-full rounded-full bg-brand/50"
-                    style={{ width: `${freePct}%` }}
+                    className="h-full rounded-full bg-brand"
+                    style={{ width: `${pct}%` }}
                   />
                 </div>
               </div>
-            )}
-
-            {/* Confirmed economic support — a count-only bar (no money figures). */}
-            <div>
-              <div className="flex items-baseline justify-between text-xs">
-                <span className="font-medium text-foreground">Apoyo confirmado</span>
-                <span className="tabular-nums text-muted">
-                  {support}
-                  {c.supportCount > 0
-                    ? ` · ${c.supportCount} ${c.supportCount === 1 ? "partidario" : "partidarios"}`
-                    : ""}
-                </span>
-              </div>
-              <div
-                className="mt-1 h-2 overflow-hidden rounded-full bg-brand-tint"
-                aria-hidden="true"
-              >
-                <div
-                  className="h-full rounded-full bg-brand"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
+              {canSupport && (
+                <Link
+                  href={`/panel/pageant-support?schoolId=${schoolId}&toolId=${toolId}&candidateId=${c.id}`}
+                  // Snug shared width, kept in sync with the "Aplaudir" button so both CTAs match.
+                  className="btn btn-primary w-24 shrink-0"
+                >
+                  Apoyar
+                </Link>
+              )}
             </div>
-
-            {/* Actions: the free applause (when enabled) and the per-candidate economic CTA.
-                Sponsoring the event ("Apadrinar el reinado") lives at the page level, not here. */}
-            {freeVotingEnabled && (
-              <PageantApplauseButton
-                schoolId={schoolId}
-                toolId={toolId}
-                candidateId={c.id}
-                candidateName={c.name}
-              />
-            )}
-
-            {canSupport && (
-              <Link
-                href={`/panel/pageant-support?schoolId=${schoolId}&toolId=${toolId}&candidateId=${c.id}`}
-                className="btn btn-primary self-start"
-              >
-                Apoyar
-              </Link>
-            )}
           </li>
         );
       })}

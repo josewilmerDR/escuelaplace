@@ -16,18 +16,21 @@ export function PageantSponsorButton({
   schoolId,
   fundProjectId,
   cause,
+  className = "btn btn-primary self-start",
 }: {
   schoolId: string;
   fundProjectId: string;
   /** The reinado's declared cause (PageantConfig.cause), surfaced in the modal when set. */
   cause?: string;
+  /** Override the trigger button's classes (e.g. responsive full/auto width in the title row). */
+  className?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="btn btn-primary self-start">
+      <button type="button" onClick={() => setOpen(true)} className={className}>
         Apadrinar el reinado
       </button>
 

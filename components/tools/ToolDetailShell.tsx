@@ -16,6 +16,8 @@ import type { SchoolDoc, ToolDoc } from "@/types";
  * shell, supplying only:
  *   - `jsonLd`: its structured-data payload (Event / ItemList / …), serialized here, and
  *   - `badge`: an optional extra chip next to the kind badge (e.g. the event status), and
+ *   - `titleAction`: an optional CTA placed in the title row (e.g. the reinado's sponsor button),
+ *     full-width below the title on mobile and pulled to the far right beside it on desktop, and
  *   - `children`: everything below the title row (the kind's window line, description and body).
  *
  * SSR (no "use client") so it renders from the public pages. Centralizing the chrome here means a
@@ -28,6 +30,7 @@ export function ToolDetailShell({
   school,
   jsonLd,
   badge,
+  titleAction,
   children,
 }: {
   id: string;
@@ -36,6 +39,7 @@ export function ToolDetailShell({
   school: SchoolDoc;
   jsonLd: object;
   badge?: ReactNode;
+  titleAction?: ReactNode;
   children: ReactNode;
 }) {
   const Icon = toolTypeMeta(tool.type).icon;
@@ -93,12 +97,19 @@ export function ToolDetailShell({
         </div>
 
         <div className="p-5 sm:p-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {tool.title}
-            </h1>
-            <ToolTypeBadge type={tool.type} />
-            {badge}
+          {/* Title row: stacks on mobile (title block, then the optional action full-width below),
+              becomes a single row on desktop with the action pushed to the far right (sm:ml-auto). */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+                {tool.title}
+              </h1>
+              <ToolTypeBadge type={tool.type} />
+              {badge}
+            </div>
+            {titleAction && (
+              <div className="w-full sm:ml-auto sm:w-auto">{titleAction}</div>
+            )}
           </div>
 
           {children}
