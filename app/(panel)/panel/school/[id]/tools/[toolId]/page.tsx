@@ -571,6 +571,13 @@ export default function EditToolPage() {
       // Throws on failure → the catch below surfaces it; already-validated above.
       if (type === "pageant") {
         await candidatesRef.current?.saveAll();
+        // A reinado returns to its management panel (the live control cockpit — votes, gala,
+        // coronación) after saving, mirroring the create flow, instead of staying on the editor.
+        // The save is already persisted; the local form re-sync below only matters when staying on
+        // the page, so it's skipped here. `saving` stays true through the client-side navigation
+        // (like the create page), which also blocks a double-submit while it resolves.
+        router.push(`/panel/school/${id}/tools/${toolId}/manage`);
+        return;
       }
       // The local persisted bases (the Input shapes are structurally the stored shapes).
       const savedRaffle: RaffleConfig | undefined = raffle
