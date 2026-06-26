@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageTypeChoice } from "@/components/onboarding/PageTypeChoice";
-import { BackLink } from "@/components/ui/BackLink";
 
 export const metadata: Metadata = { title: "Crear página" };
 
@@ -13,9 +12,6 @@ export const metadata: Metadata = { title: "Crear página" };
 export default function NewPageChoice() {
   return (
     <main>
-      <div className="mb-6">
-        <BackLink href="/panel">Mis páginas</BackLink>
-      </div>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         ¿Qué quieres crear?
       </h1>

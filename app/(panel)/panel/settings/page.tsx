@@ -7,7 +7,6 @@
  * buried below the donate form where it read as a per-donation toggle.
  */
 import type { Metadata } from "next";
-import { BackLink } from "@/components/ui/BackLink";
 import { RecognitionToggle } from "@/components/donors/RecognitionToggle";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -25,10 +24,6 @@ export default function SettingsPage() {
       <div className="mt-8">
         <RecognitionToggle />
       </div>
-
-      <p className="mt-8 text-sm">
-        <BackLink href="/panel">Volver al panel</BackLink>
-      </p>
     </main>
   );
 }
