@@ -294,7 +294,7 @@ export default function PageantManagePage() {
               Voto libre de simpatía
             </p>
             <p className="mt-0.5 text-xs text-muted">
-              Deja que cualquiera aplauda sin cuenta (una vez por dispositivo). Mientras está
+              Deja que cualquiera vote sin cuenta (una vez por dispositivo). Mientras está
               apagado, la simpatía no pesa en la corona ni se muestra el aplauso público.
             </p>
             <p className="mt-1 text-xs">
