@@ -27,7 +27,8 @@ export const PANEL_NAV_ITEMS: PanelNavItem[] = [
     extraPrefixes: ["/panel/business", "/panel/school"],
   },
   { href: "/panel/new", label: "Crear página" },
-  { href: "/panel/donate", label: "Donar a una escuela" },
+  // "Donar a una escuela" lives inside "Mis donaciones" now (a header CTA there), not as its
+  // own top-level entry — the donate flow is reached from the place that lists past donations.
   { href: "/panel/donations", label: "Mis donaciones" },
   { href: "/panel/settings", label: "Configuración" },
 ];

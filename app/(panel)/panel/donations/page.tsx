@@ -14,13 +14,13 @@
  * Amounts ARE shown here because this is the donor's OWN private view (the tier only blurs
  * the figure on PUBLIC surfaces — the donor wall — never to the donor about their own giving).
  */
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { DonorTierBadge } from "@/components/donors/DonorTierBadge";
 import { ThankYouCard } from "@/components/donors/ThankYouCard";
 import { ProjectContributionItem } from "@/components/projects/ProjectContributionItem";
 import { SupporterContributionItem } from "@/components/subscriptions/SupporterContributionItem";
-import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HeartIcon } from "@/components/ui/icons";
@@ -236,11 +236,7 @@ export default function DonationsPage() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">{TITLE}</h1>
-      <p className="mt-1 text-sm text-muted">
-        Todo lo que aportaste, en un solo lugar: tus donaciones a escuelas y tus
-        aportes a proyectos.
-      </p>
+      <DonationsHeader />
 
       {!hasAny ? (
         <EmptyState
@@ -248,7 +244,6 @@ export default function DonationsPage() {
           icon={<HeartIcon className="h-7 w-7" />}
           title="Todavía no registraste ninguna donación"
           description="Cuando apoyes a una escuela o aportes a un proyecto, vas a ver acá el resumen y el estado de cada aporte."
-          cta={{ label: "Donar a una escuela", href: "/panel/donate" }}
         />
       ) : (
         <>
@@ -381,27 +376,45 @@ export default function DonationsPage() {
           )}
         </>
       )}
-
-      <p className="mt-10 text-sm">
-        <BackLink href="/panel">Volver al panel</BackLink>
-      </p>
     </main>
   );
 }
 
 /**
- * Loading shell. Renders the SAME static header (title + intro) the loaded page does, so
- * navigating here paints the heading instantly in its final position and only the content
- * below fades in — no blank flash ("parpadeo") during the Firestore reads.
+ * Page header shared by the loaded page AND the loading skeleton (title + intro + the donate
+ * CTA), so navigating here paints the whole heading — including the "Donar" button — instantly
+ * in its final position; only the content below fades in, no blank flash ("parpadeo"). The
+ * donate flow is reached from here (and from each project's funding page), not from a top-level
+ * nav entry. The button sits in line with the title and is static (a link, no data), so it's
+ * safe in the skeleton.
  */
-function DonationsSkeleton() {
+function DonationsHeader() {
   return (
-    <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">{TITLE}</h1>
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">{TITLE}</h1>
+        <Link href="/panel/donate" className="btn btn-primary shrink-0 gap-1.5">
+          <HeartIcon className="h-4 w-4" />
+          Donar
+        </Link>
+      </div>
       <p className="mt-1 text-sm text-muted">
         Todo lo que aportaste, en un solo lugar: tus donaciones a escuelas y tus
         aportes a proyectos.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Loading shell. Renders the SAME static header the loaded page does, so navigating here
+ * paints the heading instantly in its final position and only the content below fades in —
+ * no blank flash ("parpadeo") during the Firestore reads.
+ */
+function DonationsSkeleton() {
+  return (
+    <main>
+      <DonationsHeader />
       <div className="mt-6 space-y-3" aria-hidden="true">
         <div className="h-12 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
         <div className="h-20 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
