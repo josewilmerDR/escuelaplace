@@ -11,6 +11,7 @@
  * and the payment methods are only rewritten when they changed.
  */
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import Link from "next/link";
 import { BackLink } from "@/components/ui/BackLink";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -18,6 +19,7 @@ import { GalleryManager } from "@/components/business/GalleryManager";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
 import { cardClass } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -81,6 +83,11 @@ export default function SchoolEditPage() {
   // New images picked this session; null = keep the stored ones.
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  // Staged cover removal: the owner cleared the saved cover but hasn't saved yet. Applied
+  // (as a field delete) on submit; a newly-picked cover supersedes it. confirmRemoveCover
+  // drives the confirmation dialog the trash/"Eliminar" action opens.
+  const [removeCover, setRemoveCover] = useState(false);
+  const [confirmRemoveCover, setConfirmRemoveCover] = useState(false);
   // Payment methods as loaded (to detect actual changes — rewriting them re-hides
   // them on a verified school) and as typed.
   const [loadedMethods, setLoadedMethods] = useState<PaymentMethod[]>([]);
@@ -227,7 +234,9 @@ export default function SchoolEditPage() {
           ...(boardEmail.trim() ? { email: boardEmail.trim() } : {}),
         },
         ...(photoUrl ? { photoUrl } : {}),
-        ...(coverUrl ? { coverUrl } : {}),
+        // A new cover wins; otherwise a staged removal deletes the field (null →
+        // deleteField in the data layer). No change → leave it untouched.
+        ...(coverUrl ? { coverUrl } : removeCover ? { coverUrl: null } : {}),
       };
       await updateSchoolProfile(school.id, patch, school.verificationStatus);
 
@@ -276,12 +285,18 @@ export default function SchoolEditPage() {
                 ? { verificationStatus: "needs_reverification" as const }
                 : {}),
               ...(photoUrl ? { photoUrl } : {}),
-              ...(coverUrl ? { coverUrl } : {}),
+              // Mirror the cover write: a new URL, or undefined when it was removed.
+              ...(coverUrl
+                ? { coverUrl }
+                : removeCover
+                  ? { coverUrl: undefined }
+                  : {}),
             }
           : s,
       );
       setPhotoFile(null);
       setCoverFile(null);
+      setRemoveCover(false);
       setSaved(true);
       // Clear dirty before navigating so the unsaved-changes guard doesn't fire on the
       // way out, then return to wherever the board came from (the last history entry).
@@ -449,27 +464,48 @@ export default function SchoolEditPage() {
             </span>
           </Field>
 
-          <Field label="Mensaje de agradecimiento (opcional)">
-            <textarea
-              maxLength={PAGE_DESCRIPTION_MAX}
-              value={thankYouMessage}
-              onChange={(e) => setThankYouMessage(e.target.value)}
-              placeholder="Se muestra en el muro de agradecimiento de tu página pública."
-              className="input min-h-24"
-            />
-            <span
-              className={`text-xs ${
-                thankYouMessage.length >= PAGE_DESCRIPTION_MAX * 0.9
-                  ? "text-warning"
-                  : "text-muted"
-              }`}
-            >
-              {thankYouMessage.length}/{PAGE_DESCRIPTION_MAX}
-            </span>
-          </Field>
+          <div>
+            <Field label="Mensaje de agradecimiento (opcional)">
+              <textarea
+                maxLength={PAGE_DESCRIPTION_MAX}
+                value={thankYouMessage}
+                onChange={(e) => setThankYouMessage(e.target.value)}
+                placeholder="Se muestra en el muro de agradecimiento de tu página pública."
+                className="input min-h-24"
+              />
+              <span
+                className={`text-xs ${
+                  thankYouMessage.length >= PAGE_DESCRIPTION_MAX * 0.9
+                    ? "text-warning"
+                    : "text-muted"
+                }`}
+              >
+                {thankYouMessage.length}/{PAGE_DESCRIPTION_MAX}
+              </span>
+            </Field>
+            {/* Outside the Field's <label> so the link is its own click target, not a
+                focus-the-textarea region. Points to the dedicated thank-you setup, where
+                the board personalizes the per-supporter messages (welcome, renewal,
+                anniversary) this single field can't cover. */}
+            <p className="mt-1.5 text-xs text-muted">
+              ¿Quieres personalizar más mensajes para tu comunidad? Configura tus
+              agradecimientos a cada quien te apoya —bienvenida, renovación,
+              aniversario y gestos especiales— en{" "}
+              <Link
+                href={`/panel/school/${id}/thanks`}
+                className="font-medium underline"
+              >
+                Agradecimientos
+              </Link>
+              .
+            </p>
+          </div>
         </FormSection>
 
         <FormSection legend="Presentación" boxed>
+          {/* Integrated mode (currentUrl): the picker shows the saved photo/cover inside
+              its own preview, so the board sees the live image with an Agregar/Cambiar
+              affordance instead of an empty box. A freshly-picked file shows on top. */}
           <ImagePicker
             label="Foto de perfil"
             hint="Se muestra como círculo sobre la portada (escudo o fachada)."
@@ -479,6 +515,7 @@ export default function SchoolEditPage() {
               setDirty(true);
             }}
             variant="avatar"
+            currentUrl={school.photoUrl ?? null}
           />
 
           <ImagePicker
@@ -487,15 +524,27 @@ export default function SchoolEditPage() {
             value={coverFile}
             onChange={(file) => {
               setCoverFile(file);
+              // Picking a new cover undoes a staged removal.
+              setRemoveCover(false);
               setDirty(true);
             }}
             variant="cover"
+            // Staged removal blanks the preview until save; a new pick (above) wins.
+            currentUrl={removeCover ? null : (storedCover ?? null)}
+            // Removal clears the `coverUrl` field on save. Only offered for a real saved
+            // coverUrl — a legacy cover inherited from photos[0] would need the gallery
+            // array touched (risking a clobber of live gallery edits), so leave it as is.
+            onRemoveExisting={
+              school.coverUrl ? () => setConfirmRemoveCover(true) : undefined
+            }
+            removeLabel="Eliminar"
           />
 
           {/* Mini header so the board can check the avatar/cover overlap without
-              opening the public page. Newly picked files win over the stored URLs. */}
+              opening the public page. Newly picked files win over the stored URLs;
+              a staged removal blanks the cover here too. */}
           <HeaderPreview
-            cover={coverFile ?? storedCover}
+            cover={coverFile ?? (removeCover ? null : storedCover)}
             logo={photoFile ?? school.photoUrl}
             businessName={school.name}
           />
@@ -647,6 +696,24 @@ export default function SchoolEditPage() {
           <SavedIndicator show={saved} onHide={() => setSaved(false)} />
         </div>
       </div>
+
+      {/* Cover removal is staged: confirming only blanks the preview; the field is
+          actually deleted on "Guardar cambios". */}
+      <ConfirmDialog
+        open={confirmRemoveCover}
+        title="Eliminar la foto de portada"
+        confirmLabel="Eliminar"
+        tone="destructive"
+        onConfirm={() => {
+          setRemoveCover(true);
+          setConfirmRemoveCover(false);
+          setDirty(true);
+        }}
+        onCancel={() => setConfirmRemoveCover(false)}
+      >
+        La portada se quitará de tu página cuando guardes los cambios. Podrás subir
+        otra cuando quieras.
+      </ConfirmDialog>
     </main>
   );
 }

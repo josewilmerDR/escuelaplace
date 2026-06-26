@@ -16,6 +16,7 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -181,15 +182,16 @@ export async function getVerifiedSchoolPaymentMethods(
 export type SchoolProfilePatch = Partial<
   Pick<
     School,
-    | "name"
-    | "description"
-    | "thankYouMessage"
-    | "photoUrl"
-    | "coverUrl"
-    | "photos"
-    | "boardContact"
+    "name" | "description" | "thankYouMessage" | "photos" | "boardContact"
   >
-> & { location?: Omit<LocationInput, "address"> };
+> & {
+  location?: Omit<LocationInput, "address">;
+  /** Profile/cover image URLs. A string sets the URL; `null` deletes the field (e.g.
+   * the owner removed the cover — set "" would defeat schoolCover's `?? photos[0]`
+   * fallback, so a real field delete is required). */
+  photoUrl?: string | null;
+  coverUrl?: string | null;
+};
 
 /**
  * Update the public school doc. If `name` changes while the school is currently
@@ -206,9 +208,17 @@ export async function updateSchoolProfile(
   const dropsVerification =
     "name" in patch && currentStatus === "verified";
 
-  const { location, ...rest } = patch;
+  const { location, photoUrl, coverUrl, ...rest } = patch;
   await updateDoc(doc(db, SCHOOLS, id), {
     ...rest,
+    // null → deleteField() so the public schoolCover() falls back correctly instead of
+    // resolving to an empty-string cover (a removal must clear the field, not blank it).
+    ...(photoUrl !== undefined
+      ? { photoUrl: photoUrl === null ? deleteField() : photoUrl }
+      : {}),
+    ...(coverUrl !== undefined
+      ? { coverUrl: coverUrl === null ? deleteField() : coverUrl }
+      : {}),
     ...(location ? { location: toLocation(location) } : {}),
     ...(dropsVerification
       ? { verified: false, verificationStatus: "needs_reverification" }

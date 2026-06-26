@@ -6,9 +6,19 @@
  * 5:2 band (the header cover). Local-only: it holds a File and previews it via an
  * object URL — the caller uploads on submit. Type/size are validated here so the form
  * only ever receives usable files.
+ *
+ * Two presentations:
+ *  - default (create surfaces, no saved image): the picker only knows the newly-picked
+ *    File, so an empty avatar shows "Sin imagen" and the cover band hosts the upload
+ *    button.
+ *  - integrated (`currentUrl` passed, even as null): edit surfaces where an image may
+ *    already be saved. The preview shows the saved image (or the freshly-picked File on
+ *    top) directly, with an "Agregar"/"Cambiar" affordance and — for covers — a remove
+ *    action, so the preview is never a misleading empty box next to a live image.
  */
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PencilIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 
 const MAX_IMAGE_MB = 5;
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
@@ -38,6 +48,7 @@ export function ImagePicker({
   hideLabel = false,
   onRemoveExisting,
   removeLabel = "Quitar",
+  currentUrl,
 }: {
   label: string;
   hint?: string;
@@ -56,10 +67,16 @@ export function ImagePicker({
   hideLabel?: boolean;
   /** Action to remove the CURRENT (already-saved) image — owned by the caller, since this picker only
    * holds the newly-picked file. When given, a text action (`removeLabel`) sits next to the pick
-   * button in the empty `hidePreviewWhenEmpty` state. The caller typically confirms before deleting. */
+   * button in the empty `hidePreviewWhenEmpty` state, and (in integrated mode) under/over the cover
+   * preview. The caller typically confirms before deleting. */
   onRemoveExisting?: () => void;
   /** Label for the `onRemoveExisting` action (e.g. "Eliminar portada"). */
   removeLabel?: string;
+  /** Integrated mode: the already-saved image URL (edit surfaces). Passing it (even as null) switches
+   * the picker to show the saved image — or the freshly-picked File on top — inside the preview, with
+   * an "Agregar"/"Cambiar" affordance, instead of an empty box. Omit it (undefined) to keep the default
+   * presentation used by create forms. */
+  currentUrl?: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,19 +112,104 @@ export function ImagePicker({
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  // Integrated mode is opt-in: a caller that passes `currentUrl` (even null) wants the
+  // saved image shown inside the preview. The newly-picked File wins over the saved URL.
+  const integrated = currentUrl !== undefined;
+  const shownUrl = previewUrl ?? currentUrl ?? null;
+
+  // The bare file input, reused across the (mutually exclusive) branches' clickable labels.
+  const fileInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/*"
+      className="sr-only"
+      aria-label={label}
+      onChange={onFile}
+    />
+  );
+
+  // Integrated cover remove: a freshly-picked File reverts (revert the staged pick, no
+  // confirm); otherwise it's the saved cover, so defer to the caller (which confirms).
+  const removeShownCover = () => {
+    if (value) remove();
+    else onRemoveExisting?.();
+  };
+  const canRemoveCover = Boolean(value) || Boolean(onRemoveExisting);
+
+  // ── Integrated avatar: a clickable circle that shows the image with a "Cambiar"
+  //    strip, or an "Agregar" prompt when empty. ──────────────────────────────────────
+  const integratedAvatar = (
+    <label className="group relative mt-1 block h-24 w-24 shrink-0 cursor-pointer overflow-hidden rounded-full bg-surface ring-1 ring-black/5 transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand">
+      {shownUrl ? (
+        <>
+          {/* unoptimized: a freshly-picked file previews via a blob: URL the optimizer
+              can't read; fine for this small panel preview. */}
+          <Image src={shownUrl} alt="" fill unoptimized className="object-cover" />
+          {/* "Cambiar" sits in a scrim at the foot of the circle so it stays legible over
+              any photo and is visible without hover (tap targets the whole circle). */}
+          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-black/55 py-1 text-[11px] font-medium text-white">
+            <PencilIcon className="h-3 w-3" />
+            Cambiar
+          </span>
+        </>
+      ) : (
+        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-xs font-medium text-muted">
+          <PlusIcon className="h-5 w-5" />
+          Agregar
+        </span>
+      )}
+      {fileInput}
+    </label>
+  );
+
+  // ── Integrated cover: the saved/picked image in the 5:2 band with a trash corner and a
+  //    "Cambiar imagen" / "Eliminar" footer, or an "Agregar" prompt in a dashed band. ──
+  const integratedCover = shownUrl ? (
+    <span className="mt-1 flex flex-col gap-3">
+      <span className="relative block aspect-[5/2] w-full overflow-hidden rounded-xl bg-surface ring-1 ring-black/5">
+        <Image src={shownUrl} alt="" fill unoptimized className="object-cover" />
+        {canRemoveCover && (
+          <button
+            type="button"
+            onClick={removeShownCover}
+            aria-label={removeLabel}
+            className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white transition-colors hover:bg-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <TrashIcon className="h-4 w-4" />
+          </button>
+        )}
+      </span>
+      <span className="flex items-center gap-3">
+        <label className="btn btn-outline cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand">
+          Cambiar imagen
+          {fileInput}
+        </label>
+        {canRemoveCover && (
+          <button
+            type="button"
+            onClick={removeShownCover}
+            className="text-sm font-medium text-muted underline-offset-2 transition-colors hover:text-error"
+          >
+            {removeLabel}
+          </button>
+        )}
+      </span>
+    </span>
+  ) : (
+    <label className="mt-1 flex aspect-[5/2] w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-surface text-sm font-medium text-muted transition-colors hover:border-brand-dark hover:text-brand-darker has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand">
+      <PlusIcon className="h-6 w-6" />
+      Agregar
+      {fileInput}
+    </label>
+  );
+
   // The upload control on its own, so the cover variant can place it centered INSIDE the empty band
   // (no image yet) instead of below it. The other cases keep it in the controls row.
   const uploadButton = (
     <label className="btn btn-outline cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand">
       {value ? "Cambiar imagen" : pickLabel}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="sr-only"
-        aria-label={label}
-        onChange={onFile}
-      />
+      {fileInput}
     </label>
   );
 
@@ -169,9 +271,16 @@ export function ImagePicker({
         <span className="text-sm font-medium text-foreground">{label}</span>
       )}
       {hint && <span className="text-xs text-muted">{hint}</span>}
-      {/* Avatar: circle and controls side by side. Cover: band on top, controls below — except when
-          empty with hidePreviewWhenEmpty, which shows just the button (no band). */}
-      {variant === "avatar" ? (
+      {integrated ? (
+        // Integrated mode: the saved image (or freshly-picked file) shows inside the preview.
+        variant === "avatar" ? (
+          integratedAvatar
+        ) : (
+          integratedCover
+        )
+      ) : /* Avatar: circle and controls side by side. Cover: band on top, controls below — except when
+            empty with hidePreviewWhenEmpty, which shows just the button (no band). */
+      variant === "avatar" ? (
         <span className="mt-1 flex items-center gap-4">
           {preview}
           {controls}
