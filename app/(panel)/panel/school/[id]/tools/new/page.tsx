@@ -539,21 +539,22 @@ function NewToolContent() {
         router.push(`/panel/school/${id}/tools/${toolId}`);
         return;
       }
-      // A reinado lands on its OWN tool page after creation (the admin surface where the roster, the
-      // config and the coronación live) rather than the generic manage hub, so the board continues
-      // managing it right there. Its roster, if any, persists first — a subcollection, so it can't ride
+      // A reinado lands on its OWN management panel after creation (the per-reinado control cockpit —
+      // the same surface the board reaches by clicking the reinado card — where the votes, the gala and
+      // the coronación live) rather than the edit page or the generic manage hub, so the board continues
+      // running it right there. Its roster, if any, persists first — a subcollection, so it can't ride
       // along in the createTool write. Best-effort, like the bingo copy: the reinado already exists, so
       // a mid-roster failure must neither block the flow nor risk duplicates on a form retry — the
-      // board finishes the roster from this same page.
+      // board finishes the roster from the reinado's edit page.
       if (type === "pageant") {
         if (candidateRows.length > 0) {
           try {
             await persistPageantCandidates(id, toolId, candidateRows);
           } catch {
-            // ignore — the reinado is created; the roster can be finished from the tool page
+            // ignore — the reinado is created; the roster can be finished from the edit page
           }
         }
-        router.push(`/panel/school/${id}/tools/${toolId}`);
+        router.push(`/panel/school/${id}/tools/${toolId}/manage`);
         return;
       }
       // Land on the kind's manage page, where the just-created tool now appears in the list.
