@@ -901,24 +901,6 @@ export async function uploadToolCover(
 }
 
 /**
- * Upload a bingo center-square ("casilla central") logo/image; returns its public download URL.
- * Same directory + Storage rule as the cover (schools/{id}/tools/{toolId}/**), timestamped so a
- * replacement never overwrites the previous file (the old blob is left orphaned, harmless).
- */
-export async function uploadToolCenterImage(
-  schoolId: string,
-  toolId: string,
-  file: Blob,
-): Promise<string> {
-  const ref = storageRef(
-    storage,
-    `schools/${schoolId}/tools/${toolId}/center-${Date.now()}`,
-  );
-  await uploadBytes(ref, file);
-  return getDownloadURL(ref);
-}
-
-/**
  * Upload a guided-tour stage asset (a photo or a video); returns its public download URL.
  * Lives in the same directory as the cover and is governed by the same Storage rule
  * (schools/{id}/tools/{toolId}/**). Timestamped so it never overwrites a previous file.

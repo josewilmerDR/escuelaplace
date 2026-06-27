@@ -303,11 +303,6 @@ function NewToolContent() {
   const onSelectDeck = (deckId: string | null) => {
     setSelectedDeckId(deckId);
     const deck = deckId ? decks.find((d) => d.id === deckId) : null;
-    // The free center exists only on a 5×5; picking a non-5×5 deck drops it (toBingoInput would too),
-    // so reset it back to a normal center here — otherwise the form keeps showing a now-discarded choice.
-    const deckIs5x5 = deck
-      ? deck.format.rows === 5 && deck.format.cols === 5
-      : true;
     setBingoForm((prev) => ({
       ...prev,
       ...(deck
@@ -318,9 +313,6 @@ function NewToolContent() {
             poolMax: String(deck.format.poolMax),
           }
         : { rows: "5", cols: "5", poolMin: "0", poolMax: "75" }),
-      ...(deckIs5x5
-        ? {}
-        : { centerSquareType: "normal" as const, centerSquareText: "", centerSquareImageUrl: "" }),
     }));
   };
 
@@ -480,6 +472,15 @@ function NewToolContent() {
       );
       return;
     }
+    // Freeze the chosen mazo's free center onto the bingo's config. The deck's cartones already
+    // carry the sentinel; copying the centerSquare here is what render + win validation read.
+    const selectedDeck = selectedDeckId
+      ? decks.find((d) => d.id === selectedDeckId)
+      : null;
+    const bingoConfig =
+      bingo && selectedDeck?.centerSquare
+        ? { ...bingo, centerSquare: selectedDeck.centerSquare }
+        : bingo;
     // An event carries its date/place/map/contact plus its gallery (photos + video) — merged in
     // here, since the gallery isn't part of the EventConfigFields form.
     const eventResult = type === "event" ? toEventInput(eventForm) : null;
@@ -562,7 +563,7 @@ function NewToolContent() {
           ...(tour ? { tour } : {}),
           ...(sale ? { sale } : {}),
           ...(service ? { service } : {}),
-          ...(bingo ? { bingo } : {}),
+          ...(bingoConfig ? { bingo: bingoConfig } : {}),
           ...(event ? { event } : {}),
           ...(pageant
             ? {
@@ -766,8 +767,6 @@ function NewToolContent() {
                 value={bingoForm}
                 onChange={setBingoForm}
                 hideFormat
-                schoolId={id}
-                toolId={toolId}
               />
             </div>
           </>

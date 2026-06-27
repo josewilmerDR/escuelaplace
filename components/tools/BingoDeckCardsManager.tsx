@@ -26,20 +26,31 @@ import {
   parseImportedCards,
   setBingoDeckCardCount,
 } from "@/lib/firestore";
-import { BINGO_CARD_MAX, type BingoDeckCardDoc, type BingoFormat } from "@/types";
+import {
+  BINGO_CARD_MAX,
+  type BingoCenterSquare,
+  type BingoDeckCardDoc,
+  type BingoFormat,
+} from "@/types";
 
 export function BingoDeckCardsManager({
   schoolId,
   deckId,
   format,
+  centerSquare,
   onCountChange,
 }: {
   schoolId: string;
   deckId: string;
   format: BingoFormat;
+  /** The deck's frozen 5×5 free center (logo/text/blank), or undefined for a numbered center. When
+   * set, generated/imported cartones carry the BINGO_FREE_CENTER sentinel and the previews show it. */
+  centerSquare?: BingoCenterSquare;
   /** Reports the current deck size up to the page (which shows it in the header). */
   onCountChange?: (count: number) => void;
 }) {
+  // A free center carries no number: generation skips it, and import expects one fewer per line.
+  const freeCenter = centerSquare != null;
   const [cards, setCards] = useState<BingoDeckCardDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -107,13 +118,14 @@ export function BingoDeckCardsManager({
           format,
           count,
           nextCardStartNumber(cards),
+          freeCenter,
         ),
       "No se pudieron generar los cartones.",
     );
   };
 
   const onImport = () => {
-    const parsed = parseImportedCards(importText, format);
+    const parsed = parseImportedCards(importText, format, freeCenter);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -202,7 +214,7 @@ export function BingoDeckCardsManager({
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
               className="input font-mono text-xs"
-              placeholder={`Un cartón por línea (${format.rows * format.cols} números separados por coma o espacio).\nCada columna usa su propio rango (col. 1: ${format.poolMin}–…, como el bingo tradicional).\nOpcional: un identificador y dos puntos al inicio.\nEj.: 001: 5, 12, 33, ...`}
+              placeholder={`Un cartón por línea (${format.rows * format.cols - (freeCenter ? 1 : 0)} números separados por coma o espacio${freeCenter ? "; la casilla central es libre, no la incluyas" : ""}).\nCada columna usa su propio rango (col. 1: ${format.poolMin}–…, como el bingo tradicional).\nOpcional: un identificador y dos puntos al inicio.\nEj.: 001: 5, 12, 33, ...`}
             />
             <button
               type="button"
@@ -235,6 +247,7 @@ export function BingoDeckCardsManager({
                   label={card.label}
                   numbers={card.numbers}
                   cols={format.cols}
+                  centerSquare={centerSquare}
                 />
                 <button
                   type="button"

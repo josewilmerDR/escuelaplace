@@ -7,7 +7,7 @@ import {
   parseImportedCards,
   randomCardNumbers,
 } from "./bingo-cards";
-import type { BingoFormat } from "@/types";
+import { BINGO_FREE_CENTER, type BingoFormat } from "@/types";
 
 // Generic small format: 3×3 over 0–99. Split into 3 column bands → [0,33] [34,66] [67,99].
 const FMT: BingoFormat = { rows: 3, cols: 3, poolMin: 0, poolMax: 99 };
@@ -83,6 +83,18 @@ describe("bingoFormatError", () => {
       bingoFormatError({ rows: 3, cols: 3, poolMin: 1, poolMax: 9 }),
     ).toBeNull();
   });
+
+  it("rejects a negative número menor (keeps the free-center sentinel out of band)", () => {
+    // A negative poolMin lets a column band contain BINGO_FREE_CENTER (-1), which would collide
+    // with the free-center sentinel — forbidden. Valid 0-based pools are unaffected.
+    expect(
+      bingoFormatError({ rows: 5, cols: 5, poolMin: -5, poolMax: 69 }),
+    ).toBeTruthy();
+    expect(
+      bingoFormatError({ rows: 5, cols: 5, poolMin: -1, poolMax: 75 }),
+    ).toBeTruthy();
+    expect(bingoFormatError(BINGO)).toBeNull();
+  });
 });
 
 describe("randomCardNumbers", () => {
@@ -122,6 +134,23 @@ describe("randomCardNumbers", () => {
     expect([nums[0], nums[3], nums[6]].sort((a, b) => a - b)).toEqual([1, 2, 3]);
     expect([nums[2], nums[5], nums[8]].sort((a, b) => a - b)).toEqual([7, 8, 9]);
   });
+
+  it("frees the center cell (sentinel) on a 5×5 when freeCenter is set", () => {
+    for (let trial = 0; trial < 20; trial++) {
+      const nums = randomCardNumbers(BINGO, true);
+      expect(nums).toHaveLength(25);
+      expect(nums[12]).toBe(BINGO_FREE_CENTER);
+      // The other 24 cells are distinct real numbers, each still inside ITS column's band.
+      const real = nums.filter((_, i) => i !== 12);
+      expect(new Set(real).size).toBe(24);
+      real.forEach((n, idx) => {
+        const pos = idx < 12 ? idx : idx + 1; // skip the freed center
+        const [lo, hi] = columnRange(BINGO, pos % BINGO.cols);
+        expect(n).toBeGreaterThanOrEqual(lo);
+        expect(n).toBeLessThanOrEqual(hi);
+      });
+    }
+  });
 });
 
 describe("parseImportedCards", () => {
@@ -159,6 +188,28 @@ describe("parseImportedCards", () => {
 
   it("rejects empty input", () => {
     expect(parseImportedCards("   \n  ", FMT).ok).toBe(false);
+  });
+
+  it("with a free center, imports 24 numbers and frees the middle (sentinel at index 12)", () => {
+    // 24 numbers in row-major order SKIPPING the center (position 12). BINGO bands:
+    // col0 [0,15] col1 [16,30] col2 [31,45] col3 [46,60] col4 [61,75].
+    const line =
+      "0 16 31 46 61 1 17 32 47 62 2 18 48 63 3 19 33 49 64 4 20 34 50 65";
+    const res = parseImportedCards(line, BINGO, true);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.cards[0].numbers).toHaveLength(25);
+    expect(res.cards[0].numbers[12]).toBe(BINGO_FREE_CENTER);
+    expect(res.cards[0].numbers).toEqual([
+      0, 16, 31, 46, 61, 1, 17, 32, 47, 62, 2, 18, BINGO_FREE_CENTER, 48, 63, 3,
+      19, 33, 49, 64, 4, 20, 34, 50, 65,
+    ]);
+  });
+
+  it("with a free center, rejects a full 25-number line (expects 24)", () => {
+    const line25 =
+      "0 16 31 46 61 1 17 32 47 62 2 18 40 48 63 3 19 33 49 64 4 20 34 50 65";
+    expect(parseImportedCards(line25, BINGO, true).ok).toBe(false);
   });
 });
 

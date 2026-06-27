@@ -477,6 +477,14 @@ export default function EditToolPage() {
       return;
     }
     const bingo = bingoResult?.ok ? bingoResult.input : undefined;
+    // The free center is a deck-derived, FROZEN property (set when the bingo was created from its
+    // mazo) — never edited here. Preserve whatever the bingo already carries, so saving the rest of
+    // the config (which rebuilds it from scratch) never silently drops the center.
+    const existingCenter = toolConfigOf(tool, "bingo")?.centerSquare;
+    const bingoConfig =
+      bingo && existingCenter
+        ? { ...bingo, centerSquare: existingCenter }
+        : bingo;
 
     // An event carries its date/place/map/contact; the gallery (already-uploaded media) is
     // preserved from the persisted base, since it persists immediately, not through this form.
@@ -581,7 +589,7 @@ export default function EditToolPage() {
         ...(tour ? { tour } : {}),
         ...(sale ? { sale } : {}),
         ...(service ? { service } : {}),
-        ...(bingo ? { bingo } : {}),
+        ...(bingoConfig ? { bingo: bingoConfig } : {}),
         ...(event ? { event } : {}),
         ...(pageant
           ? {
@@ -641,25 +649,29 @@ export default function EditToolPage() {
         : undefined;
       // Bingo's input carries eventDate as a Date, so rebuild the stored shape (Timestamp) — the
       // cards manager reads the saved bingo config's format, so this must reflect the just-saved format.
-      const savedBingo: BingoConfig | undefined = bingo
+      const savedBingo: BingoConfig | undefined = bingoConfig
         ? {
-            format: bingo.format,
-            prizes: bingo.prizes,
+            format: bingoConfig.format,
+            prizes: bingoConfig.prizes,
             // Mirror buildBingoConfig: the board no longer sets patterns, so default them (all
             // shapes, prize-less) for the live event.
             patterns:
-              bingo.patterns ??
+              bingoConfig.patterns ??
               BINGO_PATTERNS.map((pattern) => ({ pattern, prize: "" })),
-            pricePerCard: bingo.pricePerCard,
-            currency: bingo.currency,
-            ...(bingo.eventDate
-              ? { eventDate: Timestamp.fromDate(bingo.eventDate) }
+            pricePerCard: bingoConfig.pricePerCard,
+            currency: bingoConfig.currency,
+            ...(bingoConfig.eventDate
+              ? { eventDate: Timestamp.fromDate(bingoConfig.eventDate) }
               : {}),
-            ...(bingo.drawMethod ? { drawMethod: bingo.drawMethod } : {}),
-            ...(bingo.contactPhone ? { contactPhone: bingo.contactPhone } : {}),
+            ...(bingoConfig.drawMethod ? { drawMethod: bingoConfig.drawMethod } : {}),
+            ...(bingoConfig.contactPhone
+              ? { contactPhone: bingoConfig.contactPhone }
+              : {}),
             // Carry the remaining optionals so this in-memory base matches buildBingoConfig exactly.
-            ...(bingo.assistMarking ? { assistMarking: true } : {}),
-            ...(bingo.centerSquare ? { centerSquare: bingo.centerSquare } : {}),
+            ...(bingoConfig.assistMarking ? { assistMarking: true } : {}),
+            ...(bingoConfig.centerSquare
+              ? { centerSquare: bingoConfig.centerSquare }
+              : {}),
           }
         : undefined;
       // Event's input carries the date as a Date and the map link unsanitized; rebuild the stored
@@ -1124,8 +1136,6 @@ export default function EditToolPage() {
                 value={bingoForm}
                 onChange={setBingoForm}
                 hideFormat
-                schoolId={id}
-                toolId={toolId}
               />
             </div>
             {/* Cartones live in a reusable mazo (deck) — the single place to create/edit them. A

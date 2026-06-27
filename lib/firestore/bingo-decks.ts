@@ -21,14 +21,17 @@ import {
   getDoc,
   getDocs,
   serverTimestamp,
+  setDoc,
   updateDoc,
   writeBatch,
   type WriteBatch,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
+import { db, storage } from "@/lib/firebase";
 import {
   BINGO_DECK_NAME_MAX,
   type BingoCardDoc,
+  type BingoCenterSquare,
   type BingoDeck,
   type BingoDeckCard,
   type BingoDeckCardDoc,
@@ -135,6 +138,9 @@ export interface SaveBingoDeckInput {
   name: string;
   /** The cartón format every cartón in `cards` shares. */
   format: BingoFormat;
+  /** Classic 5×5 free-space center, carried so "guardar como mazo" preserves the source bingo's
+   * center (its cartones already hold the BINGO_FREE_CENTER sentinel). Omitted = numbered center. */
+  centerSquare?: BingoCenterSquare;
   /** The deck's cartones (label + numbers); see deckCardsFromLote. */
   cards: DeckCardInput[];
   createdBy: string;
@@ -155,6 +161,7 @@ export async function saveBingoDeck(
   const ref = await addDoc(decksCol(schoolId), {
     name: input.name,
     format: input.format,
+    ...(input.centerSquare ? { centerSquare: input.centerSquare } : {}),
     cardCount: input.cards.length,
     createdBy: input.createdBy,
     ...(input.createdByName ? { createdByName: input.createdByName } : {}),
@@ -222,30 +229,66 @@ export async function copyDeckToTool(
 export interface CreateBingoDeckInput {
   name: string;
   format: BingoFormat;
+  /** Classic 5×5 free-space center, frozen at deck creation (its cartones carry the sentinel). */
+  centerSquare?: BingoCenterSquare;
   createdBy: string;
   createdByName?: string;
+}
+
+/**
+ * Pre-allocate a deck id WITHOUT writing the doc, so the Mazos creation form can upload a center
+ * image to the deck's Storage path before the doc exists (mirrors newToolId). Pure ref; no I/O.
+ */
+export function newBingoDeckId(schoolId: string): string {
+  return doc(decksCol(schoolId)).id;
 }
 
 /**
  * Create an EMPTY deck (cardCount 0). The Mazos page then adds cartones (generate/import) from the
  * deck detail view. Returns the new deck id. The caller validates the name (bingoDeckNameError) and
  * format (bingoFormatError) and passes the current user as createdBy (rules require createdBy ==
- * auth.uid on create).
+ * auth.uid on create). Pass a pre-allocated `deckId` (newBingoDeckId) when a center image was
+ * uploaded to that path during the form; otherwise an id is minted.
  */
 export async function createBingoDeck(
   schoolId: string,
   input: CreateBingoDeckInput,
+  deckId?: string,
 ): Promise<string> {
-  const ref = await addDoc(decksCol(schoolId), {
+  const data = {
     name: input.name,
     format: input.format,
+    ...(input.centerSquare ? { centerSquare: input.centerSquare } : {}),
     cardCount: 0,
     createdBy: input.createdBy,
     ...(input.createdByName ? { createdByName: input.createdByName } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
-  return ref.id;
+  };
+  if (deckId) {
+    await setDoc(doc(decksCol(schoolId), deckId), data);
+    return deckId;
+  }
+  return (await addDoc(decksCol(schoolId), data)).id;
+}
+
+/**
+ * Upload a deck's center-square ("casilla central") logo; returns its public download URL. Lives
+ * under the deck's assets path (schools/{id}/bingoDecks/{deckId}/**), timestamped so a replacement
+ * never overwrites the previous file. The URL is frozen onto every bingo built from the deck, so
+ * the path is publicly readable (storage.rules) — players see the logo on their cartones.
+ */
+export async function uploadBingoDeckCenterImage(
+  schoolId: string,
+  deckId: string,
+  file: Blob,
+): Promise<string> {
+  const fileRef = storageRef(
+    storage,
+    `schools/${schoolId}/bingoDecks/${deckId}/center-${Date.now()}`,
+  );
+  await uploadBytes(fileRef, file);
+  return getDownloadURL(fileRef);
 }
 
 /** Rename a deck (any owner/editor/admin — the update rule keeps createdBy immutable). */
@@ -278,7 +321,8 @@ export async function setBingoDeckCardCount(
 /**
  * Generate `count` random cartones into a deck, labelled sequentially from `startNumber` (see
  * nextCardStartNumber in ./bingo-cards), zero-padded to a fixed width like a tool's lote. Validate
- * the format first (bingoFormatError). A deck card has no status/ownerId.
+ * the format first (bingoFormatError). A deck card has no status/ownerId. `freeCenter` (the deck's
+ * 5×5 free center) replaces the middle cell with the BINGO_FREE_CENTER sentinel.
  */
 export async function generateBingoDeckCards(
   schoolId: string,
@@ -286,13 +330,14 @@ export async function generateBingoDeckCards(
   format: BingoFormat,
   count: number,
   startNumber = 1,
+  freeCenter = false,
 ): Promise<void> {
   const pad = 3;
   const col = deckCardsCol(schoolId, deckId);
   const ops = Array.from({ length: count }, (_, i) => (batch: WriteBatch) => {
     batch.set(doc(col), {
       label: String(startNumber + i).padStart(pad, "0"),
-      numbers: randomCardNumbers(format),
+      numbers: randomCardNumbers(format, freeCenter),
       createdAt: serverTimestamp(),
     });
   });

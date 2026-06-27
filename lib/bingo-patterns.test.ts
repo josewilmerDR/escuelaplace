@@ -6,7 +6,7 @@ import {
   maskSatisfied,
   winningLineIndices,
 } from "./bingo-patterns";
-import type { BingoFormat } from "@/types";
+import { BINGO_FREE_CENTER, type BingoFormat } from "@/types";
 
 const FMT: Pick<BingoFormat, "rows" | "cols"> = { rows: 3, cols: 3 };
 
@@ -88,6 +88,16 @@ describe("maskSatisfied", () => {
   it("ignores called numbers not on the cartón", () => {
     const hit = new Set([...hitFor([0, 1, 2, 3, 4]), 999]);
     expect(maskSatisfied(CARD5, [[0, 1, 2, 3, 4]], hit)).toBe(true);
+  });
+
+  it("treats a BINGO_FREE_CENTER sentinel cell as covered (the deck-level free center)", () => {
+    // A card carrying the sentinel at its center (index 12) — no freeIndices needed.
+    const card = [...CARD5];
+    card[12] = BINGO_FREE_CENTER;
+    const diagMain = [[0, 6, 12, 18, 24]];
+    expect(maskSatisfied(card, diagMain, hitFor([0, 6, 18, 24]))).toBe(true);
+    // The sentinel covers only its own cell — the other four still must be called.
+    expect(maskSatisfied(card, diagMain, hitFor([0, 6, 18]))).toBe(false);
   });
 });
 

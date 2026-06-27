@@ -14,6 +14,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import {
+  BingoCenterSquareField,
+  emptyCenterForm,
+  toCenterSquare,
+  type BingoCenterFormValue,
+} from "@/components/tools/BingoCenterSquareField";
 import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -29,8 +35,10 @@ import {
   getBingoDecks,
   getSchoolById,
   importBingoDeckCards,
+  newBingoDeckId,
   parseImportedCards,
   setBingoDeckCardCount,
+  uploadBingoDeckCenterImage,
 } from "@/lib/firestore";
 import {
   BINGO_CARD_MAX,
@@ -76,6 +84,11 @@ export default function BingoDecksPage() {
   const [cols, setCols] = useState("5");
   const [poolMin, setPoolMin] = useState("0");
   const [poolMax, setPoolMax] = useState("75");
+  // Classic 5×5 free center for this mazo (logo/text/blank). It's frozen onto the deck's cartones
+  // (a sentinel at the middle cell) and onto every bingo built from it. Pre-allocate the deck id so
+  // a center logo can upload to the deck's Storage path before the doc exists (mirrors newToolId).
+  const [center, setCenter] = useState<BingoCenterFormValue>(emptyCenterForm);
+  const [deckId] = useState(() => newBingoDeckId(id));
   // The deck's cartones are defined here, at creation: either GENERATE a quantity of random ones
   // or IMPORT pre-printed ones (paste, one per line). A deck is created once and meant to live as
   // is (it may mirror physical cartones), so its cartones are chosen up front — not in a later edit.
@@ -168,10 +181,22 @@ export default function BingoDecksPage() {
       setError(fmtErr);
       return;
     }
+    // Classic 5×5 free center (offered only there). Its cartones carry a sentinel at the middle, so
+    // a free center changes generation AND import (one fewer number per line) — resolve it first.
+    const centerResult = toCenterSquare(
+      center,
+      format.rows === 5 && format.cols === 5,
+    );
+    if (!centerResult.ok) {
+      setError(centerResult.error);
+      return;
+    }
+    const centerSquare = centerResult.value;
+    const freeCenter = centerSquare != null;
     // The cartones are defined here. Resolve a "populate" step (or none) from the chosen mode and
     // validate its input BEFORE creating the deck, so a bad quantity / unparseable paste fails
     // without leaving an empty deck behind. `populate` writes the cartones and returns the count.
-    let populate: ((deckId: string) => Promise<number>) | null = null;
+    let populate: (() => Promise<number>) | null = null;
     if (cardMode === "generate") {
       // Quantity is optional in generate mode: blank → an empty deck (add cartones later).
       const trimmedCount = genCount.trim();
@@ -187,21 +212,21 @@ export default function BingoDecksPage() {
           setError(`Un mazo no puede superar ${BINGO_CARD_MAX} cartones.`);
           return;
         }
-        populate = async (deckId) => {
-          await generateBingoDeckCards(id, deckId, format, count);
+        populate = async () => {
+          await generateBingoDeckCards(id, deckId, format, count, 1, freeCenter);
           return count;
         };
       }
     } else {
       // Import mode: the paste is required and must parse against the format (parseImportedCards
-      // enforces the per-line count, the column bands and the lote cap).
-      const parsed = parseImportedCards(importText, format);
+      // enforces the per-line count — one fewer with a free center — the column bands and the cap).
+      const parsed = parseImportedCards(importText, format, freeCenter);
       if (!parsed.ok) {
         setError(parsed.error);
         return;
       }
       const cards = parsed.cards;
-      populate = async (deckId) => {
+      populate = async () => {
         await importBingoDeckCards(id, deckId, cards);
         return cards.length;
       };
@@ -209,17 +234,23 @@ export default function BingoDecksPage() {
     setCreating(true);
     setError(null);
     try {
-      const deckId = await createBingoDeck(id, {
-        name: name.trim(),
-        format,
-        createdBy: user.id,
-        ...(user.name ? { createdByName: user.name } : {}),
-      });
+      // Use the pre-allocated id (a center logo may already be uploaded under its Storage path).
+      await createBingoDeck(
+        id,
+        {
+          name: name.trim(),
+          format,
+          ...(centerSquare ? { centerSquare } : {}),
+          createdBy: user.id,
+          ...(user.name ? { createdByName: user.name } : {}),
+        },
+        deckId,
+      );
       // Best-effort populate: the deck already exists, so a failure here must not block (nor risk a
       // duplicate deck on retry) — the detail page lets the board generate/import the cartones.
       if (populate) {
         try {
-          const n = await populate(deckId);
+          const n = await populate();
           await setBingoDeckCardCount(id, deckId, n);
         } catch {
           // ignore — the deck is created; cartones can be added from its page
@@ -231,6 +262,13 @@ export default function BingoDecksPage() {
       setCreating(false);
     }
   };
+
+  // The free center is offered only on the classic 5×5. When active it carries no number, so a
+  // free-center mazo imports one fewer value per cartón (reflected in the import hint below).
+  const is5x5 = Number(rows) === 5 && Number(cols) === 5;
+  const freeCenterActive = is5x5 && center.type !== "normal";
+  const importNumbers =
+    (Number(rows) * Number(cols) || 0) - (freeCenterActive ? 1 : 0);
 
   return (
     <main>
@@ -293,6 +331,7 @@ export default function BingoDecksPage() {
                 <input
                   type="number"
                   inputMode="numeric"
+                  min={0}
                   value={poolMin}
                   onChange={(e) => setPoolMin(e.target.value)}
                   className="input"
@@ -315,6 +354,14 @@ export default function BingoDecksPage() {
               distintos del rango indicado. El estándar es 5×5 de 0 a 75.
             </p>
           </div>
+
+          {is5x5 && (
+            <BingoCenterSquareField
+              value={center}
+              onChange={setCenter}
+              uploadImage={(file) => uploadBingoDeckCenterImage(id, deckId, file)}
+            />
+          )}
 
           <div>
             <p className="text-sm font-medium text-foreground">Cartones del mazo</p>
@@ -366,11 +413,14 @@ export default function BingoDecksPage() {
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
                   className="input font-mono text-xs"
-                  placeholder={`Un cartón por línea (${Number(rows) * Number(cols) || "—"} números separados por coma o espacio).\nCada columna usa su propio rango (col. 1: ${poolMin}–…, como el bingo tradicional).\nOpcional: un identificador y dos puntos al inicio.\nEj.: 001: 5, 12, 33, ...`}
+                  placeholder={`Un cartón por línea (${importNumbers || "—"} números separados por coma o espacio).\nCada columna usa su propio rango (col. 1: ${poolMin}–…, como el bingo tradicional).\nOpcional: un identificador y dos puntos al inicio.\nEj.: 001: 5, 12, 33, ...`}
                 />
                 <p className="mt-1 text-xs text-muted">
                   Pega tus cartones ya impresos, uno por línea. Útil cuando el mazo tiene
                   una versión física que no quieres volver a generar.
+                  {freeCenterActive
+                    ? " La casilla central es libre, así que pega solo los números reales (sin el centro)."
+                    : ""}
                 </p>
               </div>
             )}
