@@ -37,8 +37,7 @@ import {
   type SchoolDoc,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 const LOADING_TEXT = "Cargando mazos…";
 

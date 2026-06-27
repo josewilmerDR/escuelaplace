@@ -58,8 +58,7 @@ import {
   type ToolDoc,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 export default function SchoolBingoLivePage() {
   // useSearchParams needs a Suspense boundary to keep the route prerenderable.

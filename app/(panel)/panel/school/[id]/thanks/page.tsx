@@ -46,6 +46,7 @@ import {
   type ThankYouTemplate,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
+import type { LoadState } from "@/lib/page-state";
 
 const TITLE = "Agradecimientos";
 
@@ -82,8 +83,6 @@ function parseSpecialYears(raw: string): number[] {
     .filter((n) => Number.isFinite(n) && n >= 1 && n <= 99);
   return [...new Set(years)].sort((a, b) => a - b).slice(0, THANK_YOU_SPECIAL_YEARS_MAX);
 }
-
-type LoadState = "loading" | "error" | "loaded";
 
 export default function SchoolThanksPage() {
   const { id } = useParams<{ id: string }>();

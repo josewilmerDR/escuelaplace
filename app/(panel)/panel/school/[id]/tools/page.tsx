@@ -19,9 +19,7 @@ import { TOOL_TYPE_LIST, toolTypeMeta } from "@/lib/tools/registry";
 import { getSchoolById, getToolsBySchool } from "@/lib/firestore";
 import { type SchoolDoc, type ToolDoc, type ToolType } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-/** Lifecycle of the school + tools fetch the page depends on. */
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 const LOADING_TEXT = "Cargando herramientas…";
 

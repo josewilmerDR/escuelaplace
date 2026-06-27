@@ -46,9 +46,7 @@ import type {
   ProjectDoc,
   SchoolDoc,
 } from "@/types";
-
-/** Lifecycle of the initial project + school + payment-methods + contributions fetch. */
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 export default function FundPage() {
   // useSearchParams needs a Suspense boundary to keep the route statically renderable.

@@ -52,9 +52,7 @@ import {
   type SchoolDoc,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-/** Lifecycle of the school fetch the form depends on. */
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 export default function SchoolEditPage() {
   const { id } = useParams<{ id: string }>();

@@ -62,9 +62,7 @@ import {
   type SchoolDoc,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-/** Lifecycle of the business/schools/categories fetch the form depends on. */
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 export default function BusinessEditPage() {
   const { id } = useParams<{ id: string }>();

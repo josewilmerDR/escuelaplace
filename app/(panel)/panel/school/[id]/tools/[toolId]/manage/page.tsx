@@ -29,8 +29,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { getSchoolById, getToolById } from "@/lib/firestore";
 import type { SchoolDoc, ToolDoc } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 const LOADING_TEXT = "Cargando la herramienta…";
 

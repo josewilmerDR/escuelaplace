@@ -42,8 +42,7 @@ import {
   type CandidateDoc,
   type CandidateMediaItem,
 } from "@/types";
-
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 /** A candidate being edited: its saved doc id once persisted (absent for a new row), a stable local
  * `_key`, the string-shaped jury score, the saved order, its ordered media drafts (saved URLs and/or
