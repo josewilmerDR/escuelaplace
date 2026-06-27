@@ -227,18 +227,11 @@ export default function BingoDeckDetailPage() {
       </section>
 
       {/* Risk zone: deleting a deck is irreversible (bingos already using it keep their copies). */}
-      <section className="mt-12 border-t border-border pt-6">
-        <h2 className="text-sm font-semibold tracking-tight text-foreground">
-          Eliminar mazo
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          Se quita de la biblioteca de mazos y no se puede deshacer. Los bingos que ya lo
-          usaron conservan sus cartones.
-        </p>
+      <section className="mt-12 flex flex-col items-center border-t border-border pt-6 text-center">
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}
-          className="mt-3 text-sm font-semibold text-error hover:underline"
+          className="text-sm font-semibold text-error hover:underline"
         >
           Eliminar mazo
         </button>
@@ -256,8 +249,11 @@ export default function BingoDeckDetailPage() {
         onCancel={() => setConfirmDelete(false)}
       >
         <p className="text-sm text-muted">
-          Se elimina el mazo «{deck.name}» y sus {cardCount} cartones guardados. No se
-          puede deshacer.
+          Se quita de la biblioteca de mazos y no se puede deshacer. Los bingos que ya lo
+          usaron conservan sus cartones.
+        </p>
+        <p className="mt-2 text-sm text-muted">
+          Se elimina el mazo «{deck.name}» y sus {cardCount} cartones guardados.
         </p>
       </ConfirmDialog>
     </main>
