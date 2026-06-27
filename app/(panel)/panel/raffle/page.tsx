@@ -325,7 +325,7 @@ function RaffleContent() {
 
               <FilePicker
                 label="Comprobante de pago (opcional)"
-                hint="No se publica; la escuela lo usa para confirmar tu compra."
+                hint="Usado exclusivamente para que la escuela pueda confirmar tu pago."
                 value={proofFile}
                 onChange={setProofFile}
                 disabled={methods === null}
@@ -341,10 +341,6 @@ function RaffleContent() {
               >
                 {saving ? "Registrando…" : "Confirmar compra"}
               </button>
-              <p className="text-xs text-muted">
-                Pagas directo a la escuela por los medios de arriba; escuelaplace
-                nunca procesa pagos.
-              </p>
             </>
           )}
         </form>

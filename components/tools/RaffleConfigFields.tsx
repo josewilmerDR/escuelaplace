@@ -198,8 +198,7 @@ export function RaffleConfigFields({
       </Field>
 
       <p className="text-xs text-muted">
-        La rifa tiene {RAFFLE_NUMBER_COUNT} números (00–99) por ahora. El público
-        los elige y aparta desde la página de la rifa; tú confirmas cada pago.
+        Por ahora, la rifa está limitada a {RAFFLE_NUMBER_COUNT} números (00–99)
       </p>
     </div>
   );

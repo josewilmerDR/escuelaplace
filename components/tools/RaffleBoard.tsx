@@ -123,14 +123,16 @@ export function RaffleBoard({
             </p>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={buy}
-            disabled={picked.length === 0}
-            className="btn btn-primary mt-4 justify-center px-8 py-3 text-base font-semibold"
-          >
-            Comprar {picked.length > 0 ? `(${picked.length})` : ""}
-          </button>
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={buy}
+              disabled={picked.length === 0}
+              className="btn btn-primary justify-center px-8 py-3 text-base font-semibold"
+            >
+              Comprar {picked.length > 0 ? `(${picked.length})` : ""}
+            </button>
+          </div>
         )}
         <p className="mt-2 text-xs text-muted">
           {!verified
