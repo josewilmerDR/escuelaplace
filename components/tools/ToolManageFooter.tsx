@@ -27,7 +27,7 @@ export function ToolManageFooter({
   schoolId: string;
   tool: ToolDoc;
   school: SchoolDoc;
-  /** Show the "Consultar"/"Compartir" pair. Off for servicios, whose panel drops both. */
+  /** Show the "Consultar"/"Compartir" pair. Off for servicios and visitas guiadas, which drop both. */
   showShareActions?: boolean;
 }) {
   const toolId = tool.id;
