@@ -7,6 +7,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { ScrollTopOnOpen } from "@/components/layout/ScrollTopOnOpen";
 import { DonateHint } from "@/components/school/DonateHint";
 import { SchoolManageBar } from "@/components/school/SchoolManageBar";
+import { Banner } from "@/components/ui/Banner";
 import { StatChip } from "@/components/ui/StatChip";
 import {
   ClockIcon,
@@ -278,14 +279,17 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
       </ProfileHeader>
 
       {unverified && (
-        <div className="mt-4 flex items-start gap-3 rounded-2xl bg-warning-tint p-4 text-sm text-warning ring-1 ring-warning/10">
-          <WarningIcon className="mt-0.5 h-5 w-5 shrink-0" />
+        <Banner
+          tone="warning"
+          className="mt-4"
+          icon={<WarningIcon className="mt-0.5 h-5 w-5 shrink-0" />}
+        >
           <p>
             <span className="font-medium">Datos sin verificar.</span> La
             información de esta escuela todavía no fue verificada por el equipo
             de escuelaplace; sus métodos de pago no se muestran hasta entonces.
           </p>
-        </div>
+        </Banner>
       )}
 
       {children}
