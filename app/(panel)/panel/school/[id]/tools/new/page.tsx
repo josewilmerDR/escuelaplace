@@ -723,9 +723,7 @@ function NewToolContent() {
                 Mazo de cartones <span className="text-error">*</span>
               </p>
               <p className="mb-3 text-xs text-muted">
-                Elige el mazo (lote de cartones) para este bingo. Sus cartones se copian al
-                bingo al crearlo. Es obligatorio: los cartones viven en el mazo y no se
-                editan dentro del bingo.
+                Elige el mazo (lote de cartones) para este bingo.
               </p>
               {decksLoading ? (
                 <p className="text-sm text-muted">Cargando mazos…</p>

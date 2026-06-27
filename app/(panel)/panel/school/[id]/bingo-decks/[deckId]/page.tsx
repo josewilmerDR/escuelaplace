@@ -241,7 +241,7 @@ export default function BingoDeckDetailPage() {
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}
-          className="btn btn-destructive mt-3"
+          className="mt-3 text-sm font-semibold text-error hover:underline"
         >
           Eliminar mazo
         </button>
