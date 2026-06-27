@@ -58,6 +58,7 @@ import { db, storage } from "@/lib/firebase";
 import { formatDate } from "@/lib/format";
 import { safeExternalUrl } from "@/lib/url";
 import type {
+  BingoCenterSquare,
   BingoConfig,
   BingoFormat,
   BingoPrizes,
@@ -414,6 +415,8 @@ export interface BingoConfigInput {
   /** Easy mode: the play grid only lets players tap called numbers. Default (false/omitted) is
    * traditional — players mark by hand and may err. See BingoConfig.assistMarking. */
   assistMarking?: boolean;
+  /** Classic 5×5 free-space center (logo/text/blank); omitted = traditional numbered center. */
+  centerSquare?: BingoCenterSquare;
 }
 
 /** All winning shapes enabled, prize-less — the default the board gets now that prizes are no
@@ -453,6 +456,8 @@ function buildBingoConfig(input: BingoConfigInput): BingoConfig {
     ...(input.contactPhone ? { contactPhone: input.contactPhone } : {}),
     // Only persist easy mode when enabled; absent reads as traditional (the default).
     ...(input.assistMarking ? { assistMarking: true } : {}),
+    // Only persist the center square when customized; absent reads as a numbered center (default).
+    ...(input.centerSquare ? { centerSquare: input.centerSquare } : {}),
   };
 }
 
@@ -890,6 +895,24 @@ export async function uploadToolCover(
   const ref = storageRef(
     storage,
     `schools/${schoolId}/tools/${toolId}/cover-${Date.now()}`,
+  );
+  await uploadBytes(ref, file);
+  return getDownloadURL(ref);
+}
+
+/**
+ * Upload a bingo center-square ("casilla central") logo/image; returns its public download URL.
+ * Same directory + Storage rule as the cover (schools/{id}/tools/{toolId}/**), timestamped so a
+ * replacement never overwrites the previous file (the old blob is left orphaned, harmless).
+ */
+export async function uploadToolCenterImage(
+  schoolId: string,
+  toolId: string,
+  file: Blob,
+): Promise<string> {
+  const ref = storageRef(
+    storage,
+    `schools/${schoolId}/tools/${toolId}/center-${Date.now()}`,
   );
   await uploadBytes(ref, file);
   return getDownloadURL(ref);

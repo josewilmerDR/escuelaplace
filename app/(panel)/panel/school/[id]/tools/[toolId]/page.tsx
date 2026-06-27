@@ -657,6 +657,9 @@ export default function EditToolPage() {
               : {}),
             ...(bingo.drawMethod ? { drawMethod: bingo.drawMethod } : {}),
             ...(bingo.contactPhone ? { contactPhone: bingo.contactPhone } : {}),
+            // Carry the remaining optionals so this in-memory base matches buildBingoConfig exactly.
+            ...(bingo.assistMarking ? { assistMarking: true } : {}),
+            ...(bingo.centerSquare ? { centerSquare: bingo.centerSquare } : {}),
           }
         : undefined;
       // Event's input carries the date as a Date and the map link unsanitized; rebuild the stored
@@ -1121,6 +1124,8 @@ export default function EditToolPage() {
                 value={bingoForm}
                 onChange={setBingoForm}
                 hideFormat
+                schoolId={id}
+                toolId={toolId}
               />
             </div>
             {/* Cartones live in a reusable mazo (deck) — the single place to create/edit them. A

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BINGO_BUILTIN_PATTERNS,
   BINGO_BUILTIN_PATTERN_BY_ID,
+  gridCenterIndex,
   maskSatisfied,
   winningLineIndices,
 } from "./bingo-patterns";
@@ -50,10 +51,38 @@ const byId = (id: string) => {
   return def;
 };
 
+describe("gridCenterIndex", () => {
+  it("is the middle cell on odd×odd grids (5×5 → 12)", () => {
+    expect(gridCenterIndex(5, 5)).toBe(12);
+    expect(gridCenterIndex(3, 3)).toBe(4);
+    expect(gridCenterIndex(7, 7)).toBe(24);
+  });
+
+  it("is null when any dimension is even (no single middle) or degenerate", () => {
+    expect(gridCenterIndex(4, 4)).toBeNull();
+    expect(gridCenterIndex(5, 4)).toBeNull();
+    expect(gridCenterIndex(0, 5)).toBeNull();
+  });
+});
+
 describe("maskSatisfied", () => {
   it("wins when the hit covers some arrangement", () => {
     expect(maskSatisfied(CARD5, [[0, 4, 20, 24]], hitFor([0, 4, 20, 24]))).toBe(true);
     expect(maskSatisfied(CARD5, [[0, 4, 20, 24]], hitFor([0, 4, 20]))).toBe(false);
+  });
+
+  it("treats a free center as covered without it being called", () => {
+    const free = new Set([12]);
+    const diagMain = [[0, 6, 12, 18, 24]];
+    // Center (12) is NOT in the hit set, but the free index covers it → the rest wins it.
+    expect(maskSatisfied(CARD5, diagMain, hitFor([0, 6, 18, 24]))).toBe(false);
+    expect(maskSatisfied(CARD5, diagMain, hitFor([0, 6, 18, 24]), free)).toBe(true);
+    // A free center doesn't excuse the OTHER cells of the line.
+    expect(maskSatisfied(CARD5, diagMain, hitFor([0, 6, 18]), free)).toBe(false);
+    // A line that doesn't cross the free cell is unaffected by it.
+    const topRow = [[0, 1, 2, 3, 4]];
+    expect(maskSatisfied(CARD5, topRow, hitFor([0, 1, 2, 3]), free)).toBe(false);
+    expect(maskSatisfied(CARD5, topRow, hitFor([0, 1, 2, 3, 4]), free)).toBe(true);
   });
 
   it("ignores called numbers not on the cartón", () => {
