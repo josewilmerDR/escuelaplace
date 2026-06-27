@@ -8,12 +8,7 @@
  * deck carries no money and no function-maintained signal — it's just a saved lote of cartones.
  */
 import type { BingoDeckDoc } from "@/types";
-
-/** Short format summary, e.g. "5×5 · 0–75". */
-function formatSummary(deck: BingoDeckDoc): string {
-  const { rows, cols, poolMin, poolMax } = deck.format;
-  return `${rows}×${cols} · ${poolMin}–${poolMax}`;
-}
+import { formatBingoSummary } from "@/lib/format";
 
 export function BingoDeckPicker({
   decks,
@@ -53,7 +48,7 @@ export function BingoDeckPicker({
                 {deck.name}
               </span>
               <span className="block text-xs text-muted">
-                {deck.cardCount} cartones · {formatSummary(deck)}
+                {deck.cardCount} cartones · {formatBingoSummary(deck.format)}
               </span>
             </span>
           </label>

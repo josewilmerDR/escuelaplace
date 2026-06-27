@@ -1,4 +1,14 @@
 /** Display formatting helpers (UI copy is Spanish; Costa Rica locale). */
+import type { BingoFormat } from "@/types";
+
+/**
+ * Short human summary of a bingo cartón format: "5×5 · 0–75" (grid · number pool). One place
+ * for the convention so the deck picker, the deck pages and the manage panels can't drift.
+ */
+export function formatBingoSummary(format: BingoFormat): string {
+  const { rows, cols, poolMin, poolMax } = format;
+  return `${rows}×${cols} · ${poolMin}–${poolMax}`;
+}
 
 const crc = new Intl.NumberFormat("es-CR", {
   style: "currency",

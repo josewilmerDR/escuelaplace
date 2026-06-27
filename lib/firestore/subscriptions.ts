@@ -40,7 +40,7 @@ import {
   SUBSCRIPTION_UNIT_CRC,
 } from "@/types";
 import type { Subscription, SubscriptionDoc } from "@/types";
-import { byCreatedAtDesc, snapToList } from "./converters";
+import { byCreatedAtDesc, chunkedInQuery, snapToList } from "./converters";
 
 const SUBSCRIPTIONS = "subscriptions";
 const DAY_MS = 86_400_000;
@@ -213,9 +213,6 @@ export async function getPendingSubscriptionsBySchool(
   return snapToList<Subscription>(await getDocs(q)).sort(byCreatedAtDesc);
 }
 
-/** Firestore `in` accepts at most 30 values per query. */
-const IN_CHUNK = 30;
-
 /**
  * All subscriptions for a set of businesses, fetched in chunked `in` queries (not N+1).
  * Used by the ranking feed to reconstruct each business's support signals in a handful of
@@ -224,19 +221,7 @@ const IN_CHUNK = 30;
 export async function getSubscriptionsForBusinesses(
   businessIds: string[],
 ): Promise<SubscriptionDoc[]> {
-  if (businessIds.length === 0) return [];
-  const chunks: string[][] = [];
-  for (let i = 0; i < businessIds.length; i += IN_CHUNK) {
-    chunks.push(businessIds.slice(i, i + IN_CHUNK));
-  }
-  const snaps = await Promise.all(
-    chunks.map((chunk) =>
-      getDocs(
-        query(collection(db, SUBSCRIPTIONS), where("businessId", "in", chunk)),
-      ),
-    ),
-  );
-  return snaps.flatMap((s) => snapToList<Subscription>(s));
+  return chunkedInQuery<Subscription>(SUBSCRIPTIONS, "businessId", businessIds);
 }
 
 // ── Writes (business panel + school confirmation) ────────────────────────────

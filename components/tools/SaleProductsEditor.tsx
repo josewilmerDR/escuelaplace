@@ -30,13 +30,7 @@ import {
   type ProjectCurrency,
 } from "@/types";
 import type { SaleConfigInput } from "@/lib/firestore";
-
-/** A stable id for a product, generated in an event handler / lazy initializer (SSR-safe). Shared
- * with the edit page, which mints ids for products added there. */
-export function newProductId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+import { newLocalId } from "@/lib/local-id";
 
 /**
  * The create-form value for a single product: its stable id, price (string while editing), the
@@ -57,7 +51,7 @@ export interface SaleFormValue {
 }
 
 export function emptySaleForm(): SaleFormValue {
-  return { id: newProductId(), price: "", currency: "CRC", contactPhone: "" };
+  return { id: newLocalId("p"), price: "", currency: "CRC", contactPhone: "" };
 }
 
 /**

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatBingoSummary,
   formatColones,
   formatDate,
   formatDateTime,
@@ -51,6 +52,17 @@ describe("pluralizeBusinesses", () => {
 
   it("treats a missing count (legacy docs) as zero", () => {
     expect(pluralizeBusinesses(undefined)).toBe("0 comercios");
+  });
+});
+
+describe("formatBingoSummary", () => {
+  it("renders grid and number pool as 'rows×cols · min–max'", () => {
+    expect(formatBingoSummary({ rows: 5, cols: 5, poolMin: 0, poolMax: 75 })).toBe(
+      "5×5 · 0–75",
+    );
+    expect(formatBingoSummary({ rows: 3, cols: 9, poolMin: 1, poolMax: 90 })).toBe(
+      "3×9 · 1–90",
+    );
   });
 });
 

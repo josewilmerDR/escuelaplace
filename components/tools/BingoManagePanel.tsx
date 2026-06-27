@@ -21,7 +21,7 @@ import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
 import { userErrorMessage } from "@/lib/errors";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatBingoSummary, formatDate, formatMoney } from "@/lib/format";
 import {
   confirmBingoOrder,
   getBingoCardAvailability,
@@ -186,7 +186,7 @@ export function BingoManagePanel({
           <div>
             <dt className="text-xs text-muted">Cartón</dt>
             <dd className="text-foreground">
-              {fmt.rows}×{fmt.cols} · {fmt.poolMin}–{fmt.poolMax}
+              {formatBingoSummary(fmt)}
             </dd>
           </div>
           <div>

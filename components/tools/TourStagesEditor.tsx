@@ -24,6 +24,7 @@ import {
   TOUR_STAGE_TITLE_MAX,
 } from "@/types";
 import type { TourConfigInput } from "@/lib/firestore";
+import { newLocalId } from "@/lib/local-id";
 
 /** A tour stage as the create form holds it: text + media URLs + a local-only id. */
 export interface TourStageDraft {
@@ -37,14 +38,8 @@ export interface TourStageDraft {
   videoUrl?: string;
 }
 
-/** A stable local id for a stage, generated in an event handler (SSR-safe). */
-export function newTourStageId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return `t-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 export function emptyTourStage(): TourStageDraft {
-  return { id: newTourStageId(), title: "", description: "" };
+  return { id: newLocalId("t"), title: "", description: "" };
 }
 
 /** The full create-form value: the ordered stages plus the optional WhatsApp contact. */

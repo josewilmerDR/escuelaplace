@@ -9,6 +9,7 @@ import { Stars } from "@/components/reviews/Stars";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { ProfileHeader } from "@/components/layout/ProfileHeader";
 import { ProfileTabs } from "@/components/layout/ProfileTabs";
+import { Banner } from "@/components/ui/Banner";
 import { TagIcon } from "@/components/ui/icons";
 import {
   getBusinessBySlug,
@@ -176,8 +177,11 @@ export default async function BusinessProfileLayout({ children, params }: Props)
       </ProfileHeader>
 
       {business.discount?.active && (
-        <div className="mt-4 flex items-start gap-3 rounded-2xl bg-warning-tint p-4 text-sm text-warning ring-1 ring-warning/10">
-          <TagIcon className="mt-0.5 h-5 w-5 shrink-0" />
+        <Banner
+          tone="warning"
+          className="mt-4"
+          icon={<TagIcon className="mt-0.5 h-5 w-5 shrink-0" />}
+        >
           <p>
             {/* Same fallback as the card chip: active with empty text must not render an
                 empty banner. */}
@@ -189,7 +193,7 @@ export default async function BusinessProfileLayout({ children, params }: Props)
               aprovecharlo.
             </span>
           </p>
-        </div>
+        </Banner>
       )}
 
       {children}

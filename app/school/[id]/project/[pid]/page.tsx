@@ -13,6 +13,7 @@ import {
   PLATFORM_MONEY_DISCLAIMER_TEXT,
   UnverifiedSchoolNotice,
 } from "@/components/school/UnverifiedSchoolNotice";
+import { Banner } from "@/components/ui/Banner";
 import { cardClass } from "@/components/ui/Card";
 import { FlagIcon, WarningIcon } from "@/components/ui/icons";
 import {
@@ -126,14 +127,17 @@ export default async function ProjectPage({ params }: Props) {
       />
 
       {unverified && (
-        <div className="mt-4 flex items-start gap-3 rounded-2xl bg-warning-tint p-4 text-sm text-warning ring-1 ring-warning/10">
-          <WarningIcon className="mt-0.5 h-5 w-5 shrink-0" />
+        <Banner
+          tone="warning"
+          className="mt-4"
+          icon={<WarningIcon className="mt-0.5 h-5 w-5 shrink-0" />}
+        >
           <p>
             <span className="font-medium">Datos sin verificar.</span> La
             información de esta escuela todavía no fue verificada por el equipo
             de escuelaplace; sus métodos de pago no se muestran hasta entonces.
           </p>
-        </div>
+        </Banner>
       )}
 
       <article className={`mt-3 overflow-hidden ${cardClass("elevated", false)}`}>

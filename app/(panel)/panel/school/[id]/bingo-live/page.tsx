@@ -30,6 +30,7 @@ import { cardClass } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { maskSatisfied, winningLineIndices } from "@/lib/bingo-patterns";
 import { userErrorMessage } from "@/lib/errors";
+import { formatBingoSummary } from "@/lib/format";
 import {
   callBingoNumber,
   confirmBingoWinner,
@@ -181,9 +182,7 @@ function SchoolBingoLiveInner() {
                         {b.title}
                       </p>
                       <p className="text-xs text-muted">
-                        {cfg
-                          ? `${cfg.format.rows}×${cfg.format.cols} · ${cfg.format.poolMin}–${cfg.format.poolMax}`
-                          : "Sin configurar"}
+                        {cfg ? formatBingoSummary(cfg.format) : "Sin configurar"}
                       </p>
                     </div>
                     <button

@@ -36,13 +36,7 @@ import {
   type ServiceModality,
 } from "@/types";
 import type { ServiceConfigInput } from "@/lib/firestore";
-
-/** A stable id for a service, generated in an event handler / lazy initializer (SSR-safe). Shared
- * with the edit page, which mints the id for a freshly-typed service. */
-export function newServiceId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+import { newLocalId } from "@/lib/local-id";
 
 /**
  * The create-form value for a single service: its stable id, the OPTIONAL price (string while
@@ -71,7 +65,7 @@ export interface ServiceFormValue {
 
 export function emptyServiceForm(): ServiceFormValue {
   return {
-    id: newServiceId(),
+    id: newLocalId("s"),
     price: "",
     priceFrom: false,
     modalities: [],
