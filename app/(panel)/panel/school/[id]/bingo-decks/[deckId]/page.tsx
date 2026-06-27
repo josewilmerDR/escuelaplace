@@ -36,13 +36,11 @@ import type { LoadState } from "@/lib/page-state";
 
 const LOADING_TEXT = "Cargando mazo…";
 
-function Heading({ schoolId, subtitle }: { schoolId: string; subtitle?: string }) {
+function Heading({ onBack, subtitle }: { onBack: () => void; subtitle?: string }) {
   return (
     <>
       <p className="text-sm">
-        <BackLink href={`/panel/school/${schoolId}/bingo-decks`}>
-          Volver a mazos
-        </BackLink>
+        <BackLink onClick={onBack}>Volver</BackLink>
       </p>
       <header className="mt-3">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
@@ -94,7 +92,7 @@ export default function BingoDeckDetailPage() {
   if (loadState === "loading") {
     return (
       <main>
-        <Heading schoolId={id} />
+        <Heading onBack={() => router.back()} />
         <div
           className="mt-8 h-64 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5"
           aria-hidden="true"
@@ -109,7 +107,7 @@ export default function BingoDeckDetailPage() {
   if (loadState === "error") {
     return (
       <main>
-        <Heading schoolId={id} />
+        <Heading onBack={() => router.back()} />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar el mazo. Revisa tu conexión e intenta de nuevo.
         </p>
@@ -123,7 +121,7 @@ export default function BingoDeckDetailPage() {
   if (!school || !deck) {
     return (
       <main>
-        <Heading schoolId={id} />
+        <Heading onBack={() => router.back()} />
         <p className="mt-4 text-sm text-muted">
           {!school ? "Escuela no encontrada." : "Mazo no encontrado."}
         </p>
@@ -141,7 +139,7 @@ export default function BingoDeckDetailPage() {
   if (!isManager) {
     return (
       <main>
-        <Heading schoolId={id} subtitle={school.name} />
+        <Heading onBack={() => router.back()} subtitle={school.name} />
         <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -186,7 +184,7 @@ export default function BingoDeckDetailPage() {
 
   return (
     <main>
-      <Heading schoolId={id} subtitle={school.name} />
+      <Heading onBack={() => router.back()} subtitle={school.name} />
 
       <p className="mt-6 text-sm text-muted">
         {cardCount} cartones · {deck.format.rows}×{deck.format.cols} ·{" "}

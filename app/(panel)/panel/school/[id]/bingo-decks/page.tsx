@@ -45,8 +45,8 @@ function Heading({ schoolId, subtitle }: { schoolId: string; subtitle?: string }
   return (
     <>
       <p className="text-sm">
-        <BackLink href={`/panel/school/${schoolId}/tools`}>
-          Volver a herramientas
+        <BackLink href={`/panel/school/${schoolId}/tools/manage/bingo`}>
+          Volver a bingos
         </BackLink>
       </p>
       <header className="mt-3">
