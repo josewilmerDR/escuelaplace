@@ -17,6 +17,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { PanelNotice } from "@/components/ui/PanelNotice";
 import { userErrorMessage } from "@/lib/errors";
 import { formatBingoSummary } from "@/lib/format";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -132,13 +133,9 @@ export default function BingoDecksPage() {
 
   if (!school) {
     return (
-      <main>
-        <Heading schoolId={id} />
-        <p className="mt-4 text-sm text-muted">Escuela no encontrada.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading schoolId={id} />}>
+        Escuela no encontrada.
+      </PanelNotice>
     );
   }
 
@@ -146,13 +143,9 @@ export default function BingoDecksPage() {
 
   if (!isManager) {
     return (
-      <main>
-        <Heading schoolId={id} subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading schoolId={id} subtitle={school.name} />}>
+        No administras esta escuela.
+      </PanelNotice>
     );
   }
 

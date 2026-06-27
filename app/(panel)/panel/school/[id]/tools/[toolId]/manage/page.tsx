@@ -25,7 +25,7 @@ import { PageantManagePanel } from "@/components/tools/PageantManagePanel";
 import { RaffleManagePanel } from "@/components/tools/RaffleManagePanel";
 import { SaleManagePanel } from "@/components/tools/SaleManagePanel";
 import { ServiceManagePanel } from "@/components/tools/ServiceManagePanel";
-import { BackLink } from "@/components/ui/BackLink";
+import { PanelNotice } from "@/components/ui/PanelNotice";
 import { getSchoolById, getToolById } from "@/lib/firestore";
 import type { SchoolDoc, ToolDoc } from "@/types";
 import { isPageManager } from "@/lib/permissions";
@@ -124,15 +124,13 @@ export default function ToolManagePage() {
 
   if (!school || !tool) {
     return (
-      <main>
-        <Heading title="Gestión de la herramienta" />
-        <p className="mt-4 text-sm text-muted">
-          {!school ? "Escuela no encontrada." : "Herramienta no encontrada."}
-        </p>
-        <p className="mt-6 text-sm">
-          <BackLink href={`/panel/school/${id}/tools`}>Volver a herramientas</BackLink>
-        </p>
-      </main>
+      <PanelNotice
+        heading={<Heading title="Gestión de la herramienta" />}
+        backHref={`/panel/school/${id}/tools`}
+        backLabel="Volver a herramientas"
+      >
+        {!school ? "Escuela no encontrada." : "Herramienta no encontrada."}
+      </PanelNotice>
     );
   }
 
@@ -140,13 +138,9 @@ export default function ToolManagePage() {
 
   if (!isManager) {
     return (
-      <main>
-        <Heading title="Gestión de la herramienta" />
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading title="Gestión de la herramienta" />}>
+        No administras esta escuela.
+      </PanelNotice>
     );
   }
 

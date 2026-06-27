@@ -28,6 +28,7 @@ import { BingoPauseNotice } from "@/components/tools/BingoPauseNotice";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
+import { PanelNotice } from "@/components/ui/PanelNotice";
 import { maskSatisfied, winningLineIndices } from "@/lib/bingo-patterns";
 import { userErrorMessage } from "@/lib/errors";
 import { formatBingoSummary } from "@/lib/format";
@@ -126,13 +127,9 @@ function SchoolBingoLiveInner() {
 
   if (!isManager) {
     return (
-      <main>
-        <Heading subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading subtitle={school.name} />}>
+        No administras esta escuela.
+      </PanelNotice>
     );
   }
 
