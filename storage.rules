@@ -129,6 +129,7 @@ service firebase.storage {
     //   - schools/{id}/thanks/{file}               → image OR video (thank-you templates / messages)
     //   - schools/{id}/projects/{pid}/**           → image OR pdf OR video (quotes are PDF; stages carry a clip)
     //   - schools/{id}/tools/{toolId}/**           → image OR video (covers + tour stage media)
+    //   - schools/{id}/bingoDecks/{deckId}/**      → image only (mazo center-square logo)
     // All gated by the PARENT school doc's owner/editor (project/tool assets inherit the school
     // owner; the projectId/toolId is not separately gated — the school owner is the only legit
     // writer). The single-segment {schoolAsset} block does NOT match these deeper paths.
@@ -169,6 +170,15 @@ service firebase.storage {
     match /schools/{schoolId}/tools/{toolId}/{allPaths=**} {
       allow read: if true;
       allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImageOrVideo();
+      allow delete: if ownsSchoolId(schoolId) || isAdmin();
+    }
+
+    // bingo deck (mazo) assets: the deck's classic-5×5 "casilla central" logo — image only. The
+    // deck's Firestore doc is board-only, but this logo is shown on PUBLIC player cartones (a bingo
+    // built from the deck freezes the URL into its config), so read is public — like tool covers.
+    match /schools/{schoolId}/bingoDecks/{deckId}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if (ownsSchoolId(schoolId) || isAdmin()) && isImage();
       allow delete: if ownsSchoolId(schoolId) || isAdmin();
     }
 

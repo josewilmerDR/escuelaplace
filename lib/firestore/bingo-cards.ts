@@ -16,6 +16,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   BINGO_CARD_MAX,
+  BINGO_FREE_CENTER,
   BINGO_GRID_MAX,
   BINGO_GRID_MIN,
   BINGO_LABEL_MAX,
@@ -24,6 +25,7 @@ import {
   type BingoFormat,
   type BingoOrderDoc,
 } from "@/types";
+import { gridCenterIndex } from "@/lib/bingo-patterns";
 import { snapToList } from "./converters";
 
 const SCHOOLS = "schools";
@@ -62,6 +64,11 @@ export function bingoFormatError(format: BingoFormat): string | null {
   ) {
     return "El rango de números no es válido.";
   }
+  // Bingo numbers are non-negative. This also keeps the free-center sentinel (BINGO_FREE_CENTER =
+  // -1) strictly OUTSIDE every column band, so a real number can never collide with it.
+  if (poolMin < 0) {
+    return "El número menor no puede ser negativo.";
+  }
   const poolSize = poolMax - poolMin + 1;
   if (poolSize < rows * cols) {
     return `El rango (${poolSize} números) es menor que las casillas del cartón (${rows * cols}).`;
@@ -92,8 +99,11 @@ export function columnRange(format: BingoFormat, col: number): [number, number] 
  * `columnRange` — the B-I-N-G-O bands), laid out row-major (index = row*cols + col). Uses a partial
  * Fisher–Yates shuffle per column. The caller must validate the format first (bingoFormatError) so
  * every column band is big enough.
+ *
+ * `freeCenter` (classic 5×5 mazo with a free "casilla central") replaces the middle cell with the
+ * BINGO_FREE_CENTER sentinel — no callable number there. The discarded band number is simply unused.
  */
-export function randomCardNumbers(format: BingoFormat): number[] {
+export function randomCardNumbers(format: BingoFormat, freeCenter = false): number[] {
   const { rows, cols } = format;
   const numbers = new Array<number>(rows * cols);
   for (let col = 0; col < cols; col++) {
@@ -105,6 +115,10 @@ export function randomCardNumbers(format: BingoFormat): number[] {
       [band[i], band[j]] = [band[j], band[i]];
     }
     for (let row = 0; row < rows; row++) numbers[row * cols + col] = band[row];
+  }
+  if (freeCenter) {
+    const center = gridCenterIndex(rows, cols);
+    if (center != null) numbers[center] = BINGO_FREE_CENTER;
   }
   return numbers;
 }
@@ -119,14 +133,22 @@ export interface ParsedBingoCard {
  * spaces/commas/semicolons, optionally prefixed by a label and a colon (e.g. "001: 5, 12, 33").
  * When no label is given, lines are numbered sequentially. Returns a Spanish error (with the line
  * number) on the first invalid line.
+ *
+ * `freeCenter` (classic 5×5 mazo with a free "casilla central") expects ONE FEWER number per line —
+ * the physical cartón has no number in the middle — in row-major order SKIPPING the center cell; the
+ * parser fills that cell with the BINGO_FREE_CENTER sentinel.
  */
 export function parseImportedCards(
   text: string,
   format: BingoFormat,
+  freeCenter = false,
 ):
   | { ok: true; cards: ParsedBingoCard[] }
   | { ok: false; error: string } {
   const size = format.rows * format.cols;
+  const center = freeCenter ? gridCenterIndex(format.rows, format.cols) : null;
+  // A free center carries no number, so the pasted line provides one fewer value.
+  const expected = center != null ? size - 1 : size;
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -151,17 +173,22 @@ export function parseImportedCards(
       .split(/[\s,;]+/)
       .map((t) => t.trim())
       .filter(Boolean);
-    if (tokens.length !== size) {
+    if (tokens.length !== expected) {
       return {
         ok: false,
-        error: `La línea ${i + 1} tiene ${tokens.length} números; se esperaban ${size}.`,
+        error: `La línea ${i + 1} tiene ${tokens.length} números; se esperaban ${expected}.`,
       };
     }
-    const numbers: number[] = [];
+    // Fill by CELL position (row-major). The free center is the sentinel and consumes no token, so
+    // tokens advance only on real cells — keeping every value aligned with ITS column's band.
+    const numbers = new Array<number>(size);
+    if (center != null) numbers[center] = BINGO_FREE_CENTER;
     const seen = new Set<number>();
-    for (let pos = 0; pos < tokens.length; pos++) {
-      const t = tokens[pos];
-      const n = Number(t);
+    let t = 0;
+    for (let pos = 0; pos < size; pos++) {
+      if (pos === center) continue;
+      const token = tokens[t++];
+      const n = Number(token);
       // Each cell must fall in ITS column's band (B-I-N-G-O), not just the whole pool — so an
       // imported cartón lines up with the generated ones. Column = position within the row.
       const col = pos % format.cols;
@@ -169,14 +196,14 @@ export function parseImportedCards(
       if (!Number.isInteger(n) || n < lo || n > hi) {
         return {
           ok: false,
-          error: `La línea ${i + 1}, columna ${col + 1}: «${t}» está fuera del rango de esa columna (${lo}–${hi}).`,
+          error: `La línea ${i + 1}, columna ${col + 1}: «${token}» está fuera del rango de esa columna (${lo}–${hi}).`,
         };
       }
       if (seen.has(n)) {
         return { ok: false, error: `La línea ${i + 1} repite el número ${n}.` };
       }
       seen.add(n);
-      numbers.push(n);
+      numbers[pos] = n;
     }
     cards.push({ label: label.slice(0, BINGO_LABEL_MAX), numbers });
   }

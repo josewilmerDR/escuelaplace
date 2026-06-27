@@ -1222,6 +1222,11 @@ export const BINGO_METHOD_MAX = 140;
 /** Cap on the free-space center label (BingoCenterSquare text) — the center cell is tiny, so keep
  * it short enough to stay legible even in the small live-console cartón render. */
 export const BINGO_CENTER_TEXT_MAX = 12;
+/** Sentinel stored at a free center cell in a cartón's `numbers[]` (in place of a real number):
+ * the classic 5×5 "casilla central libre" carries no callable number. Out of every valid pool band,
+ * so it never collides with a real number and never matches a called one. The center treatment is a
+ * MAZO (deck) property — see BingoDeck.centerSquare — frozen onto each bingo built from the deck. */
+export const BINGO_FREE_CENTER = -1;
 /** Defensive cap on one order's quantity (anti-typo; the platform never moves money). */
 export const BINGO_ORDER_QTY_MAX = 100;
 /** Cells of the fixed 5×5 grid every winning pattern is defined on (indices 0..24, row-major). */
@@ -1441,6 +1446,11 @@ export interface BingoDeck {
   /** The cartón grid + number pool every cartón in the deck shares (a bingo built from this deck
    * adopts this format so its config and the copied cartones line up). */
   format: BingoFormat;
+  /** Classic 5×5 free-space center (logo/text/blank). Set once at deck creation and frozen: the
+   * deck's cartones carry a BINGO_FREE_CENTER sentinel at the center, and a bingo built from this
+   * deck copies this onto its config (BingoConfig.centerSquare). Absent = traditional numbered
+   * center. Only meaningful on the 5×5 grid. */
+  centerSquare?: BingoCenterSquare;
   /** Denormalized cartón count, for the picker list (the cards live in a subcollection). */
   cardCount: number;
   createdBy: string;

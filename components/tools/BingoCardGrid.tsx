@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { gridCenterIndex } from "@/lib/bingo-patterns";
-import type { BingoCenterSquare } from "@/types";
+import { BINGO_FREE_CENTER, type BingoCenterSquare } from "@/types";
 
 /**
  * The classic 5×5 free-space center ("casilla central"), rendered as an already-covered cell: an
@@ -64,7 +64,9 @@ export function BingoCenterCell({
  *
  * `centerSquare` (classic 5×5 only) replaces the middle cell with a free space (logo/text/blank): it
  * renders the custom content, is never tappable, and is excluded from the number-based marking — the
- * win check treats it as auto-covered (see maskSatisfied's freeIndices).
+ * win check treats it as auto-covered (see maskSatisfied's freeIndices). A free cell is detected
+ * either from the card itself (a BINGO_FREE_CENTER sentinel in `numbers`, the deck-level model) or
+ * from `centerSquare` + the middle index (legacy bingos whose center number is overridden).
  */
 export function BingoCardGrid({
   label,
@@ -104,8 +106,16 @@ export function BingoCardGrid({
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
       >
         {numbers.map((n, i) => {
-          if (centerSquare && i === centerIdx) {
-            return <BingoCenterCell key={i} centerSquare={centerSquare} />;
+          // The free center: a sentinel cell (deck-level model) or the configured middle cell (a
+          // legacy bingo whose real center number is overridden). Falls back to a blank free cell
+          // when no display config reached this render site.
+          if (n === BINGO_FREE_CENTER || (centerSquare != null && i === centerIdx)) {
+            return (
+              <BingoCenterCell
+                key={i}
+                centerSquare={centerSquare ?? { type: "blank" }}
+              />
+            );
           }
           const isMarked = marked?.has(n) ?? false;
           const canMark = onToggle != null && (markable?.has(n) ?? false);

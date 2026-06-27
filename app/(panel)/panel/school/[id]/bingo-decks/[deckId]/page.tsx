@@ -176,12 +176,24 @@ export default function BingoDeckDetailPage() {
     }
   };
 
+  // The deck's frozen 5×5 free center, summarized read-only (set at creation, immutable here since
+  // the cartones already carry its sentinel — like the format).
+  const center = deck.centerSquare;
+  const centerLabel = center
+    ? center.type === "image"
+      ? "casilla central libre (logo)"
+      : center.type === "text"
+        ? `casilla central libre («${center.text}»)`
+        : "casilla central libre"
+    : null;
+
   return (
     <main>
       <Heading onBack={() => router.back()} subtitle={school.name} />
 
       <p className="mt-6 text-sm text-muted">
         {cardCount} cartones · {formatBingoSummary(deck.format)}
+        {centerLabel ? ` · ${centerLabel}` : ""}
       </p>
 
       {/* Rename. The format is fixed once the deck exists — its cartones are bound to it — so it
@@ -212,6 +224,7 @@ export default function BingoDeckDetailPage() {
           schoolId={id}
           deckId={deckId}
           format={deck.format}
+          centerSquare={deck.centerSquare}
           onCountChange={setCardCount}
         />
       </section>

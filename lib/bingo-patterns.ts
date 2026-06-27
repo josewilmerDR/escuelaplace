@@ -13,7 +13,7 @@
  *
  * No Firebase here — these are unit-tested helpers, mirrored in spirit by the board + play UIs.
  */
-import { BINGO_GRID_CELLS } from "@/types";
+import { BINGO_FREE_CENTER, BINGO_GRID_CELLS } from "@/types";
 import type {
   BingoActivePattern,
   BingoFormat,
@@ -72,8 +72,11 @@ export function gridCenterIndex(rows: number, cols: number): number | null {
  * `hit`. This is the single anti-cheat truth for both built-in and custom patterns (the per-round
  * pattern carries its arrangements as a frozen snapshot, so validation never reads the catalog).
  *
- * `freeIndices` are cells that count as covered WITHOUT being called — the free "casilla central"
- * (auto-marked, no number). A pattern line crossing a free cell needs only its other cells called.
+ * Cells count as covered WITHOUT being called — the free "casilla central" (auto-marked, no number) —
+ * two ways, so render and validation agree on what's free: a cell holding the BINGO_FREE_CENTER
+ * sentinel (the deck-level model, where the card itself carries the free center), or a cell whose
+ * index is in `freeIndices` (legacy bingos whose center is a real number overridden by config). A
+ * pattern line crossing a free cell needs only its OTHER cells called.
  */
 export function maskSatisfied(
   numbers: number[],
@@ -85,6 +88,7 @@ export function maskSatisfied(
     line.every((idx) => {
       if (freeIndices?.has(idx)) return true;
       const n = numbers[idx];
+      if (n === BINGO_FREE_CENTER) return true;
       return n !== undefined && hit.has(n);
     }),
   );
