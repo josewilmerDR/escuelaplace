@@ -30,10 +30,11 @@ export function ToolGridCard({
   tool: ToolDoc;
 }) {
   const Icon = toolTypeMeta(tool.type).icon;
-  // A reinado lands on its control panel (follow votes / run the gala); the edit page sits behind an
-  // explicit "Editar reinado" button there. Other kinds keep the edit page as their primary action.
+  // A reinado or rifa lands on its control panel (follow the votes / track sold numbers); the edit
+  // page sits behind an explicit "Editar …" button there. Other kinds keep the edit page as their
+  // primary action.
   const href =
-    tool.type === "pageant"
+    tool.type === "pageant" || tool.type === "raffle"
       ? `/panel/school/${schoolId}/tools/${tool.id}/manage`
       : `/panel/school/${schoolId}/tools/${tool.id}`;
   return (

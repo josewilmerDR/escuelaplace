@@ -47,10 +47,6 @@ import {
   type RaffleFormValue,
 } from "@/components/tools/RaffleConfigFields";
 import {
-  RaffleNumberGrid,
-  RaffleNumberLegend,
-} from "@/components/tools/RaffleNumberGrid";
-import {
   SaleProductsEditor,
   emptySaleForm,
   toSaleInput,
@@ -81,11 +77,9 @@ import {
   clearToolCover,
   createProject,
   deleteTool,
-  getRaffleOrdersByTool,
   getSchoolById,
   getToolById,
   newProjectId,
-  raffleNumberStates,
   toolConfigOf,
   toolContactPhone,
   updateProject,
@@ -110,7 +104,6 @@ import {
   type BingoConfig,
   type EventConfig,
   type RaffleConfig,
-  type RaffleOrderDoc,
   type SaleConfig,
   type SchoolDoc,
   type ServiceConfig,
@@ -187,8 +180,6 @@ export default function EditToolPage() {
   const [contactPhone, setContactPhone] = useState("");
   const [contactLabel, setContactLabel] = useState("");
   const [raffleForm, setRaffleForm] = useState<RaffleFormValue>(emptyRaffleForm);
-  // Raffle orders, only for the read-only grid preview shown to the board.
-  const [orders, setOrders] = useState<RaffleOrderDoc[]>([]);
   // Bingo config form (prizes, price, modality…). The cartones (lote) are NOT managed here — they
   // live in a reusable mazo (deck) bound to the bingo at creation; the edit page only links out to
   // the mazos library. So there's no editable card list and no card-count tracking here.
@@ -270,15 +261,10 @@ export default function EditToolPage() {
   };
 
   const load = useCallback(() => {
-    Promise.all([
-      getSchoolById(id),
-      getToolById(id, toolId),
-      getRaffleOrdersByTool(toolId).catch(() => []),
-    ])
-      .then(([s, t, o]) => {
+    Promise.all([getSchoolById(id), getToolById(id, toolId)])
+      .then(([s, t]) => {
         setSchool(s);
         setTool(t);
-        setOrders(o);
         if (t) {
           setType(t.type);
           setTitle(t.title);
@@ -977,7 +963,17 @@ export default function EditToolPage() {
   const saleConfig = toolConfigOf(tool, "sale");
   const bingoConfig = toolConfigOf(tool, "bingo");
   const eventConfig = toolConfigOf(tool, "event");
-  const raffleConfig = toolConfigOf(tool, "raffle");
+
+  // A reinado/rifa edit page is reached from that tool's per-instance management panel (via the
+  // "Editar …" button there), so its back link returns to that panel; the other kinds have no such
+  // panel, so they return to the kind's list.
+  const hasManagePanel = type === "pageant" || type === "raffle";
+  const editBackHref = hasManagePanel
+    ? `/panel/school/${id}/tools/${toolId}/manage`
+    : `/panel/school/${id}/tools/manage/${type}`;
+  const editBackLabel = hasManagePanel
+    ? "Volver a la gestión"
+    : `Volver a ${toolTypeMeta(type).pluralLabel}`;
 
   return (
     <main>
@@ -985,8 +981,8 @@ export default function EditToolPage() {
         schoolId={id}
         title={editToolTitle(type)}
         subtitle={school.name}
-        backHref={`/panel/school/${id}/tools/manage/${type}`}
-        backLabel={`Volver a ${toolTypeMeta(type).pluralLabel}`}
+        backHref={editBackHref}
+        backLabel={editBackLabel}
       />
 
       <form
@@ -1323,33 +1319,6 @@ export default function EditToolPage() {
 
       </form>
 
-      {type === "raffle" && raffleConfig && (
-        <section className="mt-10">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Números
-            </h2>
-            <Link
-              href={`/panel/school/${id}/raffle-orders`}
-              className="text-sm font-medium text-brand-darker hover:underline"
-            >
-              Confirmar compras
-            </Link>
-          </div>
-          <p className="mt-1 text-sm text-muted">
-            Estado actual de los números (vista previa). Los compradores los eligen
-            desde la página pública; confirma cada pago en “Rifas”.
-          </p>
-          <div className="mt-4">
-            <RaffleNumberGrid
-              count={raffleConfig.numberCount}
-              states={raffleNumberStates(orders, raffleConfig.numberCount)}
-            />
-            <RaffleNumberLegend />
-          </div>
-        </section>
-      )}
-
       {/* Pageant roster: the candidate subcollection. Edited here but persisted with the tool form's
           "Guardar cambios" (the editor exposes validate()/saveAll(), driven by onSave). Same card
           convention + same PageantCandidatesEditor the create page uses. */}
@@ -1566,9 +1535,7 @@ export default function EditToolPage() {
       </ConfirmDialog>
 
       <p className="mt-8 text-sm">
-        <BackLink href={`/panel/school/${id}/tools/manage/${type}`}>
-          Volver a {toolTypeMeta(type).pluralLabel}
-        </BackLink>
+        <BackLink href={editBackHref}>{editBackLabel}</BackLink>
       </p>
     </main>
   );
