@@ -5,8 +5,9 @@
  * dispatcher has loaded the school + tool and checked that the viewer manages the school. A tour is
  * config-only — no orders, no reservations, nothing live to follow (the only public action is a
  * WhatsApp consult) — so this panel is a READ-ONLY overview: a config recap of the stages so the
- * board sees the route at a glance, plus the public/share/consult footer and the "Editar visita
- * guiada" button on the title row. PURELY INFORMATIONAL — the platform never processes money.
+ * board sees the route at a glance, plus the "Ver página pública" footer (no share/consult pair
+ * here) and the "Editar visita guiada" button on the title row. PURELY INFORMATIONAL — the platform
+ * never processes money.
  */
 import Link from "next/link";
 import { ToolManageFooter } from "@/components/tools/ToolManageFooter";
@@ -91,7 +92,12 @@ export function GuidedTourManagePanel({
         “Consultar”.
       </p>
 
-      <ToolManageFooter schoolId={schoolId} tool={tool} school={school} />
+      <ToolManageFooter
+        schoolId={schoolId}
+        tool={tool}
+        school={school}
+        showShareActions={false}
+      />
     </main>
   );
 }
