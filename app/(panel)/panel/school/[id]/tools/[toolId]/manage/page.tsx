@@ -28,6 +28,7 @@ import { ServiceManagePanel } from "@/components/tools/ServiceManagePanel";
 import { BackLink } from "@/components/ui/BackLink";
 import { getSchoolById, getToolById } from "@/lib/firestore";
 import type { SchoolDoc, ToolDoc } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 type LoadState = "loading" | "error" | "loaded";
 
@@ -136,11 +137,7 @@ export default function ToolManagePage() {
     );
   }
 
-  const isManager =
-    user != null &&
-    (school.ownerId === user.id ||
-      school.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(school, user);
 
   if (!isManager) {
     return (

@@ -57,6 +57,7 @@ import {
   type SchoolDoc,
   type ToolDoc,
 } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 type LoadState = "loading" | "error" | "loaded";
 
@@ -121,11 +122,7 @@ function SchoolBingoLiveInner() {
     );
   }
 
-  const isManager =
-    user != null &&
-    (school.ownerId === user.id ||
-      school.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(school, user);
 
   if (!isManager) {
     return (

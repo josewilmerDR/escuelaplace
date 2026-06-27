@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
 import { HeartIcon } from "@/components/ui/icons";
 import { useViewAsVisitor } from "@/lib/view-as";
+import { isPageManager } from "@/lib/permissions";
 
 export function DonorWallManagerHint({
   schoolId,
@@ -27,11 +28,7 @@ export function DonorWallManagerHint({
 }) {
   const { user } = useAuth();
   const [asVisitor] = useViewAsVisitor();
-  const canManage =
-    user &&
-    (user.id === ownerId ||
-      editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const canManage = isPageManager({ ownerId, editorIds }, user);
   if (!canManage || asVisitor) return null;
 
   return (

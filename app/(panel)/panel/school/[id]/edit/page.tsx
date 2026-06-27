@@ -51,6 +51,7 @@ import {
   type PaymentMethod,
   type SchoolDoc,
 } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 /** Lifecycle of the school fetch the form depends on. */
 type LoadState = "loading" | "error" | "loaded";
@@ -365,11 +366,7 @@ export default function SchoolEditPage() {
     );
   }
 
-  const isManager =
-    user != null &&
-    (school.ownerId === user.id ||
-      school.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(school, user);
 
   if (!isManager) {
     return (

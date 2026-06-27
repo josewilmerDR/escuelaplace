@@ -55,6 +55,7 @@ import {
 } from "@/lib/firestore";
 import { formatColones, formatMoney } from "@/lib/format";
 import type { SchoolDoc } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 /** Lifecycle of the initial school + pending fetch. */
 type LoadState = "loading" | "error" | "loaded";
@@ -315,11 +316,7 @@ function ActivityInner() {
     );
   }
 
-  const isManager =
-    user != null &&
-    (school.ownerId === user.id ||
-      school.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(school, user);
 
   if (!isManager) {
     return (

@@ -114,6 +114,7 @@ import {
   type TourConfig,
   type TourStage,
 } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 type LoadState = "loading" | "error" | "loaded";
 
@@ -384,11 +385,7 @@ export default function EditToolPage() {
     );
   }
 
-  const isManager =
-    user != null &&
-    (school.ownerId === user.id ||
-      school.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(school, user);
 
   if (!isManager) {
     return (

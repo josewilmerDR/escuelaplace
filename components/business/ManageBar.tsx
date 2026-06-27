@@ -17,6 +17,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { VisitorModeToast } from "@/components/ui/VisitorModeToast";
 import { EyeIcon, PencilIcon } from "@/components/ui/icons";
 import { useViewAsVisitor } from "@/lib/view-as";
+import { isPageManager } from "@/lib/permissions";
 
 export function ManageBar({
   businessId,
@@ -35,11 +36,7 @@ export function ManageBar({
 }) {
   const { user } = useAuth();
   const [asVisitor, setAsVisitor] = useViewAsVisitor();
-  const canManage =
-    user &&
-    (user.id === ownerId ||
-      editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const canManage = isPageManager({ ownerId, editorIds }, user);
   if (!canManage) return null;
 
   // In visitor mode the strip collapses with the rest of the owner-only UI; the shared
