@@ -103,7 +103,7 @@ describe("toolTypeMeta", () => {
 
 describe("createToolTitle", () => {
   it("returns generic wording for 'other' (not 'Crear otro')", () => {
-    expect(createToolTitle("other")).toBe("Crear herramienta");
+    expect(createToolTitle("other")).toBe("Crear actividad");
   });
 
   it("builds 'Crear <label lowercased>' for raffle", () => {

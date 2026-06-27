@@ -151,7 +151,7 @@ const META: Record<ToolType, ToolTypeMeta> = {
   other: {
     key: "other",
     label: "Otro",
-    pluralLabel: "Otras herramientas",
+    pluralLabel: "Otras actividades",
     hint: "Cualquier otra actividad puntual.",
     titleLabel: "Título",
     titlePlaceholder: "Ej.: Actividad pro fondos para la gira",
@@ -172,12 +172,12 @@ export function toolTypeMeta(type: ToolType | string): ToolTypeMeta {
 /**
  * Page title / button label for creating a kind — "Crear rifa", "Crear bingo"… — built from the
  * registry label (the single source of truth). The catch-all "Otro" kind keeps the generic
- * wording ("Crear herramienta") rather than the awkward "Crear otro". Shared by the creation page
+ * wording ("Crear actividad") rather than the awkward "Crear otro". Shared by the creation page
  * heading/submit button and the per-kind manage page's "Crear" CTA.
  */
 export function createToolTitle(type: ToolType): string {
   return type === "other"
-    ? "Crear herramienta"
+    ? "Crear actividad"
     : `Crear ${toolTypeMeta(type).label.toLowerCase()}`;
 }
 
