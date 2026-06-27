@@ -29,7 +29,11 @@ import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { PanelNotice } from "@/components/ui/PanelNotice";
-import { maskSatisfied, winningLineIndices } from "@/lib/bingo-patterns";
+import {
+  gridCenterIndex,
+  maskSatisfied,
+  winningLineIndices,
+} from "@/lib/bingo-patterns";
 import { userErrorMessage } from "@/lib/errors";
 import { formatBingoSummary } from "@/lib/format";
 import {
@@ -138,9 +142,15 @@ function SchoolBingoLiveInner() {
   return (
     <main>
       <p className="mb-6 text-sm">
-        <BackLink href={`/panel/school/${id}/tools`}>
-          Todas las herramientas
-        </BackLink>
+        {toolId ? (
+          <BackLink href={`/panel/school/${id}/tools/${toolId}/manage`}>
+            Volver a la gestión del bingo
+          </BackLink>
+        ) : (
+          <BackLink href={`/panel/school/${id}/tools`}>
+            Todas las herramientas
+          </BackLink>
+        )}
       </p>
       <Heading
         subtitle={school.name}
@@ -317,6 +327,14 @@ function BingoConsole({
   // The per-round modalidades are defined on the fixed 5×5 grid, so a live round only makes sense on
   // a 5×5 cartón (legacy bingos may be other sizes).
   const isStandardGrid = bingo.format.rows === 5 && bingo.format.cols === 5;
+  // A customized center square is a FREE space: it auto-counts as covered in the win verdict (the
+  // player can't mark it — there's no number there). Empty for a traditional numbered center.
+  const freeCenterIndices = useMemo(() => {
+    const idx = bingo.centerSquare
+      ? gridCenterIndex(bingo.format.rows, bingo.format.cols)
+      : null;
+    return idx != null ? new Set([idx]) : undefined;
+  }, [bingo.centerSquare, bingo.format.rows, bingo.format.cols]);
 
   // Reflect "a claim is under review" onto the PUBLIC event state so every watcher can show "alguien
   // cantó — revisando" (they can't read the private claims). Only while live and not yet won; guarded
@@ -599,7 +617,9 @@ function BingoConsole({
               const truth =
                 activePattern?.arrangements ??
                 (claim.pattern ? winningLineIndices(bingo.format, claim.pattern) : []);
-              const valid = card ? maskSatisfied(card.numbers, truth, called) : null;
+              const valid = card
+                ? maskSatisfied(card.numbers, truth, called, freeCenterIndices)
+                : null;
               return (
                 <li
                   key={claim.id}
@@ -644,6 +664,7 @@ function BingoConsole({
                         numbers={card.numbers}
                         cols={bingo.format.cols}
                         marked={called}
+                        centerSquare={bingo.centerSquare}
                       />
                     </div>
                   )}

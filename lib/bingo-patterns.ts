@@ -57,18 +57,33 @@ export function winningLineIndices(
 }
 
 /**
+ * The row-major index of a grid's single center cell, or null when it has none. A middle cell only
+ * exists when BOTH dimensions are odd (an even dimension straddles two cells); the classic 5×5 → 12.
+ * Used to place/auto-mark the free "casilla central" (see BingoCenterSquare).
+ */
+export function gridCenterIndex(rows: number, cols: number): number | null {
+  if (rows <= 0 || cols <= 0 || rows % 2 === 0 || cols % 2 === 0) return null;
+  return Math.floor(rows / 2) * cols + Math.floor(cols / 2);
+}
+
+/**
  * The generalized win predicate: does the cartón satisfy ANY of `arrangements` given the numbers in
  * `hit`? An arrangement is satisfied when every one of its cell indices holds a number contained in
  * `hit`. This is the single anti-cheat truth for both built-in and custom patterns (the per-round
  * pattern carries its arrangements as a frozen snapshot, so validation never reads the catalog).
+ *
+ * `freeIndices` are cells that count as covered WITHOUT being called — the free "casilla central"
+ * (auto-marked, no number). A pattern line crossing a free cell needs only its other cells called.
  */
 export function maskSatisfied(
   numbers: number[],
   arrangements: number[][],
   hit: Set<number>,
+  freeIndices?: Set<number>,
 ): boolean {
   return arrangements.some((line) =>
     line.every((idx) => {
+      if (freeIndices?.has(idx)) return true;
       const n = numbers[idx];
       return n !== undefined && hit.has(n);
     }),

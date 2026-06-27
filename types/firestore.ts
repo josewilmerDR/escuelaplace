@@ -1219,6 +1219,9 @@ export const BINGO_PRIZE_MAX = 80;
 /** Cap on how many extra ("otros") prizes a bingo can list, beyond the ranked top three. */
 export const BINGO_OTHER_PRIZES_MAX = 8;
 export const BINGO_METHOD_MAX = 140;
+/** Cap on the free-space center label (BingoCenterSquare text) — the center cell is tiny, so keep
+ * it short enough to stay legible even in the small live-console cartón render. */
+export const BINGO_CENTER_TEXT_MAX = 12;
 /** Defensive cap on one order's quantity (anti-typo; the platform never moves money). */
 export const BINGO_ORDER_QTY_MAX = 100;
 /** Cells of the fixed 5×5 grid every winning pattern is defined on (indices 0..24, row-major). */
@@ -1353,6 +1356,23 @@ export interface BingoPrizes {
   others: string[];
 }
 
+/**
+ * The classic 5×5 "casilla central": in physical Costa Rican bingo the middle cell is a FREE space
+ * (often the deck-maker's logo, or blank) rather than a callable number. When a bingo sets this, the
+ * center cell (row-major index 12 of a 5×5) auto-counts as marked for every winning pattern that
+ * crosses it and shows this content instead of a number; absent = traditional numbered center
+ * (default). Offered only on the 5×5 grid (the only one with a single middle cell).
+ */
+export type BingoCenterSquareType = "blank" | "text" | "image";
+
+export interface BingoCenterSquare {
+  type: BingoCenterSquareType;
+  /** Short free-space label (type === 'text'), ≤ BINGO_CENTER_TEXT_MAX chars. */
+  text?: string;
+  /** Logo/image URL (type === 'image'), a Storage download URL under the tool's assets path. */
+  imageUrl?: string;
+}
+
 export interface BingoConfig {
   format: BingoFormat;
   /** The prizes the school offers (premio mayor + optional 2nd/3rd + extras). Optional only so
@@ -1381,6 +1401,8 @@ export interface BingoConfig {
    * authoritative (called ∩ cartón) regardless; this flag only changes the player's marking UX.
    */
   assistMarking?: boolean;
+  /** Classic 5×5 free-space center (logo/text/blank). Absent = traditional numbered center. */
+  centerSquare?: BingoCenterSquare;
 }
 
 export type BingoCardStatus = "available" | "sold";

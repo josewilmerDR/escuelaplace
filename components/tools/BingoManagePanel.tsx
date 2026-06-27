@@ -224,9 +224,6 @@ export function BingoManagePanel({
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
           Cómo va el bingo
         </h2>
-        <p className="mt-1 text-sm text-muted">
-          escuelaplace solo muestra los montos (cartones × precio); nunca procesa el dinero.
-        </p>
         {loadError ? (
           <div className="mt-4">
             <p role="alert" className="text-sm text-error">
@@ -328,7 +325,7 @@ export function BingoManagePanel({
           {derived.pending.length === 0 ? (
             <p className="mt-3 text-sm text-muted">
               No hay reservas pendientes. Las nuevas reservas aparecerán acá para que las
-              confirmes (al confirmar se asignan los cartones).
+              confirmes.
             </p>
           ) : (
             <ul className="mt-4 flex flex-col gap-3">
