@@ -45,6 +45,7 @@ import {
   type ThankYouMedia,
   type ThankYouTemplate,
 } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 const TITLE = "Agradecimientos";
 
@@ -128,12 +129,7 @@ export default function SchoolThanksPage() {
 
   useEffect(load, [load]);
 
-  const isManager =
-    user != null &&
-    school != null &&
-    (school.ownerId === user.id ||
-      school.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(school, user);
 
   const prompted = useMemo(
     () => thankYous.filter((t) => t.status === "prompted"),

@@ -61,6 +61,7 @@ import {
   type CategoryDoc,
   type SchoolDoc,
 } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 /** Lifecycle of the business/schools/categories fetch the form depends on. */
 type LoadState = "loading" | "error" | "loaded";
@@ -485,11 +486,7 @@ export default function BusinessEditPage() {
     );
   }
 
-  const isManager =
-    user != null &&
-    (business.ownerId === user.id ||
-      business.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(business, user);
 
   if (!isManager) {
     return (

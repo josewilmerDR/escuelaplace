@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/icons";
 import { getPendingActivityCountBySchool } from "@/lib/firestore";
 import { useViewAsVisitor } from "@/lib/view-as";
+import { isPageManager } from "@/lib/permissions";
 
 /** Circular cover-overlay button: legible on any cover photo via a translucent dark scrim. */
 const OVERLAY_BTN =
@@ -50,11 +51,7 @@ export function SchoolManageBar({
   const [asVisitor, setAsVisitor] = useViewAsVisitor();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const canManage =
-    user &&
-    (user.id === ownerId ||
-      editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const canManage = isPageManager({ ownerId, editorIds }, user);
 
   // How many items (supports, project aportes, tool orders) are awaiting confirmation — the
   // bell badge so the board sees the queue even when it's just viewing the public page.

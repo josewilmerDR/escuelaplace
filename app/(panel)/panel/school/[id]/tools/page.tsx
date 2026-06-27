@@ -18,6 +18,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { TOOL_TYPE_LIST, toolTypeMeta } from "@/lib/tools/registry";
 import { getSchoolById, getToolsBySchool } from "@/lib/firestore";
 import { type SchoolDoc, type ToolDoc, type ToolType } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 /** Lifecycle of the school + tools fetch the page depends on. */
 type LoadState = "loading" | "error" | "loaded";
@@ -134,11 +135,7 @@ export default function SchoolToolsPage() {
     );
   }
 
-  const isManager =
-    user != null &&
-    (school.ownerId === user.id ||
-      school.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(school, user);
 
   if (!isManager) {
     return (

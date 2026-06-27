@@ -43,6 +43,7 @@ import type {
   SchoolDoc,
   SubscriptionDoc,
 } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 /** Lifecycle of the initial business + schools + subscriptions fetch. */
 type LoadState = "loading" | "error" | "loaded";
@@ -185,11 +186,7 @@ export default function BusinessSubscribePage() {
     );
   }
 
-  const isManager =
-    user != null &&
-    (business.ownerId === user.id ||
-      business.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(business, user);
 
   if (!isManager) {
     return (

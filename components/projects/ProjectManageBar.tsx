@@ -17,6 +17,7 @@ import { VisitorModeToast } from "@/components/ui/VisitorModeToast";
 import { EyeIcon, PencilIcon } from "@/components/ui/icons";
 import { getPendingContributionsBySchool } from "@/lib/firestore";
 import { useViewAsVisitor } from "@/lib/view-as";
+import { isPageManager } from "@/lib/permissions";
 
 export function ProjectManageBar({
   schoolId,
@@ -31,11 +32,7 @@ export function ProjectManageBar({
 }) {
   const { user } = useAuth();
   const [asVisitor, setAsVisitor] = useViewAsVisitor();
-  const canManage =
-    user &&
-    (user.id === ownerId ||
-      editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const canManage = isPageManager({ ownerId, editorIds }, user);
 
   // How many contributions are awaiting confirmation — a nudge badge so the board sees the
   // queue even when it's just viewing the public page. Managers only; never for visitors.

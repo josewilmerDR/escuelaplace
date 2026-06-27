@@ -12,6 +12,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { VisitorModeToast } from "@/components/ui/VisitorModeToast";
 import { EyeIcon, PencilIcon } from "@/components/ui/icons";
 import { useViewAsVisitor } from "@/lib/view-as";
+import { isPageManager } from "@/lib/permissions";
 
 export function ToolManageBar({
   schoolId,
@@ -26,11 +27,7 @@ export function ToolManageBar({
 }) {
   const { user } = useAuth();
   const [asVisitor, setAsVisitor] = useViewAsVisitor();
-  const canManage =
-    user &&
-    (user.id === ownerId ||
-      editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const canManage = isPageManager({ ownerId, editorIds }, user);
 
   if (!canManage) return null;
   if (asVisitor) return <VisitorModeToast />;

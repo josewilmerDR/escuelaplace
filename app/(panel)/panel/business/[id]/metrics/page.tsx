@@ -34,6 +34,7 @@ import {
   type MetricsSummary,
 } from "@/lib/metrics";
 import type { BusinessDoc, ContactChannel } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 const CHANNEL_LABELS: Record<ContactChannel, string> = {
   whatsapp: "Chats de WhatsApp",
@@ -152,12 +153,7 @@ export default function BusinessMetricsPage() {
 
   if (!loaded) return <MetricsSkeleton businessName={business?.name} />;
 
-  const isManager =
-    user != null &&
-    business != null &&
-    (business.ownerId === user.id ||
-      business.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(business, user);
 
   if (denied || !business || !isManager) {
     // Permission-denied and a plain network failure are indistinguishable from here, so

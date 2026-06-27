@@ -61,6 +61,7 @@ import {
   type ProjectStage,
   type SchoolDoc,
 } from "@/types";
+import { isPageManager } from "@/lib/permissions";
 
 /** Lifecycle of the project + school fetch the page depends on. */
 type LoadState = "loading" | "error" | "loaded";
@@ -235,11 +236,7 @@ export default function ProjectEditPage() {
     );
   }
 
-  const isManager =
-    user != null &&
-    (school.ownerId === user.id ||
-      school.editorIds?.includes(user.id) ||
-      user.role === "admin");
+  const isManager = isPageManager(school, user);
   if (!isManager) {
     return (
       <main>
