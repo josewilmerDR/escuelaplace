@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isSchoolVerified, paymentMethodsOf, schoolCover } from "./schools";
+import {
+  barePaymentValue,
+  displayPaymentMethodsOf,
+  isSchoolVerified,
+  paymentMethodsOf,
+  schoolCover,
+} from "./schools";
 
 describe("schoolCover", () => {
   it("prefers the explicit cover over everything else", () => {
@@ -117,5 +123,85 @@ describe("paymentMethodsOf", () => {
         sinpe: { number: "77772222", accountHolder: "María López" },
       }),
     ).toEqual([{ label: "SINPE Móvil", value: "77772222 (María López)" }]);
+  });
+
+  it("never carries the display-only copyValue hint (stored shape)", () => {
+    const [method] = paymentMethodsOf({
+      sinpe: { number: "88881234", accountHolder: "Juan Pérez" },
+    });
+    expect(method).not.toHaveProperty("copyValue");
+  });
+});
+
+describe("displayPaymentMethodsOf", () => {
+  it("exposes the bare number as copyValue when a legacy SINPE has an account holder", () => {
+    expect(
+      displayPaymentMethodsOf({
+        sinpe: { number: "88881234", accountHolder: "Juan Pérez" },
+      }),
+    ).toEqual([
+      {
+        label: "SINPE Móvil",
+        value: "88881234 (Juan Pérez)",
+        copyValue: "88881234",
+      },
+    ]);
+  });
+
+  it("omits copyValue for a legacy SINPE without an account holder (value is already bare)", () => {
+    expect(
+      displayPaymentMethodsOf({
+        sinpe: { number: "88881234", accountHolder: "" },
+      }),
+    ).toEqual([{ label: "SINPE Móvil", value: "88881234" }]);
+  });
+
+  it("leaves modern paymentMethods untouched when the value is already bare", () => {
+    const methods = [
+      { label: "Cuenta bancaria", value: "CR05 1234 5678" },
+      { label: "SINPE Móvil", value: "88881234" },
+    ];
+    expect(displayPaymentMethodsOf({ paymentMethods: methods })).toEqual(methods);
+  });
+
+  it("strips a parenthetical note baked into a modern value into copyValue", () => {
+    expect(
+      displayPaymentMethodsOf({
+        paymentMethods: [
+          {
+            label: "SINPE Móvil",
+            value: "88882222 (Junta de Educación Rep. Argentina)",
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        label: "SINPE Móvil",
+        value: "88882222 (Junta de Educación Rep. Argentina)",
+        copyValue: "88882222",
+      },
+    ]);
+  });
+});
+
+describe("barePaymentValue", () => {
+  it("strips a trailing parenthetical annotation, keeping the number", () => {
+    expect(barePaymentValue("88882222 (Junta de Educación Rep. Argentina)")).toBe(
+      "88882222",
+    );
+  });
+
+  it("strips a note from a bank account too", () => {
+    expect(barePaymentValue("CR05 1234 5678 (cuenta corriente)")).toBe(
+      "CR05 1234 5678",
+    );
+  });
+
+  it("leaves a value without a parenthetical untouched (but trims it)", () => {
+    expect(barePaymentValue("  junta@escuela.org  ")).toBe("junta@escuela.org");
+  });
+
+  it("never reduces a wholly-parenthetical value to empty", () => {
+    expect(barePaymentValue("(8888-1234)")).toBe("(8888-1234)");
   });
 });

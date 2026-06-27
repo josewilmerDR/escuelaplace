@@ -341,6 +341,13 @@ export interface SchoolCardData {
 export interface PaymentMethod {
   label: string;
   value: string;
+  /**
+   * Read-time DISPLAY hint, never stored: the bare datum to put on the clipboard when
+   * `value` is shown with extra human context (e.g. a legacy SINPE renders as
+   * "88881234 (Junta…)" but only "88881234" should be copied). Absent ⇒ copy `value`
+   * verbatim. Set by displayPaymentMethodsOf; the stored shape (paymentMethodsOf) omits it.
+   */
+  copyValue?: string;
 }
 
 /**
