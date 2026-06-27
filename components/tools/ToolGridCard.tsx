@@ -16,11 +16,12 @@ const TOOL_GRID_SIZES = "(min-width: 1024px) 150px, (min-width: 640px) 30vw, 50v
 
 /**
  * Compact management card for one created tool, shared by the Activas and Ocultas grids on the
- * per-kind manage page. The whole card links to the board's primary action for that kind: a reinado
- * opens its live management panel (tools/[toolId]/manage) so editing is a deliberate step, not the
- * default landing; every other kind goes straight to its edit page. The cover falls back to the
- * kind's icon (mirroring the public ToolCard) and a "Oculta" chip overlays a hidden tool. Kept
- * small so the grid packs many at a glance.
+ * per-kind manage page. The whole card links to the board's primary action for that kind: every
+ * real kind opens its per-instance management panel (tools/[toolId]/manage) — the at-a-glance
+ * control center to follow the activity — so editing is a deliberate step (the panel's "Editar …"
+ * button), not the default landing. Only the catch-all `other` kind has no panel and lands straight
+ * on its edit page. The cover falls back to the kind's icon (mirroring the public ToolCard) and a
+ * "Oculta" chip overlays a hidden tool. Kept small so the grid packs many at a glance.
  */
 export function ToolGridCard({
   schoolId,
@@ -30,13 +31,13 @@ export function ToolGridCard({
   tool: ToolDoc;
 }) {
   const Icon = toolTypeMeta(tool.type).icon;
-  // A reinado or rifa lands on its control panel (follow the votes / track sold numbers); the edit
-  // page sits behind an explicit "Editar …" button there. Other kinds keep the edit page as their
-  // primary action.
+  // Every kind lands on its control panel (follow the votes / sold numbers / cartones / pedidos, or
+  // just review the setup); the edit page sits behind an explicit "Editar …" button there. The
+  // config-less `other` kind has no panel, so it keeps the edit page as its primary action.
   const href =
-    tool.type === "pageant" || tool.type === "raffle"
-      ? `/panel/school/${schoolId}/tools/${tool.id}/manage`
-      : `/panel/school/${schoolId}/tools/${tool.id}`;
+    tool.type === "other"
+      ? `/panel/school/${schoolId}/tools/${tool.id}`
+      : `/panel/school/${schoolId}/tools/${tool.id}/manage`;
   return (
     <li>
       <Link
