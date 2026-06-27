@@ -22,10 +22,13 @@ export function ToolManageFooter({
   schoolId,
   tool,
   school,
+  showShareActions = true,
 }: {
   schoolId: string;
   tool: ToolDoc;
   school: SchoolDoc;
+  /** Show the "Consultar"/"Compartir" pair. Off for servicios, whose panel drops both. */
+  showShareActions?: boolean;
 }) {
   const toolId = tool.id;
   const publicHref = `/school/${schoolId}/tool/${toolId}`;
@@ -41,15 +44,17 @@ export function ToolManageFooter({
           Ver página pública
         </Link>
       </div>
-      <div className="mt-3 sm:max-w-md">
-        <ToolCardActions
-          whatsappUrl={whatsappUrl}
-          whatsappLabel={toolContactLabel(tool)}
-          sharePath={publicHref}
-          shareTitle={tool.title}
-          shareText={toolShareText(tool.title, school.name)}
-        />
-      </div>
+      {showShareActions && (
+        <div className="mt-3 sm:max-w-md">
+          <ToolCardActions
+            whatsappUrl={whatsappUrl}
+            whatsappLabel={toolContactLabel(tool)}
+            sharePath={publicHref}
+            shareTitle={tool.title}
+            shareText={toolShareText(tool.title, school.name)}
+          />
+        </div>
+      )}
     </section>
   );
 }
