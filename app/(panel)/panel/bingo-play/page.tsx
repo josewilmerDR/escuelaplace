@@ -381,6 +381,8 @@ function BingoPlayContent() {
                     // mark any cell (and thus possibly err).
                     markable={assistMarking ? called : new Set(card.numbers)}
                     onToggle={playable ? (n) => toggleMark(card.id, n) : undefined}
+                    // Classic 5×5 free center (logo/text/blank): shown instead of a number, never tappable.
+                    centerSquare={bingo.centerSquare}
                   />
                   <div className="mt-3 flex flex-col gap-2">
                     {canClaim && (
