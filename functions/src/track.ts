@@ -16,6 +16,7 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
+import { DOC_ID_RE, parseBeaconBody } from "./http";
 
 /** Mirror of BusinessEvent in types/firestore.ts ("view" + ContactChannel). */
 const TRACKED_EVENTS = new Set([
@@ -28,9 +29,6 @@ const TRACKED_EVENTS = new Set([
   "instagram",
   "facebook",
 ]);
-
-/** Firestore auto-ids and seeded ids both match this; anything else is garbage. */
-const BUSINESS_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 /**
  * Day key for the metricsDaily series. Costa Rica has no DST, so a fixed UTC-6 offset
@@ -46,25 +44,19 @@ export const trackInteraction = onRequest({ cors: true }, async (req, res) => {
     return;
   }
 
-  // sendBeacon posts text/plain (a "simple" request, no CORS preflight), so the body
-  // arrives as a raw string; a JSON fetch arrives already parsed.
-  let payload: unknown = req.body;
-  if (typeof payload === "string") {
-    try {
-      payload = JSON.parse(payload);
-    } catch {
-      res.status(400).end();
-      return;
-    }
+  const parsed = parseBeaconBody(req);
+  if (!parsed.ok) {
+    res.status(400).end();
+    return;
   }
-  const { businessId, event } = (payload ?? {}) as {
+  const { businessId, event } = (parsed.payload ?? {}) as {
     businessId?: unknown;
     event?: unknown;
   };
 
   if (
     typeof businessId !== "string" ||
-    !BUSINESS_ID.test(businessId) ||
+    !DOC_ID_RE.test(businessId) ||
     typeof event !== "string" ||
     !TRACKED_EVENTS.has(event)
   ) {
@@ -122,7 +114,7 @@ export const recordWalkIn = onCall(async (request) => {
   };
   if (
     typeof businessId !== "string" ||
-    !BUSINESS_ID.test(businessId) ||
+    !DOC_ID_RE.test(businessId) ||
     (delta !== 1 && delta !== -1)
   ) {
     throw new HttpsError("invalid-argument", "Bad businessId or delta.");

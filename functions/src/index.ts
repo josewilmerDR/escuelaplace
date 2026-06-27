@@ -43,6 +43,7 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { donorTierForUnits } from "./donors";
+import { DOC_ID_RE, parseBeaconBody } from "./http";
 import {
   EXPIRING_WINDOW_DAYS,
   type ReviewStatsLike,
@@ -86,9 +87,6 @@ function sha256Hex(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
-/** Auto-id / seeded-id shape — anything else in a path component is garbage we reject early. */
-const PAGEANT_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
-
 /** The uids that administer a page (owner + editors) as a set — the self-dealing key. */
 function principalsOf(
   data: { ownerId?: unknown; editorIds?: unknown } | undefined,
@@ -120,6 +118,23 @@ function tsMillis(t: unknown): number | null {
   return t && typeof (t as Timestamp).toMillis === "function"
     ? (t as Timestamp).toMillis()
     : null;
+}
+
+/**
+ * Whether a write is a CONFIRMATION: `confirmedAt` is newly set (first confirm) or advanced
+ * (renewal). Flag-only writes (e.g. countsForRanking) and status flips leave `confirmedAt`
+ * untouched, so they're not confirmations — which is what keeps the recompute cascade from
+ * re-auditing or re-thanking the same event. Shared by every confirmable ledger (subscriptions,
+ * project contributions, pageant votes).
+ */
+function isConfirmation(
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined,
+): boolean {
+  return (
+    after?.confirmedAt != null &&
+    tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt)
+  );
 }
 
 /**
@@ -174,7 +189,7 @@ async function confirmationSignals(
  * Eventarc event id is NOT guaranteed to satisfy Firestore's doc-id constraints, so we hash it.
  */
 function auditIdOf(eventId: string): string {
-  return createHash("sha256").update(eventId).digest("hex");
+  return sha256Hex(eventId);
 }
 
 /**
@@ -666,19 +681,15 @@ export const onSubscriptionWritten = onDocumentWritten(
       }
     }
 
-    // A confirmation: `confirmedAt` newly set (first confirm) or advanced (renewal). Flag-only
-    // writes (countsForRanking) and expiry status flips leave confirmedAt untouched, so they
-    // trigger neither the audit nor a thank-you — no duplicates from the recompute cascade.
-    const isConfirmation =
-      after?.confirmedAt != null &&
-      tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt);
-    const audit = isConfirmation
+    // Audit + thank only on a real confirmation, so the recompute cascade never re-fires either.
+    const confirming = isConfirmation(before, after);
+    const audit = confirming
       ? recordSubscriptionAudit(auditIdOf(event.id), event.params.id, after as Record<string, unknown>)
       : Promise.resolve();
     // Thank the supporter on this confirmation. A relationship never confirmed before is a
     // `welcome`; a later confirmation is a `renewal`. Anniversaries fall between renewals and
     // are caught by the daily job (detectAnniversaries), not here.
-    const thanks = isConfirmation
+    const thanks = confirming
       ? recordSubscriptionThankYou(
           event.params.id,
           tsMillis(before?.confirmedAt) == null ? "welcome" : "renewal",
@@ -814,13 +825,15 @@ export const onProjectContributionWritten = onDocumentWritten(
       if (d.donorId) donorIds.add(d.donorId as string);
     }
 
-    // Audit a contribution confirmation (confirmedAt newly set). Contributions are
-    // pending → confirmed (no renewal); the same guard keeps recomputes from re-auditing.
-    const audit =
-      after?.confirmedAt != null &&
-      tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt)
-        ? recordContributionAudit(auditIdOf(event.id), event.params.id, after)
-        : Promise.resolve();
+    // Audit a contribution confirmation. Contributions are pending → confirmed (no renewal);
+    // the shared guard keeps recomputes from re-auditing.
+    const audit = isConfirmation(before, after)
+      ? recordContributionAudit(
+          auditIdOf(event.id),
+          event.params.id,
+          after as Record<string, unknown>,
+        )
+      : Promise.resolve();
 
     await Promise.all([
       audit,
@@ -992,13 +1005,15 @@ export const onPageantVoteWritten = onDocumentWritten(
       }
     }
 
-    // Audit a support confirmation (confirmedAt newly set). Support is pending → confirmed (no
-    // renewal); the same guard keeps the recompute cascade from re-auditing.
-    const audit =
-      after?.confirmedAt != null &&
-      tsMillis(after.confirmedAt) !== tsMillis(before?.confirmedAt)
-        ? recordPageantVoteAudit(auditIdOf(event.id), event.params.id, after)
-        : Promise.resolve();
+    // Audit a support confirmation. Support is pending → confirmed (no renewal); the shared
+    // guard keeps the recompute cascade from re-auditing.
+    const audit = isConfirmation(before, after)
+      ? recordPageantVoteAudit(
+          auditIdOf(event.id),
+          event.params.id,
+          after as Record<string, unknown>,
+        )
+      : Promise.resolve();
 
     await Promise.all([
       audit,
@@ -1045,17 +1060,12 @@ export const castPageantApplause = onRequest({ cors: true }, async (req, res) =>
     return;
   }
 
-  // A JSON fetch arrives parsed; a text/plain body (beacon) arrives raw.
-  let payload: unknown = req.body;
-  if (typeof payload === "string") {
-    try {
-      payload = JSON.parse(payload);
-    } catch {
-      res.status(400).end();
-      return;
-    }
+  const parsed = parseBeaconBody(req);
+  if (!parsed.ok) {
+    res.status(400).end();
+    return;
   }
-  const { schoolId, toolId, candidateId, voterKey } = (payload ?? {}) as {
+  const { schoolId, toolId, candidateId, voterKey } = (parsed.payload ?? {}) as {
     schoolId?: unknown;
     toolId?: unknown;
     candidateId?: unknown;
@@ -1063,11 +1073,11 @@ export const castPageantApplause = onRequest({ cors: true }, async (req, res) =>
   };
   if (
     typeof schoolId !== "string" ||
-    !PAGEANT_ID_RE.test(schoolId) ||
+    !DOC_ID_RE.test(schoolId) ||
     typeof toolId !== "string" ||
-    !PAGEANT_ID_RE.test(toolId) ||
+    !DOC_ID_RE.test(toolId) ||
     typeof candidateId !== "string" ||
-    !PAGEANT_ID_RE.test(candidateId) ||
+    !DOC_ID_RE.test(candidateId) ||
     typeof voterKey !== "string" ||
     voterKey.length < 8 ||
     voterKey.length > 200
@@ -1279,10 +1289,13 @@ export const onSchoolWritten = onDocumentWritten(
       .collection(TOOLS)
       .where("type", "==", "pageant")
       .get();
+    // Fan the per-tool candidate reads out in parallel, not one round trip at a time.
+    const candSnaps = await Promise.all(
+      toolsSnap.docs.map((tool) => tool.ref.collection(CANDIDATES).get()),
+    );
     const candidateRecomputes: Promise<void>[] = [];
-    for (const tool of toolsSnap.docs) {
-      const candSnap = await tool.ref.collection(CANDIDATES).get();
-      for (const cand of candSnap.docs) {
+    toolsSnap.docs.forEach((tool, i) => {
+      for (const cand of candSnaps[i].docs) {
         // Both tallies gate the same way (verified + no self-dealing), so re-verification flips
         // both: the economic support tally AND the recurring-padrino count.
         candidateRecomputes.push(
@@ -1290,7 +1303,7 @@ export const onSchoolWritten = onDocumentWritten(
           recomputeCandidatePadrinos(schoolId, tool.id, cand.id),
         );
       }
-    }
+    });
 
     await Promise.all([
       ...[...businessIds].map(recomputeBusinessRanking),
