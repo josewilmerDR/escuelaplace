@@ -5,9 +5,10 @@
  * loaded the school + tool and checked that the viewer manages the school. An event is config-only —
  * no orders, no RSVP, nothing live to follow (the only public action is a WhatsApp consult) — so this
  * panel is a READ-ONLY overview: a config recap (date + Próximo/Hoy/Finalizó status, place, map,
- * gallery) so the board sees the announcement at a glance, plus the public/share/consult footer and
- * the "Editar evento" button on the title row. PURELY INFORMATIONAL — the platform never processes
- * money.
+ * gallery) so the board sees the announcement at a glance, plus a "Ver página pública" footer link and
+ * the "Editar evento" button on the title row. The "Consultar"/"Compartir" pair is dropped here — it's
+ * an editor-only view, so those public engagements live on the public page, not the cockpit. PURELY
+ * INFORMATIONAL — the platform never processes money.
  */
 import Link from "next/link";
 import { EventStatusBadge } from "@/components/tools/EventStatusBadge";
@@ -103,7 +104,12 @@ export function EventManagePanel({
         “Consultar”.
       </p>
 
-      <ToolManageFooter schoolId={schoolId} tool={tool} school={school} />
+      <ToolManageFooter
+        schoolId={schoolId}
+        tool={tool}
+        school={school}
+        showShareActions={false}
+      />
     </main>
   );
 }

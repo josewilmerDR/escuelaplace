@@ -107,10 +107,6 @@ export function EventConfigFields({
           placeholder="https://maps.google.com/…"
         />
       </Field>
-
-      <p className="text-xs text-muted">
-        Las fotos y el video del evento se agregan al editar la herramienta.
-      </p>
     </div>
   );
 }
