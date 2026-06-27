@@ -19,6 +19,7 @@ import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { ProjectStatusBadge } from "@/components/projects/ProjectStatusBadge";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PanelNotice } from "@/components/ui/PanelNotice";
 import { FlagIcon } from "@/components/ui/icons";
 import { formatMoney } from "@/lib/format";
 import { CARD_COVER_ASPECT, CARD_COVER_SIZES } from "@/lib/layout";
@@ -216,13 +217,9 @@ export default function SchoolProjectsPage() {
 
   if (!school) {
     return (
-      <main>
-        <Heading schoolId={id} />
-        <p className="mt-4 text-sm text-muted">Escuela no encontrada.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading schoolId={id} />}>
+        Escuela no encontrada.
+      </PanelNotice>
     );
   }
 
@@ -230,14 +227,9 @@ export default function SchoolProjectsPage() {
 
   if (!isManager) {
     return (
-      <main>
-        <Heading schoolId={id} subtitle={school.name} />
-        {/* Not a system failure — the user simply lacks access here, so muted, not error. */}
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading schoolId={id} subtitle={school.name} />}>
+        No administras esta escuela.
+      </PanelNotice>
     );
   }
 

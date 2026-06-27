@@ -18,6 +18,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { PanelNotice } from "@/components/ui/PanelNotice";
 import { userErrorMessage } from "@/lib/errors";
 import {
   bingoDeckNameError,
@@ -120,17 +121,13 @@ export default function BingoDeckDetailPage() {
 
   if (!school || !deck) {
     return (
-      <main>
-        <Heading onBack={() => router.back()} />
-        <p className="mt-4 text-sm text-muted">
-          {!school ? "Escuela no encontrada." : "Mazo no encontrado."}
-        </p>
-        <p className="mt-6 text-sm">
-          <BackLink href={`/panel/school/${id}/bingo-decks`}>
-            Volver a mazos
-          </BackLink>
-        </p>
-      </main>
+      <PanelNotice
+        heading={<Heading onBack={() => router.back()} />}
+        backHref={`/panel/school/${id}/bingo-decks`}
+        backLabel="Volver a mazos"
+      >
+        {!school ? "Escuela no encontrada." : "Mazo no encontrado."}
+      </PanelNotice>
     );
   }
 
@@ -138,13 +135,9 @@ export default function BingoDeckDetailPage() {
 
   if (!isManager) {
     return (
-      <main>
-        <Heading onBack={() => router.back()} subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading onBack={() => router.back()} subtitle={school.name} />}>
+        No administras esta escuela.
+      </PanelNotice>
     );
   }
 

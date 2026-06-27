@@ -29,6 +29,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { ImagePicker, validateImageFile } from "@/components/ui/ImagePicker";
+import { PanelNotice } from "@/components/ui/PanelNotice";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { XMarkIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
@@ -224,27 +225,16 @@ export default function ProjectEditPage() {
 
   if (!project || !school) {
     return (
-      <main>
-        <Heading />
-        <p className="mt-4 text-sm text-muted">Proyecto no encontrado.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading />}>Proyecto no encontrado.</PanelNotice>
     );
   }
 
   const isManager = isPageManager(school, user);
   if (!isManager) {
     return (
-      <main>
-        <Heading subtitle={school.name} />
-        {/* Not a system failure — the user simply lacks access here, so muted, not error. */}
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading subtitle={school.name} />}>
+        No administras esta escuela.
+      </PanelNotice>
     );
   }
 

@@ -65,6 +65,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { ImagePicker } from "@/components/ui/ImagePicker";
+import { PanelNotice } from "@/components/ui/PanelNotice";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { userErrorMessage } from "@/lib/errors";
 import { formatMoney } from "@/lib/format";
@@ -370,17 +371,13 @@ export default function EditToolPage() {
 
   if (!school || !tool) {
     return (
-      <main>
-        <Heading schoolId={id} />
-        <p className="mt-4 text-sm text-muted">
-          {!school ? "Escuela no encontrada." : "Herramienta no encontrada."}
-        </p>
-        <p className="mt-6 text-sm">
-          <BackLink href={`/panel/school/${id}/tools`}>
-            Volver a herramientas
-          </BackLink>
-        </p>
-      </main>
+      <PanelNotice
+        heading={<Heading schoolId={id} />}
+        backHref={`/panel/school/${id}/tools`}
+        backLabel="Volver a herramientas"
+      >
+        {!school ? "Escuela no encontrada." : "Herramienta no encontrada."}
+      </PanelNotice>
     );
   }
 
@@ -388,13 +385,9 @@ export default function EditToolPage() {
 
   if (!isManager) {
     return (
-      <main>
-        <Heading schoolId={id} subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading schoolId={id} subtitle={school.name} />}>
+        No administras esta escuela.
+      </PanelNotice>
     );
   }
 

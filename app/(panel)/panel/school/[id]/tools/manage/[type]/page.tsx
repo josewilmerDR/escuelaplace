@@ -16,6 +16,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { ToolGridCard, TOOL_GRID } from "@/components/tools/ToolGridCard";
 import { BackLink } from "@/components/ui/BackLink";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PanelNotice } from "@/components/ui/PanelNotice";
 import {
   TOOL_TYPE_LIST,
   createToolTitle,
@@ -166,13 +167,9 @@ function ToolKindContent({
 
   if (!school) {
     return (
-      <main>
-        <Heading schoolId={schoolId} title={title} />
-        <p className="mt-4 text-sm text-muted">Escuela no encontrada.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice heading={<Heading schoolId={schoolId} title={title} />}>
+        Escuela no encontrada.
+      </PanelNotice>
     );
   }
 
@@ -180,13 +177,13 @@ function ToolKindContent({
 
   if (!isManager) {
     return (
-      <main>
-        <Heading schoolId={schoolId} title={title} subtitle={school.name} />
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice
+        heading={
+          <Heading schoolId={schoolId} title={title} subtitle={school.name} />
+        }
+      >
+        No administras esta escuela.
+      </PanelNotice>
     );
   }
 

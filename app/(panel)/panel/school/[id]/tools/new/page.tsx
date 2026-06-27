@@ -70,6 +70,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { ImagePicker } from "@/components/ui/ImagePicker";
+import { PanelNotice } from "@/components/ui/PanelNotice";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import { TOOL_TYPE_LIST, createToolTitle, toolTypeMeta } from "@/lib/tools/registry";
@@ -367,18 +368,18 @@ function NewToolContent() {
 
   if (!school) {
     return (
-      <main>
-        <Heading
-          schoolId={id}
-          title={heading}
-          backHref={backHref}
-          backLabel={backLabel}
-        />
-        <p className="mt-4 text-sm text-muted">Escuela no encontrada.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice
+        heading={
+          <Heading
+            schoolId={id}
+            title={heading}
+            backHref={backHref}
+            backLabel={backLabel}
+          />
+        }
+      >
+        Escuela no encontrada.
+      </PanelNotice>
     );
   }
 
@@ -386,19 +387,19 @@ function NewToolContent() {
 
   if (!isManager) {
     return (
-      <main>
-        <Heading
-          schoolId={id}
-          title={heading}
-          subtitle={school.name}
-          backHref={backHref}
-          backLabel={backLabel}
-        />
-        <p className="mt-4 text-sm text-muted">No administras esta escuela.</p>
-        <p className="mt-6 text-sm">
-          <BackLink href="/panel">Volver al panel</BackLink>
-        </p>
-      </main>
+      <PanelNotice
+        heading={
+          <Heading
+            schoolId={id}
+            title={heading}
+            subtitle={school.name}
+            backHref={backHref}
+            backLabel={backLabel}
+          />
+        }
+      >
+        No administras esta escuela.
+      </PanelNotice>
     );
   }
 
