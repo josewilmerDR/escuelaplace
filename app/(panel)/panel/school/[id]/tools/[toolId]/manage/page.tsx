@@ -3,11 +3,12 @@
 /**
  * Per-instance management / control panel (/panel/school/[id]/tools/[toolId]/manage).
  *
- * The DEFAULT landing when the board clicks a tool card that HAS a control panel (ToolGridCard
- * routes pageant + raffle here, every other kind straight to its edit page). This file is the thin
- * dispatcher: it loads the school + tool, gates on management access, then renders the kind-specific
- * panel (<PageantManagePanel> / <RaffleManagePanel>). Editing lives behind an explicit "Editar …"
- * button inside each panel, so the board never lands on the editor by accident.
+ * The DEFAULT landing when the board clicks a tool card (ToolGridCard routes every real kind here;
+ * only the catch-all `other` kind goes straight to its edit page). This file is the thin dispatcher:
+ * it loads the school + tool, gates on management access, then renders the kind-specific panel
+ * (<PageantManagePanel> / <RaffleManagePanel> / <BingoManagePanel> / <SaleManagePanel> /
+ * <ServiceManagePanel> / <GuidedTourManagePanel> / <EventManagePanel>). Editing lives behind an
+ * explicit "Editar …" button inside each panel, so the board never lands on the editor by accident.
  *
  * Route note: distinct from tools/manage/[type] (the per-KIND list). This is tools/[TOOLID]/manage —
  * the per-INSTANCE panel; the segments don't collide in Next's router.
@@ -17,8 +18,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { BingoManagePanel } from "@/components/tools/BingoManagePanel";
+import { EventManagePanel } from "@/components/tools/EventManagePanel";
+import { GuidedTourManagePanel } from "@/components/tools/GuidedTourManagePanel";
 import { PageantManagePanel } from "@/components/tools/PageantManagePanel";
 import { RaffleManagePanel } from "@/components/tools/RaffleManagePanel";
+import { SaleManagePanel } from "@/components/tools/SaleManagePanel";
+import { ServiceManagePanel } from "@/components/tools/ServiceManagePanel";
 import { BackLink } from "@/components/ui/BackLink";
 import { getSchoolById, getToolById } from "@/lib/firestore";
 import type { SchoolDoc, ToolDoc } from "@/types";
@@ -27,8 +33,17 @@ type LoadState = "loading" | "error" | "loaded";
 
 const LOADING_TEXT = "Cargando la herramienta…";
 
-/** The kinds that have a dedicated control panel here; any other kind belongs on the edit page. */
-const MANAGED_KINDS = new Set<ToolDoc["type"]>(["pageant", "raffle"]);
+/** The kinds that have a dedicated control panel here — every real kind. Only the config-less
+ * `other` kind is absent, so it falls through to its edit page (the redirect effect below). */
+const MANAGED_KINDS = new Set<ToolDoc["type"]>([
+  "pageant",
+  "raffle",
+  "bingo",
+  "sale",
+  "service",
+  "guided_tour",
+  "event",
+]);
 
 /** Minimal heading used only for the dispatcher's own loading / error / access states. */
 function Heading({ title }: { title: string }) {
@@ -145,8 +160,24 @@ export default function ToolManagePage() {
   if (tool.type === "raffle") {
     return <RaffleManagePanel schoolId={id} school={school} tool={tool} />;
   }
+  if (tool.type === "bingo") {
+    return <BingoManagePanel schoolId={id} school={school} tool={tool} />;
+  }
+  if (tool.type === "sale") {
+    return <SaleManagePanel schoolId={id} school={school} tool={tool} />;
+  }
+  if (tool.type === "service") {
+    return <ServiceManagePanel schoolId={id} school={school} tool={tool} />;
+  }
+  if (tool.type === "guided_tour") {
+    return <GuidedTourManagePanel schoolId={id} school={school} tool={tool} />;
+  }
+  if (tool.type === "event") {
+    return <EventManagePanel schoolId={id} school={school} tool={tool} />;
+  }
 
-  // An unmanaged kind is mid-redirect (effect above) — keep the skeleton, never the wrong UI.
+  // The config-less `other` kind is mid-redirect to its editor (effect above) — keep the skeleton,
+  // never the wrong UI.
   return (
     <main>
       <Heading title="Gestión de la herramienta" />

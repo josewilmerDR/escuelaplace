@@ -961,13 +961,12 @@ export default function EditToolPage() {
 
   // Typed per-kind config for the render (tool is non-null past the guards above).
   const saleConfig = toolConfigOf(tool, "sale");
-  const bingoConfig = toolConfigOf(tool, "bingo");
   const eventConfig = toolConfigOf(tool, "event");
 
-  // A reinado/rifa edit page is reached from that tool's per-instance management panel (via the
-  // "Editar …" button there), so its back link returns to that panel; the other kinds have no such
-  // panel, so they return to the kind's list.
-  const hasManagePanel = type === "pageant" || type === "raffle";
+  // Every real kind's edit page is reached from that tool's per-instance management panel (via the
+  // "Editar …" button there), so its back link returns to that panel; only the config-less `other`
+  // kind has no panel, so it returns to the kind's list.
+  const hasManagePanel = type !== "other";
   const editBackHref = hasManagePanel
     ? `/panel/school/${id}/tools/${toolId}/manage`
     : `/panel/school/${id}/tools/manage/${type}`;
@@ -1122,27 +1121,9 @@ export default function EditToolPage() {
 
         {type === "bingo" && (
           <section className="flex flex-col gap-4">
-            {/* Launch the live game from inside the tool it belongs to (only once the bingo is
-                saved — the console reads the saved bingo config's format to draw the board). */}
-            {bingoConfig && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand-tint p-4 ring-1 ring-brand/10">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">
-                    Bingo en vivo
-                  </p>
-                  <p className="text-xs text-muted">
-                    Dirige el juego: canta los números y valida los reclamos en
-                    tiempo real.
-                  </p>
-                </div>
-                <Link
-                  href={`/panel/school/${id}/bingo-live?tool=${toolId}`}
-                  className="btn btn-primary shrink-0"
-                >
-                  Dirigir en vivo
-                </Link>
-              </div>
-            )}
+            {/* The live game ("Dirigir en vivo") lives on the bingo's management panel — the control
+                surface the board lands on from its card — so this editor stays focused on
+                configuration only (mirroring how the reinado editor keeps the gala on its panel). */}
             <div className="rounded-2xl bg-surface p-4 ring-1 ring-black/5">
               <p className="mb-3 text-sm font-semibold text-foreground">
                 Configuración del bingo

@@ -587,19 +587,18 @@ function NewToolContent() {
           // ignore — the tool is created; the cover can be added later from the edit page
         }
       }
-      // When a bingo is created from a deck, copy the deck's cartones into the new bingo's lote and
-      // land on the edit page so the board sees the populated lote. Best-effort, like the cover: the
-      // bingo already exists, so a failed copy must neither block the flow nor risk a duplicate lote
-      // on a form retry — the board can generate/import from the edit page. Every other kind falls
-      // through to the kind's manage page, where the just-created tool now appears in the list.
+      // When a bingo is created from a deck, copy the deck's cartones into the new bingo's lote.
+      // Best-effort, like the cover: the bingo already exists, so a failed copy must neither block
+      // the flow nor risk a duplicate lote on a form retry — the board can generate/import from the
+      // edit page. Then it falls through to the kind's manage page (like every non-pageant kind),
+      // where the just-created bingo appears; clicking its card opens the management panel, whose
+      // cartones tally confirms the copy landed.
       if (type === "bingo" && selectedDeckId) {
         try {
           await copyDeckToTool(id, selectedDeckId, toolId);
         } catch {
           // ignore — the bingo is created; the cartones can be generated from the edit page
         }
-        router.push(`/panel/school/${id}/tools/${toolId}`);
-        return;
       }
       // A reinado lands on its OWN management panel after creation (the per-reinado control cockpit —
       // the same surface the board reaches by clicking the reinado card — where the votes, the gala and
