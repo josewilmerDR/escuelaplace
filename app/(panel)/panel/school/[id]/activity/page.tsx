@@ -56,9 +56,8 @@ import {
 import { formatColones, formatMoney } from "@/lib/format";
 import type { SchoolDoc } from "@/types";
 import { isPageManager } from "@/lib/permissions";
+import type { LoadState } from "@/lib/page-state";
 
-/** Lifecycle of the initial school + pending fetch. */
-type LoadState = "loading" | "error" | "loaded";
 /** Which list the board is looking at: the pending inbox or the settled history. */
 type View = "pending" | "history";
 /** "all" plus a kind — the selected filter chip. */

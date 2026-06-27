@@ -44,9 +44,7 @@ import type {
   SubscriptionDoc,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-/** Lifecycle of the initial business + schools + subscriptions fetch. */
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 /**
  * Loading shell. Renders the SAME static header (title + business name) the loaded page

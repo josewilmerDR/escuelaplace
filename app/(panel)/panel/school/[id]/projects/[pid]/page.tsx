@@ -62,9 +62,7 @@ import {
   type SchoolDoc,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-/** Lifecycle of the project + school fetch the page depends on. */
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 /**
  * The page heading, rendered identically in every state (loading, error, loaded) so the

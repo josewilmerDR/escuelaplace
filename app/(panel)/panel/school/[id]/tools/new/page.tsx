@@ -99,9 +99,7 @@ import {
   type ToolType,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-/** Lifecycle of the school fetch the page depends on. */
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 const LOADING_TEXT = "Cargando…";
 

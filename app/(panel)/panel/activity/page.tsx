@@ -25,8 +25,7 @@ import {
   getPendingActivityCountBySchool,
   type ResolvedPage,
 } from "@/lib/firestore";
-
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 /** One managed school plus its pending-activity count. */
 interface SchoolRow {

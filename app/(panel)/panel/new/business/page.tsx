@@ -46,9 +46,7 @@ import {
   type AdminAreaGuess,
   type LatLng,
 } from "@/components/maps/LocationPicker";
-
-/** Lifecycle of the schools/categories fetch the form depends on. */
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 export default function NewBusinessPage() {
   const { user } = useAuth();

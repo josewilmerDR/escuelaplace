@@ -41,8 +41,7 @@ import {
   type PaymentMethod,
   type SchoolDoc,
 } from "@/types";
-
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 export default function PageantSupportPage() {
   // useSearchParams needs a Suspense boundary to keep the route statically renderable.

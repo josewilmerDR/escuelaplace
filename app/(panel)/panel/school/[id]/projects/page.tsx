@@ -29,9 +29,7 @@ import {
 } from "@/lib/firestore";
 import type { ProjectDoc, SchoolDoc } from "@/types";
 import { isPageManager } from "@/lib/permissions";
-
-/** Lifecycle of the school + projects fetch the page depends on. */
-type LoadState = "loading" | "error" | "loaded";
+import type { LoadState } from "@/lib/page-state";
 
 const LOADING_TEXT = "Cargando proyectos…";
 
