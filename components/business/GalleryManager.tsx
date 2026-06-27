@@ -11,7 +11,7 @@
  * updates the doc right away — there is no enclosing "save" to defer to.
  */
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { validateImageFile } from "@/components/ui/ImagePicker";
 import { userErrorMessage } from "@/lib/errors";
 import { BUSINESS_GALLERY_MAX } from "@/types";
@@ -28,7 +28,6 @@ export function GalleryManager({
   /** Remove the URL from the page doc (and best-effort delete the file). */
   removePhoto: (url: string) => Promise<void>;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState(initialPhotos);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +111,6 @@ export function GalleryManager({
         >
           {busy ? "Subiendo…" : `Agregar foto (${photos.length}/${BUSINESS_GALLERY_MAX})`}
           <input
-            ref={inputRef}
             type="file"
             accept="image/*"
             className="sr-only"

@@ -17,7 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { AuditEvent, AuditEventDoc } from "@/types";
-import { snapToList } from "./converters";
+import { byCreatedAtDesc, snapToList } from "./converters";
 
 const AUDIT_EVENTS = "auditEvents";
 
@@ -78,7 +78,5 @@ export async function getAuditEventsBySchool(
     collection(db, AUDIT_EVENTS),
     where("schoolId", "==", schoolId),
   );
-  return snapToList<AuditEvent>(await getDocs(q)).sort(
-    (a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0),
-  );
+  return snapToList<AuditEvent>(await getDocs(q)).sort(byCreatedAtDesc);
 }

@@ -11,6 +11,7 @@ import type {
   SchoolDoc,
 } from "@/types";
 import { localityLabel } from "@/lib/location";
+import { schoolCover } from "./schools";
 
 /**
  * Split a business's images into the explicit cover and the gallery. Docs created
@@ -66,7 +67,7 @@ export function toSchoolCardData(
     name: s.name,
     locality: localityLabel(s.location),
     photoUrl: s.photoUrl,
-    photo: s.coverUrl ?? s.photos?.[0] ?? s.photoUrl,
+    photo: schoolCover(s),
     verified: s.verified ?? false,
     supportingBusinesses: s.metrics?.supportingBusinesses ?? 0,
     uniqueSupporters: s.metrics?.uniqueSupporters ?? 0,

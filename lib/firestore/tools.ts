@@ -78,6 +78,7 @@ import type {
   TourConfig,
 } from "@/types";
 import { BINGO_PATTERNS, RAFFLE_NUMBER_COUNT } from "@/types";
+import { byCreatedAtDesc } from "./converters";
 
 const SCHOOLS = "schools";
 const TOOLS = "tools";
@@ -85,14 +86,6 @@ const TOOLS = "tools";
 /** Subcollection ref for a school's tools. */
 function toolsCol(schoolId: string) {
   return collection(db, SCHOOLS, schoolId, TOOLS);
-}
-
-/** Sort by createdAt (desc) in JS to avoid a composite index (matches projects). */
-function byCreatedAtDesc(
-  a: { createdAt?: { toMillis?: () => number } },
-  b: { createdAt?: { toMillis?: () => number } },
-): number {
-  return (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0);
 }
 
 /**
@@ -209,6 +202,11 @@ export function toolContactPhone(tool: Pick<ToolDoc, "contactPhone" | "config">)
 /** The tool's "Consultar" button label — the school's custom text, or "Consultar" by default. */
 export function toolContactLabel(tool: Pick<ToolDoc, "contactLabel">): string {
   return tool.contactLabel?.trim() || "Consultar";
+}
+
+/** Share copy for a tool — identical across the card, detail page and manage footer. */
+export function toolShareText(title: string, schoolName: string): string {
+  return `✨ ${title} — apoya a ${schoolName} en escuelaplace 💙`;
 }
 
 // ── Date <-> <input type="date"> helpers (day-granular, UTC) ─────────────────
@@ -735,6 +733,25 @@ export async function updateTool(
 }
 
 /**
+ * Persist a kind's freshly built config to the tool doc, self-healing the legacy per-kind field
+ * (`tour`/`sale`/…) to the generic `config` map by deleting it. The four typed wrappers below
+ * differ only in their builder and that legacy key — the tool update rule allows touching just
+ * `config` + the legacy field + `updatedAt`.
+ */
+async function persistToolConfig(
+  schoolId: string,
+  toolId: string,
+  config: DocumentData,
+  legacyField: "tour" | "sale" | "service" | "event",
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
+    config,
+    [legacyField]: deleteField(), // self-heal a legacy doc to the generic `config`
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
  * Persist ONLY the guided-tour config (stages + contact phone), leaving every other tool
  * field untouched. Used by the edit page to commit a per-stage media change (a photo/video
  * add or remove) immediately — the same reason the project editor persists stage media on its
@@ -746,11 +763,7 @@ export async function updateToolTour(
   toolId: string,
   tour: TourConfigInput,
 ): Promise<void> {
-  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
-    config: buildTourConfig(tour),
-    tour: deleteField(), // self-heal a legacy doc to the generic `config`
-    updatedAt: serverTimestamp(),
-  });
+  await persistToolConfig(schoolId, toolId, buildTourConfig(tour), "tour");
 }
 
 /**
@@ -764,11 +777,7 @@ export async function updateToolSale(
   toolId: string,
   sale: SaleConfigInput,
 ): Promise<void> {
-  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
-    config: buildSaleConfig(sale),
-    sale: deleteField(), // self-heal a legacy doc to the generic `config`
-    updatedAt: serverTimestamp(),
-  });
+  await persistToolConfig(schoolId, toolId, buildSaleConfig(sale), "sale");
 }
 
 /**
@@ -782,11 +791,7 @@ export async function updateToolService(
   toolId: string,
   service: ServiceConfigInput,
 ): Promise<void> {
-  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
-    config: buildServiceConfig(service),
-    service: deleteField(), // self-heal a legacy doc to the generic `config`
-    updatedAt: serverTimestamp(),
-  });
+  await persistToolConfig(schoolId, toolId, buildServiceConfig(service), "service");
 }
 
 /**
@@ -800,11 +805,7 @@ export async function updateToolEvent(
   toolId: string,
   event: EventConfigInput,
 ): Promise<void> {
-  await updateDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId), {
-    config: buildEventConfig(event),
-    event: deleteField(), // self-heal a legacy doc to the generic `config`
-    updatedAt: serverTimestamp(),
-  });
+  await persistToolConfig(schoolId, toolId, buildEventConfig(event), "event");
 }
 
 /**

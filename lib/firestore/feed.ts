@@ -163,6 +163,21 @@ function relevanceOf(
 }
 
 /**
+ * Group confirmed subscriptions by businessId. Personal donations carry no businessId and never
+ * feed a business's ranking (the query already excludes them; this also narrows the optional field).
+ */
+function groupSubsByBusiness(subs: SubscriptionDoc[]): Map<string, SubscriptionDoc[]> {
+  const byBusiness = new Map<string, SubscriptionDoc[]>();
+  for (const s of subs) {
+    if (!s.businessId) continue;
+    const arr = byBusiness.get(s.businessId);
+    if (arr) arr.push(s);
+    else byBusiness.set(s.businessId, [s]);
+  }
+  return byBusiness;
+}
+
+/**
  * Rank a candidate set of businesses. Fetches their subscriptions in a few chunked reads,
  * reconstructs each one's support signals, scores, and sorts by score (desc). In search
  * mode, businesses with R = 0 are dropped (the mission never surfaces irrelevant results).
@@ -181,15 +196,7 @@ export async function rankBusinessFeed<T extends RankableBusiness>(
   const isExplore = relevanceById == null;
 
   const subs = await getSubscriptionsForBusinesses(businesses.map((b) => b.id));
-  const byBusiness = new Map<string, SubscriptionDoc[]>();
-  for (const s of subs) {
-    // Personal donations have no businessId and never feed a business's ranking
-    // (the query above already excludes them; this also narrows the optional field).
-    if (!s.businessId) continue;
-    const arr = byBusiness.get(s.businessId);
-    if (arr) arr.push(s);
-    else byBusiness.set(s.businessId, [s]);
-  }
+  const byBusiness = groupSubsByBusiness(subs);
 
   const community = [...communitySchoolIds];
   const ranked = businesses.map((business) => {
@@ -250,14 +257,7 @@ export async function getTopSupportingBusinesses(
 ): Promise<SupportingBusiness[]> {
   const businesses = await getActiveBusinessesCached(poolSize);
   const subs = await getSubscriptionsForBusinesses(businesses.map((b) => b.id));
-
-  const byBusiness = new Map<string, SubscriptionDoc[]>();
-  for (const s of subs) {
-    if (!s.businessId) continue;
-    const arr = byBusiness.get(s.businessId);
-    if (arr) arr.push(s);
-    else byBusiness.set(s.businessId, [s]);
-  }
+  const byBusiness = groupSubsByBusiness(subs);
 
   return businesses
     .map((business) => ({

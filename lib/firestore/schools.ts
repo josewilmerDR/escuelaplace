@@ -38,7 +38,7 @@ import {
 import { cache } from "react";
 import { db, storage } from "@/lib/firebase";
 import type { PaymentMethod, School, SchoolDoc, SchoolPrivate } from "@/types";
-import { docToTyped, snapToList } from "./converters";
+import { byCreatedAtAsc, docToTyped, snapToList } from "./converters";
 import { toLocation, type LocationInput } from "./geo";
 import { linkPageToUser } from "./users";
 import { revalidateSchoolCatalog } from "@/lib/revalidate";
@@ -384,9 +384,7 @@ export async function getSchoolsAwaitingVerification(): Promise<SchoolDoc[]> {
     where("verificationStatus", "in", ["pending", "needs_reverification"]),
   );
   const list = snapToList<School>(await getDocs(q));
-  return list.sort(
-    (a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0),
-  );
+  return list.sort(byCreatedAtAsc);
 }
 
 /**

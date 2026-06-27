@@ -22,7 +22,7 @@ import {
   FlagIcon,
   MapPinIcon,
 } from "@/components/ui/icons";
-import { buildWhatsAppLink } from "@/lib/contact";
+import { toolWhatsAppConsultLink } from "@/lib/contact";
 import { googleCalendarUrl } from "@/lib/events";
 import {
   getBingoCardAvailability,
@@ -38,9 +38,11 @@ import {
   toolConfigOf,
   toolContactLabel,
   toolContactPhone,
+  toolShareText,
   toolWindowLabel,
 } from "@/lib/firestore";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import { absoluteUrl } from "@/lib/site";
 import { safeExternalUrl } from "@/lib/url";
 import {
   BINGO_PATTERN_LABELS,
@@ -135,7 +137,7 @@ function toolEventJsonLd(
     "@type": "Event",
     name: tool.title,
     description: tool.description,
-    url: `https://escuelaplace.com/school/${id}/tool/${toolId}`,
+    url: absoluteUrl(`/school/${id}/tool/${toolId}`),
     ...(tool.coverUrl ? { image: tool.coverUrl } : {}),
     organizer: { "@type": "Organization", name: school.name },
     ...extra,
@@ -187,13 +189,11 @@ export default async function ToolPage({ params }: Props) {
  * prefilled message names the tool so the board knows what the chat is about. Shared by every kind.
  */
 function toolContactWhatsAppLink(tool: ToolDoc, school: SchoolDoc): string | null {
-  const phone = toolContactPhone(tool) || school.boardContact?.phone || "";
-  return phone
-    ? buildWhatsAppLink(
-        phone,
-        `¡Hola! Vi "${tool.title}" de ${school.name} en escuelaplace y quiero hacer una consulta.`,
-      )
-    : null;
+  return toolWhatsAppConsultLink(
+    toolContactPhone(tool) || school.boardContact?.phone,
+    tool.title,
+    school.name,
+  );
 }
 
 /**
@@ -227,7 +227,7 @@ function ToolFooterActions({
           whatsappLabel={toolContactLabel(tool)}
           sharePath={`/school/${id}/tool/${toolId}`}
           shareTitle={tool.title}
-          shareText={`✨ ${tool.title} — apoya a ${school.name} en escuelaplace 💙`}
+          shareText={toolShareText(tool.title, school.name)}
         />
       </div>
       {showNote && (
@@ -958,7 +958,7 @@ async function ReinadoDetail({ id, toolId, tool, school }: ToolDetailProps) {
           whatsappLabel={toolContactLabel(tool)}
           sharePath={`/school/${id}/tool/${toolId}`}
           shareTitle={tool.title}
-          shareText={`✨ ${tool.title} — apoya a ${school.name} en escuelaplace 💙`}
+          shareText={toolShareText(tool.title, school.name)}
         />
       </div>
 

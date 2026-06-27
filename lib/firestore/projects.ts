@@ -46,7 +46,7 @@ import type {
   ProjectStatus,
   SchoolDoc,
 } from "@/types";
-import { docToTyped, snapToList } from "./converters";
+import { byCreatedAtDesc, docToTyped, snapToList } from "./converters";
 import { isSchoolVerified } from "./schools";
 import { revalidateProject } from "@/lib/revalidate";
 
@@ -90,14 +90,6 @@ export function canFundProject(
   project: Pick<ProjectDoc, "status">,
 ): boolean {
   return isSchoolVerified(school) && project.status === "active";
-}
-
-/** Sort by createdAt (desc) in JS to avoid a composite index with a where clause. */
-function byCreatedAtDesc(
-  a: { createdAt?: { toMillis?: () => number } },
-  b: { createdAt?: { toMillis?: () => number } },
-): number {
-  return (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0);
 }
 
 /**
@@ -150,17 +142,6 @@ export const getProjectById = cache(
     );
   },
 );
-
-/** All contributions to a project (any status), newest first. */
-export async function getContributionsByProject(
-  projectId: string,
-): Promise<ProjectContributionDoc[]> {
-  const q = query(
-    collection(db, PROJECT_CONTRIBUTIONS),
-    where("projectId", "==", projectId),
-  );
-  return snapToList<ProjectContribution>(await getDocs(q)).sort(byCreatedAtDesc);
-}
 
 /**
  * Merge each contribution's PRIVATE fields (donorName + `amount`) back onto the doc — CLIENT-ONLY

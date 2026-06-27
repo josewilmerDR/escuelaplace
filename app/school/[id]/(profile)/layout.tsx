@@ -30,6 +30,7 @@ import {
   schoolCover,
 } from "@/lib/firestore";
 import { formatApproxDuration } from "@/lib/format";
+import { absoluteUrl } from "@/lib/site";
 import { locationParts } from "@/lib/location";
 
 /**
@@ -121,7 +122,7 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
     "@type": "School",
     name: school.name,
     ...(school.description ? { description: school.description } : {}),
-    url: `https://escuelaplace.com/school/${id}`,
+    url: absoluteUrl(`/school/${id}`),
     ...(coverImage ? { image: coverImage } : {}),
     ...(school.location
       ? {

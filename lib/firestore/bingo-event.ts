@@ -39,7 +39,7 @@ import type {
   BingoEventState,
 } from "@/types";
 import { BINGO_PAUSE_REASON_MAX } from "@/types";
-import { snapToList } from "./converters";
+import { byCreatedAtAsc, snapToList } from "./converters";
 
 const SCHOOLS = "schools";
 const TOOLS = "tools";
@@ -107,15 +107,6 @@ function decodeEventState(data: Record<string, unknown>): BingoEventState {
 }
 
 // ── Event state: reads + live subscription ─────────────────────────────────────
-
-/** One-shot read of the live-event state (null before the school first starts it). Public. */
-export async function getBingoEventState(
-  schoolId: string,
-  toolId: string,
-): Promise<BingoEventState | null> {
-  const snap = await getDoc(eventStateRef(schoolId, toolId));
-  return snap.exists() ? decodeEventState(snap.data()) : null;
-}
 
 /**
  * Subscribe to the live-event state. Calls `cb` immediately with the current value (or null) and
@@ -338,13 +329,6 @@ export async function closeBingoEvent(
 }
 
 // ── Claims: reads + live subscription ──────────────────────────────────────────
-
-function byCreatedAtAsc(
-  a: { createdAt?: { toMillis?: () => number } },
-  b: { createdAt?: { toMillis?: () => number } },
-): number {
-  return (a.createdAt?.toMillis?.() ?? 0) - (b.createdAt?.toMillis?.() ?? 0);
-}
 
 /**
  * Subscribe to all claims of a bingo, oldest first (the board's queue, live). Returns the

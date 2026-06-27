@@ -51,14 +51,7 @@ export function EmptyState({
 
 /** A `{ label, href }` spec becomes the primary button; anything else is rendered as-is. */
 function renderCta(cta: { label: string; href: string } | ReactNode): ReactNode {
-  if (
-    cta != null &&
-    typeof cta === "object" &&
-    "label" in cta &&
-    "href" in cta &&
-    typeof (cta as { href: unknown }).href === "string" &&
-    typeof (cta as { label: unknown }).label === "string"
-  ) {
+  if (cta != null && typeof cta === "object" && "label" in cta && "href" in cta) {
     const { label, href } = cta as { label: string; href: string };
     return (
       <Link href={href} className="btn btn-primary">

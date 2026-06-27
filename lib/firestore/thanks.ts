@@ -39,7 +39,7 @@ import type {
   ThankYouMedia,
   ThankYouTemplate,
 } from "@/types";
-import { docToTyped, snapToList } from "./converters";
+import { byCreatedAtDesc, docToTyped, snapToList } from "./converters";
 
 const SCHOOLS = "schools";
 const THANK_YOUS = "thankYous";
@@ -62,10 +62,6 @@ export const getSchoolThanksConfig = cache(
   },
 );
 
-/** Sort by createdAt (desc) in JS to avoid a composite index with the where clause. */
-function byCreatedAtDesc(a: ThankYouDoc, b: ThankYouDoc): number {
-  return (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0);
-}
 
 /** Every thank-you addressed to a person (their celebratory feed), newest first. */
 export async function getThankYousByDonor(

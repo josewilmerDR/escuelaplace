@@ -51,7 +51,6 @@ import {
   getOrderProofUrl,
   getOrdersBySchool,
   getOrdersByTool,
-  orderProofPath,
   uploadOrderProof,
   type OrderCollection,
 } from "./orders";
@@ -159,6 +158,11 @@ export function pageantStandings(
 
 // ── Reads ───────────────────────────────────────────────────────────────────────
 
+/** Candidates ordered by `order` (asc), then name as a stable tiebreak — the public roster order. */
+function sortedCandidates(list: CandidateDoc[]): CandidateDoc[] {
+  return list.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+}
+
 /**
  * Every candidate of a reinado, ordered by `order` (ascending), then name as a stable tiebreak.
  * Public read. Wrapped in React cache() so the public detail page's metadata + body share one read.
@@ -166,9 +170,7 @@ export function pageantStandings(
 export const getCandidates = cache(
   async (schoolId: string, toolId: string): Promise<CandidateDoc[]> => {
     const snap = await getDocs(candidatesCol(schoolId, toolId));
-    return snapToList<Candidate>(snap).sort(
-      (a, b) => a.order - b.order || a.name.localeCompare(b.name),
-    );
+    return sortedCandidates(snapToList<Candidate>(snap));
   },
 );
 
@@ -187,11 +189,7 @@ export function subscribeCandidates(
   return onSnapshot(
     candidatesCol(schoolId, toolId),
     (snap) =>
-      cb(
-        snapToList<Candidate>(snap).sort(
-          (a, b) => a.order - b.order || a.name.localeCompare(b.name),
-        ),
-      ),
+      cb(sortedCandidates(snapToList<Candidate>(snap))),
     () => cb([]),
   );
 }
@@ -344,11 +342,6 @@ export function createPageantVote(input: CreatePageantVoteInput): Promise<string
   );
 }
 
-/** Storage path of a support order's payment proof (the file never appears in the public doc). */
-export function pageantVoteProofPath(voteId: string): string {
-  return orderProofPath(PAGEANT_VOTES, voteId);
-}
-
 export function uploadPageantVoteProof(voteId: string, file: Blob): Promise<void> {
   return uploadOrderProof(PAGEANT_VOTES, voteId, file);
 }
@@ -378,15 +371,6 @@ export function deletePageantVote(voteId: string): Promise<void> {
 // time; only the school writes it). The director drives every transition by hand; the platform NEVER
 // auto-crowns. `winnerCandidateId` is the school RATIFYING the SUGGESTED standings (pageantStandings),
 // never a computed outcome. No money, no function-maintained fields — the school owns every write.
-
-/** One-shot read of a reinado's live-event state (null before the school first opens it). Public. */
-export async function getPageantEventState(
-  schoolId: string,
-  toolId: string,
-): Promise<PageantEventState | null> {
-  const snap = await getDoc(eventStateRef(schoolId, toolId));
-  return snap.exists() ? (snap.data() as PageantEventState) : null;
-}
 
 /**
  * Subscribe to a reinado's live-event state. Calls `cb` immediately with the current value (or null)

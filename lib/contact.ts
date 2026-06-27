@@ -77,6 +77,24 @@ export function buildWhatsAppLink(rawPhone: string, message: string): string | n
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
+/**
+ * WhatsApp deep link prefilled with a tool "consulta" message, or null when `phone` is missing /
+ * undialable (the caller hides the button). Shared by every tool surface — card, detail page and
+ * manage footer — so the prefilled message reads identically wherever a buyer taps "Consultar".
+ */
+export function toolWhatsAppConsultLink(
+  phone: string | undefined,
+  toolTitle: string,
+  schoolName: string,
+): string | null {
+  return phone
+    ? buildWhatsAppLink(
+        phone,
+        `¡Hola! Vi "${toolTitle}" de ${schoolName} en escuelaplace y quiero hacer una consulta.`,
+      )
+    : null;
+}
+
 /** mailto: link with a prefilled subject and body (manual encoding so spaces don't become
  * "+", which some mail clients render literally in the body). */
 export function buildMailtoLink(

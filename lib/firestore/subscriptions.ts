@@ -40,7 +40,7 @@ import {
   SUBSCRIPTION_UNIT_CRC,
 } from "@/types";
 import type { Subscription, SubscriptionDoc } from "@/types";
-import { docToTyped, snapToList } from "./converters";
+import { byCreatedAtDesc, snapToList } from "./converters";
 
 const SUBSCRIPTIONS = "subscriptions";
 const DAY_MS = 86_400_000;
@@ -78,18 +78,6 @@ export async function getSubscriptionProofUrl(
   } catch {
     return null;
   }
-}
-
-/** Sort by createdAt (desc) in JS to avoid a composite index with the where clause. */
-function byCreatedAtDesc(a: SubscriptionDoc, b: SubscriptionDoc): number {
-  return (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0);
-}
-
-/** A subscription by document id. Returns null if it does not exist. */
-export async function getSubscriptionById(
-  id: string,
-): Promise<SubscriptionDoc | null> {
-  return docToTyped<Subscription>(await getDoc(doc(db, SUBSCRIPTIONS, id)));
 }
 
 /**

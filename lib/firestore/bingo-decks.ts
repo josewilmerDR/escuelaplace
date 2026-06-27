@@ -35,7 +35,7 @@ import {
   type BingoDeckDoc,
   type BingoFormat,
 } from "@/types";
-import { randomCardNumbers, type ParsedBingoCard } from "./bingo-cards";
+import { byCardLabel, randomCardNumbers, type ParsedBingoCard } from "./bingo-cards";
 import { docToTyped, snapToList } from "./converters";
 
 const SCHOOLS = "schools";
@@ -115,9 +115,7 @@ export async function getBingoDeckCards(
   deckId: string,
 ): Promise<BingoDeckCardDoc[]> {
   const snap = await getDocs(deckCardsCol(schoolId, deckId));
-  return snapToList<BingoDeckCard>(snap).sort((a, b) =>
-    a.label.localeCompare(b.label, undefined, { numeric: true }),
-  );
+  return snapToList<BingoDeckCard>(snap).sort(byCardLabel);
 }
 
 // ── Writes (school owner/editor/admin only — enforced by rules) ────────────────
