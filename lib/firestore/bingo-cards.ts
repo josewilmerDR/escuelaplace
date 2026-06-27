@@ -12,17 +12,7 @@
  * getBingoCardAvailability) carry the logic and are unit-tested.
  */
 import { cache } from "react";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  query,
-  serverTimestamp,
-  where,
-  writeBatch,
-  type WriteBatch,
-} from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   BINGO_CARD_MAX,
@@ -235,13 +225,16 @@ export function getBingoCardAvailability(
 
 // ── Reads ─────────────────────────────────────────────────────────────────────
 
+/** Numeric-aware comparator for serial labels so "002" < "010" < "100" (not lexicographic). */
+export function byCardLabel(a: { label: string }, b: { label: string }): number {
+  return a.label.localeCompare(b.label, undefined, { numeric: true });
+}
+
 /** Every cartón of a bingo, ordered by label (numeric-aware). Public read. */
 export const getBingoCards = cache(
   async (schoolId: string, toolId: string): Promise<BingoCardDoc[]> => {
     const snap = await getDocs(cardsCol(schoolId, toolId));
-    return snapToList<BingoCard>(snap).sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { numeric: true }),
-    );
+    return snapToList<BingoCard>(snap).sort(byCardLabel);
   },
 );
 
@@ -258,87 +251,6 @@ export async function getBingoCardsByOwner(
   const snap = await getDocs(
     query(cardsCol(schoolId, toolId), where("ownerId", "==", ownerId)),
   );
-  return snapToList<BingoCard>(snap).sort((a, b) =>
-    a.label.localeCompare(b.label, undefined, { numeric: true }),
-  );
+  return snapToList<BingoCard>(snap).sort(byCardLabel);
 }
 
-// ── Writes (school owner/editor/admin only — enforced by rules) ────────────────
-
-const BATCH_LIMIT = 450; // < Firestore's 500-op ceiling, with headroom.
-
-/** Commit a list of batch operations in chunks under Firestore's per-batch limit. */
-async function commitInChunks(ops: ((batch: WriteBatch) => void)[]): Promise<void> {
-  for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
-    const batch = writeBatch(db);
-    for (const op of ops.slice(i, i + BATCH_LIMIT)) op(batch);
-    await batch.commit();
-  }
-}
-
-/**
- * Generate `count` cartones with random distinct numbers, labelled sequentially from
- * `startNumber`, zero-padded to a FIXED width so every batch's serials line up (and never collide
- * across batches). The caller passes startNumber = (highest existing serial) + 1 — see
- * nextCardStartNumber — so a delete-then-generate can't reuse a live serial. Validate the format
- * first.
- */
-export async function generateBingoCards(
-  schoolId: string,
-  toolId: string,
-  format: BingoFormat,
-  count: number,
-  startNumber = 1,
-): Promise<void> {
-  // Fixed width across batches (cap is BINGO_CARD_MAX = 1000 → 3 digits covers 001–999; the 1000th
-  // serial is just "1000"). padStart never truncates, so a larger number stays intact.
-  const pad = 3;
-  const col = cardsCol(schoolId, toolId);
-  const ops = Array.from({ length: count }, (_, i) => (batch: WriteBatch) => {
-    batch.set(doc(col), {
-      label: String(startNumber + i).padStart(pad, "0"),
-      numbers: randomCardNumbers(format),
-      status: "available",
-      createdAt: serverTimestamp(),
-    });
-  });
-  await commitInChunks(ops);
-}
-
-/** Persist already-validated imported cartones (see parseImportedCards). */
-export async function importBingoCards(
-  schoolId: string,
-  toolId: string,
-  cards: ParsedBingoCard[],
-): Promise<void> {
-  const col = cardsCol(schoolId, toolId);
-  const ops = cards.map((c) => (batch: WriteBatch) => {
-    batch.set(doc(col), {
-      label: c.label,
-      numbers: c.numbers,
-      status: "available",
-      createdAt: serverTimestamp(),
-    });
-  });
-  await commitInChunks(ops);
-}
-
-/** Delete one cartón (management). */
-export async function deleteBingoCard(
-  schoolId: string,
-  toolId: string,
-  cardId: string,
-): Promise<void> {
-  await deleteDoc(doc(db, SCHOOLS, schoolId, TOOLS, toolId, CARDS, cardId));
-}
-
-/** Delete the whole lote (management). The caller should confirm + guard against clearing a lote
- * that already has sold cartones. */
-export async function clearBingoCards(
-  schoolId: string,
-  toolId: string,
-): Promise<void> {
-  const snap = await getDocs(cardsCol(schoolId, toolId));
-  const ops = snap.docs.map((d) => (batch: WriteBatch) => batch.delete(d.ref));
-  await commitInChunks(ops);
-}

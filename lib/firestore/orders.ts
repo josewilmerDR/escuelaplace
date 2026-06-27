@@ -34,7 +34,7 @@ import {
   uploadBytes,
 } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import { snapToList } from "./converters";
+import { byCreatedAtDesc, snapToList } from "./converters";
 
 /** Identifies one buyable kind's order storage: its Firestore collection + Storage proof prefix. */
 export interface OrderCollection {
@@ -52,14 +52,6 @@ export interface OrderPrivateFields {
   amount: number;
 }
 
-/** Sort by createdAt (desc) in JS to avoid a composite index (matches the other domains). */
-function byOrderCreatedAtDesc(
-  a: { createdAt?: { toMillis?: () => number } },
-  b: { createdAt?: { toMillis?: () => number } },
-): number {
-  return (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0);
-}
-
 /**
  * Every order of one tool (any status), newest first. PUBLIC, anonymous-safe — used to derive
  * limited-inventory state (raffle numbers / bingo cartones), so it does NOT merge the private
@@ -69,7 +61,7 @@ export async function getOrdersByTool<
   T extends { createdAt?: { toMillis?: () => number } },
 >(col: OrderCollection, toolId: string): Promise<(T & { id: string })[]> {
   const q = query(collection(db, col.name), where("toolId", "==", toolId));
-  return snapToList<T>(await getDocs(q)).sort(byOrderCreatedAtDesc);
+  return snapToList<T>(await getDocs(q)).sort(byCreatedAtDesc);
 }
 
 /**
@@ -85,7 +77,7 @@ export async function getOrdersBySchool<
   },
 >(col: OrderCollection, schoolId: string): Promise<(T & { id: string })[]> {
   const q = query(collection(db, col.name), where("schoolId", "==", schoolId));
-  const orders = snapToList<T>(await getDocs(q)).sort(byOrderCreatedAtDesc);
+  const orders = snapToList<T>(await getDocs(q)).sort(byCreatedAtDesc);
   return mergeOrderPrivateFields(col, orders);
 }
 

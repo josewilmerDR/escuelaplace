@@ -25,6 +25,7 @@ import {
 } from "@/lib/firestore";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
 import { formatMoney } from "@/lib/format";
+import { absoluteUrl } from "@/lib/site";
 
 /**
  * Public project detail: /school/[id]/project/[pid]
@@ -95,7 +96,7 @@ export default async function ProjectPage({ params }: Props) {
     "@type": "Project",
     name: project.title,
     description: project.description,
-    url: `https://escuelaplace.com/school/${id}/project/${pid}`,
+    url: absoluteUrl(`/school/${id}/project/${pid}`),
     ...(project.coverUrl ? { image: project.coverUrl } : {}),
   };
 

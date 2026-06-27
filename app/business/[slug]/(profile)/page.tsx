@@ -18,6 +18,7 @@ import {
 } from "@/lib/contact";
 import { getBusinessBySlug, splitBusinessPhotos } from "@/lib/firestore";
 import { locationParts } from "@/lib/location";
+import { absoluteUrl } from "@/lib/site";
 
 /**
  * Business profile index (/business/[slug]) — the "Información" section: description,
@@ -94,7 +95,7 @@ export default async function BusinessInfoPage({ params }: Props) {
     "@type": "LocalBusiness",
     name: business.name,
     description: business.description,
-    url: `https://escuelaplace.com/business/${business.slug}`,
+    url: absoluteUrl(`/business/${business.slug}`),
     ...(shareImage ? { image: shareImage } : {}),
     ...(phone ? { telephone: `+${phone}` } : {}),
     ...(business.location

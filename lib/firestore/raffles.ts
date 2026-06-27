@@ -18,7 +18,6 @@ import {
   getOrderProofUrl,
   getOrdersBySchool,
   getOrdersByTool,
-  orderProofPath,
   uploadOrderProof,
   type OrderCollection,
 } from "./orders";
@@ -107,11 +106,6 @@ export function createRaffleOrder(input: CreateRaffleOrderInput): Promise<string
     },
     { buyerName: input.buyerName, amount: input.amount },
   );
-}
-
-/** Storage path of an order's payment proof (the file never appears in the public doc). */
-export function raffleOrderProofPath(orderId: string): string {
-  return orderProofPath(RAFFLE_ORDERS, orderId);
 }
 
 export function uploadRaffleOrderProof(orderId: string, file: Blob): Promise<void> {

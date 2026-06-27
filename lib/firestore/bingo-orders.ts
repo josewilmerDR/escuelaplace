@@ -28,7 +28,6 @@ import {
   getOrderProofUrl,
   getOrdersBySchool,
   getOrdersByTool,
-  orderProofPath,
   uploadOrderProof,
   type OrderCollection,
 } from "./orders";
@@ -91,11 +90,6 @@ export function createBingoOrder(input: CreateBingoOrderInput): Promise<string> 
     },
     { buyerName: input.buyerName, amount: input.amount },
   );
-}
-
-/** Storage path of an order's payment proof (the file never appears in the public doc). */
-export function bingoOrderProofPath(orderId: string): string {
-  return orderProofPath(BINGO_ORDERS, orderId);
 }
 
 export function uploadBingoOrderProof(orderId: string, file: Blob): Promise<void> {

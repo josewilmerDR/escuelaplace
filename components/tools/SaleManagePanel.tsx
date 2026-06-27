@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { ManageStat as Stat } from "@/components/tools/ManageStat";
 import { ToolManageHeading } from "@/components/tools/ToolManageHeading";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { cardClass } from "@/components/ui/Card";
@@ -281,30 +282,3 @@ export function SaleManagePanel({
 }
 
 /** A single headline tally cell: big number + label + a faint hint line below. */
-function Stat({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone?: "success" | "warning";
-}) {
-  const valueClass =
-    tone === "success"
-      ? "text-success"
-      : tone === "warning"
-        ? "text-warning"
-        : "text-foreground";
-  return (
-    <div className={cardClass("inset")}>
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className={`mt-1 text-2xl font-semibold tabular-nums ${valueClass}`}>
-        {value}
-      </dd>
-      <p className="mt-1 text-xs tabular-nums text-muted">{hint}</p>
-    </div>
-  );
-}

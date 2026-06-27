@@ -17,7 +17,6 @@ import {
   deleteOrder,
   getOrderProofUrl,
   getOrdersBySchool,
-  orderProofPath,
   uploadOrderProof,
   type OrderCollection,
 } from "./orders";
@@ -72,11 +71,6 @@ export function createProductOrder(input: CreateProductOrderInput): Promise<stri
     },
     { buyerName: input.buyerName, amount: input.amount },
   );
-}
-
-/** Storage path of an order's payment proof (the file never appears in the public doc). */
-export function productOrderProofPath(orderId: string): string {
-  return orderProofPath(PRODUCT_ORDERS, orderId);
 }
 
 export function uploadProductOrderProof(orderId: string, file: Blob): Promise<void> {

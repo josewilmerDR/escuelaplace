@@ -31,7 +31,7 @@ const DONOR_PROFILES = "donorProfiles";
 const SUBSCRIPTIONS = "subscriptions";
 
 /** Tiers from lowest to highest. */
-export const DONOR_TIER_ORDER: DonorTier[] = [
+const DONOR_TIER_ORDER: DonorTier[] = [
   "bronze",
   "silver",
   "gold",

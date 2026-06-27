@@ -75,33 +75,6 @@ export function maskSatisfied(
   );
 }
 
-/**
- * Does the cartón satisfy the legacy enum `pattern` given `hit`? Kept for back-compat (old claims
- * carry the enum, not a snapshot); delegates to maskSatisfied so the proven logic lives in one place.
- */
-export function cardSatisfiesPattern(
-  numbers: number[],
-  format: Pick<BingoFormat, "rows" | "cols">,
-  pattern: BingoPattern,
-  hit: Set<number>,
-): boolean {
-  return maskSatisfied(numbers, winningLineIndices(format, pattern), hit);
-}
-
-/**
- * Which of the `enabled` patterns the cartón currently satisfies given `hit` — used by the play
- * view to decide which "¡Bingo!" buttons to light up, and by the board to show a claim's verdict.
- * Returns them in the order they appear in `enabled`.
- */
-export function satisfiedPatterns(
-  numbers: number[],
-  format: Pick<BingoFormat, "rows" | "cols">,
-  enabled: BingoPattern[],
-  hit: Set<number>,
-): BingoPattern[] {
-  return enabled.filter((p) => cardSatisfiesPattern(numbers, format, p, hit));
-}
-
 // ── Built-in pattern catalog (fixed 5×5 grid, indices 0..24 row-major) ──────────
 //
 // The 10 "modalidades" the live director can pick per round. Geometry is generated from grid math

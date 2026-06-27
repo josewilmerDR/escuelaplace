@@ -14,8 +14,8 @@
  */
 import Link from "next/link";
 import { ToolCardActions } from "@/components/tools/ToolCardActions";
-import { buildWhatsAppLink } from "@/lib/contact";
-import { toolContactLabel, toolContactPhone } from "@/lib/firestore";
+import { toolWhatsAppConsultLink } from "@/lib/contact";
+import { toolContactLabel, toolContactPhone, toolShareText } from "@/lib/firestore";
 import type { SchoolDoc, ToolDoc } from "@/types";
 
 export function ToolManageFooter({
@@ -29,13 +29,11 @@ export function ToolManageFooter({
 }) {
   const toolId = tool.id;
   const publicHref = `/school/${schoolId}/tool/${toolId}`;
-  const phone = toolContactPhone(tool) || school.boardContact?.phone || "";
-  const whatsappUrl = phone
-    ? buildWhatsAppLink(
-        phone,
-        `¡Hola! Vi "${tool.title}" de ${school.name} en escuelaplace y quiero hacer una consulta.`,
-      )
-    : null;
+  const whatsappUrl = toolWhatsAppConsultLink(
+    toolContactPhone(tool) || school.boardContact?.phone,
+    tool.title,
+    school.name,
+  );
   return (
     <section className="mt-10 border-t border-border pt-6">
       <div className="flex flex-wrap items-center gap-3">
@@ -49,7 +47,7 @@ export function ToolManageFooter({
           whatsappLabel={toolContactLabel(tool)}
           sharePath={publicHref}
           shareTitle={tool.title}
-          shareText={`✨ ${tool.title} — apoya a ${school.name} en escuelaplace 💙`}
+          shareText={toolShareText(tool.title, school.name)}
         />
       </div>
     </section>

@@ -5,9 +5,10 @@ import { toolBuyHref, toolBuyLabel, toolTypeMeta } from "@/lib/tools/registry";
 import {
   toolContactLabel,
   toolContactPhone,
+  toolShareText,
   toolWindowLabel,
 } from "@/lib/firestore";
-import { buildWhatsAppLink } from "@/lib/contact";
+import { toolWhatsAppConsultLink } from "@/lib/contact";
 import { CARD_COVER_ASPECT, FEED_COVER_SIZES } from "@/lib/layout";
 import type { ToolDoc } from "@/types";
 
@@ -44,13 +45,11 @@ export function ToolCard({
   // "Consultar" opens a prefilled chat on the tool's own contact, falling back to the board phone.
   // buildWhatsAppLink normalizes the number and returns null when it can't be dialed, so the button
   // is hidden rather than dead.
-  const phone = toolContactPhone(tool) || boardPhone || "";
-  const whatsappUrl = phone
-    ? buildWhatsAppLink(
-        phone,
-        `¡Hola! Vi "${tool.title}" de ${tool.schoolName} en escuelaplace y quiero hacer una consulta.`,
-      )
-    : null;
+  const whatsappUrl = toolWhatsAppConsultLink(
+    toolContactPhone(tool) || boardPhone,
+    tool.title,
+    tool.schoolName,
+  );
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md">
@@ -110,7 +109,7 @@ export function ToolCard({
             shareTitle={tool.title}
             // Short and warm: the rich link preview (the OG card) carries the visuals, so the
             // text just adds a human nudge above it.
-            shareText={`✨ ${tool.title} — apoya a ${tool.schoolName} en escuelaplace 💙`}
+            shareText={toolShareText(tool.title, tool.schoolName)}
           />
         </div>
       </div>
