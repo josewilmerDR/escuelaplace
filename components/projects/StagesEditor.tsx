@@ -19,6 +19,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { StageFields } from "@/components/projects/StageFields";
 import { formatMoney } from "@/lib/format";
+import { newLocalId } from "@/lib/local-id";
 import { uploadProjectAsset } from "@/lib/firestore";
 import {
   PROJECT_STAGE_MAX,
@@ -38,14 +39,8 @@ export interface StageDraft {
   videoUrl?: string;
 }
 
-/** A stable local id for a stage, generated in an event handler / lazy state (SSR-safe). */
-export function newStageId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 export function emptyStage(): StageDraft {
-  return { id: newStageId(), title: "", justification: "", cost: 0 };
+  return { id: newLocalId("s"), title: "", justification: "", cost: 0 };
 }
 
 export function StagesEditor({

@@ -19,6 +19,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
+import { formatBingoSummary } from "@/lib/format";
 import {
   bingoDeckNameError,
   deleteBingoDeck,
@@ -187,8 +188,7 @@ export default function BingoDeckDetailPage() {
       <Heading onBack={() => router.back()} subtitle={school.name} />
 
       <p className="mt-6 text-sm text-muted">
-        {cardCount} cartones · {deck.format.rows}×{deck.format.cols} ·{" "}
-        {deck.format.poolMin}–{deck.format.poolMax}
+        {cardCount} cartones · {formatBingoSummary(deck.format)}
       </p>
 
       {/* Rename. The format is fixed once the deck exists — its cartones are bound to it — so it

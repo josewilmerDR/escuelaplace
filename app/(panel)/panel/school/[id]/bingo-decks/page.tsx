@@ -18,6 +18,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
+import { formatBingoSummary } from "@/lib/format";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
   bingoDeckNameError,
@@ -57,12 +58,6 @@ function Heading({ schoolId, subtitle }: { schoolId: string; subtitle?: string }
       </header>
     </>
   );
-}
-
-/** Short format summary, e.g. "5×5 · 0–75". */
-function formatSummary(deck: BingoDeckDoc): string {
-  const { rows, cols, poolMin, poolMax } = deck.format;
-  return `${rows}×${cols} · ${poolMin}–${poolMax}`;
 }
 
 export default function BingoDecksPage() {
@@ -418,7 +413,7 @@ export default function BingoDecksPage() {
                       {deck.name}
                     </span>
                     <span className="block text-xs text-muted">
-                      {deck.cardCount} cartones · {formatSummary(deck)}
+                      {deck.cardCount} cartones · {formatBingoSummary(deck.format)}
                     </span>
                   </span>
                   <span aria-hidden className="shrink-0 text-muted">
