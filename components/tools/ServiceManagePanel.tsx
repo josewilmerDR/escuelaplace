@@ -5,8 +5,8 @@
  * loaded the school + tool and checked that the viewer manages the school. A service is config-only —
  * no orders, no reservations, nothing live to follow (the only public action is a WhatsApp consult) —
  * so this panel is a READ-ONLY overview: a config recap so the board sees the setup at a glance, plus
- * the public/share/consult footer and the "Editar servicio" button on the title row. PURELY
- * INFORMATIONAL — the platform never processes money.
+ * the "Ver página pública" footer (no share/consult pair here) and the "Editar servicio" button on
+ * the title row. PURELY INFORMATIONAL — the platform never processes money.
  */
 import Link from "next/link";
 import { ToolManageFooter } from "@/components/tools/ToolManageFooter";
@@ -99,7 +99,12 @@ export function ServiceManagePanel({
         “Consultar”.
       </p>
 
-      <ToolManageFooter schoolId={schoolId} tool={tool} school={school} />
+      <ToolManageFooter
+        schoolId={schoolId}
+        tool={tool}
+        school={school}
+        showShareActions={false}
+      />
     </main>
   );
 }
