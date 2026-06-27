@@ -39,7 +39,12 @@ import type {
   ThankYouMedia,
   ThankYouTemplate,
 } from "@/types";
-import { byCreatedAtDesc, docToTyped, snapToList } from "./converters";
+import {
+  byCreatedAtDesc,
+  chunkedInQuery,
+  docToTyped,
+  snapToList,
+} from "./converters";
 
 const SCHOOLS = "schools";
 const THANK_YOUS = "thankYous";
@@ -73,9 +78,6 @@ export async function getThankYousByDonor(
   return snapToList<ThankYou>(snap).sort(byCreatedAtDesc);
 }
 
-/** Firestore `in` accepts at most 30 values per query. */
-const IN_CHUNK = 30;
-
 /**
  * Every thank-you addressed to any of a set of business pages, newest first. Chunked `in`
  * queries (not N+1) so a user managing several businesses resolves in a handful of reads.
@@ -83,19 +85,9 @@ const IN_CHUNK = 30;
 export async function getThankYousForBusinesses(
   businessIds: string[],
 ): Promise<ThankYouDoc[]> {
-  if (businessIds.length === 0) return [];
-  const chunks: string[][] = [];
-  for (let i = 0; i < businessIds.length; i += IN_CHUNK) {
-    chunks.push(businessIds.slice(i, i + IN_CHUNK));
-  }
-  const snaps = await Promise.all(
-    chunks.map((chunk) =>
-      getDocs(
-        query(collection(db, THANK_YOUS), where("businessId", "in", chunk)),
-      ),
-    ),
-  );
-  return snaps.flatMap((s) => snapToList<ThankYou>(s)).sort(byCreatedAtDesc);
+  return (
+    await chunkedInQuery<ThankYou>(THANK_YOUS, "businessId", businessIds)
+  ).sort(byCreatedAtDesc);
 }
 
 /**

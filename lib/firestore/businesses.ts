@@ -37,7 +37,7 @@ import type {
   BusinessStatus,
   Discount,
 } from "@/types";
-import { docToTyped, snapToList } from "./converters";
+import { chunkedInQuery, docToTyped, snapToList } from "./converters";
 import { toLocation, type LocationInput } from "./geo";
 import { linkPageToUser } from "./users";
 import { getConfirmedSubscriptionsBySchool } from "./subscriptions";
@@ -66,9 +66,6 @@ export const getBusinessesBySchool = cache(
   },
 );
 
-/** Firestore `in` accepts at most 30 values per query. */
-const BUSINESS_IDS_CHUNK = 30;
-
 /**
  * Active businesses for an arbitrary set of ids, fetched in chunked `in` queries over
  * `documentId()` (a handful of reads, not N+1). Draft/suspended businesses are dropped in
@@ -83,21 +80,9 @@ const BUSINESS_IDS_CHUNK = 30;
 export async function getBusinessesByIds(
   ids: string[],
 ): Promise<BusinessDoc[]> {
-  if (ids.length === 0) return [];
-  const chunks: string[][] = [];
-  for (let i = 0; i < ids.length; i += BUSINESS_IDS_CHUNK) {
-    chunks.push(ids.slice(i, i + BUSINESS_IDS_CHUNK));
-  }
-  const snaps = await Promise.all(
-    chunks.map((chunk) =>
-      getDocs(
-        query(collection(db, BUSINESSES), where(documentId(), "in", chunk)),
-      ),
-    ),
+  return (await chunkedInQuery<Business>(BUSINESSES, documentId(), ids)).filter(
+    (b) => b.status === "active",
   );
-  return snaps
-    .flatMap((snap) => snapToList<Business>(snap))
-    .filter((b) => b.status === "active");
 }
 
 /**
