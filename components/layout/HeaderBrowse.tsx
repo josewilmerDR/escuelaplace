@@ -19,28 +19,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SearchBar } from "@/components/search/SearchBar";
-import {
-  AcademicCapIcon,
-  StorefrontIcon,
-  TagIcon,
-} from "@/components/ui/icons";
+import { AcademicCapIcon, StorefrontIcon } from "@/components/ui/icons";
 
 // Browse destinations, mirrored in the mobile BottomNav. `match` decides the active state from
 // the current path — covering both the listing route and its public detail pages (e.g. Comercios
 // stays active on /business/[slug]) — so the header reflects where the visitor is. Comercios
-// leads: it is the catalog's central content, yet had no persistent entry from inner pages.
+// leads: it is the catalog's central content. Categorías is reached from the home hero's chip
+// row, so it stays out of this cluster to keep the header focused on the two catalog halves.
 const CHIPS = [
   {
     href: "/businesses",
     label: "Comercios",
     Icon: StorefrontIcon,
     match: (p: string) => p.startsWith("/business"),
-  },
-  {
-    href: "/categories",
-    label: "Categorías",
-    Icon: TagIcon,
-    match: (p: string) => p.startsWith("/categor"),
   },
   {
     href: "/schools",
