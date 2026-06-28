@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { ThanksMediaPicker } from "@/components/school/ThanksMediaPicker";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
@@ -235,6 +236,7 @@ export default function SchoolThanksPage() {
         {TITLE}
       </h1>
       <p className="mt-1 text-sm text-muted">{school.name}</p>
+      <SchoolPanelNav schoolId={id} current="thanks" />
 
       <section className={`mt-6 flex items-start gap-4 ${cardClass("inset")}`}>
         <span className="text-brand">

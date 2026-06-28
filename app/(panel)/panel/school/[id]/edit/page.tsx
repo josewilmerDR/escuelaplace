@@ -18,6 +18,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { GalleryManager } from "@/components/business/GalleryManager";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { PaymentMethodsEditor } from "@/components/school/PaymentMethodsEditor";
+import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -391,6 +392,7 @@ export default function SchoolEditPage() {
         Editar escuela
       </h1>
       <p className="mt-1 text-sm text-muted">{school.name}</p>
+      <SchoolPanelNav schoolId={id} current="edit" />
 
       {/* Verification state: a calm-depth semantic banner (success when verified,
           warning while pending/needs_reverification) — soft tint + hairline ring.

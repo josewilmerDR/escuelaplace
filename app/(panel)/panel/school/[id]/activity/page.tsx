@@ -24,6 +24,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { PageTitle } from "@/components/ui/PageTitle";
 import {
   ClockIcon,
@@ -407,6 +408,7 @@ function ActivityInner() {
   return (
     <main>
       <Heading subtitle={school.name} />
+      <SchoolPanelNav schoolId={id} current="activity" />
 
       {/* Accessible-only success announcement; no visual banner is needed. */}
       <p className="sr-only" role="status" aria-live="polite">

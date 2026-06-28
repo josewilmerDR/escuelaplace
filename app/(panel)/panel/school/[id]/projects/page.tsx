@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -244,6 +245,7 @@ export default function SchoolProjectsPage() {
           </Link>
         }
       />
+      <SchoolPanelNav schoolId={id} current="projects" />
 
       {school.verificationStatus !== "verified" && (
         <p className="mt-6 rounded-xl bg-warning-tint p-3 text-xs text-warning ring-1 ring-warning/10">

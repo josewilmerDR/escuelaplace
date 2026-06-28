@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ToolTypeMenu } from "@/components/tools/ToolTypeMenu";
+import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { PanelNotice } from "@/components/ui/PanelNotice";
 import { TOOL_TYPE_LIST, toolTypeMeta } from "@/lib/tools/registry";
@@ -29,9 +30,8 @@ const KIND_GRID = "grid gap-3 sm:grid-cols-2 lg:grid-cols-3";
 
 /**
  * Page heading, rendered identically in every state so the title never shifts. The back link
- * is the page's first element: it always returns to the school's public profile (not wherever
- * the board happened to come from). The cross-section nav (Actividad/Editar/Proyectos) is
- * intentionally not shown here — from a tool the board's expected move is back, not sideways.
+ * always returns to the school's public profile (not wherever the board happened to come from);
+ * the cross-section SchoolPanelNav below the title carries the sibling jumps.
  */
 function Heading({ schoolId, subtitle }: { schoolId: string; subtitle?: string }) {
   return (
@@ -139,6 +139,7 @@ export default function SchoolToolsPage() {
   return (
     <main>
       <Heading schoolId={id} subtitle={school.name} />
+      <SchoolPanelNav schoolId={id} current="tools" />
 
       <p className="mt-6 text-sm text-muted">
         Cada herramienta te deja crear o anunciar una actividad puntual: rifas,
