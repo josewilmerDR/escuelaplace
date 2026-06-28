@@ -167,7 +167,22 @@ export default async function SearchPage({ searchParams }: Props) {
           icon={<SearchIcon className="h-7 w-7" />}
           title={`No encontramos comercios para “${query}”`}
           description="Prueba con otras palabras o explora el directorio por categoría."
-          cta={{ label: "Explorar por categoría", href: "/categories" }}
+          cta={
+            <div className="flex flex-col items-center gap-3">
+              <Link href="/categories" className="btn btn-primary">
+                Explorar por categoría
+              </Link>
+              {/* Search only covers the business catalog; a buyer who found nothing may have
+                  been looking for their school. Bridge the dead end to the school directory
+                  instead of leaving "no businesses" as the only outcome. */}
+              <Link
+                href="/schools"
+                className="text-sm font-medium text-brand-darker underline-offset-2 hover:underline"
+              >
+                ¿Buscabas una escuela? Ver escuelas
+              </Link>
+            </div>
+          }
         />
       ) : (
         <>
