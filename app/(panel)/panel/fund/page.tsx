@@ -23,6 +23,7 @@ import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
+import { TotalRow } from "@/components/ui/TotalRow";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
@@ -453,11 +454,6 @@ function FundContent() {
               }}
               className="input"
             />
-            {amount > 0 && (
-              <span className="text-muted">
-                {formatMoney(amount, project.currency)}
-              </span>
-            )}
           </Field>
 
           <FilePicker
@@ -485,6 +481,13 @@ function FundContent() {
               ¡Aporte registrado! La escuela lo confirmará y el avance se
               actualizará.
             </p>
+          )}
+
+          {amount > 0 && (
+            <TotalRow
+              label={type === "money" ? "Total" : "Valor estimado"}
+              amount={formatMoney(amount, project.currency)}
+            />
           )}
 
           <button

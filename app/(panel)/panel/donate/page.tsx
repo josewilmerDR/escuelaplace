@@ -23,6 +23,7 @@ import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
 import { StatChip } from "@/components/ui/StatChip";
+import { TotalRow } from "@/components/ui/TotalRow";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
@@ -337,9 +338,6 @@ function DonateContent() {
             }
             className="input"
           />
-          <span className="text-muted">
-            Total: {formatColones(Math.max(1, units) * SUBSCRIPTION_UNIT_CRC)}
-          </span>
         </Field>
 
         <FilePicker
@@ -363,6 +361,10 @@ function DonateContent() {
             mientras tanto la ves abajo como pendiente.
           </p>
         )}
+
+        <TotalRow
+          amount={formatColones(Math.max(1, units) * SUBSCRIPTION_UNIT_CRC)}
+        />
 
         <button
           type="submit"

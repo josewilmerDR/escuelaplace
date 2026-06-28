@@ -20,6 +20,7 @@ import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
+import { TotalRow } from "@/components/ui/TotalRow";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
 import {
@@ -283,11 +284,8 @@ function SupportContent() {
             className="input"
           />
           <span className="text-muted">
-            {formatMoney(config.pricePerSupportUnit, config.currency)} por unidad ·{" "}
-            <span className="font-medium text-foreground">
-              {formatMoney(amount, config.currency)}
-            </span>{" "}
-            en total. Le pagas directo a la escuela; ella confirma tu apoyo.
+            {formatMoney(config.pricePerSupportUnit, config.currency)} por unidad.
+            Le pagas directo a la escuela; ella confirma tu apoyo.
           </span>
         </Field>
 
@@ -309,6 +307,8 @@ function SupportContent() {
             actualizará.
           </p>
         )}
+
+        <TotalRow amount={formatMoney(amount, config.currency)} />
 
         <button
           type="submit"
