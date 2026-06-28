@@ -227,6 +227,52 @@ export default async function ProjectPage({ params }: Props) {
             </div>
           </div>
 
+          {/* ── Cómo apoyar ─────────────────────────────────────────────── */}
+          {/* Only when contributing is actually possible (canFund = verified school + active
+              project): an unverified school shows the hard-stop notice above, and a
+              completed/cancelled project can't receive support — a "how to" would mislead in
+              both. Lays out the trust flow in three scannable steps WITHOUT exposing the gated
+              payment methods (the "dato gateado"): it explains that the money goes straight to
+              the school and that the school confirms, never showing how to pay. */}
+          {canFund && (
+            <section className="mt-8">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                Cómo apoyar
+              </h2>
+              <ol className="mt-5 flex flex-col gap-4">
+                {[
+                  {
+                    title: "Aportas a tu manera",
+                    body: "En dinero o en especie (bienes o trabajo, como una etapa completa). Tú decides el monto o su valor estimado.",
+                  },
+                  {
+                    title: "Le pagas directo a la escuela",
+                    body: "El 100% llega a ella. escuelaplace solo da visibilidad: nunca procesa ni toca el dinero.",
+                  },
+                  {
+                    title: "La escuela lo confirma",
+                    body: "Cuando recibe tu aporte lo confirma, y su monto suma al avance de la meta.",
+                  },
+                ].map((step, i) => (
+                  <li key={i} className="flex gap-3">
+                    {/* The <ol> already conveys order to assistive tech; the visible numeral
+                        is decorative reinforcement, so it's aria-hidden to avoid double-reading. */}
+                    <span
+                      aria-hidden
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-tint text-sm font-semibold text-brand-darker ring-1 ring-inset ring-brand-dark/10"
+                    >
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{step.title}</p>
+                      <p className="mt-0.5 text-sm text-muted">{step.body}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+
           {/* ── Stages ──────────────────────────────────────────────────── */}
           {/* A project without stages has no goal to display — skip the section
               entirely instead of showing "Etapas (0)" with a ₡0 goal line. */}
