@@ -370,11 +370,22 @@ async function TourDetail({ id, toolId, tool, school }: ToolDetailProps) {
         <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
       )}
 
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Recorrido
-        </h2>
-        <div className="mt-4">
+      <div className="mt-10 sm:mx-auto sm:max-w-2xl">
+        <div className="flex items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10">
+            <MapPinIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Recorrido
+            </h2>
+            <p className="text-sm text-muted">
+              {tour.stages.length}{" "}
+              {tour.stages.length === 1 ? "etapa" : "etapas"}
+            </p>
+          </div>
+        </div>
+        <div className="mt-6">
           <TourStages stages={tour.stages} />
         </div>
       </div>
