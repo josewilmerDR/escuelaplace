@@ -13,7 +13,7 @@ export type StatChipTone = "success" | "muted" | "brand" | "warning";
 
 const TONES: Record<StatChipTone, string> = {
   success: "bg-success-tint text-success ring-success/10",
-  muted: "bg-surface text-muted ring-black/5",
+  muted: "bg-surface text-muted ring-black/10",
   brand: "bg-brand-tint text-brand-darker ring-brand-dark/10",
   warning: "bg-warning-tint text-warning ring-warning/10",
 };

@@ -61,7 +61,7 @@ export function ProjectProgress({
             de {formatMoney(goal, currency)} ({percent}%)
           </span>
         </span>
-        {(showRemaining || contributorsCount > 0) && (
+        {(showRemaining || contributorsCount > 0 || !reached) && (
           <span className="text-muted">
             {[
               showRemaining
@@ -71,7 +71,11 @@ export function ProjectProgress({
                 ? contributorsCount === 1
                   ? "1 persona aportó"
                   : `${contributorsCount} personas aportaron`
-                : null,
+                : // Cold start: invite the first contribution instead of showing a
+                  // silent "0" — only while the goal is still open.
+                  !reached
+                  ? "Sé la primera persona en aportar"
+                  : null,
             ]
               .filter(Boolean)
               .join(" · ")}

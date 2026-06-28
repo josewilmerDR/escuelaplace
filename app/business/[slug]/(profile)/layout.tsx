@@ -79,10 +79,19 @@ export default async function BusinessProfileLayout({ children, params }: Props)
   // only when they have content. Fotos leads (after the index) — the gallery is the storefront.
   const tabs = [
     { href: base, label: "Principal" },
-    ...(gallery.length > 0 ? [{ href: `${base}/photos`, label: "Fotos" }] : []),
-    ...(supportedSchools.length > 0
-      ? [{ href: `${base}/schools`, label: "Escuelas" }]
+    ...(gallery.length > 0
+      ? [{ href: `${base}/photos`, label: "Fotos", count: gallery.length }]
       : []),
+    ...(supportedSchools.length > 0
+      ? [
+          {
+            href: `${base}/schools`,
+            label: "Escuelas",
+            count: supportedSchools.length,
+          },
+        ]
+      : []),
+    // Reseñas carries no count here: the rating + review count already lead the header meta.
     { href: `${base}/reviews`, label: "Reseñas" },
   ];
 
@@ -178,7 +187,7 @@ export default async function BusinessProfileLayout({ children, params }: Props)
 
       {business.discount?.active && (
         <Banner
-          tone="warning"
+          tone="promo"
           className="mt-4"
           icon={<TagIcon className="mt-0.5 h-5 w-5 shrink-0" />}
         >

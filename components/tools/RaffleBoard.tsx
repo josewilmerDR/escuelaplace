@@ -136,10 +136,10 @@ export function RaffleBoard({
         )}
         <p className="mt-2 text-xs text-muted">
           {!verified
-            ? "Para comprar inicias sesión con Google. El pago va directo a la escuela por los medios que ella publica; escuelaplace nunca procesa pagos."
+            ? "Para comprar, inicia sesión con Google. El pago va directo a la escuela por los medios que ella publica; escuelaplace nunca procesa pagos."
             : user
-              ? "El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero."
-              : "Inicias sesión con Google para comprar. El 100% de tu aporte va directo a la institución. La plataforma nunca toca el dinero."}
+              ? "El 100% de tu aporte va directo a la escuela. La plataforma nunca toca el dinero."
+              : "Inicia sesión con Google para comprar. El 100% de tu aporte va directo a la escuela. La plataforma nunca toca el dinero."}
         </p>
       </div>
     </div>

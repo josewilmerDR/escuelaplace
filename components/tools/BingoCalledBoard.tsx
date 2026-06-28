@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 /**
  * The pool of bingo numbers (poolMin..poolMax) as a grid, with the CALLED ones highlighted and the
  * last one emphasized. Read-only for watchers/players; pass `onCall` to make every cell a button
@@ -26,12 +28,19 @@ export function BingoCalledBoard({
   const pad = String(poolMax).length;
   // A wide pool (0–99) reads best at 10 columns; a small one fits its own size.
   const cols = Math.min(10, Math.max(5, count));
+  // Console cells are tap targets the director hits under pressure, so cap the columns harder
+  // on a phone (≤6) — keeping each cell well above the 40px floor — then open up to the full
+  // width from sm. Read-only cells aren't tappable, so they keep the dense single layout.
+  const colsSm = onCall ? Math.min(6, cols) : cols;
+  const gridClass = onCall
+    ? "grid gap-1.5 grid-cols-[repeat(var(--cols-sm),minmax(0,1fr))] sm:grid-cols-[repeat(var(--cols),minmax(0,1fr))]"
+    : "grid gap-1";
+  const gridStyle = onCall
+    ? ({ "--cols-sm": colsSm, "--cols": cols } as CSSProperties)
+    : { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` };
 
   return (
-    <div
-      className="grid gap-1"
-      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-    >
+    <div className={gridClass} style={gridStyle}>
       {numbers.map((n) => {
         const isCalled = called.has(n);
         const isLast = n === lastCalled;
@@ -48,7 +57,7 @@ export function BingoCalledBoard({
             onClick={() => onCall(n)}
             disabled={disabled}
             aria-pressed={isCalled}
-            className={`${cls} hover:opacity-90 disabled:opacity-50`}
+            className={`${cls} min-h-11 min-w-11 hover:opacity-90 disabled:opacity-50`}
           >
             {label}
           </button>

@@ -58,7 +58,7 @@ export function PageantSponsorButton({
           .
         </p>
         <p className="mt-2">
-          Le pagás directo a la escuela por el medio de pago que ella publica; la escuela se
+          Le pagas directo a la escuela por el medio de pago que ella publica; la escuela se
           compromete a usarlo para este fin y confirma tu aporte. La plataforma nunca toca el dinero.
         </p>
       </ConfirmDialog>

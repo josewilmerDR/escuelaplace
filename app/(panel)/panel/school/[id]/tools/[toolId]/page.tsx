@@ -1406,7 +1406,7 @@ export default function EditToolPage() {
                         recaudación.
                       </li>
                       <li>
-                        Los padrinos pagan directo a la escuela; vos confirmás cada aporte en tu
+                        Los padrinos pagan directo a la escuela; tú confirmas cada aporte en tu
                         panel de proyectos.
                       </li>
                       <li>
