@@ -131,7 +131,7 @@ export function ServiceItems({
                     className="btn btn-primary"
                   >
                     <ChatBubbleIcon className="mr-1.5 h-5 w-5" />
-                    Preguntar
+                    Consultar
                   </a>
                 </div>
               )}

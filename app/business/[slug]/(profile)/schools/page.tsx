@@ -44,9 +44,9 @@ export default async function BusinessSchoolsPage({ params }: Props) {
       title="Escuelas que apoya"
       description={
         supportedSchools.length === 1
-          ? "Este comercio apoya a una institución de la comunidad."
+          ? "Este comercio apoya a una escuela de la comunidad."
           : supportedSchools.length > 1
-            ? `Este comercio apoya a ${supportedSchools.length} instituciones de la comunidad.`
+            ? `Este comercio apoya a ${supportedSchools.length} escuelas de la comunidad.`
             : undefined
       }
     >

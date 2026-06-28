@@ -298,7 +298,14 @@ export default function BusinessSubscribePage() {
           <span id={schoolLabelId} className="font-medium">
             Escuela
           </span>
-          <SchoolPicker schools={schools} value={schoolId} onChange={setSchoolId} />
+          <SchoolPicker
+            schools={schools}
+            value={schoolId}
+            onChange={(v) => {
+              setSchoolId(v);
+              setDone(false);
+            }}
+          />
         </div>
 
         {schoolId && (
@@ -323,11 +330,14 @@ export default function BusinessSubscribePage() {
             // is normalized to the [1, SUBSCRIPTION_UNITS_MAX] range on blur. The upper clamp
             // on change keeps a typo (an extra zero) from ever reaching state/submit.
             value={units || ""}
-            onChange={(e) =>
+            onChange={(e) => {
               setUnits(
                 Math.min(SUBSCRIPTION_UNITS_MAX, Math.max(0, Number(e.target.value) || 0)),
-              )
-            }
+              );
+              // Editing the amount starts a NEW support — drop the stale "registered!" banner
+              // so the green confirmation never describes a figure the user is changing.
+              setDone(false);
+            }}
             onBlur={() =>
               setUnits((u) =>
                 Math.min(SUBSCRIPTION_UNITS_MAX, Math.max(1, Math.floor(u) || 1)),

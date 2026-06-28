@@ -24,6 +24,9 @@ export interface ProfileTab {
   /** Absolute route the tab points to (e.g. "/school/abc" or "/school/abc/photos"). */
   href: string;
   label: string;
+  /** Optional content count, rendered as a soft trailing number so the tab previews how much
+   *  it holds. Omit (or pass 0) to show the label alone. */
+  count?: number;
 }
 
 export function ProfileTabs({ tabs }: { tabs: ProfileTab[] }) {
@@ -83,7 +86,7 @@ export function ProfileTabs({ tabs }: { tabs: ProfileTab[] }) {
         aria-label="Secciones de la página"
         className="no-scrollbar flex gap-1 overflow-x-auto scroll-smooth"
       >
-        {tabs.map(({ href, label }) => {
+        {tabs.map(({ href, label, count }) => {
           // The index tab matches only its exact path; the others match their own path so a
           // deeper child route (none today, but e.g. a future /photos/[i]) still highlights it.
           const isActive =
@@ -102,6 +105,11 @@ export function ProfileTabs({ tabs }: { tabs: ProfileTab[] }) {
               }`}
             >
               {label}
+              {typeof count === "number" && count > 0 && (
+                <span className="ml-1.5 align-baseline text-xs font-normal tabular-nums opacity-70">
+                  {count}
+                </span>
+              )}
             </Link>
           );
         })}

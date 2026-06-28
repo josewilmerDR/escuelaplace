@@ -204,7 +204,7 @@ export function HomeChosenSchool({
           <EmptyState
             icon={<HeartIcon className="h-7 w-7" />}
             title="Esta escuela todavía no tiene actividades en curso"
-            description="Conoce más sobre la institución y las formas de apoyarla en su página."
+            description="Conoce más sobre la escuela y las formas de apoyarla en su página."
             cta={{ label: "Ver la escuela", href: `/school/${schoolId}` }}
           />
           {supportersShelf && <div className="mt-8">{supportersShelf}</div>}

@@ -373,8 +373,12 @@ function Delta({ value, prevValue }: { value: number; prevValue: number }) {
   // The ▲▼= glyphs read literally to a screen reader, so hide them and pair a spoken label.
   const label =
     pct > 0 ? `subió ${pct}%` : pct < 0 ? `bajó ${Math.abs(pct)}%` : "sin cambios";
+  // Every funnel metric here is "more is better", so a rise reads as good (success) and a
+  // drop as bad (error); flat stays muted. Color lets the trend register at a glance instead
+  // of having to parse each percentage. The sr-only label already carries the direction.
+  const tone = pct > 0 ? "text-success" : pct < 0 ? "text-error" : "text-muted";
   return (
-    <span className="w-14 text-right text-xs tabular-nums text-muted">
+    <span className={`w-14 text-right text-xs tabular-nums ${tone}`}>
       <span aria-hidden="true">
         {arrow}
         {pct !== 0 && ` ${Math.abs(pct)}%`}

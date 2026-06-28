@@ -204,7 +204,7 @@ export default async function ProjectPage({ params }: Props) {
                       : "Puedes aportar en dinero o donar en especie (bienes o trabajo, como una etapa completa); su valor estimado suma al avance."}
                   </p>
                   <p className="mt-2 text-xs text-muted">
-                    Para registrar tu aporte inicias sesión con Google.{" "}
+                    Para registrar tu aporte, inicia sesión con Google.{" "}
                     {PLATFORM_MONEY_DISCLAIMER_TEXT}
                   </p>
                 </div>

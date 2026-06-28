@@ -15,6 +15,10 @@ const TONE_CLASS = {
   warning: "bg-warning-tint text-warning ring-warning/10",
   error: "bg-error-tint text-error ring-error/10",
   success: "bg-success-tint text-success ring-success/10",
+  // Positive, on-brand notice (e.g. a comercio's active discount). Distinct from the
+  // semantic states above: a deal is an invitation, not an alert, so it must NOT borrow
+  // the amber `warning` palette. Mirrors the `brand` tone of Badge/StatChip.
+  promo: "bg-brand-tint text-brand-darker ring-brand-darker/10",
 } as const;
 
 export interface BannerProps {
