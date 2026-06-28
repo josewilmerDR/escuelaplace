@@ -23,6 +23,7 @@ import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { StatChip } from "@/components/ui/StatChip";
 import { TotalRow } from "@/components/ui/TotalRow";
 import { userErrorMessage } from "@/lib/errors";
@@ -65,13 +66,10 @@ export default function DonatePage() {
 function DonateSkeleton() {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Donar a una escuela
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        El 100% de tu aporte va directo a la escuela por el medio de pago que
-        ella misma publica; la plataforma nunca toca el dinero.
-      </p>
+      <PageTitle
+        title="Donar a una escuela"
+        subtitle="El 100% de tu aporte va directo a la escuela por el medio de pago que ella misma publica; la plataforma nunca toca el dinero."
+      />
       <div className="mt-6 space-y-3" aria-hidden="true">
         <div className="h-10 animate-pulse rounded-xl bg-surface ring-1 ring-black/5" />
         <div className="h-10 animate-pulse rounded-xl bg-surface ring-1 ring-black/5" />
@@ -249,13 +247,10 @@ function DonateContent() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Donar a una escuela
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        El 100% de tu aporte va directo a la escuela por el medio de pago que
-        ella misma publica; la plataforma nunca toca el dinero.
-      </p>
+      <PageTitle
+        title="Donar a una escuela"
+        subtitle="El 100% de tu aporte va directo a la escuela por el medio de pago que ella misma publica; la plataforma nunca toca el dinero."
+      />
 
       {(profile?.tier || (profile?.projectsSupported ?? 0) > 0) && (
         <div className={`mt-6 flex flex-wrap items-center gap-2 text-sm ${cardClass("inset")}`}>
