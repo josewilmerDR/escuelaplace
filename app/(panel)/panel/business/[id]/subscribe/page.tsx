@@ -23,6 +23,7 @@ import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { TotalRow } from "@/components/ui/TotalRow";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -55,10 +56,11 @@ import type { LoadState } from "@/lib/page-state";
 function SubscribeSkeleton({ business }: { business: BusinessDoc | null }) {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Apoyar una escuela
-      </h1>
-      <p className="mt-1 text-sm text-muted">{business?.name ?? " "}</p>
+      <PageTitle
+        title="Apoyar una escuela"
+        subtitle={business?.name}
+        reserveSubtitle
+      />
       <div className="mt-8 space-y-3" aria-hidden="true">
         <div className="h-10 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
         <div className="h-10 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -156,9 +158,7 @@ export default function BusinessSubscribePage() {
   if (loadState === "error") {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Apoyar una escuela
-        </h1>
+        <PageTitle title="Apoyar una escuela" />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar los datos. Revisa tu conexión e intenta de nuevo.
         </p>
@@ -172,9 +172,7 @@ export default function BusinessSubscribePage() {
   if (!business) {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Apoyar una escuela
-        </h1>
+        <PageTitle title="Apoyar una escuela" />
         <p role="alert" className="mt-4 text-sm text-muted">
           Comercio no encontrado.
         </p>
@@ -190,9 +188,7 @@ export default function BusinessSubscribePage() {
   if (!isManager) {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Apoyar una escuela
-        </h1>
+        <PageTitle title="Apoyar una escuela" />
         <p role="alert" className="mt-4 text-sm text-error">
           No administras este comercio.
         </p>
@@ -268,10 +264,7 @@ export default function BusinessSubscribePage() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Apoyar una escuela
-      </h1>
-      <p className="mt-1 text-sm text-muted">{business.name}</p>
+      <PageTitle title="Apoyar una escuela" subtitle={business.name} />
 
       <BusinessPanelNav
         businessId={id}
