@@ -931,7 +931,17 @@ export default function BusinessEditPage() {
           >
             {saving ? "Guardando…" : "Guardar cambios"}
           </button>
-          <SavedIndicator show={saved} onHide={() => setSaved(false)} />
+          {/* Mutually exclusive with the saved pill (which now shows only `saved && !dirty`):
+              the moment any field changes, "Guardado" gives way to this amber "unsaved" cue,
+              so the save button at the page foot never looks idle while edits are pending —
+              and it echoes the same warning the publish guard raises on a dirty profile. */}
+          {dirty && !saving && (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-warning">
+              <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden />
+              Cambios sin guardar
+            </span>
+          )}
+          <SavedIndicator show={saved && !dirty} onHide={() => setSaved(false)} />
         </div>
       </div>
 
