@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BuyerStrip } from "@/components/buyer/BuyerStrip";
+import { CommunityPicker } from "@/components/buyer/CommunityPicker";
 import { HomeSchools, type SupportingBusinessCard } from "@/components/feed/HomeSchools";
 import { CatalogTabs } from "@/components/layout/CatalogTabs";
 import { SearchBar } from "@/components/search/SearchBar";
@@ -128,20 +128,16 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Value strip: the product breaks marketplace expectations (no checkout, the platform
-          never touches money), so the home has to say what it is FOR before showing it.
-          <BuyerStrip> shows the community prompt on a first visit and collapses to a one-line
-          community summary once a school/zone is set. */}
-      <section className="border-y border-border bg-surface">
-        <div className="mx-auto max-w-6xl px-6 py-7">
-          <BuyerStrip />
-        </div>
-      </section>
-
       {/* School directory: a vertical feed of school posts (ranked by support, re-ranked by the
-          buyer's community client-side), with the supporting-businesses carousel at slot 2. */}
-      <section className="mx-auto max-w-2xl px-6 pt-4 pb-20">
-        <div className="mt-6">
+          buyer's community client-side), with the supporting-businesses carousel at slot 2. It
+          is led by the community picker — the buyer's single most important decision — using the
+          one prominent card already shown on /search, /schools and the category listings. This
+          replaces the old faint two-link BuyerStrip that buried that choice; the picker's own
+          description line still states what the home is FOR before the feed (the product breaks
+          marketplace expectations, so it has to). */}
+      <section className="mx-auto max-w-2xl px-6 pt-8 pb-20">
+        <CommunityPicker />
+        <div>
           {loadFailed ? (
             <EmptyState
               icon={<WarningIcon className="h-7 w-7" />}
