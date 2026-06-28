@@ -222,6 +222,10 @@ function ActivityInner() {
   const [filter, setFilter] = useState<Filter>(initialFilter);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmAllOpen, setConfirmAllOpen] = useState(false);
+  // The single item awaiting its confirmation dialog (null = closed). Confirming one is just
+  // as irreversible as the bulk run, so it gets the same <ConfirmDialog> guard — a misclick
+  // on a queue row shouldn't silently settle the wrong donation.
+  const [confirmTarget, setConfirmTarget] = useState<ActivityItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Accessible-only success feedback (no visual banner), announced via an aria-live region.
   const [status, setStatus] = useState<string | null>(null);
@@ -478,7 +482,7 @@ function ActivityInner() {
                     item={item}
                     busy={busyId === item.id || busyId === "all"}
                     busyLabel={busyId === item.id}
-                    onConfirm={() => confirmOne(item)}
+                    onConfirm={() => setConfirmTarget(item)}
                     onViewProof={() => viewProof(item)}
                   />
                 ))}
@@ -523,6 +527,29 @@ function ActivityInner() {
           </section>
         </>
       )}
+
+      {/* Single-item confirm: same guard as the bulk dialog below, with the item's actor +
+          kind + amount so it doubles as a final check before an irreversible settle. */}
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        title="Confirmar este registro"
+        confirmLabel="Confirmar"
+        onConfirm={() => {
+          const target = confirmTarget;
+          setConfirmTarget(null);
+          if (target) void confirmOne(target);
+        }}
+        onCancel={() => setConfirmTarget(null)}
+      >
+        {confirmTarget && (
+          <>
+            Vas a confirmar este registro:{" "}
+            <span className="font-medium text-foreground">{confirmTarget.who}</span> —{" "}
+            {KIND_META[confirmTarget.kind].label}, {amountOf(confirmTarget)}. Esta
+            acción no se puede deshacer.
+          </>
+        )}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={confirmAllOpen}
