@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { ContactButtons } from "@/components/business/ContactButtons";
 import { ManageBar } from "@/components/business/ManageBar";
+import { StickyContactBar } from "@/components/business/StickyContactBar";
 import { SupportBadge } from "@/components/business/SupportBadge";
 import { TrackPageView } from "@/components/business/TrackPageView";
 import { Stars } from "@/components/reviews/Stars";
@@ -17,6 +18,7 @@ import {
   splitBusinessPhotos,
   supportedSchoolsOf,
 } from "@/lib/firestore";
+import { buildWhatsAppUrl } from "@/lib/contact";
 import { formatRating } from "@/lib/format";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
 import { locationParts } from "@/lib/location";
@@ -73,6 +75,15 @@ export default async function BusinessProfileLayout({ children, params }: Props)
   const hasSchool = Boolean(business.schoolId && business.schoolName);
   const stats = business.reviewStats ?? { count: 0, average: 0 };
   const averageLabel = formatRating(stats.average);
+  // Same gate as ContactButtons (the number must survive normalization), so the sticky bar
+  // exists only when there is a real WhatsApp CTA to re-surface.
+  const whatsAppUrl = business.contact?.whatsapp
+    ? buildWhatsAppUrl(
+        business.contact.whatsapp,
+        business.name,
+        business.discount?.active ?? false,
+      )
+    : null;
 
   const base = `/business/${business.slug}`;
   // Tabs: "Principal" (the index, holding Información) and Reseñas always exist; Fotos/Escuelas
@@ -172,6 +183,12 @@ export default async function BusinessProfileLayout({ children, params }: Props)
               : null
           }
         />
+
+        {/* Mobile sticky WhatsApp CTA: re-surfaces the header's contact action once it scrolls
+            out of view, pinned above the BottomNav. Hidden on desktop / when there's no number. */}
+        {whatsAppUrl && (
+          <StickyContactBar businessId={business.id} whatsAppUrl={whatsAppUrl} />
+        )}
 
         {/* Edit/metrics shortcuts — only the page's managers see this. */}
         <ManageBar
