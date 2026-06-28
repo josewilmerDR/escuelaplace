@@ -21,6 +21,7 @@ import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { TotalRow } from "@/components/ui/TotalRow";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -57,9 +58,7 @@ export default function PageantSupportPage() {
 function SupportSkeleton() {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Apoyar a una candidatura
-      </h1>
+      <PageTitle title="Apoyar a una candidatura" />
       <div className="mt-1 h-4 w-56 animate-pulse rounded bg-surface" aria-hidden="true" />
       <div className="mt-6 space-y-3" aria-hidden="true">
         <div className="h-20 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -154,9 +153,7 @@ function SupportContent() {
   if (loadState === "error") {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Apoyar a una candidatura
-        </h1>
+        <PageTitle title="Apoyar a una candidatura" />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar los datos. Revisa tu conexión e intenta de nuevo.
         </p>
@@ -239,18 +236,20 @@ function SupportContent() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Apoyar a una candidatura
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        <Link
-          href={`/school/${schoolId}/tool/${toolId}`}
-          className="font-medium text-brand-darker transition-colors hover:text-brand-darkest"
-        >
-          {toolTitle}
-        </Link>{" "}
-        · {candidate.name} · {school.name}
-      </p>
+      <PageTitle
+        title="Apoyar a una candidatura"
+        subtitle={
+          <>
+            <Link
+              href={`/school/${schoolId}/tool/${toolId}`}
+              className="font-medium text-brand-darker transition-colors hover:text-brand-darkest"
+            >
+              {toolTitle}
+            </Link>{" "}
+            · {candidate.name} · {school.name}
+          </>
+        }
+      />
 
       <form
         onSubmit={onSubmit}

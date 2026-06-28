@@ -24,6 +24,7 @@ import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { TotalRow } from "@/components/ui/TotalRow";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
@@ -68,9 +69,7 @@ export default function FundPage() {
 function FundSkeleton() {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Financiar un proyecto
-      </h1>
+      <PageTitle title="Financiar un proyecto" />
       <div className="mt-1 h-4 w-56 animate-pulse rounded bg-surface" aria-hidden="true" />
       <div className="mt-6 space-y-3" aria-hidden="true">
         <div className="h-20 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -170,9 +169,7 @@ function FundContent() {
   if (loadState === "error") {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Financiar un proyecto
-        </h1>
+        <PageTitle title="Financiar un proyecto" />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar los datos. Revisa tu conexión e intenta de nuevo.
         </p>
@@ -300,18 +297,20 @@ function FundContent() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Financiar un proyecto
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        <Link
-          href={`/school/${schoolId}/project/${projectId}`}
-          className="font-medium text-brand-darker transition-colors hover:text-brand-darkest"
-        >
-          {project.title}
-        </Link>{" "}
-        · {school.name}
-      </p>
+      <PageTitle
+        title="Financiar un proyecto"
+        subtitle={
+          <>
+            <Link
+              href={`/school/${schoolId}/project/${projectId}`}
+              className="font-medium text-brand-darker transition-colors hover:text-brand-darkest"
+            >
+              {project.title}
+            </Link>{" "}
+            · {school.name}
+          </>
+        }
+      />
 
       {/* Live project progress on a soft inset panel. */}
       <div className={`mt-6 ${cardClass("inset")}`}>
