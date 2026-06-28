@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BusinessPanelNav } from "@/components/business/BusinessPanelNav";
 import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { Section } from "@/components/ui/Section";
 import { PlusIcon } from "@/components/ui/icons";
 import { useParams } from "next/navigation";
@@ -161,9 +162,7 @@ export default function BusinessMetricsPage() {
     // retry — a transient read failure shouldn't trap a real manager on a dead page.
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Métricas
-        </h1>
+        <PageTitle title="Métricas" />
         <p className="mt-6 text-sm text-error">
           No administras este comercio o no se pudieron cargar sus métricas.
         </p>
@@ -187,10 +186,7 @@ export default function BusinessMetricsPage() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Métricas
-      </h1>
-      <p className="mt-1 text-sm text-muted">{business.name}</p>
+      <PageTitle title="Métricas" subtitle={business.name} />
 
       <BusinessPanelNav
         businessId={id}
@@ -397,10 +393,7 @@ function Delta({ value, prevValue }: { value: number; prevValue: number }) {
 function MetricsSkeleton({ businessName }: { businessName?: string }) {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Métricas
-      </h1>
-      {businessName && <p className="mt-1 text-sm text-muted">{businessName}</p>}
+      <PageTitle title="Métricas" subtitle={businessName} />
       <div className="mt-6 flex flex-col gap-4" aria-hidden="true">
         <div className="h-40 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
         <div className="h-40 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />

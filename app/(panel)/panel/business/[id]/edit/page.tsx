@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { BusinessPanelNav } from "@/components/business/BusinessPanelNav";
@@ -434,9 +435,7 @@ export default function BusinessEditPage() {
     // skeleton). The card placeholders stand in for the status banner + form sections.
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Editar comercio
-        </h1>
+        <PageTitle title="Editar comercio" />
         <div className="mt-8 flex flex-col gap-6" aria-hidden="true">
           <div className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
           <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -452,9 +451,7 @@ export default function BusinessEditPage() {
   if (loadState === "error") {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Editar comercio
-        </h1>
+        <PageTitle title="Editar comercio" />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar los datos del comercio. Revisa tu conexión e intenta
           de nuevo.
@@ -469,9 +466,7 @@ export default function BusinessEditPage() {
   if (!business) {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Editar comercio
-        </h1>
+        <PageTitle title="Editar comercio" />
         <EmptyState
           icon={<PagesIcon className="h-7 w-7" />}
           title="No encontramos este comercio"
@@ -489,9 +484,7 @@ export default function BusinessEditPage() {
   if (!isManager) {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Editar comercio
-        </h1>
+        <PageTitle title="Editar comercio" />
         <p role="alert" className="mt-4 text-sm text-error">
           No administras este comercio.
         </p>
@@ -504,10 +497,7 @@ export default function BusinessEditPage() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Editar comercio
-      </h1>
-      <p className="mt-1 text-sm text-muted">{business.name}</p>
+      <PageTitle title="Editar comercio" subtitle={business.name} />
 
       <BusinessPanelNav
         businessId={id}
