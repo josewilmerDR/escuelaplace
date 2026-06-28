@@ -8,18 +8,14 @@
  */
 import type { Metadata } from "next";
 import { RecognitionToggle } from "@/components/donors/RecognitionToggle";
+import { PageTitle } from "@/components/ui/PageTitle";
 
 export const metadata: Metadata = { title: "Configuración" };
 
 export default function SettingsPage() {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Configuración
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        Preferencias de tu cuenta.
-      </p>
+      <PageTitle title="Configuración" subtitle="Preferencias de tu cuenta." />
 
       <div className="mt-8">
         <RecognitionToggle />

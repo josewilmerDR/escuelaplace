@@ -16,6 +16,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { FormSection } from "@/components/ui/FormSection";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PhoneField } from "@/components/ui/PhoneField";
 import { normalizePhoneInternational } from "@/lib/contact";
@@ -141,9 +142,7 @@ export default function NewSchoolPage() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Crear escuela
-      </h1>
+      <PageTitle title="Crear escuela" />
       {/* Creating a school is a routine, positive action — not a warning. A calm muted line
           (not the amber warning box) reserves the amber token for genuine alerts and reframes
           verification as the step that *activates* the payment methods, not one that hides them. */}

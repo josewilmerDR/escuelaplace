@@ -93,9 +93,7 @@ export default function AdminCategoriesPage() {
   if (!isAdmin) {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Categorías
-        </h1>
+        <PageTitle title="Categorías" />
         <p role="alert" className="mt-2 text-error">
           No tienes acceso a esta sección.
         </p>

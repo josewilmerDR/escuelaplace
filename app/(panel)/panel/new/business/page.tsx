@@ -18,6 +18,7 @@ import { Combobox, type ComboboxOption } from "@/components/ui/Combobox";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { FormSection } from "@/components/ui/FormSection";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { HeaderPreview } from "@/components/business/HeaderPreview";
 import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PhoneField } from "@/components/ui/PhoneField";
@@ -232,13 +233,10 @@ export default function NewBusinessPage() {
     // and the panel home skeleton). The card placeholders stand in for the form sections.
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Crear comercio
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Empieza con lo esencial: lo publicas como borrador y completas el resto
-          después.
-        </p>
+        <PageTitle
+          title="Crear comercio"
+          subtitle="Empieza con lo esencial: lo publicas como borrador y completas el resto después."
+        />
         <div className="mt-8 flex flex-col gap-6" aria-hidden="true">
           <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
           <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -254,9 +252,7 @@ export default function NewBusinessPage() {
   if (loadState === "error") {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Crear comercio
-        </h1>
+        <PageTitle title="Crear comercio" />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar las escuelas y categorías. Revisa tu conexión e
           intenta de nuevo.
@@ -270,13 +266,10 @@ export default function NewBusinessPage() {
 
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Crear comercio
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        Empieza con lo esencial: lo publicas como borrador y completas el resto
-        después.
-      </p>
+      <PageTitle
+        title="Crear comercio"
+        subtitle="Empieza con lo esencial: lo publicas como borrador y completas el resto después."
+      />
 
       <form
         onSubmit={onSubmit}

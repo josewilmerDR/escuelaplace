@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageTypeChoice } from "@/components/onboarding/PageTypeChoice";
+import { PageTitle } from "@/components/ui/PageTitle";
 
 export const metadata: Metadata = { title: "Crear página" };
 
@@ -12,12 +13,10 @@ export const metadata: Metadata = { title: "Crear página" };
 export default function NewPageChoice() {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        ¿Qué quieres crear?
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        Tu cuenta puede administrar varias páginas. Elige el tipo para empezar.
-      </p>
+      <PageTitle
+        title="¿Qué quieres crear?"
+        subtitle="Tu cuenta puede administrar varias páginas. Elige el tipo para empezar."
+      />
 
       <div className="mt-8">
         <PageTypeChoice />

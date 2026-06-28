@@ -24,6 +24,7 @@ import { SupporterContributionItem } from "@/components/subscriptions/SupporterC
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HeartIcon } from "@/components/ui/icons";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { StatChip } from "@/components/ui/StatChip";
 import { userErrorMessage } from "@/lib/errors";
 import {
@@ -390,19 +391,16 @@ export default function DonationsPage() {
  */
 function DonationsHeader() {
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">{TITLE}</h1>
-        <Link href="/panel/donate" className="btn btn-primary shrink-0 gap-1.5">
+    <PageTitle
+      title={TITLE}
+      action={
+        <Link href="/panel/donate" className="btn btn-primary gap-1.5">
           <HeartIcon className="h-4 w-4" />
           Donar
         </Link>
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        Todo lo que aportaste, en un solo lugar: tus donaciones a escuelas y tus
-        aportes a proyectos.
-      </p>
-    </div>
+      }
+      subtitle="Todo lo que aportaste, en un solo lugar: tus donaciones a escuelas y tus aportes a proyectos."
+    />
   );
 }
 
