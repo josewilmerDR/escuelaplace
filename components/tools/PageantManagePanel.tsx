@@ -214,7 +214,7 @@ export function PageantManagePanel({
             <div className={`mt-4 ${cardClass("inset")}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <Link
-                  href={`/panel/school/${schoolId}/projects/${fundProject.id}`}
+                  href={`/panel/school/${schoolId}/projects/${fundProject.id}/manage`}
                   title={fundProject.title}
                   className="inline-flex items-center gap-1 font-medium text-brand-darker hover:underline"
                 >

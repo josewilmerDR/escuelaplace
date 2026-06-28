@@ -3,18 +3,18 @@
 /**
  * Project edit (/panel/school/[id]/projects/[pid]).
  *
- * The board edits the project's details and stages, uploads the cover and per-stage media
- * (photos + quotes), and opens/closes the project. Text edits are saved with the button
- * (guarded against silent loss with useUnsavedChangesGuard); media uploads and status
- * changes persist immediately. `raised`/`contributorsCount` are function-maintained and
- * never written here.
+ * A pure configuration form: the board edits the project's details and stages and uploads the
+ * cover and per-stage media (photos + quotes). Text edits are saved with the button (guarded
+ * against silent loss with useUnsavedChangesGuard); media uploads persist immediately. The
+ * status actions (open/close the project) live on the manage page (./manage); deleting the
+ * project is a risk-zone text action at the end of this form, mirroring how a tool's editor
+ * holds its delete. `raised`/`contributorsCount` are function-maintained and never written here.
  *
  * Two correctness guards worth calling out: the currency is frozen once the project has any
  * contribution (it would otherwise mix `raised` figures), and per-stage media can only be
  * uploaded onto a saved stage — a brand-new unsaved stage disables its uploads until the
  * board saves, since media is keyed to the persisted `project.stages` array. Destructive
- * actions (remove a stage, delete the project) go through a ConfirmDialog with concrete
- * impact; status/delete failures surface beside the risk zone, not in the form's error slot.
+ * actions (remove a stage, delete the project) go through a ConfirmDialog with concrete impact.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
@@ -44,7 +44,6 @@ import {
   getProjectById,
   getSchoolById,
   projectGoal,
-  setProjectStatus,
   updateProject,
   uploadProjectAsset,
 } from "@/lib/firestore";
@@ -128,11 +127,6 @@ export default function ProjectEditPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Errors from status/delete actions live next to the risk zone (#5), kept separate from
-  // the form's FormError so each error sits beside the action that produced it.
-  const [riskError, setRiskError] = useState<string | null>(null);
-  // Accessible-only status feedback for a status change, announced via aria-live (#12).
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   // Text edits (title, description, currency, cover, stage text) only persist on "Guardar
   // cambios"; the guard warns before a close/refresh would throw them away. Immediate
@@ -157,16 +151,16 @@ export default function ProjectEditPage() {
     return keyed;
   };
 
-  // Status/delete actions hit Cloud Functions; without a busy gate a double-click fires
-  // them twice. `actionBusy` covers status changes; `deleting` covers the delete — both
-  // disable the whole risk zone.
-  const [actionBusy, setActionBusy] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [confirmCancel, setConfirmCancel] = useState(false);
   // The stage pending removal confirmation (#2): its `_key`, or null when no dialog is open.
   const [removeKey, setRemoveKey] = useState<number | null>(null);
   const [removing, setRemoving] = useState(false);
+
+  // Deleting the project is the risk-zone action at the foot of the form (like the tools
+  // editor). A busy gate stops a double-fire; its error renders beside the action, not in the
+  // form's FormError far above.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     Promise.all([getProjectById(id, pid), getSchoolById(id)])
@@ -296,7 +290,8 @@ export default function ProjectEditPage() {
     });
     await updateProject(id, pid, { stages: nextPersisted });
     // Refresh the persisted base so a later media op builds on this one. Functional updater
-    // so a concurrent status change (onStatus) isn't clobbered by a stale closure value.
+    // so a concurrent media op (another stage's upload/removal) isn't clobbered by a stale
+    // closure value.
     setProject((prev) => (prev ? { ...prev, stages: nextPersisted } : prev));
     // Merge only the changed media into the editable stage, preserving its live text.
     setStages((prev) =>
@@ -365,8 +360,8 @@ export default function ProjectEditPage() {
       });
       setCoverFile(null);
       // Refresh the persisted base and re-key the editable stages from the saved values.
-      // Functional updater so a status change that landed mid-save (onStatus also uses a
-      // functional updater) isn't clobbered by a stale `project` from this closure (#4a).
+      // Functional updater so a stage media op that landed mid-save (applyMedia/removeStage
+      // also use functional updaters) isn't clobbered by a stale `project` from this closure.
       setProject((prev) =>
         prev
           ? {
@@ -390,46 +385,20 @@ export default function ProjectEditPage() {
     }
   };
 
-  /** Spanish announcement for a status change, for the aria-live region (#12). */
-  const statusAnnouncement = (status: ProjectDoc["status"]): string => {
-    if (status === "completed") return "Proyecto marcado como completado.";
-    if (status === "cancelled") return "Proyecto cancelado.";
-    return "Proyecto reabierto.";
-  };
-
-  const onStatus = async (status: ProjectDoc["status"]) => {
-    // Status/delete errors render in the risk zone, not the form's FormError (#5).
-    setRiskError(null);
-    setStatusMsg(null);
-    setActionBusy(true);
-    try {
-      await setProjectStatus(id, pid, status);
-      setProject((p) => (p ? { ...p, status } : p));
-      setStatusMsg(statusAnnouncement(status));
-    } catch (err) {
-      setRiskError(userErrorMessage(err, "No se pudo cambiar el estado."));
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
   const onDelete = async () => {
-    setRiskError(null);
+    setDeleteError(null);
     setDeleting(true);
     try {
       await deleteProject(id, pid);
       // Client-side navigation (no full reload) back to the project list.
       router.push(`/panel/school/${id}/projects`);
     } catch (err) {
-      setRiskError(userErrorMessage(err, "No se pudo eliminar el proyecto."));
+      setDeleteError(userErrorMessage(err, "No se pudo eliminar el proyecto."));
       setDeleting(false);
       setConfirmDelete(false);
     }
   };
 
-  // The whole risk zone is disabled while any status/delete action is in flight; also
-  // freeze it while the form is saving so the two write paths don't race (#4b).
-  const riskBusy = actionBusy || deleting || saving;
   // The stage targeted by the open remove dialog, for its impact summary (#2).
   const removeTarget =
     removeKey === null ? null : stages.find((s) => s._key === removeKey);
@@ -441,11 +410,6 @@ export default function ProjectEditPage() {
         subtitle={`${school.name} · ${project.title}`}
         status={project.status}
       />
-
-      {/* Accessible-only status announcement for the status change; no visual banner (#12). */}
-      <p className="sr-only" role="status" aria-live="polite">
-        {statusMsg}
-      </p>
 
       {/* Live progress (function-maintained raised/contributorsCount) on an inset card,
           same surface the public project page uses for this exact block (#9). */}
@@ -621,11 +585,9 @@ export default function ProjectEditPage() {
         <FormError message={error} />
 
         <div className="flex items-center gap-3">
-          {/* Disabled while saving OR while a risk-zone action runs, so the two write paths
-              can't race each other (#4b). */}
           <button
             type="submit"
-            disabled={saving || riskBusy}
+            disabled={saving}
             className="btn btn-primary"
           >
             {saving ? "Guardando…" : "Guardar cambios"}
@@ -633,121 +595,6 @@ export default function ProjectEditPage() {
           <SavedIndicator show={saved} onHide={() => setSaved(false)} />
         </div>
       </form>
-
-      <section className="mt-10 border-t border-border pt-6">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Estado del proyecto
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          Alcanzar la meta de dinero no cierra el proyecto: márcalo como
-          completado cuando lo concretes (o cuando aceptes una donación en
-          especie que lo cumpla).
-        </p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          {project.status !== "completed" && (
-            <button
-              type="button"
-              onClick={() => onStatus("completed")}
-              disabled={riskBusy}
-              className="btn btn-outline"
-            >
-              Marcar como completado
-            </button>
-          )}
-          {project.status === "active" ? (
-            <button
-              type="button"
-              onClick={() => setConfirmCancel(true)}
-              disabled={riskBusy}
-              className="btn btn-outline"
-            >
-              Cancelar proyecto
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onStatus("active")}
-              disabled={riskBusy}
-              className="btn btn-outline"
-            >
-              Reabrir proyecto
-            </button>
-          )}
-        </div>
-
-        {/* Status/delete errors surface here, beside the actions that raise them, instead of
-            in the form's FormError far above this section (#5). */}
-        {riskError && (
-          <p role="alert" className="mt-3 text-sm text-error">
-            {riskError}
-          </p>
-        )}
-
-        {/* Risk zone: delete sits in its own block so it can't be mis-tapped right next to
-            the reversible status actions, especially on a wrapped mobile layout. */}
-        <div className="mt-6 border-t border-border pt-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">
-            Zona de riesgo
-          </p>
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            disabled={riskBusy}
-            className="btn btn-destructive mt-2"
-          >
-            Eliminar proyecto
-          </button>
-        </div>
-      </section>
-
-      {/* Cancel asks first: it switches off the public "Financiar" button in one click. */}
-      <ConfirmDialog
-        open={confirmCancel}
-        title="Cancelar proyecto"
-        confirmLabel="Cancelar proyecto"
-        cancelLabel="Volver"
-        busy={actionBusy}
-        busyLabel="Cancelando…"
-        onConfirm={async () => {
-          await onStatus("cancelled");
-          setConfirmCancel(false);
-        }}
-        onCancel={() => setConfirmCancel(false)}
-      >
-        <p>
-          Cancelar oculta el botón “Financiar” de la página pública del
-          proyecto, así nadie puede seguir aportando. Puedes reabrirlo más
-          adelante.
-        </p>
-      </ConfirmDialog>
-
-      {/* Destructive delete with concrete impact data (title + what was raised). */}
-      <ConfirmDialog
-        open={confirmDelete}
-        title="Eliminar proyecto"
-        tone="destructive"
-        confirmLabel="Eliminar proyecto"
-        cancelLabel="Cancelar"
-        busy={deleting}
-        busyLabel="Eliminando…"
-        onConfirm={onDelete}
-        onCancel={() => setConfirmDelete(false)}
-      >
-        {project.raised > 0 ? (
-          <p>
-            Vas a eliminar «{project.title}». Recaudó{" "}
-            {formatMoney(project.raised, project.currency)} de{" "}
-            {project.contributorsCount}{" "}
-            {project.contributorsCount === 1 ? "persona" : "personas"}. Los
-            aportes confirmados quedan en el historial, pero el proyecto
-            desaparece y no se puede deshacer.
-          </p>
-        ) : (
-          <p>
-            Vas a eliminar «{project.title}». No se puede deshacer.
-          </p>
-        )}
-      </ConfirmDialog>
 
       {/* Remove a stage — confirmed, with concrete impact (its cost + how much media it holds),
           and a warning when contributions exist since they reference stages by index (#2). */}
@@ -789,8 +636,54 @@ export default function ProjectEditPage() {
       </ConfirmDialog>
 
       <p className="mt-8 text-sm">
-        <BackLink href={`/panel/school/${id}/projects`}>Volver a proyectos</BackLink>
+        <BackLink href={`/panel/school/${id}/projects/${pid}/manage`}>
+          Volver a la gestión
+        </BackLink>
       </p>
+
+      {/* Risk zone: deleting a project is irreversible. A centered RED text action (not a
+          button — like the tools editor's "Eliminar …"), under a divider so it reads as a
+          risk zone; the confirm dialog names this project and what it raised. */}
+      <section className="mt-12 flex flex-col items-center gap-2 border-t border-border pt-6">
+        <button
+          type="button"
+          onClick={() => setConfirmDelete(true)}
+          className="text-sm font-medium text-error underline-offset-2 transition-colors hover:underline"
+        >
+          Eliminar proyecto
+        </button>
+        {deleteError && (
+          <p role="alert" className="text-sm text-error">
+            {deleteError}
+          </p>
+        )}
+      </section>
+
+      {/* Destructive delete with concrete impact data (title + what was raised). */}
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Eliminar proyecto"
+        tone="destructive"
+        confirmLabel="Eliminar proyecto"
+        cancelLabel="Cancelar"
+        busy={deleting}
+        busyLabel="Eliminando…"
+        onConfirm={onDelete}
+        onCancel={() => setConfirmDelete(false)}
+      >
+        {project.raised > 0 ? (
+          <p>
+            Vas a eliminar «{project.title}». Recaudó{" "}
+            {formatMoney(project.raised, project.currency)} de{" "}
+            {project.contributorsCount}{" "}
+            {project.contributorsCount === 1 ? "persona" : "personas"}. Los
+            aportes confirmados quedan en el historial, pero el proyecto
+            desaparece y no se puede deshacer.
+          </p>
+        ) : (
+          <p>Vas a eliminar «{project.title}». No se puede deshacer.</p>
+        )}
+      </ConfirmDialog>
     </main>
   );
 }

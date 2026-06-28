@@ -34,10 +34,6 @@ import type { LoadState } from "@/lib/page-state";
 
 const LOADING_TEXT = "Cargando proyectos…";
 
-/** Quiet, low-emphasis card action (the public link beside the lead "Editar"). */
-const CHIP_ACTION =
-  "inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground";
-
 /**
  * The page heading, rendered identically in every state (loading, error, missing school,
  * not-a-manager, loaded) so the title never shifts as content swaps in. Its first element is a
@@ -74,74 +70,77 @@ function Heading({
 }
 
 /**
- * One project row, used by both the Active and History sections so the look stays
+ * One compact project card, used by both the Active and History grids so the look stays
  * consistent. Extracted as a component (rather than a render fn closing over `id`) so its
- * identity is stable and there's no hook-ordering hazard. Active projects show the live
- * progress bar; settled ones (completed/cancelled) show only the total raised — a partial
- * bar next to a "Completado" badge would read as contradictory.
+ * identity is stable and there's no hook-ordering hazard. The WHOLE card is a link to the
+ * project's control panel (mirroring how a tool grid card opens its manage page); editing
+ * lives behind the panel's "Editar proyecto" button. Active projects show the live progress
+ * bar; settled ones (completed/cancelled) show only the total raised — a partial bar next to
+ * a "Completado" badge would read as contradictory.
  */
 function ProjectRow({ schoolId, p }: { schoolId: string; p: ProjectDoc }) {
   const isActive = p.status === "active";
   return (
-    // Elevated calm-depth card per project (ring + soft shadow, no hard border). Padding
-    // is opted out so an optional cover can run edge-to-edge across the top.
-    <li className={`${cardClass("elevated", false)} overflow-hidden`}>
-      {p.coverUrl && (
-        // Discreet cover band atop the card; decorative since the title sits right below.
-        <span
-          className={`relative block w-full bg-surface ${CARD_COVER_ASPECT}`}
-        >
-          <Image
-            src={p.coverUrl}
-            alt=""
-            fill
-            sizes={CARD_COVER_SIZES}
-            className="object-cover"
-          />
-        </span>
-      )}
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-semibold tracking-tight text-foreground">
+    <li>
+      <Link
+        href={`/panel/school/${schoolId}/projects/${p.id}/manage`}
+        className={`group flex h-full flex-col overflow-hidden ${cardClass(
+          "elevated",
+          false,
+        )} transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand`}
+      >
+        {/* Cover band with an icon fallback so every cell reads uniformly in the grid; the
+            settled-status chip overlays it (active renders nothing). */}
+        <div className={`relative w-full bg-brand-tint ${CARD_COVER_ASPECT}`}>
+          {p.coverUrl ? (
+            <Image
+              src={p.coverUrl}
+              alt=""
+              fill
+              sizes={CARD_COVER_SIZES}
+              className="object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-full items-center justify-center text-brand-darker/30"
+            >
+              <FlagIcon className="h-8 w-8" />
+            </span>
+          )}
+          {p.status !== "active" && (
+            <span className="absolute left-2 top-2">
+              <ProjectStatusBadge status={p.status} />
+            </span>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col gap-2 p-3">
+          <div>
+            <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-brand-darker">
               {p.title}
-            </p>
+            </h3>
             <p className="text-xs text-muted">
               {p.stages.length} {p.stages.length === 1 ? "etapa" : "etapas"}
             </p>
           </div>
-          <ProjectStatusBadge status={p.status} />
+          <div className="mt-auto">
+            {isActive ? (
+              <ProjectProgress
+                raised={p.raised}
+                goal={projectGoal(p.stages)}
+                currency={p.currency}
+                contributorsCount={p.contributorsCount}
+                compact
+              />
+            ) : (
+              // Settled project: show only what it raised, no partial bar beside the badge.
+              <p className="text-xs text-muted">
+                Recaudó {formatMoney(p.raised, p.currency)}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="mt-3">
-          {isActive ? (
-            <ProjectProgress
-              raised={p.raised}
-              goal={projectGoal(p.stages)}
-              currency={p.currency}
-              contributorsCount={p.contributorsCount}
-              compact
-            />
-          ) : (
-            // Settled project: show only what it raised, no partial bar beside the badge.
-            <p className="text-xs text-muted">
-              Recaudó {formatMoney(p.raised, p.currency)}
-            </p>
-          )}
-        </div>
-        {/* One solid lead action; the public link is a quiet chip. A thin divider
-            sets the action shelf apart from the card body. */}
-        <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-4 text-sm">
-          <Link
-            href={`/panel/school/${schoolId}/projects/${p.id}`}
-            className="btn btn-primary mr-1"
-          >
-            Editar
-          </Link>
-          <Link href={`/school/${schoolId}/project/${p.id}`} className={CHIP_ACTION}>
-            Ver público
-          </Link>
-        </div>
-      </div>
+      </Link>
     </li>
   );
 }
@@ -189,9 +188,13 @@ export default function SchoolProjectsPage() {
       <main>
         {/* School not loaded yet → blank subtitle, but the h1 sits in its final position. */}
         <Heading schoolId={id} />
-        <ul className="mt-8 flex flex-col gap-4" aria-hidden="true">
-          <li className="h-32 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
-          <li className="h-32 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+        <ul
+          className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          aria-hidden="true"
+        >
+          <li className="h-56 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <li className="h-56 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
+          <li className="h-56 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
         </ul>
         <p className="sr-only" role="status">
           {LOADING_TEXT}
@@ -243,7 +246,7 @@ export default function SchoolProjectsPage() {
             href={`/panel/school/${id}/projects/new`}
             className="btn btn-primary shrink-0 whitespace-nowrap"
           >
-            + Nuevo
+            + Nuevo proyecto
           </Link>
         }
       />
@@ -281,7 +284,7 @@ export default function SchoolProjectsPage() {
         ) : activeProjects.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No tienes proyectos activos.</p>
         ) : (
-          <ul className="mt-4 flex flex-col gap-4">
+          <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {activeProjects.map((p) => (
               <ProjectRow key={p.id} schoolId={id} p={p} />
             ))}
@@ -294,7 +297,7 @@ export default function SchoolProjectsPage() {
           <h2 className="text-lg font-semibold tracking-tight text-foreground">
             Historial
           </h2>
-          <ul className="mt-4 flex flex-col gap-4">
+          <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {historyProjects.map((p) => (
               <ProjectRow key={p.id} schoolId={id} p={p} />
             ))}
