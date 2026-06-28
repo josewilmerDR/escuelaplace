@@ -144,9 +144,12 @@ export default function NewSchoolPage() {
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Crear escuela
       </h1>
-      <p className="mt-3 rounded-xl bg-warning-tint p-3 text-sm text-warning ring-1 ring-warning/10">
-        La escuela se publica como <strong>sin verificar</strong>. Los métodos de
-        pago quedan ocultos hasta que el equipo verifique los datos.
+      {/* Creating a school is a routine, positive action — not a warning. A calm muted line
+          (not the amber warning box) reserves the amber token for genuine alerts and reframes
+          verification as the step that *activates* the payment methods, not one that hides them. */}
+      <p className="mt-3 text-sm text-muted">
+        Se publica de inmediato. Un paso final de verificación del equipo activa
+        los métodos de pago; mientras tanto, puedes ir completando su perfil.
       </p>
 
       <form
