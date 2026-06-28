@@ -14,14 +14,14 @@ import { PROFILE_COVER_ASPECT } from "@/lib/layout";
  * `aria-hidden`. Each domain passes its own rows (actions, badges, tabs) as `children`,
  * rendered inside the padded body just like the real header.
  *
- * `metaLines` controls how many meta-line placeholders render under the title (default 2):
- * the business header can show two lines (rating / "Vinculado a" + categories), but the
- * school header shows only one (locality, often none), so school passes `metaLines={1}` to
- * avoid over-reserving vertical space the real header never fills.
+ * `metaLines` controls how many meta-line placeholders render under the title (default 1):
+ * both the business and school headers now show a single meta line — the business one is the
+ * trust line (rating + "Vinculado a"), since categories and locality moved into "Información".
+ * The `2` option stays for any future header that needs a second reserved line.
  */
 export function ProfileHeaderSkeleton({
   children,
-  metaLines = 2,
+  metaLines = 1,
 }: {
   children?: ReactNode;
   metaLines?: 1 | 2;
@@ -45,9 +45,8 @@ export function ProfileHeaderSkeleton({
           <div className="mt-3 w-full min-w-0 text-center sm:mt-0 sm:flex-1 sm:pb-1 sm:text-left">
             {/* Title placeholder. */}
             <div className="mx-auto h-8 w-2/3 animate-pulse rounded bg-brand-tint sm:mx-0" />
-            {/* Meta lines: the real header shows up to two (rating / "Vinculado a" +
-                categories). `metaLines` placeholders keep the swap jump-free; school passes
-                1 because its header only ever shows the locality line. */}
+            {/* Meta line(s): the real business/school header now shows a single line (the
+                trust/locality line). `metaLines` placeholders keep the swap jump-free. */}
             <div className="mx-auto mt-2 h-4 w-1/3 animate-pulse rounded bg-surface ring-1 ring-black/5 sm:mx-0" />
             {metaLines === 2 && (
               <div className="mx-auto mt-2 h-4 w-1/4 animate-pulse rounded bg-surface ring-1 ring-black/5 sm:mx-0" />

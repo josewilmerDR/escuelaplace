@@ -19,7 +19,6 @@ import {
 } from "@/lib/firestore";
 import { formatRating } from "@/lib/format";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
-import { locationParts } from "@/lib/location";
 
 /**
  * Shared chrome for the public business profile (/business/[slug] and its section
@@ -66,10 +65,6 @@ export default async function BusinessProfileLayout({ children, params }: Props)
     : business.logoUrl
       ? { src: business.logoUrl, contain: true }
       : undefined;
-  const placeParts = locationParts(business.location);
-  const categoryChips = (business.categories ?? [])
-    .map((id, i) => ({ id, name: business.categoryNames?.[i] }))
-    .filter((c): c is { id: string; name: string } => Boolean(c.name));
   const hasSchool = Boolean(business.schoolId && business.schoolName);
   const stats = business.reviewStats ?? { count: 0, average: 0 };
   const averageLabel = formatRating(stats.average);
@@ -142,14 +137,6 @@ export default async function BusinessProfileLayout({ children, params }: Props)
                   </>
                 )}
               </p>
-            )}
-            {categoryChips.length > 0 && (
-              <p className="mt-1 text-sm text-muted">
-                {categoryChips.map((c) => c.name).join(" · ")}
-              </p>
-            )}
-            {placeParts.length > 0 && (
-              <p className="mt-1 text-sm text-muted">{placeParts.join(", ")}</p>
             )}
           </>
         }
