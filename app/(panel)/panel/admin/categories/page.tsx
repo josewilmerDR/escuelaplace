@@ -22,6 +22,7 @@ import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { PlusIcon, TagIcon } from "@/components/ui/icons";
 import {
   createCategory,
@@ -39,15 +40,10 @@ import type { CategoryDoc } from "@/types";
  */
 function PageHeading() {
   return (
-    <header>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Categorías
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        Crea, renombra, reordena y borra los rubros del directorio. El número de
-        comercios de cada categoría se actualiza solo.
-      </p>
-    </header>
+    <PageTitle
+      title="Categorías"
+      subtitle="Crea, renombra, reordena y borra los rubros del directorio. El número de comercios de cada categoría se actualiza solo."
+    />
   );
 }
 

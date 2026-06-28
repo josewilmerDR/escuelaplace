@@ -24,6 +24,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageTitle } from "@/components/ui/PageTitle";
 import {
   ClockIcon,
   CrownIcon,
@@ -173,14 +174,7 @@ function countByKind(list: ActivityItem[]): Record<ActivityKind, number> {
 
 /** Page heading, identical in every state so the title never shifts. */
 function Heading({ subtitle }: { subtitle?: string }) {
-  return (
-    <header>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Actividad
-      </h1>
-      <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-    </header>
-  );
+  return <PageTitle title="Actividad" subtitle={subtitle} reserveSubtitle />;
 }
 
 export default function SchoolActivityPage() {

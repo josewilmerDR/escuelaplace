@@ -61,6 +61,7 @@ import {
 import { ToolItemCard } from "@/components/tools/ToolItemCard";
 import { deleteToolTitle, editToolTitle, toolTypeMeta } from "@/lib/tools/registry";
 import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -137,19 +138,13 @@ function Heading({
   backLabel?: string;
 }) {
   return (
-    <>
-      <p className="text-sm">
-        <BackLink href={backHref ?? `/panel/school/${schoolId}/tools`}>
-          {backLabel ?? "Volver a herramientas"}
-        </BackLink>
-      </p>
-      <header className="mt-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          {title}
-        </h1>
-        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-      </header>
-    </>
+    <PageTitle
+      backHref={backHref ?? `/panel/school/${schoolId}/tools`}
+      backLabel={backLabel ?? "Volver a herramientas"}
+      title={title}
+      subtitle={subtitle}
+      reserveSubtitle
+    />
   );
 }
 

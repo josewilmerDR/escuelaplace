@@ -11,7 +11,7 @@
  */
 import Link from "next/link";
 import { ToolManageFooter } from "@/components/tools/ToolManageFooter";
-import { ToolManageHeading } from "@/components/tools/ToolManageHeading";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { cardClass } from "@/components/ui/Card";
 import { toolConfigOf } from "@/lib/firestore";
 import type { SchoolDoc, ToolDoc } from "@/types";
@@ -31,7 +31,7 @@ export function GuidedTourManagePanel({
 
   return (
     <main>
-      <ToolManageHeading
+      <PageTitle
         backHref={`/panel/school/${schoolId}/tools/manage/guided_tour`}
         backLabel="Volver a visitas guiadas"
         title={tool.title}

@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { ProjectStatusBadge } from "@/components/projects/ProjectStatusBadge";
-import { ToolManageHeading } from "@/components/tools/ToolManageHeading";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
@@ -102,7 +102,7 @@ export function ProjectManagePanel({
 
   return (
     <main>
-      <ToolManageHeading
+      <PageTitle
         backHref={`/panel/school/${schoolId}/projects`}
         backLabel="Volver a proyectos"
         title={project.title}

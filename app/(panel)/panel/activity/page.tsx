@@ -14,6 +14,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageTitle } from "@/components/ui/PageTitle";
 import {
   AcademicCapIcon,
   ArrowRightIcon,
@@ -53,14 +54,7 @@ async function loadRows(userId: string): Promise<SchoolRow[]> {
 }
 
 function Heading({ subtitle }: { subtitle?: string }) {
-  return (
-    <header>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Actividad
-      </h1>
-      <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-    </header>
-  );
+  return <PageTitle title="Actividad" subtitle={subtitle} reserveSubtitle />;
 }
 
 export default function GlobalActivityPage() {

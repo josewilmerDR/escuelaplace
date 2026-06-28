@@ -16,7 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ManageStat as Stat } from "@/components/tools/ManageStat";
-import { ToolManageHeading } from "@/components/tools/ToolManageHeading";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { cardClass } from "@/components/ui/Card";
 import { userErrorMessage } from "@/lib/errors";
@@ -119,7 +119,7 @@ export function SaleManagePanel({
 
   return (
     <main>
-      <ToolManageHeading
+      <PageTitle
         backHref={`/panel/school/${schoolId}/tools/manage/sale`}
         backLabel="Volver a productos"
         title={tool.title}

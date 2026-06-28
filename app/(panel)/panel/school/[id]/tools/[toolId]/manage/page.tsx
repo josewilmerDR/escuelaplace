@@ -25,6 +25,7 @@ import { PageantManagePanel } from "@/components/tools/PageantManagePanel";
 import { RaffleManagePanel } from "@/components/tools/RaffleManagePanel";
 import { SaleManagePanel } from "@/components/tools/SaleManagePanel";
 import { ServiceManagePanel } from "@/components/tools/ServiceManagePanel";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { PanelNotice } from "@/components/ui/PanelNotice";
 import { getSchoolById, getToolById } from "@/lib/firestore";
 import type { SchoolDoc, ToolDoc } from "@/types";
@@ -47,14 +48,7 @@ const MANAGED_KINDS = new Set<ToolDoc["type"]>([
 
 /** Minimal heading used only for the dispatcher's own loading / error / access states. */
 function Heading({ title }: { title: string }) {
-  return (
-    <header>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        {title}
-      </h1>
-      <p className="mt-1 text-sm text-muted"> </p>
-    </header>
-  );
+  return <PageTitle title={title} reserveSubtitle />;
 }
 
 export default function ToolManagePage() {

@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
@@ -52,20 +52,14 @@ function Heading({
   action?: React.ReactNode;
 }) {
   return (
-    <>
-      <p className="text-sm">
-        <BackLink href={`/school/${schoolId}`}>Principal</BackLink>
-      </p>
-      <header className="mt-3">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            Proyectos
-          </h1>
-          {action}
-        </div>
-        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-      </header>
-    </>
+    <PageTitle
+      backHref={`/school/${schoolId}`}
+      backLabel="Principal"
+      title="Proyectos"
+      subtitle={subtitle}
+      reserveSubtitle
+      action={action}
+    />
   );
 }
 

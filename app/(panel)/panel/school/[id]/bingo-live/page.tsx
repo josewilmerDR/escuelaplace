@@ -26,6 +26,7 @@ import { BingoPatternPicker } from "@/components/tools/BingoPatternPicker";
 import { BingoPatternPreview } from "@/components/tools/BingoPatternPreview";
 import { BingoPauseNotice } from "@/components/tools/BingoPauseNotice";
 import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { cardClass } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { PanelNotice } from "@/components/ui/PanelNotice";
@@ -221,15 +222,12 @@ function Heading({
   action?: ReactNode;
 }) {
   return (
-    <header className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Bingo en vivo
-        </h1>
-        <p className="mt-1 truncate text-sm text-muted">{subtitle || " "}</p>
-      </div>
-      {action}
-    </header>
+    <PageTitle
+      title="Bingo en vivo"
+      subtitle={subtitle}
+      reserveSubtitle
+      action={action}
+    />
   );
 }
 

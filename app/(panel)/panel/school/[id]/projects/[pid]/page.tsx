@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
@@ -79,15 +80,12 @@ function Heading({
   status?: ProjectDoc["status"];
 }) {
   return (
-    <header>
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Editar proyecto
-        </h1>
-        {status && <ProjectStatusBadge status={status} />}
-      </div>
-      <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-    </header>
+    <PageTitle
+      title="Editar proyecto"
+      status={status ? <ProjectStatusBadge status={status} /> : undefined}
+      subtitle={subtitle}
+      reserveSubtitle
+    />
   );
 }
 

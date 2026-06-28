@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { BingoDeckCardsManager } from "@/components/tools/BingoDeckCardsManager";
-import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
@@ -40,17 +40,13 @@ const LOADING_TEXT = "Cargando mazo…";
 
 function Heading({ onBack, subtitle }: { onBack: () => void; subtitle?: string }) {
   return (
-    <>
-      <p className="text-sm">
-        <BackLink onClick={onBack}>Volver</BackLink>
-      </p>
-      <header className="mt-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Editar mazo
-        </h1>
-        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-      </header>
-    </>
+    <PageTitle
+      onBack={onBack}
+      backLabel="Volver"
+      title="Editar mazo"
+      subtitle={subtitle}
+      reserveSubtitle
+    />
   );
 }
 

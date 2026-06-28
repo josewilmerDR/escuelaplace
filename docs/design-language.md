@@ -88,7 +88,10 @@ There are exactly two pill sizes; don't invent a third.
 - **Icon tile (app-icon look):**
   `grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-tint to-brand-tint/30 text-brand-darker ring-1 ring-inset ring-brand-dark/10`
   with a sized icon child (`h-6 w-6`). Smaller variants: `h-9 w-9` + `h-5 w-5`.
-- **Page title (h1):** `text-3xl font-semibold tracking-tight text-foreground`
+- **Page title (h1):** prefer **`PageTitle`** — it owns this recipe plus the muted subtitle, an
+  optional right-aligned action, an inline status badge, and the back-link row; pass
+  `reserveSubtitle` for skeleton parity. Raw recipe (for the rare non-page h1):
+  `text-3xl font-semibold tracking-tight text-foreground`
 - **Section title (h2):** `text-lg font-semibold tracking-tight text-foreground`
 - **Muted line:** `text-sm text-muted`
 - **Primary action:** the existing `.btn btn-primary` (radius softened globally — don't

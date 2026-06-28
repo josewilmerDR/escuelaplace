@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ManageStat as Stat } from "@/components/tools/ManageStat";
-import { ToolManageHeading } from "@/components/tools/ToolManageHeading";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
@@ -158,7 +158,7 @@ export function BingoManagePanel({
 
   return (
     <main>
-      <ToolManageHeading
+      <PageTitle
         backHref={`/panel/school/${schoolId}/tools/manage/bingo`}
         backLabel="Volver a bingos"
         title={tool.title}
