@@ -19,6 +19,7 @@ import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { UNVERIFIED_FUNDING_TEXT } from "@/components/school/UnverifiedSchoolNotice";
 import { ProjectContributionItem } from "@/components/projects/ProjectContributionItem";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
+import { Banner } from "@/components/ui/Banner";
 import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
@@ -474,13 +475,10 @@ function FundContent() {
 
           <FormError message={error} />
           {done && (
-            <p
-              role="status"
-              className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10"
-            >
+            <Banner tone="success" role="status">
               ¡Aporte registrado! La escuela lo confirmará y el avance se
               actualizará.
-            </p>
+            </Banner>
           )}
 
           {amount > 0 && (

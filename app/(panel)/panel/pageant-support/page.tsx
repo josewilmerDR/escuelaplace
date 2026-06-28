@@ -16,6 +16,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { UNVERIFIED_FUNDING_TEXT } from "@/components/school/UnverifiedSchoolNotice";
 import { BackLink } from "@/components/ui/BackLink";
+import { Banner } from "@/components/ui/Banner";
 import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
@@ -299,13 +300,10 @@ function SupportContent() {
 
         <FormError message={error} />
         {done && (
-          <p
-            role="status"
-            className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10"
-          >
+          <Banner tone="success" role="status">
             ¡Apoyo registrado! La escuela lo confirmará y el conteo de la candidatura se
             actualizará.
-          </p>
+          </Banner>
         )}
 
         <TotalRow amount={formatMoney(amount, config.currency)} />

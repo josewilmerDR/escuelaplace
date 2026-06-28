@@ -18,6 +18,7 @@ import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { SchoolPicker } from "@/components/school/SchoolPicker";
 import { UNVERIFIED_DONATION_TEXT } from "@/components/school/UnverifiedSchoolNotice";
 import { SupporterContributionItem } from "@/components/subscriptions/SupporterContributionItem";
+import { Banner } from "@/components/ui/Banner";
 import { cardClass } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { FilePicker } from "@/components/ui/FilePicker";
@@ -353,13 +354,10 @@ function DonateContent() {
 
         <FormError message={error} />
         {done && (
-          <p
-            role="status"
-            className="rounded-xl bg-success-tint p-3 text-sm text-success ring-1 ring-success/10"
-          >
+          <Banner tone="success" role="status">
             ¡Donación registrada! La escuela la confirmará por su cuenta;
             mientras tanto la ves abajo como pendiente.
-          </p>
+          </Banner>
         )}
 
         <TotalRow
