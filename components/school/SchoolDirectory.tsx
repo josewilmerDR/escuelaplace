@@ -111,7 +111,7 @@ export function SchoolDirectory({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Busca una escuela por nombre o localidad…"
             aria-label="Filtrar escuelas"
-            className="w-full rounded-lg border border-border py-2 pl-10 pr-10 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
+            className="w-full rounded-xl border border-border py-2 pl-10 pr-10 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/40"
           />
           {hasFilter && (
             <button
