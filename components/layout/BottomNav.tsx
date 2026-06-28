@@ -16,7 +16,7 @@ import {
   HeartIcon,
   HomeIcon,
   SearchIcon,
-  TagIcon,
+  StorefrontIcon,
 } from "@/components/ui/icons";
 
 // One entry per tab. `match` decides the active (highlighted) state: it covers both the
@@ -31,10 +31,10 @@ const ITEMS = [
     match: (p: string) => p.startsWith("/search"),
   },
   {
-    href: "/categories",
-    label: "Categorías",
-    Icon: TagIcon,
-    match: (p: string) => p.startsWith("/categor"),
+    href: "/businesses",
+    label: "Comercios",
+    Icon: StorefrontIcon,
+    match: (p: string) => p.startsWith("/business"),
   },
   {
     href: "/schools",
