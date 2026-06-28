@@ -175,9 +175,7 @@ export default function AdminVerificationPage() {
   if (!isAdmin) {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Verificación de escuelas
-        </h1>
+        <PageTitle title="Verificación de escuelas" />
         <p role="alert" className="mt-2 text-error">
           No tienes acceso a esta sección.
         </p>
