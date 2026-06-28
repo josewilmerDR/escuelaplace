@@ -11,13 +11,10 @@ import { Banner } from "@/components/ui/Banner";
 import { StatChip } from "@/components/ui/StatChip";
 import {
   ClockIcon,
-  FlagIcon,
   HeartIcon,
-  MapPinIcon,
   TagIcon,
   WarningIcon,
 } from "@/components/ui/icons";
-import { buildDirectionsUrl } from "@/lib/contact";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
 import {
   averageConfirmationTimeMs,
@@ -109,12 +106,6 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
         ? { src: school.photoUrl, contain: true }
         : undefined;
   const placeParts = locationParts(school.location);
-  const directionsUrl = school.location?.geopoint
-    ? buildDirectionsUrl(
-        school.location.geopoint.latitude,
-        school.location.geopoint.longitude,
-      )
-    : null;
   const unverified = !isSchoolVerified(school);
 
   // School structured data: the page is the community's canonical SEO entity.
@@ -253,23 +244,9 @@ export default async function SchoolProfileLayout({ children, params }: Props) {
               Comprales a quienes la apoyan
             </Link>
           )}
-          {hasProjects && (
-            <Link href={`${base}/projects`} className="btn btn-outline justify-center">
-              <FlagIcon className="mr-2 h-5 w-5" />
-              Ver proyectos
-            </Link>
-          )}
-          {directionsUrl && (
-            <a
-              href={directionsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-outline justify-center"
-            >
-              <MapPinIcon className="mr-2 h-5 w-5" />
-              Cómo llegar
-            </a>
-          )}
+          {/* "Ver proyectos" and "Cómo llegar" used to sit here, but both just duplicated a
+              tab (Proyectos) / the Información section's directions link — clutter on the CTA
+              row, whose job is the two real support actions (donate / buy from supporters). */}
         </div>
         <DonateHint unverified={unverified} />
 
