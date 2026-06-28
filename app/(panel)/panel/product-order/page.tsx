@@ -269,16 +269,23 @@ function ProductOrderContent() {
                 max={PRODUCT_ORDER_QTY_MAX}
                 step={1}
                 inputMode="numeric"
-                value={quantity}
+                // Allow an empty display while editing (don't snap to 1 on backspace); `qty`
+                // keeps the total valid and submit uses it, and onBlur normalizes back into range.
+                value={quantity || ""}
                 onChange={(e) => {
                   const n = Math.floor(Number(e.target.value));
                   setQuantity(
                     Number.isFinite(n)
-                      ? Math.min(Math.max(n, 1), PRODUCT_ORDER_QTY_MAX)
-                      : 1,
+                      ? Math.min(Math.max(n, 0), PRODUCT_ORDER_QTY_MAX)
+                      : 0,
                   );
                 }}
-                className="input w-24"
+                onBlur={() =>
+                  setQuantity((q) =>
+                    Math.min(Math.max(Math.floor(q) || 1, 1), PRODUCT_ORDER_QTY_MAX),
+                  )
+                }
+                className="input w-24 no-spinner"
               />
             </label>
 

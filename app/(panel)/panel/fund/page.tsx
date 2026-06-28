@@ -452,7 +452,7 @@ function FundContent() {
                 );
                 setDone(false);
               }}
-              className="input"
+              className="input no-spinner"
             />
           </Field>
 

@@ -281,7 +281,7 @@ function SupportContent() {
                 ),
               )
             }
-            className="input"
+            className="input no-spinner"
           />
           <span className="text-muted">
             {formatMoney(config.pricePerSupportUnit, config.currency)} por unidad.
