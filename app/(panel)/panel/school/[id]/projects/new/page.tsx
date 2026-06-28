@@ -13,7 +13,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
@@ -52,19 +52,13 @@ function Heading({
   subtitle?: string;
 }) {
   return (
-    <>
-      <p className="text-sm">
-        <BackLink href={`/panel/school/${schoolId}/projects`}>
-          Proyectos
-        </BackLink>
-      </p>
-      <header className="mt-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Nuevo proyecto
-        </h1>
-        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-      </header>
-    </>
+    <PageTitle
+      backHref={`/panel/school/${schoolId}/projects`}
+      backLabel="Proyectos"
+      title="Nuevo proyecto"
+      subtitle={subtitle}
+      reserveSubtitle
+    />
   );
 }
 

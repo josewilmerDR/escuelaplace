@@ -13,7 +13,7 @@
 import Link from "next/link";
 import { EventStatusBadge } from "@/components/tools/EventStatusBadge";
 import { ToolManageFooter } from "@/components/tools/ToolManageFooter";
-import { ToolManageHeading } from "@/components/tools/ToolManageHeading";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { cardClass } from "@/components/ui/Card";
 import { formatDateTime } from "@/lib/format";
 import { toolConfigOf } from "@/lib/firestore";
@@ -35,7 +35,7 @@ export function EventManagePanel({
 
   return (
     <main>
-      <ToolManageHeading
+      <PageTitle
         backHref={`/panel/school/${schoolId}/tools/manage/event`}
         backLabel="Volver a eventos"
         title={tool.title}

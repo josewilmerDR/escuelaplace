@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ProjectManagePanel } from "@/components/projects/ProjectManagePanel";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { PanelNotice } from "@/components/ui/PanelNotice";
 import { getProjectById, getSchoolById } from "@/lib/firestore";
 import type { ProjectDoc, SchoolDoc } from "@/types";
@@ -25,14 +26,7 @@ const LOADING_TEXT = "Cargando el proyecto…";
 
 /** Minimal heading used only for the loader's own loading / error / access states. */
 function Heading() {
-  return (
-    <header>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Gestión del proyecto
-      </h1>
-      <p className="mt-1 text-sm text-muted"> </p>
-    </header>
-  );
+  return <PageTitle title="Gestión del proyecto" reserveSubtitle />;
 }
 
 export default function ProjectManagePage() {

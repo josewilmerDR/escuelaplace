@@ -19,7 +19,7 @@ import {
   RaffleNumberLegend,
 } from "@/components/tools/RaffleNumberGrid";
 import { ManageStat as Stat } from "@/components/tools/ManageStat";
-import { ToolManageHeading } from "@/components/tools/ToolManageHeading";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { PendingAge } from "@/components/subscriptions/PendingAge";
 import { cardClass } from "@/components/ui/Card";
 import { userErrorMessage } from "@/lib/errors";
@@ -72,7 +72,7 @@ export function RaffleManagePanel({
 
   const editHref = `/panel/school/${schoolId}/tools/${toolId}`;
   const heading = (
-    <ToolManageHeading
+    <PageTitle
       backHref={`/panel/school/${schoolId}/tools/manage/raffle`}
       backLabel="Volver a rifas"
       title={tool.title}

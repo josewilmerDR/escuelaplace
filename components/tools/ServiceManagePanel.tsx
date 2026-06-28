@@ -10,7 +10,7 @@
  */
 import Link from "next/link";
 import { ToolManageFooter } from "@/components/tools/ToolManageFooter";
-import { ToolManageHeading } from "@/components/tools/ToolManageHeading";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { cardClass } from "@/components/ui/Card";
 import { formatMoney } from "@/lib/format";
 import { toolConfigOf } from "@/lib/firestore";
@@ -44,7 +44,7 @@ export function ServiceManagePanel({
 
   return (
     <main>
-      <ToolManageHeading
+      <PageTitle
         backHref={`/panel/school/${schoolId}/tools/manage/service`}
         backLabel="Volver a servicios"
         title={tool.title}

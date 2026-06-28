@@ -24,6 +24,7 @@ import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { VerificationBadge } from "@/components/school/VerificationBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { VerifiedIcon } from "@/components/ui/icons";
 import {
   auditCollusionFlag,
@@ -51,15 +52,10 @@ interface ReviewItem {
  */
 function PageHeading() {
   return (
-    <header>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Verificación de escuelas
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        Revisa los datos de cada escuela y aprueba las que correspondan. Al verificar, sus
-        métodos de pago quedan visibles para quienes quieran apoyarla.
-      </p>
-    </header>
+    <PageTitle
+      title="Verificación de escuelas"
+      subtitle="Revisa los datos de cada escuela y aprueba las que correspondan. Al verificar, sus métodos de pago quedan visibles para quienes quieran apoyarla."
+    />
   );
 }
 

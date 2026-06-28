@@ -36,6 +36,7 @@ import { cardClass } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { IconTile } from "@/components/ui/IconTile";
+import { PageTitle } from "@/components/ui/PageTitle";
 import {
   AcademicCapIcon,
   ArrowRightIcon,
@@ -98,12 +99,12 @@ export default function PanelHome() {
  */
 function PanelHeading({ count }: { count?: number }) {
   return (
-    <header>
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="min-w-0 truncate text-3xl font-semibold tracking-tight text-foreground">
-          Mis páginas
-        </h1>
-        {count !== undefined && count > 0 && (
+    <PageTitle
+      title="Mis páginas"
+      truncate
+      subtitle="Administra tus comercios y escuelas."
+      action={
+        count !== undefined && count > 0 ? (
           <Link
             href="/panel/new"
             className="btn btn-primary inline-flex shrink-0 gap-1.5"
@@ -111,12 +112,9 @@ function PanelHeading({ count }: { count?: number }) {
             <PlusIcon className="h-4 w-4" />
             Crear página
           </Link>
-        )}
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        Administra tus comercios y escuelas.
-      </p>
-    </header>
+        ) : undefined
+      }
+    />
   );
 }
 

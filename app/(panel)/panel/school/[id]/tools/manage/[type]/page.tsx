@@ -14,7 +14,7 @@ import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ToolGridCard, TOOL_GRID } from "@/components/tools/ToolGridCard";
-import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PanelNotice } from "@/components/ui/PanelNotice";
 import {
@@ -49,25 +49,14 @@ function Heading({
   action?: ReactNode;
 }) {
   return (
-    <>
-      <p className="text-sm">
-        <BackLink href={`/panel/school/${schoolId}/tools`}>
-          Volver a herramientas
-        </BackLink>
-      </p>
-      <header className="mt-3">
-        {/* Title and the create button share one row. The button is shrink-0 and the title min-w-0
-            (it shrinks/wraps instead), so on mobile the button never collapses to a second row —
-            together they always fit within the viewport. The subtitle sits below, full width. */}
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 text-3xl font-semibold tracking-tight text-foreground">
-            {title}
-          </h1>
-          {action && <div className="shrink-0">{action}</div>}
-        </div>
-        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-      </header>
-    </>
+    <PageTitle
+      backHref={`/panel/school/${schoolId}/tools`}
+      backLabel="Volver a herramientas"
+      title={title}
+      subtitle={subtitle}
+      reserveSubtitle
+      action={action}
+    />
   );
 }
 

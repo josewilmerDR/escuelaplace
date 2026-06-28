@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ToolTypeMenu } from "@/components/tools/ToolTypeMenu";
-import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { PanelNotice } from "@/components/ui/PanelNotice";
 import { TOOL_TYPE_LIST, toolTypeMeta } from "@/lib/tools/registry";
 import { getSchoolById, getToolsBySchool } from "@/lib/firestore";
@@ -35,17 +35,13 @@ const KIND_GRID = "grid gap-3 sm:grid-cols-2 lg:grid-cols-3";
  */
 function Heading({ schoolId, subtitle }: { schoolId: string; subtitle?: string }) {
   return (
-    <>
-      <p className="text-sm">
-        <BackLink href={`/school/${schoolId}`}>Principal</BackLink>
-      </p>
-      <header className="mt-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Herramientas
-        </h1>
-        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-      </header>
-    </>
+    <PageTitle
+      backHref={`/school/${schoolId}`}
+      backLabel="Principal"
+      title="Herramientas"
+      subtitle={subtitle}
+      reserveSubtitle
+    />
   );
 }
 

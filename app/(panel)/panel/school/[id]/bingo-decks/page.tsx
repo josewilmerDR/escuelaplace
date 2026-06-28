@@ -20,7 +20,7 @@ import {
   toCenterSquare,
   type BingoCenterFormValue,
 } from "@/components/tools/BingoCenterSquareField";
-import { BackLink } from "@/components/ui/BackLink";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
 import { PanelNotice } from "@/components/ui/PanelNotice";
@@ -53,19 +53,13 @@ const LOADING_TEXT = "Cargando mazos…";
 
 function Heading({ schoolId, subtitle }: { schoolId: string; subtitle?: string }) {
   return (
-    <>
-      <p className="text-sm">
-        <BackLink href={`/panel/school/${schoolId}/tools/manage/bingo`}>
-          Volver a bingos
-        </BackLink>
-      </p>
-      <header className="mt-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Mazos de bingo
-        </h1>
-        <p className="mt-1 text-sm text-muted">{subtitle || " "}</p>
-      </header>
-    </>
+    <PageTitle
+      backHref={`/panel/school/${schoolId}/tools/manage/bingo`}
+      backLabel="Volver a bingos"
+      title="Mazos de bingo"
+      subtitle={subtitle}
+      reserveSubtitle
+    />
   );
 }
 

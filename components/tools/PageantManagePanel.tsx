@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { PageantConsole } from "@/components/tools/PageantConsole";
-import { ToolManageHeading } from "@/components/tools/ToolManageHeading";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { cardClass } from "@/components/ui/Card";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
@@ -133,7 +133,7 @@ export function PageantManagePanel({
 
   return (
     <main>
-      <ToolManageHeading
+      <PageTitle
         backHref={`/panel/school/${schoolId}/tools/manage/pageant`}
         backLabel="Volver a reinados"
         title={tool.title}
