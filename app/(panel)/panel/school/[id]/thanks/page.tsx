@@ -22,6 +22,7 @@ import { SchoolPanelNav } from "@/components/school/SchoolPanelNav";
 import { ThanksMediaPicker } from "@/components/school/ThanksMediaPicker";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { FormSection } from "@/components/ui/FormSection";
@@ -186,7 +187,7 @@ export default function SchoolThanksPage() {
   if (loadState === "loading") {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">{TITLE}</h1>
+        <PageTitle title={TITLE} />
         <div className="mt-8 flex flex-col gap-6" aria-hidden="true">
           <div className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
           <div className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -201,7 +202,7 @@ export default function SchoolThanksPage() {
   if (loadState === "error" || !school) {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">{TITLE}</h1>
+        <PageTitle title={TITLE} />
         <EmptyState
           className="mt-8"
           icon={<HeartIcon className="h-7 w-7" />}
@@ -218,7 +219,7 @@ export default function SchoolThanksPage() {
   if (!isManager) {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">{TITLE}</h1>
+        <PageTitle title={TITLE} />
         <p role="alert" className="mt-4 text-sm text-error">
           No administras esta escuela.
         </p>
@@ -232,10 +233,7 @@ export default function SchoolThanksPage() {
   return (
     <main>
       <BackLink href={`/school/${id}`}>Principal</BackLink>
-      <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">
-        {TITLE}
-      </h1>
-      <p className="mt-1 text-sm text-muted">{school.name}</p>
+      <PageTitle title={TITLE} subtitle={school.name} className="mt-4" />
       <SchoolPanelNav schoolId={id} current="thanks" />
 
       <section className={`mt-6 flex items-start gap-4 ${cardClass("inset")}`}>
