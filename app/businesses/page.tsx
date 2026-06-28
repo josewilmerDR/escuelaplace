@@ -41,13 +41,18 @@ export const metadata: Metadata = {
 // proximity re-rank pool when the buyer sets a location.
 const SCHOOL_CANDIDATES = 24;
 
+// Render cap for the business feed (top-N by ranking). Doubles as the saturation threshold for the
+// count note below: at the cap the page is a curated top, so it says "los N mejor posicionados"
+// rather than implying that's the whole catalog.
+const BUSINESS_LIMIT = 24;
+
 export default async function BusinessesPage() {
   // Empty vs error are different states: "no businesses yet" gets an onboarding CTA,
   // "catalog unavailable" gets a retry message. Don't collapse them.
   let cards: BusinessCardData[] = [];
   let loadFailed = false;
   try {
-    cards = (await getTopBusinesses(24)).map(toBusinessCardData);
+    cards = (await getTopBusinesses(BUSINESS_LIMIT)).map(toBusinessCardData);
   } catch {
     loadFailed = true;
   }
@@ -135,14 +140,24 @@ export default async function BusinessesPage() {
               cta={{ label: "Crea la página del tuyo", href: "/create" }}
             />
           ) : (
-            <RankedFeed
-              initial={cards}
-              interleave={
-                schoolCards.length > 0 ? (
-                  <CatalogSchools initial={schoolCards} />
-                ) : undefined
-              }
-            />
+            <>
+              {/* Orientation count above the feed. RankedFeed re-ranks but never drops cards,
+                  so cards.length is stable client-side. At the cap it's a curated top, not the
+                  whole catalog — say so instead of implying a total. */}
+              <p className="mb-4 text-sm text-muted">
+                {cards.length === BUSINESS_LIMIT
+                  ? `Mostrando los ${BUSINESS_LIMIT} comercios mejor posicionados.`
+                  : `${cards.length} ${cards.length === 1 ? "comercio" : "comercios"}.`}
+              </p>
+              <RankedFeed
+                initial={cards}
+                interleave={
+                  schoolCards.length > 0 ? (
+                    <CatalogSchools initial={schoolCards} />
+                  ) : undefined
+                }
+              />
+            </>
           )}
         </div>
       </section>
