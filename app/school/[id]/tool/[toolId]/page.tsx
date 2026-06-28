@@ -8,6 +8,7 @@ import { EventStatusBadge } from "@/components/tools/EventStatusBadge";
 import { PageantCandidates } from "@/components/tools/PageantCandidates";
 import { PageantLivePublic } from "@/components/tools/PageantLivePublic";
 import { PageantSponsorButton } from "@/components/tools/PageantSponsorButton";
+import { ProductCoverMedia } from "@/components/tools/ProductCoverMedia";
 import { RaffleBoard } from "@/components/tools/RaffleBoard";
 import { SaleProducts } from "@/components/tools/SaleProducts";
 import { ServiceItems } from "@/components/tools/ServiceItems";
@@ -21,6 +22,7 @@ import {
   ClockIcon,
   FlagIcon,
   MapPinIcon,
+  WarningIcon,
 } from "@/components/ui/icons";
 import { toolWhatsAppConsultLink } from "@/lib/contact";
 import { googleCalendarUrl } from "@/lib/events";
@@ -394,26 +396,55 @@ async function SaleDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const verified = isSchoolVerified(school);
   const contactPhone = toolContactPhone(tool) || school.boardContact?.phone || "";
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    name: tool.title,
-    itemListElement: sale.products.map((p, i) => ({
-      "@type": "ListItem",
-      position: i + 1,
-      item: {
-        "@type": "Product",
-        name: p.name,
-        ...(p.description ? { description: p.description } : {}),
-        ...(p.photos && p.photos.length > 0 ? { image: p.photos[0] } : {}),
-        offers: {
-          "@type": "Offer",
-          price: p.price,
-          priceCurrency: sale.currency,
-        },
-      },
-    })),
-  };
+  // Each "Productos" tool currently sells ONE product, so the single-product case is the page's
+  // real shape: it reads as a product (cover + media stack + price + buy on the cover), not a
+  // catalog. A multi-product config still falls back to the collection grid (one cover, many buys).
+  const single = sale.products.length === 1;
+  const first = sale.products[0];
+  const hasMedia = first && ((first.photos?.length ?? 0) > 0 || !!first.videoUrl);
+  const buyHref =
+    first &&
+    `/panel/product-order?schoolId=${id}&toolId=${toolId}&productId=${first.id}`;
+
+  // Single product → emit a precise Product; a catalog → an ItemList of Products.
+  const jsonLd =
+    single && first
+      ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: first.name,
+          ...(first.description ? { description: first.description } : {}),
+          ...(first.photos && first.photos.length > 0
+            ? { image: first.photos }
+            : tool.coverUrl
+              ? { image: tool.coverUrl }
+              : {}),
+          offers: {
+            "@type": "Offer",
+            price: first.price,
+            priceCurrency: sale.currency,
+          },
+        }
+      : {
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: tool.title,
+          itemListElement: sale.products.map((p, i) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            item: {
+              "@type": "Product",
+              name: p.name,
+              ...(p.description ? { description: p.description } : {}),
+              ...(p.photos && p.photos.length > 0 ? { image: p.photos[0] } : {}),
+              offers: {
+                "@type": "Offer",
+                price: p.price,
+                priceCurrency: sale.currency,
+              },
+            },
+          })),
+        };
 
   return (
     <ToolDetailShell
@@ -422,27 +453,84 @@ async function SaleDetail({ id, toolId, tool, school }: ToolDetailProps) {
       tool={tool}
       school={school}
       jsonLd={jsonLd}
+      coverOverlay={
+        single && first && hasMedia ? (
+          <div className="absolute bottom-4 right-4 z-10">
+            <ProductCoverMedia
+              photos={first.photos ?? []}
+              videoUrl={first.videoUrl}
+              name={first.name}
+              buyHref={verified && buyHref ? buyHref : undefined}
+            />
+          </div>
+        ) : undefined
+      }
     >
-      {tool.description && (
-        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
-      )}
+      {single && first ? (
+        // Product layout: the price leads, then the product's own copy — no "Productos" heading and
+        // no card-in-card, since the whole page IS the product. The id="comprar" anchor (the target
+        // of the feed/tool-card "Comprar" CTA) lands here, just below the cover's buy button.
+        <div id="comprar" className="scroll-mt-20">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <p className="text-3xl font-semibold tabular-nums text-brand-darker">
+              {formatMoney(first.price, sale.currency)}
+            </p>
+            {verified && buyHref && (
+              <Link href={buyHref} className="btn btn-primary">
+                Comprar
+              </Link>
+            )}
+          </div>
 
-      <div id="comprar" className="mt-8 scroll-mt-20">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Productos
-        </h2>
-        <div className="mt-4">
-          <SaleProducts
-            products={sale.products}
-            currency={sale.currency}
-            schoolId={id}
-            toolId={toolId}
-            schoolName={school.name}
-            contactPhone={contactPhone}
-            verified={verified}
-          />
+          {first.name && first.name !== tool.title && (
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground">
+              {first.name}
+            </h2>
+          )}
+
+          {(first.description || tool.description) && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {first.description || tool.description}
+            </p>
+          )}
+
+          {!verified && (
+            <div className="mt-4 flex items-start gap-2 rounded-2xl bg-warning-tint p-4 text-sm text-warning ring-1 ring-warning/10">
+              <WarningIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <p>
+                Vas a poder comprar en cuanto el equipo de escuelaplace verifique a
+                la escuela y publique sus medios de pago. Mientras tanto puedes
+                consultar.
+              </p>
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        <>
+          {tool.description && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {tool.description}
+            </p>
+          )}
+
+          <div id="comprar" className="mt-8 scroll-mt-20">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Productos
+            </h2>
+            <div className="mt-4">
+              <SaleProducts
+                products={sale.products}
+                currency={sale.currency}
+                schoolId={id}
+                toolId={toolId}
+                schoolName={school.name}
+                contactPhone={contactPhone}
+                verified={verified}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       <ToolFooterActions id={id} toolId={toolId} tool={tool} school={school} />
     </ToolDetailShell>

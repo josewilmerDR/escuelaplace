@@ -18,6 +18,8 @@ import type { SchoolDoc, ToolDoc } from "@/types";
  *   - `badge`: an optional extra chip next to the kind badge (e.g. the event status), and
  *   - `titleAction`: an optional CTA placed in the title row (e.g. the reinado's sponsor button),
  *     full-width below the title on mobile and pulled to the far right beside it on desktop, and
+ *   - `coverOverlay`: optional node rendered inside the cover's positioned box (its absolute
+ *     children anchor to the cover corners — e.g. the sale's media stack + "Comprar" button), and
  *   - `children`: everything below the title row (the kind's window line, description and body).
  *
  * SSR (no "use client") so it renders from the public pages. Centralizing the chrome here means a
@@ -31,6 +33,7 @@ export function ToolDetailShell({
   jsonLd,
   badge,
   titleAction,
+  coverOverlay,
   children,
 }: {
   id: string;
@@ -40,6 +43,7 @@ export function ToolDetailShell({
   jsonLd: object;
   badge?: ReactNode;
   titleAction?: ReactNode;
+  coverOverlay?: ReactNode;
   children: ReactNode;
 }) {
   const Icon = toolTypeMeta(tool.type).icon;
@@ -94,6 +98,7 @@ export function ToolDetailShell({
               <Icon className="h-20 w-20" />
             </span>
           )}
+          {coverOverlay}
         </div>
 
         <div className="p-5 sm:p-8">

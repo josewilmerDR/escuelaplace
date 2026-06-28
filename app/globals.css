@@ -89,6 +89,19 @@ body {
   @apply rounded-xl border border-border px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/40;
 }
 
+/* Hide the native number-input spinners on the checkout quantity/amount fields: the up/down
+   arrows fight our own clamping and make it impossible to clear the field without first
+   selecting it. inputMode="numeric" still brings up the numeric keypad on mobile. */
+.no-spinner {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* Shared button primitives (same spirit as .input) — compose as `btn btn-<variant>`.
    min-h-10 keeps tap targets ≥40px. Variants follow the AA contrast rules of the brand
    scale (see :root): white text needs at least --brand-darker behind it. */

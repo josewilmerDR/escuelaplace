@@ -332,7 +332,7 @@ function DonateContent() {
                 Math.min(SUBSCRIPTION_UNITS_MAX, Math.max(1, Math.floor(u) || 1)),
               )
             }
-            className="input"
+            className="input no-spinner"
           />
         </Field>
 
