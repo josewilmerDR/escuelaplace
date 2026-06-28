@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { cardClass } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { TagIcon, WarningIcon } from "@/components/ui/icons";
 import { pluralizeBusinesses } from "@/lib/format";
 import { getCategories } from "@/lib/firestore";
@@ -81,14 +82,7 @@ export default async function CategoriesPage() {
         />
       )}
 
-      <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Todas las categorías
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Explora el directorio por rubro y encuentra comercios de tu comunidad.
-        </p>
-      </header>
+      <PageTitle title="Todas las categorías" subtitle={DESCRIPTION} className="mb-8" />
 
       {loadFailed ? (
         <EmptyState

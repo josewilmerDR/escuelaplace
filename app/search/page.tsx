@@ -5,6 +5,7 @@ import { RankedFeed } from "@/components/feed/RankedFeed";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { SearchBar } from "@/components/search/SearchBar";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { SearchIcon, WarningIcon } from "@/components/ui/icons";
 import {
   getActiveBusinessesCached,
@@ -144,17 +145,17 @@ export default async function SearchPage({ searchParams }: Props) {
         />
       </div>
 
-      <header className="mb-8">
-        {/* Result-summary heading — the one place the page names the query back. */}
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Resultados para “{query}”
-        </h1>
-        {!loadFailed && cards.length > 0 && (
-          <p className="mt-1 text-sm text-muted">
-            Comercios de tu comunidad que coinciden con tu búsqueda.
-          </p>
-        )}
-      </header>
+      {/* Result-summary heading — the one place the page names the query back. The subtitle
+          only shows when there are matches (the empty/error states carry their own copy). */}
+      <PageTitle
+        title={`Resultados para “${query}”`}
+        subtitle={
+          !loadFailed && cards.length > 0
+            ? "Comercios de tu comunidad que coinciden con tu búsqueda."
+            : undefined
+        }
+        className="mb-8"
+      />
 
       {loadFailed ? (
         <EmptyState

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { AcademicCapIcon, WarningIcon } from "@/components/ui/icons";
 import { SchoolDirectory } from "@/components/school/SchoolDirectory";
 import {
@@ -107,12 +108,7 @@ export default async function SchoolsPage() {
         />
       )}
 
-      <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Escuelas
-        </h1>
-        <p className="mt-1 text-sm text-muted">{DESCRIPTION}</p>
-      </header>
+      <PageTitle title="Escuelas" subtitle={DESCRIPTION} className="mb-8" />
 
       {loadFailed ? (
         <EmptyState
