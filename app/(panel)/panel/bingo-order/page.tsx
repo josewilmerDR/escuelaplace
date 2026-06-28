@@ -17,6 +17,7 @@ import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { UNVERIFIED_DONATION_TEXT } from "@/components/school/UnverifiedSchoolNotice";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
@@ -45,9 +46,7 @@ export default function BingoOrderPage() {
 function OrderSkeleton() {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Comprar cartones
-      </h1>
+      <PageTitle title="Comprar cartones" />
       <div className="mt-6 space-y-3" aria-hidden="true">
         <div className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
         <div className="h-28 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -192,9 +191,7 @@ function BingoOrderContent() {
         </BackLink>
       </div>
 
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-        Comprar cartones
-      </h1>
+      <PageTitle title="Comprar cartones" className="mt-2" />
 
       {invalid ? (
         <p className="mt-4 text-sm text-muted">

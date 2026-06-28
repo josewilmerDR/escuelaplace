@@ -19,6 +19,7 @@ import { BingoPatternHint } from "@/components/tools/BingoPatternHint";
 import { BingoPauseNotice } from "@/components/tools/BingoPauseNotice";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { userErrorMessage } from "@/lib/errors";
 import {
   createBingoClaim,
@@ -48,9 +49,7 @@ export default function BingoPlayPage() {
 function PlaySkeleton() {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Jugar bingo
-      </h1>
+      <PageTitle title="Jugar bingo" />
       <div className="mt-6 h-40 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
       <p className="sr-only" role="status">
         Cargando…
@@ -138,9 +137,7 @@ function BingoPlayContent() {
   if (invalid) {
     return (
       <main>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Jugar bingo
-        </h1>
+        <PageTitle title="Jugar bingo" />
         <p className="mt-4 text-sm text-muted">Este bingo no existe.</p>
         <p className="mt-6 text-sm">
           <BackLink href="/panel">Volver al panel</BackLink>
@@ -223,18 +220,19 @@ function BingoPlayContent() {
       <div className="text-sm">
         <BackLink href={`/school/${schoolId}/tool/${toolId}`}>{tool.title}</BackLink>
       </div>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-        Jugar bingo
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        {status === "live"
-          ? winner != null
-            ? "Esta ronda ya tiene ganador."
-            : "El bingo está en vivo. Marca los números cantados en tus cartones."
-          : status === "closed"
-            ? "Este bingo ya cerró."
-            : "El bingo aún no comenzó. Espera a que la escuela lo inicie."}
-      </p>
+      <PageTitle
+        title="Jugar bingo"
+        subtitle={
+          status === "live"
+            ? winner != null
+              ? "Esta ronda ya tiene ganador."
+              : "El bingo está en vivo. Marca los números cantados en tus cartones."
+            : status === "closed"
+              ? "Este bingo ya cerró."
+              : "El bingo aún no comenzó. Espera a que la escuela lo inicie."
+        }
+        className="mt-2"
+      />
 
       {error && (
         <p role="alert" className="mt-4 text-sm text-error">

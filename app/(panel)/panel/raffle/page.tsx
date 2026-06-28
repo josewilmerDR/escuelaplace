@@ -17,6 +17,7 @@ import { PaymentMethodsInfo } from "@/components/school/PaymentMethodsInfo";
 import { UNVERIFIED_DONATION_TEXT } from "@/components/school/UnverifiedSchoolNotice";
 import { BackLink } from "@/components/ui/BackLink";
 import { cardClass } from "@/components/ui/Card";
+import { PageTitle } from "@/components/ui/PageTitle";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
 import { userErrorMessage } from "@/lib/errors";
@@ -43,9 +44,7 @@ export default function RafflePage() {
 function RaffleSkeleton() {
   return (
     <main>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Comprar números
-      </h1>
+      <PageTitle title="Comprar números" />
       <div className="mt-6 space-y-3" aria-hidden="true">
         <div className="h-24 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
         <div className="h-28 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -209,9 +208,7 @@ function RaffleContent() {
         </BackLink>
       </div>
 
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-        Comprar números
-      </h1>
+      <PageTitle title="Comprar números" className="mt-2" />
 
       {invalid ? (
         <p className="mt-4 text-sm text-muted">
