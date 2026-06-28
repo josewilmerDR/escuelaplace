@@ -41,6 +41,7 @@ import {
   AcademicCapIcon,
   ArrowRightIcon,
   BellIcon,
+  CogIcon,
   EllipsisIcon,
   HeartIcon,
   PagesIcon,
@@ -649,10 +650,19 @@ function PageCard({
             )}
           </span>
           {page.type === "school" ? (
-            // The Actividad bell, raised above the card-wide stretched link (z-20) so it stays
-            // its own target. There's no "Ver página" button anymore — the whole card is the
-            // link to the public profile.
+            // Management controls, raised above the card-wide stretched link (z-20) so they stay
+            // their own targets. The card itself goes to the PUBLIC profile, so without an
+            // explicit "Administrar" the only way into the panel is via the gear on that page —
+            // a gear here mirrors the business card's visible "Editar" and the SchoolManageBar
+            // gear. The Actividad bell sits beside it, badged with the pending count.
             <span className="relative z-20 flex shrink-0 items-center gap-2">
+              <Link
+                href={`/panel/school/${page.doc.id}/edit`}
+                aria-label="Administrar página"
+                className={GLASS_ICON_ACTION}
+              >
+                <CogIcon className="h-5 w-5" />
+              </Link>
               <Link
                 href={`/panel/school/${page.doc.id}/activity`}
                 aria-label={
