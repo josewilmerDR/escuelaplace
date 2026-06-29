@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
@@ -17,7 +16,6 @@ import { ToolDetailShell } from "@/components/tools/ToolDetailShell";
 import { TourStages } from "@/components/tools/TourStages";
 import { cardClass } from "@/components/ui/Card";
 import {
-  ArrowRightIcon,
   CalendarIcon,
   ClockIcon,
   FlagIcon,
@@ -720,7 +718,8 @@ async function ServiceDetail({ id, toolId, tool, school }: ToolDetailProps) {
 }
 
 /**
- * An event's public experience: the gallery (photos + video), WHEN (date + a Próximo/Hoy/Finalizó
+ * An event's public experience: its media (photos + video) as a stack overlaid on the cover's
+ * bottom-right (mirroring the single product/service page), WHEN (date + a Próximo/Hoy/Finalizó
  * chip) and WHERE (a place + a "Cómo llegar" map link), an "Agregar al calendario" link, and a
  * single "Preguntar" WhatsApp button. Emits Event JSON-LD for search rich results. PURELY
  * INFORMATIONAL — nothing to pay; it only informs and links out.
@@ -728,6 +727,7 @@ async function ServiceDetail({ id, toolId, tool, school }: ToolDetailProps) {
 async function EventDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const event = toolConfigOf(tool, "event")!;
   const photos = event.photos ?? [];
+  const hasMedia = photos.length > 0 || !!event.videoUrl;
   const dateMs = event.date ? event.date.toMillis() : null;
   // Re-check the map link scheme at render even though it was sanitized on write (defense in depth).
   const mapUrl = event.mapUrl ? safeExternalUrl(event.mapUrl) : null;
@@ -756,6 +756,40 @@ async function EventDetail({ id, toolId, tool, school }: ToolDetailProps) {
       school={school}
       jsonLd={jsonLd}
       badge={dateMs ? <EventStatusBadge dateMs={dateMs} /> : null}
+      // "Agregar al calendario" lifted into the title row (like the reinado's sponsor CTA) on
+      // desktop. On mobile it drops out of the title row and reappears full-width just above the
+      // footer actions (see below), so it never crowds the title on a narrow screen.
+      titleAction={
+        calendarUrl ? (
+          // Wrap in a plain div for the responsive toggle: `.btn` forces `inline-flex`, which would
+          // override `hidden` on the anchor itself, so the visibility class lives on the wrapper.
+          <div className="hidden sm:block">
+            <a
+              href={calendarUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+            >
+              <CalendarIcon className="mr-1.5 h-5 w-5" />
+              Agregar al calendario
+            </a>
+          </div>
+        ) : undefined
+      }
+      // Photos + video read as a media stack overlaid on the cover's bottom-right (mirroring the
+      // single product/service page), opening a full-screen lightbox — instead of a gallery grid
+      // and a separate <video> below the copy.
+      coverOverlay={
+        hasMedia ? (
+          <div className="absolute bottom-4 right-4 z-10">
+            <ProductCoverMedia
+              photos={photos}
+              videoUrl={event.videoUrl}
+              name={tool.title}
+            />
+          </div>
+        ) : undefined
+      }
     >
       <ul className="mt-3 space-y-1 text-sm text-muted">
         {dateMs && (
@@ -795,46 +829,15 @@ async function EventDetail({ id, toolId, tool, school }: ToolDetailProps) {
         <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
       )}
 
-      {/* Gallery */}
-      {photos.length > 0 && (
-        <ul className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {photos.map((url) => (
-            <li
-              key={url}
-              className="relative block aspect-square overflow-hidden rounded-xl bg-surface ring-1 ring-black/5"
-            >
-              <Image
-                src={url}
-                alt=""
-                fill
-                sizes="(min-width: 640px) 30vw, 50vw"
-                className="object-cover"
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {event.videoUrl && (
-        <video
-          controls
-          preload="metadata"
-          className="mt-4 w-full rounded-xl bg-black ring-1 ring-black/5"
-        >
-          <source src={event.videoUrl} />
-          Tu navegador no puede reproducir este video.
-        </video>
-      )}
-
-      {/* "Agregar al calendario" — the event-specific action. "Consultar" + "Compartir" close out
-          the page in the shared footer below, like every other tool kind. */}
+      {/* On mobile the title-row CTA is hidden; "Agregar al calendario" shows here instead, full
+          width directly above "Consultar"/"Compartir". From sm: up it lives in the title row. */}
       {calendarUrl && (
-        <div className="mt-8">
+        <div className="mt-8 sm:hidden">
           <a
             href={calendarUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-outline"
+            className="btn btn-primary w-full justify-center"
           >
             <CalendarIcon className="mr-1.5 h-5 w-5" />
             Agregar al calendario
@@ -984,9 +987,8 @@ async function BingoDetail({ id, toolId, tool, school }: ToolDetailProps) {
               La compra se habilita cuando la escuela esté verificada.
             </p>
           ) : availability.available > 0 ? (
-            <Link href={buyHref} className="btn btn-primary">
+            <Link href={buyHref} className="btn btn-primary w-full justify-center">
               Comprar cartones
-              <ArrowRightIcon className="ml-1.5 h-5 w-5" />
             </Link>
           ) : (
             <p className="rounded-xl bg-surface p-4 text-sm text-muted ring-1 ring-black/5">
