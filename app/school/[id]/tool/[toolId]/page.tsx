@@ -48,6 +48,8 @@ import { absoluteUrl } from "@/lib/site";
 import { safeExternalUrl } from "@/lib/url";
 import {
   BINGO_PATTERN_LABELS,
+  SERVICE_MODALITIES,
+  SERVICE_MODALITY_LABELS,
   type SchoolDoc,
   type ToolDoc,
   type ToolType,
@@ -549,39 +551,75 @@ async function SaleDetail({ id, toolId, tool, school }: ToolDetailProps) {
 }
 
 /**
- * The "Servicios" catalog public experience: each service (media + description + optional price)
- * with a single "Preguntar" WhatsApp button. No order flow and no verification gate — asking is
- * just a chat. PURELY INFORMATIONAL.
+ * The "Servicios" catalog public experience. Mirrors the "Productos" page: a single-service tool
+ * reads as ONE service (cover + media stack in the cover's bottom-right + price line) rather than a
+ * catalog, since each "Servicios" tool currently offers one service. A service has no order flow, so
+ * the inline action is "Consultar" (a prefilled WhatsApp chat), not "Comprar", and there is no
+ * verification gate — asking is just a chat. A multi-service config still falls back to the grid.
+ * PURELY INFORMATIONAL: the platform never processes money.
  */
 async function ServiceDetail({ id, toolId, tool, school }: ToolDetailProps) {
   const service = toolConfigOf(tool, "service")!;
   const contactPhone = toolContactPhone(tool) || school.boardContact?.phone || "";
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    name: tool.title,
-    itemListElement: service.services.map((s, i) => ({
-      "@type": "ListItem",
-      position: i + 1,
-      item: {
-        "@type": "Service",
-        name: s.name,
-        ...(s.description ? { description: s.description } : {}),
-        ...(s.photos && s.photos.length > 0 ? { image: s.photos[0] } : {}),
-        provider: { "@type": "Organization", name: school.name },
-        ...(typeof s.price === "number"
-          ? {
-              offers: {
-                "@type": "Offer",
-                price: s.price,
-                priceCurrency: service.currency,
-              },
-            }
-          : {}),
-      },
-    })),
-  };
+  // Single service → the real shape of the page (cover + media stack + price), not a catalog.
+  const single = service.services.length === 1;
+  const first = service.services[0];
+  const hasMedia = first && ((first.photos?.length ?? 0) > 0 || !!first.videoUrl);
+  // Canonical modality order regardless of how the school toggled them.
+  const modalities = first
+    ? SERVICE_MODALITIES.filter((m) => first.modalities?.includes(m))
+    : [];
+
+  // Single service → emit a precise Service; a catalog → an ItemList of Services.
+  const jsonLd =
+    single && first
+      ? {
+          "@context": "https://schema.org",
+          "@type": "Service",
+          name: first.name,
+          ...(first.description ? { description: first.description } : {}),
+          ...(first.photos && first.photos.length > 0
+            ? { image: first.photos }
+            : tool.coverUrl
+              ? { image: tool.coverUrl }
+              : {}),
+          provider: { "@type": "Organization", name: school.name },
+          ...(typeof first.price === "number"
+            ? {
+                offers: {
+                  "@type": "Offer",
+                  price: first.price,
+                  priceCurrency: service.currency,
+                },
+              }
+            : {}),
+        }
+      : {
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: tool.title,
+          itemListElement: service.services.map((s, i) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            item: {
+              "@type": "Service",
+              name: s.name,
+              ...(s.description ? { description: s.description } : {}),
+              ...(s.photos && s.photos.length > 0 ? { image: s.photos[0] } : {}),
+              provider: { "@type": "Organization", name: school.name },
+              ...(typeof s.price === "number"
+                ? {
+                    offers: {
+                      "@type": "Offer",
+                      price: s.price,
+                      priceCurrency: service.currency,
+                    },
+                  }
+                : {}),
+            },
+          })),
+        };
 
   return (
     <ToolDetailShell
@@ -590,24 +628,91 @@ async function ServiceDetail({ id, toolId, tool, school }: ToolDetailProps) {
       tool={tool}
       school={school}
       jsonLd={jsonLd}
+      coverOverlay={
+        single && first && hasMedia ? (
+          <div className="absolute bottom-4 right-4 z-10">
+            <ProductCoverMedia
+              photos={first.photos ?? []}
+              videoUrl={first.videoUrl}
+              name={first.name}
+            />
+          </div>
+        ) : undefined
+      }
     >
-      {tool.description && (
-        <p className="mt-3 whitespace-pre-line text-muted">{tool.description}</p>
-      )}
+      {single && first ? (
+        // Service layout: the price leads, then the service's own copy — no "Servicios" heading and
+        // no card-in-card, since the whole page IS the service. The "Consultar" action lives in the
+        // shared footer (the characteristic WhatsApp button, beside "Compartir").
+        <div className="scroll-mt-20">
+          {typeof first.price === "number" && (
+            <p className="mt-4 text-3xl font-semibold tabular-nums text-brand-darker">
+              {first.priceFrom && (
+                <span className="mr-1.5 align-middle text-base font-medium text-muted">
+                  Desde
+                </span>
+              )}
+              {formatMoney(first.price, service.currency)}
+            </p>
+          )}
 
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Servicios
-        </h2>
-        <div className="mt-4">
-          <ServiceItems
-            services={service.services}
-            currency={service.currency}
-            schoolName={school.name}
-            contactPhone={contactPhone}
-          />
+          {first.name && first.name !== tool.title && (
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground">
+              {first.name}
+            </h2>
+          )}
+
+          {modalities.length > 0 && (
+            <ul className="mt-3 flex flex-wrap gap-1.5">
+              {modalities.map((m) => (
+                <li
+                  key={m}
+                  className="inline-flex items-center rounded-full bg-brand-tint px-2.5 py-0.5 text-xs font-medium text-brand-darker"
+                >
+                  {SERVICE_MODALITY_LABELS[m]}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {(first.description || tool.description) && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {first.description || tool.description}
+            </p>
+          )}
+
+          {first.availability && (
+            <p className="mt-3 text-sm text-muted">
+              <span className="font-medium text-foreground">
+                Disponibilidad:
+              </span>{" "}
+              {first.availability}
+            </p>
+          )}
         </div>
-      </div>
+      ) : (
+        <>
+          {tool.description && (
+            <p className="mt-3 whitespace-pre-line text-muted">
+              {tool.description}
+            </p>
+          )}
+
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Servicios
+            </h2>
+            <div className="mt-4">
+              <ServiceItems
+                services={service.services}
+                currency={service.currency}
+                schoolName={school.name}
+                contactPhone={contactPhone}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       <ToolFooterActions id={id} toolId={toolId} tool={tool} school={school} />
     </ToolDetailShell>
