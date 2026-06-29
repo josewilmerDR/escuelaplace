@@ -39,6 +39,7 @@ import { getAppCheck } from "firebase-admin/app-check";
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import { setGlobalOptions } from "firebase-functions/v2";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -57,6 +58,15 @@ import {
   planThankYou,
   renderThankYou,
 } from "./thanks";
+
+// Cap concurrent instances for EVERY function in this deployment (triggers + the two public
+// onRequest endpoints castPageantApplause/trackInteraction, which live in ./track but share this
+// deployment). Gen2 defaults to maxInstances=1000; an unauthenticated request flood against the
+// onRequest endpoints would otherwise fan out to that ceiling = denial-of-wallet (#N2). 10 is an
+// ample ceiling for this catalog's volume (×~80 concurrency each) and a hard cost backstop; tune up
+// if legitimate trigger throughput ever needs it. Region is intentionally left at the default —
+// pinning a new one would change the live function URLs the client already calls.
+setGlobalOptions({ maxInstances: 10 });
 
 initializeApp();
 const db = getFirestore();
@@ -1054,7 +1064,20 @@ export const castPageantApplause = onRequest({ cors: true }, async (req, res) =>
     return;
   }
   try {
-    await getAppCheck().verifyToken(appCheckToken);
+    // consume: true makes the token SINGLE-USE (replay protection): the client mints a fresh
+    // LIMITED-use token per applause (lib/firebase.ts getAppCheckToken), so one token backs exactly
+    // one ballot and a harvested token can't be replayed across rotating voterKeys to stuff the
+    // sympathy tally (#N3). Needs the Firebase App Check API enabled (auto-enabled when the app is
+    // registered in App Check — see docs/pageant-free-vote-golive.md). A failure here is rejected as
+    // 401 exactly like an invalid token; the whole free-vote layer is dormant (the client sends no
+    // token without a configured site key) until that go-live, so this never fires before then.
+    const appCheck = await getAppCheck().verifyToken(appCheckToken, {
+      consume: true,
+    });
+    if (appCheck.alreadyConsumed) {
+      res.status(401).end(); // replayed/consumed token — not a fresh single-use vote
+      return;
+    }
   } catch {
     res.status(401).end();
     return;

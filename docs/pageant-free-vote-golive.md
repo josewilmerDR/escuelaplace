@@ -66,6 +66,13 @@ Firebase console → **App Check** → pestaña **Apps** → elegí el app **Web
 > código de `castPageantApplause` (verifica el token él mismo). Con el app registrado, sus tokens ya
 > validan — por eso el aplauso queda protegido **sin** tocar el enforcement de ningún producto.
 
+> **Protección contra replay (automática).** El cliente manda un token **de un solo uso**
+> (`getLimitedUseToken`) y la función lo verifica con `consume: true`, así un token **vale por un voto**
+> y no se puede reutilizar para inflar la simpatía (hallazgo #N3). Esto se activa **solo** con
+> registrar el app (paso 2 habilita la *Firebase App Check API*); no hay toggle extra. Si la API no
+> estuviera habilitada, `verifyToken` falla y el aplauso responde **401** igual que con un token
+> inválido — al verificar (sección *Verificar*) un 401 persistente apunta a esto.
+
 ### 3. Crear el secreto del site key
 
 El `apphosting.yaml` ya referencia `NEXT_PUBLIC_APPCHECK_RECAPTCHA_SITE_KEY` como secreto. Creálo
