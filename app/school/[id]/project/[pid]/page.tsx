@@ -9,13 +9,13 @@ import { ProjectManageBar } from "@/components/projects/ProjectManageBar";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { ProjectStageItem } from "@/components/projects/ProjectStageItem";
 import { ProjectStatusBadge } from "@/components/projects/ProjectStatusBadge";
-import {
-  PLATFORM_MONEY_DISCLAIMER_TEXT,
-  UnverifiedSchoolNotice,
-} from "@/components/school/UnverifiedSchoolNotice";
+import { SignInToContributeNote } from "@/components/projects/SignInToContributeNote";
+import { UnverifiedSchoolNotice } from "@/components/school/UnverifiedSchoolNotice";
+import { ToolCardActions } from "@/components/tools/ToolCardActions";
 import { Banner } from "@/components/ui/Banner";
 import { cardClass } from "@/components/ui/Card";
 import { FlagIcon, WarningIcon } from "@/components/ui/icons";
+import { toolWhatsAppConsultLink } from "@/lib/contact";
 import {
   canFundProject,
   getProjectById,
@@ -23,6 +23,7 @@ import {
   getSchoolById,
   isGoalReached,
   projectGoal,
+  toolShareText,
 } from "@/lib/firestore";
 import { PAGE_COVER_SIZES } from "@/lib/layout";
 import { formatMoney } from "@/lib/format";
@@ -203,10 +204,7 @@ export default async function ProjectPage({ params }: Props) {
                       ? "La escuela sigue recibiendo aportes (en dinero o en especie) por encima de la meta."
                       : "Puedes aportar en dinero o donar en especie (bienes o trabajo, como una etapa completa); su valor estimado suma al avance."}
                   </p>
-                  <p className="mt-2 text-xs text-muted">
-                    Para registrar tu aporte, inicia sesión con Google.{" "}
-                    {PLATFORM_MONEY_DISCLAIMER_TEXT}
-                  </p>
+                  <SignInToContributeNote />
                 </div>
               ) : project.status !== "active" ? (
                 <p className="text-sm text-muted">
@@ -323,6 +321,24 @@ export default async function ProjectPage({ params }: Props) {
               </div>
             </section>
           )}
+
+          {/* Footer actions, closing out the page like the public tool pages: "Consultar" opens a
+              prefilled WhatsApp chat on the school's board phone — hidden when no number resolves,
+              so it's never a dead link — and "Compartir" spreads the project through the Web Share
+              sheet (copy-link fallback). PURELY INFORMATIONAL — it only opens a chat or the share
+              sheet; the platform never touches the money. */}
+          <div className="mt-10 sm:mx-auto sm:max-w-md">
+            <ToolCardActions
+              whatsappUrl={toolWhatsAppConsultLink(
+                school.boardContact?.phone,
+                project.title,
+                school.name,
+              )}
+              sharePath={`/school/${id}/project/${pid}`}
+              shareTitle={project.title}
+              shareText={toolShareText(project.title, school.name)}
+            />
+          </div>
         </div>
       </article>
     </PageContainer>

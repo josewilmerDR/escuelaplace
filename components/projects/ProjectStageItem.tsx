@@ -55,24 +55,17 @@ export function ProjectStageItem({
         </p>
       )}
 
-      {stage.photos && stage.photos.length > 0 && (
+      {/* Photos + the optional video share one carousel (the video is the last slide, opening in
+          the lightbox like the photos) — so a stage's whole media set reads as a single strip. */}
+      {((stage.photos && stage.photos.length > 0) || stage.videoUrl) && (
         <div className="mt-3">
           <PhotoGallery
-            photos={stage.photos}
+            photos={stage.photos ?? []}
+            videoUrl={stage.videoUrl}
             businessName={`${projectTitle} — etapa ${index + 1}`}
+            variant="carousel"
           />
         </div>
-      )}
-
-      {stage.videoUrl && (
-        <video
-          controls
-          preload="metadata"
-          className="mt-3 w-full rounded-xl bg-black ring-1 ring-black/5"
-        >
-          <source src={stage.videoUrl} />
-          Tu navegador no puede reproducir este video.
-        </video>
       )}
 
       {quoteUrls.length > 0 && (

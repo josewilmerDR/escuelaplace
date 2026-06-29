@@ -297,6 +297,17 @@ function FundContent() {
 
   return (
     <main>
+      {/* Back to the project this funding flow came from — without it the only way out is the
+          panel link at the foot of the page. Roomier tap target via the py-2/-my-2 trick (matches
+          the public project page) without changing the link's visible size. */}
+      <div className="text-sm">
+        <span className="inline-flex py-2 -my-2">
+          <BackLink href={`/school/${schoolId}/project/${projectId}`}>
+            {project.title}
+          </BackLink>
+        </span>
+      </div>
+
       <PageTitle
         title="Financiar un proyecto"
         subtitle={
@@ -536,10 +547,6 @@ function FundContent() {
           </ul>
         )}
       </section>
-
-      <p className="mt-8 text-sm">
-        <BackLink href="/panel">Volver al panel</BackLink>
-      </p>
     </main>
   );
 }
