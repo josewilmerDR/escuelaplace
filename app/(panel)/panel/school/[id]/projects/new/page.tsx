@@ -4,38 +4,55 @@
  * New project (/panel/school/[id]/projects/new).
  *
  * Dedicated creation screen reached from the "+ Nuevo" button on the projects list. The board
- * defines the project's title, description, currency and cost-justified stages; media per stage
- * and the cover are added afterwards on the per-project edit page (uploads persist immediately,
- * so they need a saved project). Creating a project does NOT require verification — but its
- * public "Financiar" button stays off until the school is verified (see the contribution rule),
- * so the board can prepare projects ahead. On success we go straight to the edit page (with
- * ?created=1) so the cover and per-stage photos can be added next.
+ * defines the project's cover, title, description, currency and cost-justified stages — and each
+ * stage's media (photos + a short video + supporting documents) right here, since the page
+ * pre-allocates the project id so uploads land on its Storage path before the doc exists and ride
+ * along on the single create write. It's a MIRROR of the edit page: the same fields, the same
+ * shared <StageCard>, the same layout. Creating a project does NOT require verification — but its
+ * public "Financiar" button stays off until the school is verified (see the contribution rule), so
+ * the board can prepare projects ahead. On success we go to the edit page (with ?created=1).
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import {
-  StagesEditor,
-  emptyStage,
-  type StageDraft,
-} from "@/components/projects/StagesEditor";
+import { StageCard, type StageMedia } from "@/components/projects/StageCard";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
+import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PanelNotice } from "@/components/ui/PanelNotice";
 import { userErrorMessage } from "@/lib/errors";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
-import { createProject, getSchoolById, newProjectId } from "@/lib/firestore";
+import { formatMoney } from "@/lib/format";
+import { newLocalId } from "@/lib/local-id";
+import {
+  createProject,
+  getSchoolById,
+  newProjectId,
+  projectGoal,
+  updateProject,
+  uploadProjectAsset,
+} from "@/lib/firestore";
 import {
   PROJECT_CURRENCIES,
   PROJECT_DESCRIPTION_MAX,
+  PROJECT_STAGE_MAX,
   PROJECT_TITLE_MAX,
   type ProjectCurrency,
+  type ProjectStage,
   type SchoolDoc,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
 import type { LoadState } from "@/lib/page-state";
+
+/** A stage being drafted: the stored shape plus a local-only id (keys React + matches async media;
+ * stripped on create, since stored stages are positional). Mirrors the edit page's EditableStage. */
+type StageDraft = ProjectStage & { id: string };
+
+function emptyStage(): StageDraft {
+  return { id: newLocalId("s"), title: "", justification: "", cost: 0 };
+}
 
 /**
  * The page heading, rendered identically in every state (loading, error, missing school,
@@ -71,9 +88,10 @@ export default function NewProjectPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
 
   // The project's id, pre-allocated once (newProjectId is pure ref construction, no write) so the
-  // per-stage media (photos + a short video) can upload to the project's Storage path while the
-  // form is still being filled. It rides along as createProject's id on submit. Lazy initializer →
-  // stable across re-renders; the id is never rendered to the DOM, so SSR/CSR differing is invisible.
+  // per-stage media (photos + a short video + documents) and the cover can upload to the project's
+  // Storage path while the form is still being filled. It rides along as createProject's id on
+  // submit. Lazy initializer → stable across re-renders; the id is never rendered to the DOM, so
+  // SSR/CSR differing is invisible.
   const [projectId] = useState(() => newProjectId(id));
 
   // Create-form state
@@ -81,6 +99,7 @@ export default function NewProjectPage() {
   const [description, setDescription] = useState("");
   const [currency, setCurrency] = useState<ProjectCurrency>("CRC");
   const [stages, setStages] = useState<StageDraft[]>(() => [emptyStage()]);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -150,6 +169,24 @@ export default function NewProjectPage() {
     );
   }
 
+  const goal = projectGoal(stages);
+
+  // Merge a stage's media delta into the draft (mirrors the edit page's applyMedia, but purely
+  // local — the URLs ride along on the single create write). `videoUrl: null` clears the field.
+  const onStageMedia = (sid: string, media: StageMedia) => {
+    setStages((prev) =>
+      prev.map((s) => {
+        if (s.id !== sid) return s;
+        const next: StageDraft = { ...s };
+        if (media.photos !== undefined) next.photos = media.photos;
+        if (media.quoteUrls !== undefined) next.quoteUrls = media.quoteUrls;
+        if (media.videoUrl === null) delete next.videoUrl;
+        else if (media.videoUrl !== undefined) next.videoUrl = media.videoUrl;
+        return next;
+      }),
+    );
+  };
+
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -159,7 +196,7 @@ export default function NewProjectPage() {
       setError("Ingresa el título del proyecto.");
       return;
     }
-    // Keep each stage's already-uploaded media (photos/video) and drop the local-only id —
+    // Keep each stage's already-uploaded media (photos/video/documents) and drop the local-only id —
     // stored stages are positional. Conditional spreads so Firestore never sees `undefined`.
     const cleanStages = stages
       .map((s) => ({
@@ -167,6 +204,7 @@ export default function NewProjectPage() {
         justification: s.justification.trim(),
         cost: s.cost,
         ...(s.photos && s.photos.length > 0 ? { photos: s.photos } : {}),
+        ...(s.quoteUrls && s.quoteUrls.length > 0 ? { quoteUrls: s.quoteUrls } : {}),
         ...(s.videoUrl ? { videoUrl: s.videoUrl } : {}),
       }))
       .filter((s) => s.title);
@@ -196,8 +234,18 @@ export default function NewProjectPage() {
         },
         projectId,
       );
-      // Straight to the edit page (with ?created=1 so it can confirm the creation) so the
-      // board can add the cover (and tweak per-stage media).
+      // Upload the cover (if picked) and set it — best-effort: the project is already created, so a
+      // failed upload neither blocks the redirect nor risks a duplicate, and the cover can still be
+      // added from the edit page.
+      if (coverFile) {
+        try {
+          const coverUrl = await uploadProjectAsset(id, projectId, "cover", coverFile);
+          await updateProject(id, projectId, { coverUrl });
+        } catch {
+          // ignore — the project exists; the cover can be added from the edit page
+        }
+      }
+      // Straight to the edit page (with ?created=1 so it can confirm the creation).
       router.push(`/panel/school/${id}/projects/${newId}?created=1`);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudo crear el proyecto."));
@@ -230,6 +278,17 @@ export default function NewProjectPage() {
         onInputCapture={clearValidationMessage}
         className="mt-8 flex flex-col gap-4"
       >
+        {/* Cover first, same integrated picker the edit page uses: an "Agregar" band when empty, a
+            preview with "Cambiar imagen" / "Quitar" once a file is picked. */}
+        <ImagePicker
+          label="Portada del proyecto"
+          hint="Imagen amplia que encabeza la tarjeta y la página del proyecto."
+          value={coverFile}
+          onChange={setCoverFile}
+          variant="cover"
+          currentUrl={null}
+        />
+
         <Field label="Título">
           <input
             type="text"
@@ -273,23 +332,57 @@ export default function NewProjectPage() {
           <h2 className="text-sm font-semibold tracking-tight text-foreground">
             Etapas
           </h2>
-          <p className="mb-2 text-xs text-muted">
-            Cada etapa justifica su costo. La suma es la meta del proyecto.
+          {/* Running total = the project goal the stages are building. */}
+          <p className="text-xs text-muted">
+            Meta total (suma de las etapas): {formatMoney(goal, currency)}.
           </p>
-          <StagesEditor
-            stages={stages}
-            onChange={setStages}
+        </div>
+
+        {stages.map((stage, i) => (
+          <StageCard
+            key={stage.id}
+            stage={stage}
+            index={i}
             currency={currency}
             schoolId={id}
             projectId={projectId}
+            canRemove={stages.length > 1}
+            // The project id is pre-allocated, so uploads work from the first stage — no unsaved gate.
+            persisted
+            onText={(patch) =>
+              setStages((prev) =>
+                prev.map((s) => (s.id === stage.id ? { ...s, ...patch } : s)),
+              )
+            }
+            onMedia={async (media) => onStageMedia(stage.id, media)}
+            onRemove={() =>
+              setStages((prev) => prev.filter((s) => s.id !== stage.id))
+            }
           />
-        </div>
+        ))}
+
+        {/* Cap stages at PROJECT_STAGE_MAX, same as the edit form. */}
+        {stages.length < PROJECT_STAGE_MAX ? (
+          <button
+            type="button"
+            onClick={() => setStages((prev) => [...prev, emptyStage()])}
+            className="btn btn-outline self-start"
+          >
+            Agregar etapa
+          </button>
+        ) : (
+          <span className="text-xs text-muted">
+            Máximo {PROJECT_STAGE_MAX} etapas.
+          </span>
+        )}
 
         <FormError message={error} />
 
-        <button type="submit" disabled={saving} className="btn btn-primary">
-          {saving ? "Creando…" : "Crear proyecto"}
-        </button>
+        <div className="flex items-center justify-center gap-3">
+          <button type="submit" disabled={saving} className="btn btn-primary">
+            {saving ? "Creando…" : "Crear proyecto"}
+          </button>
+        </div>
       </form>
     </main>
   );

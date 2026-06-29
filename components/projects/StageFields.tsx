@@ -1,7 +1,7 @@
 /**
- * The text fields of a single project stage (title, justification, cost). Shared by both
- * editors — the create form (StagesEditor) and the edit page's StageCard — so the two can't
- * drift apart again. Fully controlled: the parent owns the values and applies the patch.
+ * The text fields of a single project stage (title, justification, cost). Used by the shared
+ * <StageCard> (the create and edit project forms both render it), so the two can't drift apart.
+ * Fully controlled: the parent owns the values and applies the patch.
  */
 import { Field } from "@/components/ui/Field";
 import {
@@ -17,7 +17,6 @@ export function StageFields({
   cost,
   currency,
   onChange,
-  required,
 }: {
   title: string;
   justification: string;
@@ -26,14 +25,12 @@ export function StageFields({
   onChange: (
     patch: Partial<{ title: string; justification: string; cost: number }>,
   ) => void;
-  required?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3">
       <Field label="Título de la etapa">
         <input
           type="text"
-          required={required}
           maxLength={PROJECT_STAGE_TITLE_MAX}
           value={title}
           onChange={(e) => onChange({ title: e.target.value })}
@@ -55,7 +52,6 @@ export function StageFields({
           type="number"
           min={0}
           max={PROJECT_STAGE_COST_MAX}
-          required={required}
           value={cost || ""}
           onChange={(e) =>
             // Clamp into [0, MAX] so one extra zero can't inflate the goal/progress bar.

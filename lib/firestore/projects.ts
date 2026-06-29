@@ -19,6 +19,7 @@ import {
   collection,
   collectionGroup,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -402,6 +403,20 @@ export async function updateProject(
     updatedAt: serverTimestamp(),
   });
   // Best-effort: refresh the project detail + the school page without the ISR lag.
+  await revalidateProject(schoolId, projectId).catch(() => {});
+}
+
+/** Remove a project's cover image (the field is deleted, not blanked, so the public page falls
+ * back to its placeholder). The Storage object is left in place — orphaned blobs are harmless and
+ * cleaning them up isn't worth a second round-trip. Must be called by the school owner/editor. */
+export async function removeProjectCover(
+  schoolId: string,
+  projectId: string,
+): Promise<void> {
+  await updateDoc(doc(db, SCHOOLS, schoolId, PROJECTS, projectId), {
+    coverUrl: deleteField(),
+    updatedAt: serverTimestamp(),
+  });
   await revalidateProject(schoolId, projectId).catch(() => {});
 }
 

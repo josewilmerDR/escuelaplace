@@ -17,34 +17,29 @@
  * actions (remove a stage, delete the project) go through a ConfirmDialog with concrete impact.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
-import { BackLink } from "@/components/ui/BackLink";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ProjectProgress } from "@/components/projects/ProjectProgress";
 import { ProjectStatusBadge } from "@/components/projects/ProjectStatusBadge";
-import { StageFields } from "@/components/projects/StageFields";
-import { Card, cardClass } from "@/components/ui/Card";
+import { StageCard } from "@/components/projects/StageCard";
+import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { FormError } from "@/components/ui/FormError";
-import { ImagePicker, validateImageFile } from "@/components/ui/ImagePicker";
+import { ImagePicker } from "@/components/ui/ImagePicker";
 import { PanelNotice } from "@/components/ui/PanelNotice";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
-import { XMarkIcon } from "@/components/ui/icons";
 import { userErrorMessage } from "@/lib/errors";
-import { validateProofFile, validateVideoFile, videoDurationSeconds } from "@/lib/files";
 import { formatMoney } from "@/lib/format";
 import { clearValidationMessage, spanishRequiredMessage } from "@/lib/forms";
-import { PROFILE_COVER_ASPECT, PAGE_COVER_SIZES } from "@/lib/layout";
 import { useUnsavedChangesGuard } from "@/lib/unsaved-changes";
-import { safeExternalUrl } from "@/lib/url";
 import {
   deleteProject,
   getProjectById,
   getSchoolById,
   projectGoal,
+  removeProjectCover,
   updateProject,
   uploadProjectAsset,
 } from "@/lib/firestore";
@@ -52,11 +47,7 @@ import {
   PROJECT_CURRENCIES,
   PROJECT_DESCRIPTION_MAX,
   PROJECT_STAGE_MAX,
-  PROJECT_STAGE_PHOTO_MAX,
-  PROJECT_STAGE_QUOTE_MAX,
   PROJECT_TITLE_MAX,
-  TOOL_VIDEO_MAX_MB,
-  TOOL_VIDEO_MAX_SECONDS,
   type ProjectCurrency,
   type ProjectDoc,
   type ProjectStage,
@@ -75,12 +66,17 @@ import type { LoadState } from "@/lib/page-state";
 function Heading({
   subtitle,
   status,
+  backHref,
 }: {
   subtitle?: string;
   status?: ProjectDoc["status"];
+  /** Back link above the title — the project's management page. */
+  backHref?: string;
 }) {
   return (
     <PageTitle
+      backHref={backHref}
+      backLabel="Volver a la gestión"
       title="Editar proyecto"
       status={status ? <ProjectStatusBadge status={status} /> : undefined}
       subtitle={subtitle}
@@ -110,6 +106,9 @@ export default function ProjectEditPage() {
   const { id, pid } = useParams<{ id: string; pid: string }>();
   const { user } = useAuth();
   const router = useRouter();
+  // The project's management page: the back link target (now at the top) and where a successful
+  // save returns the board.
+  const manageHref = `/panel/school/${id}/projects/${pid}/manage`;
 
   const [project, setProject] = useState<ProjectDoc | null>(null);
   const [school, setSchool] = useState<SchoolDoc | null>(null);
@@ -160,6 +159,11 @@ export default function ProjectEditPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // Removing the SAVED cover (the integrated ImagePicker's "Quitar") is confirmed, since it
+  // deletes the live image immediately — unlike the rest of the form, which only persists on save.
+  const [confirmRemoveCover, setConfirmRemoveCover] = useState(false);
+  const [removingCover, setRemovingCover] = useState(false);
+
   const load = useCallback(() => {
     Promise.all([getProjectById(id, pid), getSchoolById(id)])
       .then(([p, s]) => {
@@ -189,7 +193,7 @@ export default function ProjectEditPage() {
       <main>
         {/* Same heading as the loaded state so the title doesn't shift; a couple of card
             placeholders fade into the form's place — no blank flash during the read. */}
-        <Heading />
+        <Heading backHref={manageHref} />
         <ul className="mt-6 flex flex-col gap-4" aria-hidden="true">
           <li className="h-32 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
           <li className="h-48 animate-pulse rounded-2xl bg-surface ring-1 ring-black/5" />
@@ -204,7 +208,7 @@ export default function ProjectEditPage() {
   if (loadState === "error") {
     return (
       <main>
-        <Heading />
+        <Heading backHref={manageHref} />
         <p role="alert" className="mt-4 text-sm text-error">
           No pudimos cargar el proyecto. Revisa tu conexión e intenta de nuevo.
         </p>
@@ -217,14 +221,18 @@ export default function ProjectEditPage() {
 
   if (!project || !school) {
     return (
-      <PanelNotice heading={<Heading />}>Proyecto no encontrado.</PanelNotice>
+      <PanelNotice heading={<Heading backHref={manageHref} />}>
+        Proyecto no encontrado.
+      </PanelNotice>
     );
   }
 
   const isManager = isPageManager(school, user);
   if (!isManager) {
     return (
-      <PanelNotice heading={<Heading subtitle={school.name} />}>
+      <PanelNotice
+        heading={<Heading subtitle={school.name} backHref={manageHref} />}
+      >
         No administras esta escuela.
       </PanelNotice>
     );
@@ -376,10 +384,30 @@ export default function ProjectEditPage() {
       setStages(keyStages(cleanStages));
       setSaved(true);
       setDirty(false);
+      // Show the "Guardado" confirmation briefly, then return to the project's management page.
+      // dirty is already false, so the unsaved-changes guard won't block this navigation.
+      window.setTimeout(() => router.push(manageHref), 1200);
     } catch (err) {
       setError(userErrorMessage(err, "No se pudieron guardar los cambios."));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onRemoveCover = async () => {
+    setError(null);
+    setRemovingCover(true);
+    try {
+      await removeProjectCover(id, pid);
+      // Clear it from the loaded doc so the picker falls back to its "Agregar" prompt; drop any
+      // staged pick too, so the board starts from a clean slate.
+      setProject((prev) => (prev ? { ...prev, coverUrl: undefined } : prev));
+      setCoverFile(null);
+      setConfirmRemoveCover(false);
+    } catch (err) {
+      setError(userErrorMessage(err, "No se pudo quitar la portada."));
+    } finally {
+      setRemovingCover(false);
     }
   };
 
@@ -403,10 +431,12 @@ export default function ProjectEditPage() {
 
   return (
     <main>
-      {/* Subtitle = school + project title for context (#21); status badge sits by the h1 (#10). */}
+      {/* Subtitle = school + project title for context (#21); status badge sits by the h1 (#10).
+          The back link to the management page now lives here at the top. */}
       <Heading
         subtitle={`${school.name} · ${project.title}`}
         status={project.status}
+        backHref={manageHref}
       />
 
       {/* Live progress (function-maintained raised/contributorsCount) on an inset card,
@@ -427,6 +457,10 @@ export default function ProjectEditPage() {
         onInputCapture={clearValidationMessage}
         className="mt-6 flex flex-col gap-4"
       >
+        {/* Integrated cover (same pattern as the reinado create form): the saved cover — or a
+            freshly-picked file on top — shows inside the 5:2 band with a "Cambiar imagen" + "Quitar"
+            footer; when there's no cover, the band itself becomes the "Agregar" button. No more empty
+            preview box beside a live image. "Quitar" on the saved cover confirms before deleting. */}
         <ImagePicker
           label="Portada del proyecto"
           hint="Imagen amplia que encabeza la tarjeta y la página del proyecto."
@@ -436,27 +470,10 @@ export default function ProjectEditPage() {
             setDirty(true);
           }}
           variant="cover"
+          currentUrl={project.coverUrl ?? null}
+          onRemoveExisting={() => setConfirmRemoveCover(true)}
+          removeLabel="Quitar"
         />
-        {project.coverUrl && !coverFile && (
-          // Preview the saved cover instead of just describing it, at the same aspect/sizes
-          // the public project header uses, so the board sees what's live (#14).
-          <div className="flex flex-col gap-1.5">
-            <span
-              className={`relative block w-full overflow-hidden rounded-xl bg-surface ring-1 ring-black/5 ${PROFILE_COVER_ASPECT}`}
-            >
-              <Image
-                src={project.coverUrl}
-                alt="Portada actual del proyecto"
-                fill
-                sizes={PAGE_COVER_SIZES}
-                className="object-cover"
-              />
-            </span>
-            <p className="text-xs text-muted">
-              Esta es la portada actual. Sube una nueva para reemplazarla.
-            </p>
-          </div>
-        )}
 
         <Field label="Título">
           <input
@@ -554,7 +571,7 @@ export default function ProjectEditPage() {
           />
         ))}
 
-        {/* Cap stages at PROJECT_STAGE_MAX, same as the create form's StagesEditor (#8). */}
+        {/* Cap stages at PROJECT_STAGE_MAX, same as the create form (#8). */}
         {stages.length < PROJECT_STAGE_MAX ? (
           <button
             type="button"
@@ -582,7 +599,7 @@ export default function ProjectEditPage() {
 
         <FormError message={error} />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center gap-3">
           <button
             type="submit"
             disabled={saving}
@@ -619,8 +636,8 @@ export default function ProjectEditPage() {
               {(removeTarget.photos ?? []).length === 1 ? "foto" : "fotos"} y{" "}
               {(removeTarget.quoteUrls ?? []).length}{" "}
               {(removeTarget.quoteUrls ?? []).length === 1
-                ? "cotización"
-                : "cotizaciones"}
+                ? "documento"
+                : "documentos"}
               .
             </p>
             {project.contributorsCount > 0 && (
@@ -633,11 +650,25 @@ export default function ProjectEditPage() {
         )}
       </ConfirmDialog>
 
-      <p className="mt-8 text-sm">
-        <BackLink href={`/panel/school/${id}/projects/${pid}/manage`}>
-          Volver a la gestión
-        </BackLink>
-      </p>
+      {/* Removing the saved cover deletes the live image right away (not on "Guardar cambios"),
+          so it's confirmed. */}
+      <ConfirmDialog
+        open={confirmRemoveCover}
+        title="Quitar portada"
+        tone="destructive"
+        confirmLabel="Quitar portada"
+        cancelLabel="Cancelar"
+        busy={removingCover}
+        busyLabel="Quitando…"
+        onConfirm={onRemoveCover}
+        onCancel={() => setConfirmRemoveCover(false)}
+      >
+        <p>
+          Vas a quitar la portada de «{project.title}». El proyecto quedará sin
+          imagen de portada hasta que subas otra. No afecta sus etapas ni sus
+          aportes.
+        </p>
+      </ConfirmDialog>
 
       {/* Risk zone: deleting a project is irreversible. A centered RED text action (not a
           button — like the tools editor's "Eliminar …"), under a divider so it reads as a
@@ -683,308 +714,5 @@ export default function ProjectEditPage() {
         )}
       </ConfirmDialog>
     </main>
-  );
-}
-
-/** One stage: shared text fields plus immediate photo/quote uploads. */
-function StageCard({
-  stage,
-  index,
-  currency,
-  schoolId,
-  projectId,
-  canRemove,
-  persisted,
-  onText,
-  onMedia,
-  onRemove,
-}: {
-  stage: EditableStage;
-  index: number;
-  currency: ProjectCurrency;
-  schoolId: string;
-  projectId: string;
-  canRemove: boolean;
-  /** Whether this stage is saved in Firestore; unsaved stages can't receive media (#3). */
-  persisted: boolean;
-  onText: (patch: Partial<ProjectStage>) => void;
-  onMedia: (media: {
-    photos?: string[];
-    quoteUrls?: string[];
-    /** `null` clears the video; `undefined` leaves it unchanged. */
-    videoUrl?: string | null;
-  }) => Promise<void>;
-  onRemove: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [mediaError, setMediaError] = useState<string | null>(null);
-  const photos = stage.photos ?? [];
-  const quotes = stage.quoteUrls ?? [];
-  const videoUrl = stage.videoUrl;
-
-  // Persist a media change for this stage, reporting upload/save failures inline.
-  const commitMedia = async (media: {
-    photos?: string[];
-    quoteUrls?: string[];
-    videoUrl?: string | null;
-  }) => {
-    setMediaError(null);
-    setBusy(true);
-    try {
-      await onMedia(media);
-    } catch (err) {
-      setMediaError(userErrorMessage(err, "No se pudo guardar el cambio."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const upload = async (file: File, kind: "photo" | "quote" | "video") => {
-    setMediaError(null);
-    setBusy(true);
-    try {
-      const url = await uploadProjectAsset(schoolId, projectId, kind, file);
-      if (kind === "photo") {
-        await onMedia({ photos: [...photos, url], quoteUrls: quotes });
-      } else if (kind === "quote") {
-        await onMedia({ photos, quoteUrls: [...quotes, url] });
-      } else {
-        await onMedia({ videoUrl: url });
-      }
-    } catch (err) {
-      setMediaError(userErrorMessage(err, "No se pudo subir el archivo."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    // Elevated calm-depth card per stage via the shared primitive (#9). cardClass's own
-    // padding is opted out (padded=false) to keep this card's tighter p-4, since a stage
-    // card nests inside the form rather than standing alone like a page section.
-    <fieldset className={`${cardClass("elevated", false)} p-4`}>
-      <div className="flex items-center justify-between">
-        <legend className="text-sm font-semibold tracking-tight text-foreground">
-          Etapa {index + 1}
-        </legend>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={busy}
-            className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-error"
-          >
-            Quitar etapa
-          </button>
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-col gap-3">
-        <StageFields
-          title={stage.title}
-          justification={stage.justification}
-          cost={stage.cost}
-          currency={currency}
-          onChange={onText}
-        />
-
-        {/* Photos */}
-        <div>
-          <p className="text-xs font-medium">
-            Fotos ({photos.length}/{PROJECT_STAGE_PHOTO_MAX})
-          </p>
-          {photos.length > 0 && (
-            <ul className="mt-1 grid grid-cols-4 gap-2">
-              {photos.map((url, pi) => (
-                <li key={url} className="flex flex-col gap-1">
-                  <span className="relative block aspect-square overflow-hidden rounded-lg bg-surface ring-1 ring-black/5">
-                    <Image src={url} alt="" fill sizes="80px" className="object-cover" />
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Quitar foto ${pi + 1}`}
-                    disabled={busy}
-                    onClick={() =>
-                      commitMedia({
-                        photos: photos.filter((p) => p !== url),
-                        quoteUrls: quotes,
-                      })
-                    }
-                    className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
-                  >
-                    <XMarkIcon className="h-3.5 w-3.5" />
-                    Quitar
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {photos.length < PROJECT_STAGE_PHOTO_MAX &&
-            (persisted ? (
-              // focus-within ring makes the sr-only file input's keyboard focus visible (#13).
-              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
-                {busy ? "Subiendo…" : "Agregar foto"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f) return;
-                    const v = validateImageFile(f);
-                    if (v) return setMediaError(v);
-                    upload(f, "photo");
-                  }}
-                />
-              </label>
-            ) : (
-              <p className="mt-1 text-xs text-muted">
-                Guarda la etapa para poder subir fotos, video y cotizaciones.
-              </p>
-            ))}
-        </div>
-
-        {/* Video (at most one per stage). Shown for a saved stage or when one already exists; the
-            photos hint above already covers the unsaved case. Mirrors the tool media block. */}
-        {(persisted || videoUrl) && (
-          <div>
-            <p className="text-xs font-medium">Video (máx. 1 min)</p>
-            {videoUrl ? (
-              <div className="mt-1 flex flex-col gap-1">
-                <video
-                  controls
-                  preload="metadata"
-                  className="w-full rounded-lg bg-black ring-1 ring-black/5"
-                >
-                  <source src={videoUrl} />
-                </video>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => commitMedia({ videoUrl: null })}
-                  className="inline-flex min-h-10 items-center justify-center gap-1 self-start rounded-lg bg-surface px-2 text-xs font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
-                >
-                  <XMarkIcon className="h-3.5 w-3.5" />
-                  Quitar video
-                </button>
-              </div>
-            ) : (
-              <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
-                {busy ? "Subiendo…" : "Agregar video"}
-                <input
-                  type="file"
-                  accept="video/*"
-                  className="sr-only"
-                  disabled={busy}
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!f) return;
-                    const v = validateVideoFile(f, TOOL_VIDEO_MAX_MB);
-                    if (v) return setMediaError(v);
-                    let duration: number;
-                    try {
-                      duration = await videoDurationSeconds(f);
-                    } catch {
-                      setMediaError(
-                        "No pudimos leer el video. Prueba con otro archivo.",
-                      );
-                      return;
-                    }
-                    if (duration > TOOL_VIDEO_MAX_SECONDS + 2) {
-                      setMediaError(
-                        `El video debe durar máximo ${TOOL_VIDEO_MAX_SECONDS} segundos.`,
-                      );
-                      return;
-                    }
-                    upload(f, "video");
-                  }}
-                />
-              </label>
-            )}
-          </div>
-        )}
-
-        {/* Quotes */}
-        <div>
-          <p className="text-xs font-medium">
-            Cotizaciones ({quotes.length}/{PROJECT_STAGE_QUOTE_MAX})
-          </p>
-          {quotes.length > 0 && (
-            <ul className="mt-1 flex flex-col gap-1">
-              {quotes.map((url, qi) => {
-                // Only render an http(s) link; a legacy/raw-written quote with a
-                // javascript:/data: scheme stays inert text but is still removable (#15).
-                const safeUrl = safeExternalUrl(url);
-                return (
-                <li key={url} className="flex items-center gap-3 text-xs">
-                  {safeUrl ? (
-                    <a
-                      href={safeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-brand-darker underline"
-                    >
-                      Cotización {qi + 1}
-                    </a>
-                  ) : (
-                    <span className="font-medium text-muted">
-                      Cotización {qi + 1} (enlace inválido)
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    aria-label={`Quitar cotización ${qi + 1}`}
-                    disabled={busy}
-                    onClick={() =>
-                      commitMedia({
-                        photos,
-                        quoteUrls: quotes.filter((q) => q !== url),
-                      })
-                    }
-                    className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg bg-surface px-2 font-medium text-muted ring-1 ring-black/5 transition-colors hover:text-error hover:ring-error/20"
-                  >
-                    <XMarkIcon className="h-3.5 w-3.5" />
-                    Quitar
-                  </button>
-                </li>
-                );
-              })}
-            </ul>
-          )}
-          {/* When the stage isn't persisted yet, the shared hint under "Fotos" already explains
-              why uploads are off, so we just omit this control rather than repeating it (#3). */}
-          {quotes.length < PROJECT_STAGE_QUOTE_MAX && persisted && (
-            // focus-within ring exposes the sr-only file input's keyboard focus (#13).
-            <label className="mt-1 inline-flex min-h-10 cursor-pointer items-center rounded-lg bg-surface px-3 text-xs font-medium text-brand-darker ring-1 ring-black/5 transition-colors hover:ring-brand-darker/30 focus-within:ring-2 focus-within:ring-brand">
-              {busy ? "Subiendo…" : "Agregar cotización (imagen o PDF)"}
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                className="sr-only"
-                disabled={busy}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!f) return;
-                  // Validate type/size before upload, same as photos do (#19).
-                  const v = validateProofFile(f);
-                  if (v) return setMediaError(v);
-                  upload(f, "quote");
-                }}
-              />
-            </label>
-          )}
-        </div>
-
-        {mediaError && (
-          <p role="alert" className="text-xs text-error">
-            {mediaError}
-          </p>
-        )}
-      </div>
-    </fieldset>
   );
 }

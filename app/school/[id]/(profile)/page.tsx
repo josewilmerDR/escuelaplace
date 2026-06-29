@@ -169,6 +169,8 @@ export default async function SchoolLandingPage({ params }: Props) {
                   <ProjectCard
                     project={pub.project}
                     coverSizes={FEED_COVER_SIZES}
+                    showActions
+                    boardPhone={school.boardContact?.phone}
                   />
                 ) : (
                   <ToolCard

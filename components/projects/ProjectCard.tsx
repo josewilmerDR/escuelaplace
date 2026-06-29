@@ -4,19 +4,19 @@
  * are a STRETCHED LINK to the project detail page (an ::after overlay covering the whole card),
  * so the full surface is the tap target.
  *
- * On the home feed (`showActions`) it also renders a footer mirroring ToolCard: "Consultar" — a
- * prefilled WhatsApp chat on the school's board phone, shown only when a number resolves — and
- * "Ver proyecto", an explicit CTA to the detail page. Those buttons sit above the stretched link
- * (relative z-10) so they stay independently clickable. Both are plain links, so this stays a
- * server component.
+ * On the feed (`showActions`) it also renders a footer mirroring ToolCard's: the shared
+ * ToolCardActions island — "Consultar" (a prefilled WhatsApp chat on the school's board phone,
+ * shown only when a number resolves) and "Compartir" (Web Share, copy-link fallback). Those
+ * buttons sit above the stretched link (relative z-10) so they stay independently clickable.
  */
 import Image from "next/image";
 import Link from "next/link";
+import { ToolCardActions } from "@/components/tools/ToolCardActions";
 import { Badge } from "@/components/ui/Badge";
-import { FlagIcon, WhatsAppIcon } from "@/components/ui/icons";
-import { buildWhatsAppLink } from "@/lib/contact";
+import { FlagIcon } from "@/components/ui/icons";
+import { toolWhatsAppConsultLink } from "@/lib/contact";
 import { CARD_COVER_ASPECT } from "@/lib/layout";
-import { projectGoal } from "@/lib/firestore";
+import { projectGoal, toolShareText } from "@/lib/firestore";
 import type { ProjectDoc } from "@/types";
 import { ProjectProgress } from "./ProjectProgress";
 import { ProjectStatusBadge } from "./ProjectStatusBadge";
@@ -48,14 +48,12 @@ export function ProjectCard({
   const goal = projectGoal(project.stages);
   const detailHref = `/school/${project.schoolId}/project/${project.id}`;
 
-  // "Consultar" opens a prefilled chat on the school's board phone; buildWhatsAppLink normalizes
-  // the number and returns null when it can't be dialed, so the button is hidden rather than dead.
+  // "Consultar" opens a prefilled chat on the school's board phone; toolWhatsAppConsultLink
+  // normalizes the number and returns null when it can't be dialed, so the button is hidden
+  // rather than dead. A project carries no contact of its own — the board phone is the only one.
   const whatsappUrl =
     showActions && boardPhone
-      ? buildWhatsAppLink(
-          boardPhone,
-          `¡Hola! Vi el proyecto "${project.title}" de ${project.schoolName} en escuelaplace y quiero hacer una consulta.`,
-        )
+      ? toolWhatsAppConsultLink(boardPhone, project.title, project.schoolName)
       : null;
 
   return (
@@ -118,25 +116,15 @@ export function ProjectCard({
             compact
           />
           {showActions && (
-            <div className="relative z-10 flex gap-2 pt-1">
-              {whatsappUrl && (
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  // WhatsApp-flavored green, darkened to emerald-700 for AA contrast (see globals.css).
-                  className="btn flex-1 justify-center bg-emerald-700 text-white hover:bg-emerald-800"
-                >
-                  <WhatsAppIcon className="mr-1.5 h-4 w-4" />
-                  Consultar
-                </a>
-              )}
-              <Link
-                href={detailHref}
-                className="btn btn-primary flex-1 justify-center"
-              >
-                Ver proyecto
-              </Link>
+            <div className="relative z-10 pt-1">
+              <ToolCardActions
+                whatsappUrl={whatsappUrl}
+                sharePath={detailHref}
+                shareTitle={project.title}
+                // Short and warm: the rich link preview carries the visuals; the text just adds a
+                // human nudge above it (same copy as the tool cards).
+                shareText={toolShareText(project.title, project.schoolName)}
+              />
             </div>
           )}
         </div>
