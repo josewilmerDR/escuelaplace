@@ -1143,16 +1143,20 @@ service cloud.firestore {
     // The doc holds NO sensitive data — the buyer's name + amount live in the private subdoc,
     // the proof file in Storage (raffle-order-proofs/{id}); only `proofUploaded` is public.
     // - read: public (the number grid derives reserved/sold from each order's numbers+status).
-    // - create: the buyer themselves, forced 'pending', and ONLY while the target school is
-    //   'verified' — same gate as contributions, so an unverified school can show a raffle but
-    //   its "Comprar" can't complete.
+    // - create: DENIED to all clients. Unlike the other order kinds, the PUBLIC doc is created
+    //   ONLY by the `reserveRaffleNumbers` Cloud Function (Admin SDK, which bypasses these rules).
+    //   Number uniqueness across orders and a per-buyer pending cap — the real fix for the
+    //   grid-lock DoS (#N1) — need to read ACROSS orders, which rules can't do (no list iteration,
+    //   no cross-doc reads). The arbiter does it in a transaction; routing every create through it
+    //   is what makes those invariants unbypassable. (The buyer still writes the private subdoc +
+    //   the proof afterward — see below.) DEPLOY the function BEFORE this rule.
     // - update: the buyer may edit their own pending doc (the proof flag) but may NEVER
     //   self-confirm or rewrite who/which numbers; only the TARGET school's owner/editors or
-    //   admin may confirm. Identity (numbers included) frozen at create.
-    // - delete: the buyer or admin.
+    //   admin may confirm. Identity (numbers included) frozen at create. confirmedBy bound to actor.
+    // - delete: the buyer, the target school (queue moderation, #N1), or admin.
     match /raffleOrders/{id} {
       allow read: if true;
-      allow create: if isAdmin() || (orderCreateGate() && validRaffleOrderCreate());
+      allow create: if false;
       allow update: if isAdmin() || (
         keepsRaffleOrderIdentity() && validOrderUpdateFields() &&
         confirmsOrderFromPending() && orderUpdateActor(changesOrderConfirmation())
@@ -1172,22 +1176,6 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(
         ['schoolId', 'toolId', 'buyerId', 'numbers', 'currency']
       );
-    }
-    // CREATE pins the PUBLIC field set — it OMITS buyerName/amount (those live in private/data),
-    // validates the currency enum and the numbers list bounds. The size cap is RAFFLE_ORDER_NUMBERS_MAX
-    // (25, hardcoded — rules can't import TS), well below the 100-number grid, so ONE pending order can
-    // no longer reserve the whole raffle and lock out every buyer (#N1; rules can't iterate the list to
-    // range-check / dedup elements — that and the per-buyer flood need App Check on writes / a CF arbiter).
-    function validRaffleOrderCreate() {
-      return request.resource.data.keys().hasOnly([
-          'schoolId', 'schoolName', 'toolId', 'toolTitle', 'buyerId', 'numbers', 'currency',
-          'status', 'confirmedAt', 'createdAt', 'updatedAt']) &&
-        request.resource.data.currency in ['CRC', 'USD', 'NIO', 'MXN', 'EUR'] &&
-        request.resource.data.toolTitle is string &&
-        request.resource.data.toolTitle.size() <= 120 &&
-        request.resource.data.numbers is list &&
-        request.resource.data.numbers.size() >= 1 &&
-        request.resource.data.numbers.size() <= 25;
     }
 
     // ── productOrders/{id} ─────────────────────────────────────────────────────

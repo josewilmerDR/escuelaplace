@@ -22,3 +22,23 @@ export function userErrorMessage(err: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+/**
+ * User-facing message for a failed CALLABLE (httpsCallable). Our callables author the message on
+ * the "business" error codes as buyer-facing Spanish — e.g. the raffle arbiter's "Algunos números
+ * ya fueron tomados" / per-buyer cap / bad-request — so surface those VERBATIM. Infra/auth codes
+ * (unavailable, unauthenticated, internal…) carry developer prose, so they fall back to
+ * userErrorMessage's curated mapping. The callable SDK prefixes codes with "functions/".
+ */
+export function callableErrorMessage(err: unknown, fallback: string): string {
+  if (
+    err instanceof FirebaseError &&
+    (err.code === "functions/failed-precondition" ||
+      err.code === "functions/resource-exhausted" ||
+      err.code === "functions/invalid-argument")
+  ) {
+    console.error(err);
+    return err.message;
+  }
+  return userErrorMessage(err, fallback);
+}

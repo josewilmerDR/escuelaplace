@@ -1711,8 +1711,8 @@ describe("order shared invariants (raffle/product/bingo, P1-b)", () => {
   }
 });
 
-// ── raffle per-order cap + school moderation (#N1: grid-lock DoS) ─────────────
-describe("raffle order cap + school moderation (#N1)", () => {
+// ── raffle create is function-only + school moderation (#N1: grid-lock DoS) ──
+describe("raffle create denied to clients + school moderation (#N1)", () => {
   const VERIFIED = { verified: true, verificationStatus: "verified" };
   const raffleOrder = (over: Record<string, unknown> = {}) => ({
     schoolId: "sch1",
@@ -1726,7 +1726,6 @@ describe("raffle order cap + school moderation (#N1)", () => {
     confirmedAt: null,
     ...over,
   });
-  const nums = (n: number) => Array.from({ length: n }, (_, i) => i);
 
   beforeEach(async () => {
     await seed((db) =>
@@ -1734,21 +1733,12 @@ describe("raffle order cap + school moderation (#N1)", () => {
     );
   });
 
-  it("ALLOWS a raffle order up to the per-order number cap (25)", async () => {
-    await assertSucceeds(
-      addDoc(
-        collection(asUser("dana"), "raffleOrders"),
-        raffleOrder({ numbers: nums(25) }),
-      ),
-    );
-  });
-
-  it("DENIES a raffle order over the cap — one order can't lock the whole grid", async () => {
+  it("DENIES any client create — reservations go through the reserveRaffleNumbers function (#N1)", async () => {
+    // The arbiter (Admin SDK) is the sole creator; a scripted client can't write a raffleOrders doc
+    // directly, so number uniqueness + the per-buyer cap can't be bypassed. Even a well-formed,
+    // within-cap payload against a verified school is refused at the rules layer.
     await assertFails(
-      addDoc(
-        collection(asUser("dana"), "raffleOrders"),
-        raffleOrder({ numbers: nums(26) }),
-      ),
+      addDoc(collection(asUser("dana"), "raffleOrders"), raffleOrder({ numbers: [1, 2, 3] })),
     );
   });
 

@@ -41,7 +41,17 @@ firebase deploy --only firestore:rules,firestore:indexes,storage,functions
 - `storage` + `firestore:rules` — the proof/reviews rules use `firestore.get()`, so deploy
   them together.
 
-Verify in the console: Functions show 3 deployed; Firestore → Indexes all "Enabled".
+> **Order matters for the raffle arbiter.** `raffleOrders` creates are DENIED to clients — the
+> `reserveRaffleNumbers` function is the sole creator (it enforces number uniqueness + a per-buyer
+> cap the rules can't). A combined `firebase deploy` doesn't guarantee the function lands before the
+> rules, so on the rollout that first introduces it (or any later change to it), deploy the function
+> FIRST, then the rules — otherwise raffle buying breaks in the gap (no create path):
+> ```bash
+> firebase deploy --only functions:reserveRaffleNumbers
+> firebase deploy --only firestore:rules
+> ```
+
+Verify in the console: Functions show all deployed; Firestore → Indexes all "Enabled".
 
 ## 2. App: Firebase App Hosting (Next.js)
 

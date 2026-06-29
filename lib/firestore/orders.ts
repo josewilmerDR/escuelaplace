@@ -128,11 +128,26 @@ export async function createOrder(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  await setDoc(doc(db, col.name, created.id, "private", "data"), {
+  await writeOrderPrivate(col, created.id, priv);
+  return created.id;
+}
+
+/**
+ * Write an order's PRIVATE subdoc (buyerName + amount), OFF the public doc. Split out of
+ * createOrder because the raffle kind no longer creates its public doc on the client — a Cloud
+ * Function arbiter (reserveRaffleNumbers) does, to enforce number uniqueness + a per-buyer cap the
+ * rules can't — so the client writes only this private half afterward. Rules let the buyer create
+ * it on their own pending order.
+ */
+export async function writeOrderPrivate(
+  col: OrderCollection,
+  orderId: string,
+  priv: OrderPrivateFields,
+): Promise<void> {
+  await setDoc(doc(db, col.name, orderId, "private", "data"), {
     buyerName: priv.buyerName,
     amount: priv.amount,
   });
-  return created.id;
 }
 
 /** Storage path of an order's payment proof (the file never appears in the public doc). */

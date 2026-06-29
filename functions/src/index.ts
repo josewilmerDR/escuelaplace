@@ -73,6 +73,7 @@ const db = getFirestore();
 
 export { recordWalkIn, trackInteraction } from "./track";
 export { grantAdminRole, revokeAdminRole } from "./admin";
+export { reserveRaffleNumbers } from "./raffle";
 
 const DAY_MS = 86_400_000;
 const SUBSCRIPTIONS = "subscriptions";
