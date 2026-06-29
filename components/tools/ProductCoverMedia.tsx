@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PlayIcon } from "@/components/ui/icons";
+import { safeMediaUrl } from "@/lib/url";
 
 type MediaItem = { type: "photo" | "video"; src: string };
 
@@ -30,9 +31,12 @@ export function ProductCoverMedia({
   /** When set (verified school), a "Comprar" button anchors to the open media's bottom-right. */
   buyHref?: string;
 }) {
+  // Host-gate the video before it loads into a <video> (which bypasses next/image): an
+  // off-domain/forged URL is dropped, so it drives neither the media list nor the play badge.
+  const safeVideo = safeMediaUrl(videoUrl);
   const media: MediaItem[] = [
     ...photos.map((src) => ({ type: "photo" as const, src })),
-    ...(videoUrl ? [{ type: "video" as const, src: videoUrl }] : []),
+    ...(safeVideo ? [{ type: "video" as const, src: safeVideo }] : []),
   ];
 
   // Index of the media open in the lightbox; null = closed. The lightbox is portaled to <body> so
@@ -89,7 +93,7 @@ export function ProductCoverMedia({
   if (media.length === 0) return null;
 
   const cover = photos[0] ?? null; // front-card image (video-only product → play tile)
-  const hasVideo = Boolean(videoUrl);
+  const hasVideo = Boolean(safeVideo);
   const current = index !== null ? media[index] : null;
 
   return (

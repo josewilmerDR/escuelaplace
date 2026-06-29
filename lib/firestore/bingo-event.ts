@@ -38,7 +38,7 @@ import type {
   BingoClaimStatus,
   BingoEventState,
 } from "@/types";
-import { BINGO_PAUSE_REASON_MAX } from "@/types";
+import { BINGO_CLAIM_NAME_MAX, BINGO_PAUSE_REASON_MAX } from "@/types";
 import { byCreatedAtAsc, snapToList } from "./converters";
 
 const SCHOOLS = "schools";
@@ -410,7 +410,9 @@ export async function createBingoClaim(
     patternId: input.patternId,
     patternName: input.patternName,
     claimantId: input.claimantId,
-    claimantName: input.claimantName,
+    // Cap the denormalized display name so the create satisfies the rule's claimantName bound (a
+    // Google display name can in theory exceed it); the school's queue only needs a short label.
+    claimantName: input.claimantName.slice(0, BINGO_CLAIM_NAME_MAX),
     status: "pending",
     resolvedAt: null,
     createdAt: serverTimestamp(),

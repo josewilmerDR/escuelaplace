@@ -17,6 +17,7 @@ import { PageTitle } from "@/components/ui/PageTitle";
 import { cardClass } from "@/components/ui/Card";
 import { formatDateTime } from "@/lib/format";
 import { toolConfigOf } from "@/lib/firestore";
+import { safeExternalUrl } from "@/lib/url";
 import type { SchoolDoc, ToolDoc } from "@/types";
 
 export function EventManagePanel({
@@ -32,6 +33,9 @@ export function EventManagePanel({
   const event = toolConfigOf(tool, "event")!;
   const dateMs = event.date ? event.date.toMillis() : null;
   const photoCount = event.photos?.length ?? 0;
+  // Scheme-check the map link before it becomes a navigable href: the public event page already
+  // guards it, but a legacy/forged config could carry a javascript: URL the board would click here.
+  const mapUrl = safeExternalUrl(event.mapUrl);
 
   return (
     <main>
@@ -72,12 +76,12 @@ export function EventManagePanel({
               <dd className="text-foreground">{event.place}</dd>
             </div>
           )}
-          {event.mapUrl && (
+          {mapUrl && (
             <div>
               <dt className="text-xs text-muted">Mapa</dt>
               <dd>
                 <a
-                  href={event.mapUrl}
+                  href={mapUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-brand-darker hover:underline"

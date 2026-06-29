@@ -11,6 +11,7 @@
  */
 import { SparklesIcon } from "@/components/ui/icons";
 import { thankYouMilestoneLabel } from "@/lib/thanks";
+import { safeMediaUrl } from "@/lib/url";
 import type { ThankYouDoc } from "@/types";
 
 export function ThankYouCard({
@@ -22,6 +23,8 @@ export function ThankYouCard({
 }) {
   const unseen = !thankYou.seenByDonor;
   const media = thankYou.media;
+  // Host-gate the clip before it loads into a <video> (bypasses next/image): drop off-domain.
+  const videoUrl = safeMediaUrl(media?.videoUrl);
 
   return (
     <li
@@ -52,14 +55,14 @@ export function ThankYouCard({
         <p className="whitespace-pre-line text-sm text-foreground">{thankYou.message}</p>
       )}
 
-      {media?.videoUrl && (
+      {videoUrl && (
         <video
-          src={media.videoUrl}
+          src={videoUrl}
           controls
           className="max-h-72 w-full rounded-xl bg-black"
         />
       )}
-      {!media?.videoUrl && media?.photoUrl && (
+      {!videoUrl && media?.photoUrl && (
         // eslint-disable-next-line @next/next/no-img-element -- storage URL, no optimization needed here
         <img
           src={media.photoUrl}
