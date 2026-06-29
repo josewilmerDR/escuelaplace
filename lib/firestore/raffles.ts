@@ -10,15 +10,17 @@
  * by the methods it publishes; the school confirms the proof, same as donations.
  */
 import { cache } from "react";
+import { httpsCallable } from "firebase/functions";
+import { getFirebaseFunctions } from "@/lib/firebase";
 import type { ProjectCurrency, RaffleOrder, RaffleOrderDoc } from "@/types";
 import {
   confirmOrder,
-  createOrder,
   deleteOrder,
   getOrderProofUrl,
   getOrdersBySchool,
   getOrdersByTool,
   uploadOrderProof,
+  writeOrderPrivate,
   type OrderCollection,
 } from "./orders";
 
@@ -88,24 +90,30 @@ export interface CreateRaffleOrderInput {
 }
 
 /**
- * Create a `pending` raffle order. Must be called by the signed-in buyer (rules enforce
- * buyerId == auth.uid) and only against a verified school. The buyer's real name + amount go to
- * the private subdoc (off the public doc). Returns the new order id (for the proof upload).
+ * Reserve raffle numbers in a `pending` order. Unlike the other order kinds, the PUBLIC doc is NOT
+ * created on the client — the `reserveRaffleNumbers` Cloud Function arbiter creates it inside a
+ * transaction so it can enforce, atomically and across orders, what the rules can't: a number lands
+ * in at most one active order, and a single buyer can't hold the whole grid pending (the #N1
+ * grid-lock fix). The arbiter denormalizes schoolName/toolTitle/currency from the authoritative docs
+ * and forces `pending`; the client passes only the ids + the picked numbers. The buyer's real name +
+ * amount then go to the private subdoc (off the public doc, never through the function). Returns the
+ * new order id (for the proof upload). Throws on a taken number / per-buyer cap / unverified school.
  */
-export function createRaffleOrder(input: CreateRaffleOrderInput): Promise<string> {
-  return createOrder(
-    RAFFLE_ORDERS,
-    {
-      schoolId: input.schoolId,
-      schoolName: input.schoolName,
-      toolId: input.toolId,
-      toolTitle: input.toolTitle,
-      buyerId: input.buyerId,
-      numbers: input.numbers,
-      currency: input.currency,
-    },
-    { buyerName: input.buyerName, amount: input.amount },
-  );
+export async function createRaffleOrder(input: CreateRaffleOrderInput): Promise<string> {
+  const reserve = httpsCallable<
+    { schoolId: string; toolId: string; numbers: number[] },
+    { orderId: string }
+  >(getFirebaseFunctions(), "reserveRaffleNumbers");
+  const { data } = await reserve({
+    schoolId: input.schoolId,
+    toolId: input.toolId,
+    numbers: input.numbers,
+  });
+  await writeOrderPrivate(RAFFLE_ORDERS, data.orderId, {
+    buyerName: input.buyerName,
+    amount: input.amount,
+  });
+  return data.orderId;
 }
 
 export function uploadRaffleOrderProof(orderId: string, file: Blob): Promise<void> {

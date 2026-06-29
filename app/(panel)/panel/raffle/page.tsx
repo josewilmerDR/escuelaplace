@@ -20,7 +20,7 @@ import { cardClass } from "@/components/ui/Card";
 import { PageTitle } from "@/components/ui/PageTitle";
 import { FilePicker } from "@/components/ui/FilePicker";
 import { FormError } from "@/components/ui/FormError";
-import { userErrorMessage } from "@/lib/errors";
+import { callableErrorMessage, userErrorMessage } from "@/lib/errors";
 import {
   createRaffleOrder,
   getRaffleOrdersByTool,
@@ -147,7 +147,9 @@ function RaffleContent() {
     setSaving(true);
     setError(null);
 
-    // Phase 1 — create the pending order. Only a failure here invalidates the action.
+    // Phase 1 — reserve via the arbiter (atomic uniqueness + per-buyer cap). Only a failure here
+    // invalidates the action; the function's reason (a number got taken, the per-buyer cap) is
+    // buyer-facing Spanish, so surface it verbatim.
     let newId: string;
     try {
       newId = await createRaffleOrder({
@@ -162,7 +164,7 @@ function RaffleContent() {
         currency: raffle.currency,
       });
     } catch (err) {
-      setError(userErrorMessage(err, "No se pudo registrar tu compra."));
+      setError(callableErrorMessage(err, "No se pudo registrar tu compra."));
       setSaving(false);
       return;
     }
