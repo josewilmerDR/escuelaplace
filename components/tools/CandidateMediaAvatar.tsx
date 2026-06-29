@@ -20,6 +20,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PlayIcon, UserIcon } from "@/components/ui/icons";
 import { candidateCoverUrl } from "@/lib/firestore";
+import { safeMediaUrl } from "@/lib/url";
 import type { CandidateMediaItem } from "@/types";
 
 export function CandidateMediaAvatar({
@@ -151,7 +152,9 @@ export function CandidateMediaAvatar({
                 playsInline
                 className="max-h-full max-w-full rounded-lg bg-black"
               >
-                <source src={current.url} />
+                {/* Host-gate the src: a <source> bypasses next/image, so an off-domain/forged
+                    media URL must not load. */}
+                <source src={safeMediaUrl(current.url) ?? undefined} />
               </video>
             )}
           </div>

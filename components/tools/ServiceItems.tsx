@@ -2,6 +2,7 @@ import Image from "next/image";
 import { ChatBubbleIcon } from "@/components/ui/icons";
 import { buildWhatsAppLink } from "@/lib/contact";
 import { formatMoney } from "@/lib/format";
+import { safeMediaUrl } from "@/lib/url";
 import {
   SERVICE_MODALITIES,
   SERVICE_MODALITY_LABELS,
@@ -32,6 +33,8 @@ export function ServiceItems({
     <ul className="grid gap-6 sm:grid-cols-2">
       {services.map((service) => {
         const photos = service.photos ?? [];
+        // Host-gate the clip before it loads into a <video> (bypasses next/image): drop off-domain.
+        const videoUrl = safeMediaUrl(service.videoUrl);
         // Canonical order regardless of how the school toggled them.
         const modalities = SERVICE_MODALITIES.filter((m) =>
           service.modalities?.includes(m),
@@ -111,13 +114,13 @@ export function ServiceItems({
                 </p>
               )}
 
-              {service.videoUrl && (
+              {videoUrl && (
                 <video
                   controls
                   preload="metadata"
                   className="w-full rounded-xl bg-black ring-1 ring-black/5"
                 >
-                  <source src={service.videoUrl} />
+                  <source src={videoUrl} />
                   Tu navegador no puede reproducir este video.
                 </video>
               )}

@@ -1435,6 +1435,36 @@ describe("bingo cards subcollection — public read, school-only write", () => {
       ),
     );
   });
+
+  it("ALLOWS the school to create a valid cartón (bounded label + numbers) (#N6)", async () => {
+    await assertSucceeds(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "tools", "tool1", "cards", "card2"), {
+        label: "002",
+        numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        status: "available",
+        createdAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES a cartón with an oversize label or number list (#N6)", async () => {
+    await assertFails(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "tools", "tool1", "cards", "card3"), {
+        label: "x".repeat(41),
+        numbers: [1, 2, 3],
+        status: "available",
+        createdAt: new Date(),
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "tools", "tool1", "cards", "card4"), {
+        label: "004",
+        numbers: Array.from({ length: 82 }, (_, i) => i),
+        status: "available",
+        createdAt: new Date(),
+      }),
+    );
+  });
 });
 
 describe("bingoOrders — create when verified, school-only confirm + assign", () => {
@@ -1652,6 +1682,31 @@ describe("order shared invariants (raffle/product/bingo, P1-b)", () => {
           getDoc(doc(asUser("mallory"), k.name, "o1", "private", "data")),
         );
       });
+
+      it("DENIES the school stamping a FORGED confirmedBy (audit actor binding) (#N6)", async () => {
+        await seed(async (db) => {
+          await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob", VERIFIED));
+          await setDoc(doc(db, k.name, "o1"), k.order());
+        });
+        await assertFails(
+          updateDoc(doc(asUser("bob"), k.name, "o1"), {
+            status: "confirmed", confirmedAt: new Date(), confirmedBy: "someone-else",
+            updatedAt: new Date(),
+          }),
+        );
+      });
+
+      it("DENIES the buyer stamping confirmedBy on their own pending order (#N6)", async () => {
+        await seed(async (db) => {
+          await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob", VERIFIED));
+          await setDoc(doc(db, k.name, "o1"), k.order());
+        });
+        await assertFails(
+          updateDoc(doc(asUser("dana"), k.name, "o1"), {
+            confirmedBy: "dana", updatedAt: new Date(),
+          }),
+        );
+      });
     });
   }
 });
@@ -1847,6 +1902,37 @@ describe("bingo claims — owner-only create, school-only resolve", () => {
     );
     await assertFails(
       getDoc(doc(asUser("mallory"), "schools", "sch1", "tools", "tool1", "claims", "c1")),
+    );
+  });
+
+  it("DENIES a claim with an oversize claimantName (#N6)", async () => {
+    await assertFails(
+      addDoc(
+        collection(asUser("dana"), "schools", "sch1", "tools", "tool1", "claims"),
+        claim({ claimantName: "x".repeat(81) }),
+      ),
+    );
+  });
+
+  it("DENIES a claim carrying an extra field (field set pinned) (#N6)", async () => {
+    await assertFails(
+      addDoc(
+        collection(asUser("dana"), "schools", "sch1", "tools", "tool1", "claims"),
+        claim({ resolvedBy: "dana" }),
+      ),
+    );
+  });
+
+  it("DENIES the school resolving with a FORGED resolvedBy (must be the actor) (#N6)", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1", "tools", "tool1", "claims", "c1"), claim()),
+    );
+    await assertFails(
+      updateDoc(doc(asUser("bob"), "schools", "sch1", "tools", "tool1", "claims", "c1"), {
+        status: "confirmed",
+        resolvedAt: new Date(),
+        resolvedBy: "someone-else",
+      }),
     );
   });
 });

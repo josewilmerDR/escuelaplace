@@ -335,10 +335,14 @@ service cloud.firestore {
         // numbers are no secret and the player must see them. WRITE (generate/import/edit/assign
         // on confirm/delete) is the SCHOOL's alone (owner/editors/admin); a buyer must never be
         // able to alter a cartón's numbers. The school assigns a cartón to a buyer by updating
-        // its status/ownerId here when it confirms that buyer's bingoOrder.
+        // its status/ownerId here when it confirms that buyer's bingoOrder. The create/update shape
+        // is bounded (validBingoCardShape) so a generation/import bug or a compromised board can't
+        // bloat the lote with oversize labels / number lists; delete (request.resource == null)
+        // skips it, and status/ownerId stay free (the merged doc keeps the existing label+numbers).
         match /cards/{cardId} {
           allow read: if true;
-          allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
+          allow write: if (isAdmin() || isOwnerOrEditor(schoolData(id))) &&
+            (request.resource == null || validBingoCardShape(request.resource.data));
         }
 
         // Tool LIVE EVENT state — a single `state` doc the school drives in real time. SHARED by the
@@ -346,6 +350,12 @@ service cloud.firestore {
         // crown verdict). READ is public — virtual players/audience watch it live (onSnapshot); only
         // the school WRITES it. The system never auto-declares a winner / never auto-crowns; this is
         // just what the school drives (the bingo's drawn numbers, or the pageant's phase + verdict).
+        // DELIBERATELY no per-field write-shape: it's school-only (no buyer reach, no money, no
+        // function-maintained field to freeze), two DIFFERENT shapes (bingo vs pageant) ride the same
+        // doc, and it's rewritten move-by-move during a LIVE game — a key/shape pin would risk
+        // breaking a real-time write for zero cross-tenant gain (a malformed write only harms the
+        // school's own board). The integrity that matters (the win is the school's human verdict,
+        // re-validated against the frozen pattern) lives in the claim flow, not this doc.
         match /event/{docId} {
           allow read: if true;
           allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
@@ -353,24 +363,38 @@ service cloud.firestore {
 
         // Bingo CLAIMS (Phase 2): a player's "¡Bingo!". CREATE by the cartón's OWNER only
         // (card.ownerId == auth.uid), forced 'pending' with a valid pattern — a passive player
-        // who owns no cartón can't claim. RESOLVE (confirm/reject) is the school's alone; the
-        // school re-validates the win (called ∩ cartón) before awarding. READ is limited to the
-        // claimant and the school (a claim carries a display name).
+        // who owns no cartón can't claim. The create PINS the field set and caps the two pieces of
+        // claimant-controlled text (cardLabel ≤ BINGO_LABEL_MAX, claimantName ≤ BINGO_CLAIM_NAME_MAX
+        // — the only screen-visible PII the school's queue renders), so a buyer can't fatten the doc
+        // or smuggle an oversize name. RESOLVE (confirm/reject) is the school's alone, and it must
+        // stamp resolvedBy with ITS OWN uid — the audit trail of who awarded the round can't be
+        // forged. READ is limited to the claimant and the school (a claim carries a display name).
         match /claims/{claimId} {
           allow read: if isAdmin() ||
             isOwnerOrEditor(schoolData(id)) ||
             (isSignedIn() && resource.data.claimantId == request.auth.uid);
           allow create: if isAdmin() || (
             isSignedIn() &&
+            request.resource.data.keys().hasOnly([
+              'cardId', 'cardLabel', 'patternId', 'patternName',
+              'claimantId', 'claimantName', 'status', 'resolvedAt', 'createdAt']) &&
             request.resource.data.claimantId == request.auth.uid &&
             request.resource.data.status == 'pending' &&
+            request.resource.data.cardId is string &&
+            request.resource.data.cardLabel is string &&
+            request.resource.data.cardLabel.size() <= 40 &&
+            request.resource.data.claimantName is string &&
+            request.resource.data.claimantName.size() <= 80 &&
             request.resource.data.patternId is string &&
             request.resource.data.patternId.size() <= 60 &&
             request.resource.data.patternName is string &&
             request.resource.data.patternName.size() <= 80 &&
             get(/databases/$(database)/documents/schools/$(id)/tools/$(toolId)/cards/$(request.resource.data.cardId)).data.ownerId == request.auth.uid
           );
-          allow update: if isAdmin() || isOwnerOrEditor(schoolData(id));
+          allow update: if isAdmin() || (
+            isOwnerOrEditor(schoolData(id)) &&
+            request.resource.data.resolvedBy == request.auth.uid
+          );
           allow delete: if isAdmin() ||
             isOwnerOrEditor(schoolData(id)) ||
             (isSignedIn() && resource.data.claimantId == request.auth.uid);
@@ -455,10 +479,12 @@ service cloud.firestore {
         allow delete: if isAdmin() || isOwnerOrEditor(schoolData(id));
 
         // The deck's template cartones (label + numbers). Same owner-only access as the parent —
-        // a deck card carries no status/ownerId (those exist only on a tool's sold cartón).
+        // a deck card carries no status/ownerId (those exist only on a tool's sold cartón). Shape
+        // bounded (validBingoCardShape) on create/update, same as a tool's cartones; delete skips it.
         match /cards/{cardId} {
           allow read: if isAdmin() || isOwnerOrEditor(schoolData(id));
-          allow write: if isAdmin() || isOwnerOrEditor(schoolData(id));
+          allow write: if (isAdmin() || isOwnerOrEditor(schoolData(id))) &&
+            (request.resource == null || validBingoCardShape(request.resource.data));
         }
       }
     }
@@ -472,6 +498,16 @@ service cloud.firestore {
     // with an active project in a single query.
     match /{path=**}/projects/{projectId} {
       allow read: if true;
+    }
+
+    // A bingo cartón (a tool's sold lote OR a deck's template) is { label, numbers, … }. The label
+    // and the numbers list are the only buyer-visible / generation-driven payload, so bound them:
+    // label ≤ BINGO_LABEL_MAX (40), numbers a list ≤ the largest grid (BINGO_GRID_MAX² = 81). Other
+    // fields (status/ownerId on a tool cartón, timestamps) stay free — the school owns them and the
+    // assign-on-confirm update keeps the existing valid label+numbers in the merged doc.
+    function validBingoCardShape(data) {
+      return data.label is string && data.label.size() <= 40 &&
+        data.numbers is list && data.numbers.size() <= 81;
     }
 
     // True if a project update leaves the function-maintained counters untouched.
@@ -1038,18 +1074,28 @@ service cloud.firestore {
     }
     // The confirmation fields a BUYER must never touch (only the school/admin confirms). Bingo
     // extends this (it also forbids the buyer assigning cartones) in changesBingoOrderConfirmation.
+    // confirmedBy is included so a buyer can't stamp the audit field on their own pending order
+    // (it's absent until the school confirms, hence the .get default).
     function changesOrderConfirmation() {
       return request.resource.data.status != resource.data.status ||
-        request.resource.data.confirmedAt != resource.data.confirmedAt;
+        request.resource.data.confirmedAt != resource.data.confirmedAt ||
+        request.resource.data.get('confirmedBy', '') != resource.data.get('confirmedBy', '');
     }
     // UPDATE actor: the target school's owner/editors confirm; the buyer may only touch their own
     // pending doc and never the confirmation fields. `buyerTouchesConfirmation` is the per-kind
     // changes*Confirmation() result (bingo also counts the cartón assignment).
     function orderUpdateActor(buyerTouchesConfirmation) {
-      return isOwnerOrEditor(schoolData(resource.data.schoolId)) ||
+      return (isOwnerOrEditor(schoolData(resource.data.schoolId)) && confirmedByIsActor()) ||
         (isSignedIn() &&
           resource.data.buyerId == request.auth.uid &&
           !buyerTouchesConfirmation);
+    }
+    // The school confirms in its OWN name: if this write sets confirmedBy it must be the actor's
+    // uid, so the "who confirmed" audit field can't be forged to point at someone else. Absent
+    // confirmedBy (e.g. a proof-only school edit) defaults to the actor and passes. Admin is exempt
+    // (it's the prior arm of each allow-update).
+    function confirmedByIsActor() {
+      return request.resource.data.get('confirmedBy', request.auth.uid) == request.auth.uid;
     }
     // The standard confirmation/proof update field set (raffle + product). Bingo adds 'cardIds' in
     // its own validBingoOrderUpdate (a hasOnly set can't be extended by composition).

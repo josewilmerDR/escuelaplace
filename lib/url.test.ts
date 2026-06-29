@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeExternalUrl, safeExternalUrls } from "./url";
+import { safeExternalUrl, safeExternalUrls, safeMediaUrl } from "./url";
 
 describe("safeExternalUrl", () => {
   it("keeps a real Firebase Storage download URL unchanged", () => {
@@ -83,5 +83,47 @@ describe("safeExternalUrls", () => {
   it("returns [] for undefined or all-unsafe input", () => {
     expect(safeExternalUrls(undefined)).toEqual([]);
     expect(safeExternalUrls(["javascript:x", "", null])).toEqual([]);
+  });
+});
+
+describe("safeMediaUrl", () => {
+  const storage =
+    "https://firebasestorage.googleapis.com/v0/b/escuelaplace.appspot.com/o/schools%2Fs1%2Ftools%2Ft1%2Fvideo-9?alt=media&token=2b6d7c1e-0f0a-4a3a-9b2c-9b8e3a1f2c4d";
+
+  it("keeps a real Firebase Storage download URL unchanged", () => {
+    expect(safeMediaUrl(storage)).toBe(storage);
+  });
+
+  it("drops an off-domain https video (resource sink bypasses next/image)", () => {
+    // Scheme is fine but the host isn't ours — a <source> would still fetch it. The host gate is
+    // exactly what safeExternalUrl (scheme-only) would NOT catch.
+    expect(safeMediaUrl("https://evil.example/track.mp4")).toBeNull();
+    expect(safeMediaUrl("https://firebasestorage.googleapis.com.evil.com/x.mp4")).toBeNull();
+  });
+
+  it("drops dangerous / non-http schemes even on no host", () => {
+    expect(safeMediaUrl("javascript:alert(1)")).toBeNull();
+    expect(safeMediaUrl("data:video/mp4;base64,AAAA")).toBeNull();
+    // blob: is a valid local editor preview but is never PERSISTED — public render drops it.
+    expect(safeMediaUrl("blob:https://escuelaplace.com/uuid")).toBeNull();
+  });
+
+  it("drops relative / unparseable / empty input", () => {
+    expect(safeMediaUrl("//firebasestorage.googleapis.com/x.mp4")).toBeNull();
+    expect(safeMediaUrl("/local/x.mp4")).toBeNull();
+    expect(safeMediaUrl("")).toBeNull();
+    expect(safeMediaUrl(null)).toBeNull();
+    expect(safeMediaUrl(undefined)).toBeNull();
+  });
+
+  it("allows the dev Storage emulator host outside production", () => {
+    // NODE_ENV is 'test' here (not 'production'), so the emulator loopback hosts are allowed —
+    // mirroring next.config.ts remotePatterns' dev branch.
+    expect(safeMediaUrl("http://127.0.0.1:9199/v0/b/x/o/y.mp4?alt=media")).toBe(
+      "http://127.0.0.1:9199/v0/b/x/o/y.mp4?alt=media",
+    );
+    expect(safeMediaUrl("http://localhost:9199/v0/b/x/o/y.mp4?alt=media")).toBe(
+      "http://localhost:9199/v0/b/x/o/y.mp4?alt=media",
+    );
   });
 });

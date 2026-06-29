@@ -14,6 +14,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CardCarousel } from "@/components/ui/Carousel";
 import { PlayIcon } from "@/components/ui/icons";
+import { safeMediaUrl } from "@/lib/url";
 
 type MediaItem = { type: "photo" | "video"; src: string };
 
@@ -34,10 +35,13 @@ export function PhotoGallery({
   variant?: "grid" | "carousel";
 }) {
   // Photos first, then the optional video — the single ordered list both the track and the
-  // lightbox iterate over, so a video index lines up across thumbnail and overlay.
+  // lightbox iterate over, so a video index lines up across thumbnail and overlay. The video src
+  // is host-gated (safeMediaUrl) since it loads into a <video> that bypasses next/image; an
+  // off-domain/forged URL is dropped so it never becomes a media item.
+  const safeVideo = safeMediaUrl(videoUrl);
   const media: MediaItem[] = [
     ...photos.map((src) => ({ type: "photo" as const, src })),
-    ...(videoUrl ? [{ type: "video" as const, src: videoUrl }] : []),
+    ...(safeVideo ? [{ type: "video" as const, src: safeVideo }] : []),
   ];
 
   // Index of the media open in the lightbox; null = closed.

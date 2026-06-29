@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChatBubbleIcon, WarningIcon } from "@/components/ui/icons";
 import { buildWhatsAppLink } from "@/lib/contact";
 import { formatMoney } from "@/lib/format";
+import { safeMediaUrl } from "@/lib/url";
 import type { ProjectCurrency, SaleProduct } from "@/types";
 
 /**
@@ -50,6 +51,8 @@ export function SaleProducts({
       <ul className="grid gap-6 sm:grid-cols-2">
         {products.map((product) => {
           const photos = product.photos ?? [];
+          // Host-gate the clip before it loads into a <video> (bypasses next/image): drop off-domain.
+          const videoUrl = safeMediaUrl(product.videoUrl);
           const consultUrl = contactPhone
             ? buildWhatsAppLink(
                 contactPhone,
@@ -96,13 +99,13 @@ export function SaleProducts({
                   </p>
                 )}
 
-                {product.videoUrl && (
+                {videoUrl && (
                   <video
                     controls
                     preload="metadata"
                     className="w-full rounded-xl bg-black ring-1 ring-black/5"
                   >
-                    <source src={product.videoUrl} />
+                    <source src={videoUrl} />
                     Tu navegador no puede reproducir este video.
                   </video>
                 )}

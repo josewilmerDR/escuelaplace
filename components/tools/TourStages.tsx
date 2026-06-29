@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { safeMediaUrl } from "@/lib/url";
 import type { TourStage } from "@/types";
 
 /**
@@ -14,6 +15,8 @@ export function TourStages({ stages }: { stages: TourStage[] }) {
     <ol className="flex flex-col">
       {stages.map((stage, i) => {
         const photos = stage.photos ?? [];
+        // Host-gate the clip before it loads into a <video> (bypasses next/image): drop off-domain.
+        const videoUrl = safeMediaUrl(stage.videoUrl);
         const isLast = i === stages.length - 1;
         return (
           <li key={i} className="relative flex gap-4 sm:gap-5">
@@ -59,13 +62,13 @@ export function TourStages({ stages }: { stages: TourStage[] }) {
                 </ul>
               )}
 
-              {stage.videoUrl && (
+              {videoUrl && (
                 <video
                   controls
                   preload="metadata"
                   className="mt-4 w-full rounded-xl bg-black ring-1 ring-black/5"
                 >
-                  <source src={stage.videoUrl} />
+                  <source src={videoUrl} />
                   Tu navegador no puede reproducir este video.
                 </video>
               )}
