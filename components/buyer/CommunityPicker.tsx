@@ -18,7 +18,7 @@ import type { SchoolDoc } from "@/types";
 type SchoolsState = "loading" | "error" | "loaded";
 
 export function CommunityPicker({
-  description = "Elige tu escuela o activa tu ubicación para ver primero los comercios que la apoyan.",
+  description = "Elige tu escuela para ver primero sus actividades y los comercios que la apoyan o activa tu ubicación para descubrir las escuelas cercas de tí",
   subject = "businesses",
 }: {
   /** Lead copy — override it on surfaces that order something other than businesses
@@ -86,11 +86,6 @@ export function CommunityPicker({
     );
   };
 
-  const clear = () => {
-    update({});
-    setExpanded(false);
-  };
-
   // Hide/reopen are persisted (pickerHidden in localStorage) so a buyer who dismisses the
   // picker is not nagged with it on every visit; the quiet reopen chip keeps it reachable.
   const hide = () => {
@@ -138,7 +133,7 @@ export function CommunityPicker({
           ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elige una de la lista.`
           : "Mostrando primero las escuelas más cercanas a tu ubicación"
       : prefs.schoolName
-        ? `Mostrando primero quienes apoyan a ${prefs.schoolName}`
+        ? "Mostrando primero"
         : locationWithoutSchools
           ? `No encontramos escuelas a menos de ${COMMUNITY_RADIUS_KM} km de tu ubicación — elige una de la lista.`
           : "Mostrando primero quienes apoyan cerca de tu ubicación";
@@ -166,7 +161,7 @@ export function CommunityPicker({
   if (collapsed) {
     const Icon = prefs.schoolName ? AcademicCapIcon : MapPinIcon;
     return (
-      <div className="mb-8">
+      <div className="mb-8 text-center">
         <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-gradient-to-br from-brand-tint/50 to-surface py-2 pl-4 pr-1 text-sm text-muted shadow-sm">
           <Icon className="h-4 w-4 shrink-0 text-brand-dark" />
           <span className="truncate">{statusText}</span>
@@ -201,16 +196,6 @@ export function CommunityPicker({
           <AcademicCapIcon className="h-5 w-5" />
         </span>
         <p className="flex-1 text-sm leading-snug text-white">{description}</p>
-        {/* Editing an existing community: let the buyer back out without changing it. */}
-        {hasCommunity && (
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            className="shrink-0 rounded-full px-3 py-1 text-sm font-medium text-white hover:bg-white/10"
-          >
-            Listo
-          </button>
-        )}
         {/* Dismiss the whole card; reopens from the quiet chip (pickerHidden persists). */}
         <button
           type="button"
@@ -276,22 +261,11 @@ export function CommunityPicker({
         </p>
       )}
 
-      {hasCommunity && (
-        <p
-          role="status"
-          className={`mt-3 flex items-center gap-2 text-sm ${
-            locationWithoutSchools ? "text-amber-100" : "text-white"
-          }`}
-        >
-          <span>{statusText}</span>
-          {/* Inflated tap target (negative margin keeps the visual layout untouched). */}
-          <button
-            type="button"
-            onClick={clear}
-            className="-my-2 px-2 py-2 font-medium text-white hover:underline"
-          >
-            Limpiar
-          </button>
+      {/* Only the "no nearby schools" warning stays in the expanded card — the buyer
+          still has to pick a school from the list for the location to take effect. */}
+      {locationWithoutSchools && (
+        <p role="status" className="mt-3 text-sm text-amber-100">
+          {statusText}
         </p>
       )}
     </div>
