@@ -12,7 +12,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import {
   initializeAppCheck,
-  getToken,
+  getLimitedUseToken,
   ReCaptchaV3Provider,
   type AppCheck,
 } from "firebase/app-check";
@@ -98,15 +98,20 @@ function getAppCheckInstance(): AppCheck | null {
 }
 
 /**
- * A fresh App Check token for a protected call, or null when App Check isn't configured yet (so the
- * feature that needs it stays gated off until it is). Never throws — a token failure resolves to
- * null and the caller treats the action as unavailable.
+ * A fresh, SINGLE-USE App Check token for a protected call, or null when App Check isn't configured
+ * yet (so the feature that needs it stays gated off until it is). Never throws — a token failure
+ * resolves to null and the caller treats the action as unavailable.
+ *
+ * A LIMITED-use token (not the cached auto-refresh one) so the server can verify it with
+ * `consume: true`: one token backs exactly one applause, closing the replay window where a harvested
+ * token could be reused to stuff the sympathy tally (#N3, see castPageantApplause). Its only caller
+ * is the accountless pageant applause; if a future caller needs a reusable token, add a separate one.
  */
 export async function getAppCheckToken(): Promise<string | null> {
   const appCheck = getAppCheckInstance();
   if (!appCheck) return null;
   try {
-    return (await getToken(appCheck, /* forceRefresh */ false)).token;
+    return (await getLimitedUseToken(appCheck)).token;
   } catch {
     return null;
   }

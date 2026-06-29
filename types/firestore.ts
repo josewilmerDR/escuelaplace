@@ -978,6 +978,14 @@ export const TOOL_CONTACT_LABEL_MAX = 40;
  * other sizes can open later. 00–99 matches the Lotería Nacional, so "en combinación con la
  * lotería" works naturally. */
 export const RAFFLE_NUMBER_COUNT = 100;
+/**
+ * Max numbers a single raffle order may reserve. Kept well below RAFFLE_NUMBER_COUNT so one
+ * pending order can never lock the whole grid (a buyer can split a bigger purchase into more
+ * orders). Mirrored as a hardcoded literal in firestore.rules (validRaffleOrderCreate) since
+ * rules can't import TS — keep the two in sync. Anti-grief defense in depth; the complete
+ * defense against a scripted pending-order flood is App Check on writes (see SECURITY-BASELINE).
+ */
+export const RAFFLE_ORDER_NUMBERS_MAX = 25;
 /** Up to three prizes (first required). */
 export const RAFFLE_PRIZES_MAX = 3;
 export const RAFFLE_PRIZE_MAX = 80;

@@ -21,6 +21,7 @@ import {
   addDoc,
   arrayUnion,
   collection,
+  deleteDoc,
   deleteField,
   doc,
   getDoc,
@@ -1653,6 +1654,60 @@ describe("order shared invariants (raffle/product/bingo, P1-b)", () => {
       });
     });
   }
+});
+
+// ── raffle per-order cap + school moderation (#N1: grid-lock DoS) ─────────────
+describe("raffle order cap + school moderation (#N1)", () => {
+  const VERIFIED = { verified: true, verificationStatus: "verified" };
+  const raffleOrder = (over: Record<string, unknown> = {}) => ({
+    schoolId: "sch1",
+    schoolName: "Escuela",
+    toolId: "tool1",
+    toolTitle: "Rifa",
+    buyerId: "dana",
+    numbers: [1, 2],
+    currency: "CRC",
+    status: "pending",
+    confirmedAt: null,
+    ...over,
+  });
+  const nums = (n: number) => Array.from({ length: n }, (_, i) => i);
+
+  beforeEach(async () => {
+    await seed((db) =>
+      setDoc(doc(db, "schools", "sch1"), schoolDoc("bob", VERIFIED)),
+    );
+  });
+
+  it("ALLOWS a raffle order up to the per-order number cap (25)", async () => {
+    await assertSucceeds(
+      addDoc(
+        collection(asUser("dana"), "raffleOrders"),
+        raffleOrder({ numbers: nums(25) }),
+      ),
+    );
+  });
+
+  it("DENIES a raffle order over the cap — one order can't lock the whole grid", async () => {
+    await assertFails(
+      addDoc(
+        collection(asUser("dana"), "raffleOrders"),
+        raffleOrder({ numbers: nums(26) }),
+      ),
+    );
+  });
+
+  it("ALLOWS the TARGET SCHOOL to delete an order it hosts (moderate spam/griefing)", async () => {
+    await seed((db) => setDoc(doc(db, "raffleOrders", "o1"), raffleOrder()));
+    await assertSucceeds(deleteDoc(doc(asUser("bob"), "raffleOrders", "o1")));
+  });
+
+  it("ALLOWS the buyer to delete their own order; DENIES a stranger", async () => {
+    await seed((db) => setDoc(doc(db, "raffleOrders", "o1"), raffleOrder()));
+    await assertSucceeds(deleteDoc(doc(asUser("dana"), "raffleOrders", "o1")));
+    await seed((db) => setDoc(doc(db, "raffleOrders", "o2"), raffleOrder()));
+    await assertFails(deleteDoc(doc(asUser("mallory"), "raffleOrders", "o2")));
+  });
 });
 
 // ── bingo live event (state) + claims ────────────────────────────────────────
