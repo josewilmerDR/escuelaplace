@@ -1341,6 +1341,53 @@ describe("confirm transitions (P1-h)", () => {
       }),
     );
   });
+
+  it("DENIES the school confirming a contribution with a FORGED confirmedBy (#N7)", async () => {
+    await seed((db) => setDoc(doc(db, "projectContributions", "c1"), pendingContribution()));
+    await assertFails(
+      updateDoc(doc(asUser("bob"), "projectContributions", "c1"), {
+        status: "confirmed",
+        confirmedAt: new Date(),
+        confirmedBy: "someone-else",
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES the donor stamping confirmedBy on their own pending contribution (#N7)", async () => {
+    await seed((db) => setDoc(doc(db, "projectContributions", "c1"), pendingContribution()));
+    await assertFails(
+      updateDoc(doc(asUser("dana"), "projectContributions", "c1"), {
+        confirmedBy: "dana",
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES the school confirming a subscription with a FORGED confirmedBy (#N7)", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "subscriptions", "sub1"), {
+        supporterType: "business",
+        businessId: "biz1",
+        businessName: "Comercio",
+        schoolId: "sch1",
+        schoolName: "Escuela",
+        units: 1,
+        amount: 5000,
+        status: "pending",
+        confirmedAt: null,
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(asUser("bob"), "subscriptions", "sub1"), {
+        status: "confirmed",
+        confirmedAt: new Date(),
+        confirmedBy: "someone-else",
+        expiresAt: new Date(Date.now() + 90 * 86_400_000),
+        updatedAt: new Date(),
+      }),
+    );
+  });
 });
 
 // ── auditEvents / adminEvents: admin-only read, client-write forbidden ───────
@@ -1481,32 +1528,52 @@ describe("bingoOrders — create when verified, school-only confirm + assign", (
     ...over,
   });
 
+  // Seed a verified school AND the bingo tool the order targets (orderCreateGate now requires the
+  // tool to exist — N8).
+  const seedSchoolAndTool = () =>
+    seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "schools", "sch1", "tools", "tool1"), {
+        type: "bingo",
+        title: "Bingo",
+      });
+    });
+
   it("ALLOWS the buyer to create a pending order to a verified school", async () => {
+    await seedSchoolAndTool();
+    await assertSucceeds(
+      addDoc(collection(asUser("dana"), "bingoOrders"), bingoOrder()),
+    );
+  });
+
+  it("DENIES creating an order against a nonexistent tool (#N8)", async () => {
+    // Verified school, but no schools/sch1/tools/tool1 → orderCreateGate's exists() check fails.
     await seed((db) =>
       setDoc(
         doc(db, "schools", "sch1"),
         schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
       ),
     );
-    await assertSucceeds(
+    await assertFails(
       addDoc(collection(asUser("dana"), "bingoOrders"), bingoOrder()),
     );
   });
 
   it("DENIES creating an order when the school is NOT verified", async () => {
-    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("bob")));
+    await seed(async (db) => {
+      await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob"));
+      await setDoc(doc(db, "schools", "sch1", "tools", "tool1"), { type: "bingo", title: "Bingo" });
+    });
     await assertFails(
       addDoc(collection(asUser("dana"), "bingoOrders"), bingoOrder()),
     );
   });
 
   it("DENIES creating an order in someone else's name", async () => {
-    await seed((db) =>
-      setDoc(
-        doc(db, "schools", "sch1"),
-        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
-      ),
-    );
+    await seedSchoolAndTool();
     await assertFails(
       addDoc(collection(asUser("mallory"), "bingoOrders"), bingoOrder()),
     );
@@ -1673,6 +1740,12 @@ describe("order shared invariants (raffle/product/bingo, P1-b)", () => {
         await assertSucceeds(
           setDoc(doc(asUser("dana"), k.name, "o1", "private", "data"), {
             buyerName: "Dana", amount: 4500,
+          }),
+        );
+        // hasOnly pins the private subdoc to buyerName+amount (N10) — an extra field is denied.
+        await assertFails(
+          setDoc(doc(asUser("dana"), k.name, "o1", "private", "data"), {
+            buyerName: "Dana", amount: 4500, sneaky: true,
           }),
         );
         await assertSucceeds(
@@ -1980,6 +2053,58 @@ describe("event tool — owner-only create with an event config map", () => {
         config: { place: "Patio", photos: ["https://x/p.jpg"] },
         updatedAt: new Date(),
       }),
+    );
+  });
+});
+
+// ── thankYou config: pinned docId + template message cap (#N10) ───────────────
+describe("schools/{id}/config — only config/thanks, message capped (#N10)", () => {
+  beforeEach(async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("bob")));
+  });
+
+  it("ALLOWS the owner to write config/thanks with a valid template", async () => {
+    await assertSucceeds(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "config", "thanks"), {
+        welcome: { message: "¡Gracias!" },
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES an arbitrary config docId (wildcard pinned to 'thanks')", async () => {
+    await assertFails(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "config", "other"), { foo: "bar" }),
+    );
+  });
+
+  it("DENIES an oversize template message (bloat cap)", async () => {
+    await assertFails(
+      setDoc(doc(asUser("bob"), "schools", "sch1", "config", "thanks"), {
+        welcome: { message: "x".repeat(601) },
+        updatedAt: new Date(),
+      }),
+    );
+  });
+});
+
+// ── collection-group projects read requires schoolId (#N11) ──────────────────
+describe("collection-group projects read — requires schoolId (#N11)", () => {
+  it("a nested 'projects' doc is public only when it carries schoolId", async () => {
+    await seed(async (db) => {
+      // `widgets/.../projects` is governed ONLY by the recursive {path=**}/projects rule (no nested
+      // rule), so it isolates the collection-group guard.
+      await setDoc(doc(db, "widgets", "w1", "projects", "withSchool"), {
+        schoolId: "sch1",
+        title: "x",
+      });
+      await setDoc(doc(db, "widgets", "w1", "projects", "noSchool"), { secret: "x" });
+    });
+    await assertSucceeds(
+      getDoc(doc(asAnon(), "widgets", "w1", "projects", "withSchool")),
+    );
+    await assertFails(
+      getDoc(doc(asAnon(), "widgets", "w1", "projects", "noSchool")),
     );
   });
 });

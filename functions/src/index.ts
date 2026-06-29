@@ -76,6 +76,18 @@ export { grantAdminRole, revokeAdminRole } from "./admin";
 export { reserveRaffleNumbers } from "./raffle";
 
 const DAY_MS = 86_400_000;
+
+/**
+ * Run async tasks in bounded-concurrency chunks (N9). A school with thousands of supporting
+ * businesses / pageant candidates would otherwise fan out thousands of concurrent recomputes in ONE
+ * trigger invocation; this caps how many run at once while still finishing in order.
+ */
+const FANOUT_CONCURRENCY = 50;
+async function runInChunks(tasks: (() => Promise<unknown>)[]): Promise<void> {
+  for (let i = 0; i < tasks.length; i += FANOUT_CONCURRENCY) {
+    await Promise.all(tasks.slice(i, i + FANOUT_CONCURRENCY).map((t) => t()));
+  }
+}
 const SUBSCRIPTIONS = "subscriptions";
 const BUSINESSES = "businesses";
 const SCHOOLS = "schools";
@@ -1317,22 +1329,23 @@ export const onSchoolWritten = onDocumentWritten(
     const candSnaps = await Promise.all(
       toolsSnap.docs.map((tool) => tool.ref.collection(CANDIDATES).get()),
     );
-    const candidateRecomputes: Promise<void>[] = [];
+    // Collect every recompute as a THUNK so runInChunks can bound the concurrency (N9) — a school
+    // with thousands of supporters/candidates would otherwise fire them all at once.
+    const tasks: (() => Promise<unknown>)[] = [...businessIds].map(
+      (businessId) => () => recomputeBusinessRanking(businessId),
+    );
     toolsSnap.docs.forEach((tool, i) => {
       for (const cand of candSnaps[i].docs) {
         // Both tallies gate the same way (verified + no self-dealing), so re-verification flips
         // both: the economic support tally AND the recurring-padrino count.
-        candidateRecomputes.push(
-          recomputePageantCandidate(schoolId, tool.id, cand.id),
-          recomputeCandidatePadrinos(schoolId, tool.id, cand.id),
+        tasks.push(
+          () => recomputePageantCandidate(schoolId, tool.id, cand.id),
+          () => recomputeCandidatePadrinos(schoolId, tool.id, cand.id),
         );
       }
     });
 
-    await Promise.all([
-      ...[...businessIds].map(recomputeBusinessRanking),
-      ...candidateRecomputes,
-    ]);
+    await runInChunks(tasks);
   },
 );
 
@@ -1359,22 +1372,24 @@ export const expireSubscriptionsDaily = onSchedule(
       .where("expiresAt", "<=", window)
       .get();
 
-    // Recompute happens via the onSubscriptionWritten trigger these status writes re-fire.
-    // NOTE: a single batch is capped at 500 writes; chunk this if the catalog outgrows it.
-    const batch = db.batch();
-    lapsed.forEach((d) =>
-      batch.update(d.ref, {
-        status: "expired",
-        updatedAt: FieldValue.serverTimestamp(),
-      }),
-    );
-    nearing.forEach((d) =>
-      batch.update(d.ref, {
-        status: "expiring",
-        updatedAt: FieldValue.serverTimestamp(),
-      }),
-    );
-    await batch.commit();
+    // Recompute happens via the onSubscriptionWritten trigger these status writes re-fire. A single
+    // batch is capped at 500 writes, so chunk it (N9) — once the catalog outgrows one batch an
+    // unchunked commit would throw and the whole daily sweep would fail. 450 leaves headroom.
+    const updates = [
+      ...lapsed.docs.map((d) => ({ ref: d.ref, status: "expired" })),
+      ...nearing.docs.map((d) => ({ ref: d.ref, status: "expiring" })),
+    ];
+    const BATCH_LIMIT = 450;
+    for (let i = 0; i < updates.length; i += BATCH_LIMIT) {
+      const batch = db.batch();
+      for (const u of updates.slice(i, i + BATCH_LIMIT)) {
+        batch.update(u.ref, {
+          status: u.status,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+    }
 
     // Same daily pass thanks supporters whose N-year anniversary came due since yesterday —
     // these fall between the ~90-day renewals, so the confirmation trigger can't catch them.
