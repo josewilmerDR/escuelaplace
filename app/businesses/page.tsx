@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { CatalogSchools } from "@/components/feed/CatalogSchools";
 import { RankedFeed } from "@/components/feed/RankedFeed";
 import { CatalogTabs } from "@/components/layout/CatalogTabs";
-import { SearchBar } from "@/components/search/SearchBar";
-import { Chip } from "@/components/ui/Chip";
+import { CategoryStrip } from "@/components/search/CategoryStrip";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TagIcon, WarningIcon } from "@/components/ui/icons";
 import {
@@ -41,9 +40,8 @@ export const metadata: Metadata = {
 // proximity re-rank pool when the buyer sets a location.
 const SCHOOL_CANDIDATES = 24;
 
-// Render cap for the business feed (top-N by ranking). Doubles as the saturation threshold for the
-// count note below: at the cap the page is a curated top, so it says "los N mejor posicionados"
-// rather than implying that's the whole catalog.
+// Render cap for the business feed (top-N by ranking): at the cap the page is a curated top
+// rather than the whole catalog.
 const BUSINESS_LIMIT = 24;
 
 export default async function BusinessesPage() {
@@ -57,8 +55,8 @@ export default async function BusinessesPage() {
     loadFailed = true;
   }
 
-  // Category chips are the browse path for buyers who don't know what to search yet.
-  // Best-effort: empty categories are skipped and a fetch failure just hides the row.
+  // The category strip is the browse-by-rubro path for buyers who don't know what to search yet.
+  // Best-effort: empty categories are skipped and a fetch failure just hides the strip.
   let categories: CategoryDoc[] = [];
   try {
     categories = (await getCategories()).filter((c) => c.businessCount > 0);
@@ -85,47 +83,26 @@ export default async function BusinessesPage() {
 
   return (
     <main>
-      {/* Catalog section switch, pinned just under the top bar (above the hero) so switching
-          between the school directory and the business catalog is always one tap away. */}
+      {/* Catalog section switch, pinned just under the top bar so switching between the school
+          directory and the business catalog is always one tap away. */}
       <section className="bg-surface">
         <div className="mx-auto max-w-6xl px-6">
           <CatalogTabs active="businesses" />
         </div>
       </section>
 
-      <section className="border-b border-border bg-surface">
-        <div className="mx-auto max-w-3xl px-6 py-10 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            Los comercios de tu comunidad
-          </h1>
-          <p className="mx-auto mt-2 max-w-xl text-sm text-muted">
-            Cómprales y apoya a las escuelas que cada uno sostiene.
-          </p>
-          <div className="mx-auto mt-6 max-w-2xl">
-            <SearchBar />
+      {/* Compact category carousel pinned at the top of the catalog — the first browse affordance
+          under the section tabs. Hidden when there are no categories. */}
+      {categories.length > 0 && (
+        <section className="border-b border-border bg-surface">
+          <div className="mx-auto max-w-6xl px-6 py-4">
+            <CategoryStrip categories={categories} />
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      <section className="mx-auto max-w-6xl px-6 pt-4 pb-20">
-        <div className="mt-6">
-          {categories.length > 0 && (
-            <nav aria-label="Categorías" className="mb-4 flex items-start gap-2">
-              <ul className="flex max-h-[42px] min-w-0 flex-1 flex-wrap gap-2 overflow-hidden">
-                {categories.map((c) => (
-                  <li key={c.id}>
-                    <Chip href={`/category/${c.id}`} icon={c.icon}>
-                      {c.name}
-                    </Chip>
-                  </li>
-                ))}
-              </ul>
-              <Chip href="/categories" emphasis="brand" className="shrink-0">
-                Todas las categorías
-              </Chip>
-            </nav>
-          )}
-
+      <section className="mx-auto max-w-6xl px-6 pt-6 pb-20">
+        <div>
           {loadFailed ? (
             <EmptyState
               icon={<WarningIcon className="h-7 w-7" />}
@@ -140,24 +117,14 @@ export default async function BusinessesPage() {
               cta={{ label: "Crea la página del tuyo", href: "/create" }}
             />
           ) : (
-            <>
-              {/* Orientation count above the feed. RankedFeed re-ranks but never drops cards,
-                  so cards.length is stable client-side. At the cap it's a curated top, not the
-                  whole catalog — say so instead of implying a total. */}
-              <p className="mb-4 text-sm text-muted">
-                {cards.length === BUSINESS_LIMIT
-                  ? `Mostrando los ${BUSINESS_LIMIT} comercios mejor posicionados.`
-                  : `${cards.length} ${cards.length === 1 ? "comercio" : "comercios"}.`}
-              </p>
-              <RankedFeed
-                initial={cards}
-                interleave={
-                  schoolCards.length > 0 ? (
-                    <CatalogSchools initial={schoolCards} />
-                  ) : undefined
-                }
-              />
-            </>
+            <RankedFeed
+              initial={cards}
+              interleave={
+                schoolCards.length > 0 ? (
+                  <CatalogSchools initial={schoolCards} />
+                ) : undefined
+              }
+            />
           )}
         </div>
       </section>
