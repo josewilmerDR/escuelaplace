@@ -31,6 +31,7 @@ import {
 } from "firebase/storage";
 import { cache } from "react";
 import { db, storage } from "@/lib/firebase";
+import { safeMediaUrl } from "@/lib/url";
 import type {
   ThankYou,
   ThankYouConfig,
@@ -118,8 +119,13 @@ export interface ThankYouConfigInput {
 function cleanTemplate(t?: ThankYouTemplate): ThankYouTemplate | undefined {
   if (!t || !t.message.trim()) return undefined;
   const media: ThankYouMedia = {};
-  if (t.media?.photoUrl) media.photoUrl = t.media.photoUrl;
-  if (t.media?.videoUrl) media.videoUrl = t.media.videoUrl;
+  // Defense-in-depth: host-gate the media URLs at the write too (the render gate in ThankYouCard is
+  // authoritative, but dropping a forged off-host URL before it's stored — and before the milestone
+  // CF copies it onto a delivered thank-you — bounds the blast radius). Mirrors N4/N5 sanitize-at-write.
+  const photoUrl = safeMediaUrl(t.media?.photoUrl);
+  const videoUrl = safeMediaUrl(t.media?.videoUrl);
+  if (photoUrl) media.photoUrl = photoUrl;
+  if (videoUrl) media.videoUrl = videoUrl;
   return {
     message: t.message.trim(),
     ...(media.photoUrl || media.videoUrl ? { media } : {}),
@@ -177,8 +183,11 @@ export async function sendPromptedThankYou(
   payload: { message: string; media?: ThankYouMedia },
 ): Promise<void> {
   const media: ThankYouMedia = {};
-  if (payload.media?.photoUrl) media.photoUrl = payload.media.photoUrl;
-  if (payload.media?.videoUrl) media.videoUrl = payload.media.videoUrl;
+  // Same host-gate at write as cleanTemplate (defense-in-depth; the render gate is authoritative).
+  const photoUrl = safeMediaUrl(payload.media?.photoUrl);
+  const videoUrl = safeMediaUrl(payload.media?.videoUrl);
+  if (photoUrl) media.photoUrl = photoUrl;
+  if (videoUrl) media.videoUrl = videoUrl;
   await updateDoc(doc(db, THANK_YOUS, id), {
     status: "sent",
     message: payload.message.trim(),
