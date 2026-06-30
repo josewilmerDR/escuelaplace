@@ -23,8 +23,11 @@ export function ThankYouCard({
 }) {
   const unseen = !thankYou.seenByDonor;
   const media = thankYou.media;
-  // Host-gate the clip before it loads into a <video> (bypasses next/image): drop off-domain.
+  // Host-gate BOTH media URLs before they load (a plain <video>/<img> bypasses next/image's host
+  // allowlist): drop any off-domain URL so a forged thank-you can't beacon the recipient's
+  // IP/UA/visit-timing to a third party (GEO-1). The video gate was here; the photo path was raw.
   const videoUrl = safeMediaUrl(media?.videoUrl);
+  const photoUrl = safeMediaUrl(media?.photoUrl);
 
   return (
     <li
@@ -62,10 +65,10 @@ export function ThankYouCard({
           className="max-h-72 w-full rounded-xl bg-black"
         />
       )}
-      {!videoUrl && media?.photoUrl && (
+      {!videoUrl && photoUrl && (
         // eslint-disable-next-line @next/next/no-img-element -- storage URL, no optimization needed here
         <img
-          src={media.photoUrl}
+          src={photoUrl}
           alt=""
           className="max-h-72 w-full rounded-xl object-cover"
         />
