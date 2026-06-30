@@ -22,9 +22,16 @@
  *   to (active businesses only) on any business create/update/delete. The client writes a
  *   business's `categories` but can't keep a category's aggregate current, so — like every
  *   other denormalized signal (decision #5) — it's maintained here with Admin privileges.
+ * - onCategoryWritten: when a category is RENAMED, re-denormalize the `categoryNames` label
+ *   copied onto every business in that category (admin-only write, cross-collection — the
+ *   client can't maintain it). Listings match by id, so only the stale label is corrected.
  * - expireSubscriptionsDaily: time-decay the lifecycle — flip lapsed subscriptions to
  *   `expired` and near-expiry ones to `expiring`. The status writes re-fire the trigger
  *   above, which recomputes the affected docs.
+ * - expirePendingOrdersDaily: sweep UNCONFIRMED orders (raffle/product/bingo/pageantVote) —
+ *   delete those abandoned past the stale window (frees reserved raffle numbers / bingo
+ *   cartones) and cap a single buyer's pending pile-up per tool (the per-buyer rate-limit the
+ *   rules can't count). Deletes the public doc + its private subdoc.
  * - trackInteraction (./track): unauthenticated view/click counters for the funnel
  *   report — anonymous buyers can't write Firestore directly.
  * - recordWalkIn (./track): manager-only counter of walk-in customers who mentioned
@@ -37,7 +44,13 @@
 import { createHash } from "node:crypto";
 import { getAppCheck } from "firebase-admin/app-check";
 import { initializeApp } from "firebase-admin/app";
-import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
+import {
+  type DocumentReference,
+  FieldValue,
+  type QueryDocumentSnapshot,
+  Timestamp,
+  getFirestore,
+} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
@@ -104,6 +117,24 @@ const PAGEANT_VOTES = "pageantVotes";
 const TOOLS = "tools";
 const CANDIDATES = "candidates";
 const APPLAUSE = "applause";
+const RAFFLE_ORDERS = "raffleOrders";
+const PRODUCT_ORDERS = "productOrders";
+const BINGO_ORDERS = "bingoOrders";
+// Every buyable kind's order collection (buyer→school, pending until the school confirms). They
+// share the same lifecycle, so the daily pending-order hygiene below sweeps them uniformly.
+const ORDER_COLLECTIONS = [
+  RAFFLE_ORDERS,
+  PRODUCT_ORDERS,
+  BINGO_ORDERS,
+  PAGEANT_VOTES,
+];
+// A pending order unconfirmed this long is abandoned → swept (frees reserved raffle numbers / bingo
+// cartones, clears the queue). The per-ORDER quantity is already capped in rules; this bounds TIME.
+const STALE_PENDING_DAYS = 14;
+// A single buyer with more pending orders than this for ONE tool is flooding (the per-buyer rate-limit
+// the rules can't express — they can't count across docs). The raffle has its own arbiter cap; this
+// backstops the other kinds. Generous: a real buyer rarely has more than a couple unconfirmed at once.
+const ORDER_PENDING_CAP_PER_BUYER_TOOL = 10;
 
 /** A document-id-safe, deterministic hex digest of a string (sha256). Same primitive as auditIdOf,
  * reused for the applause ballot id (one stable id per device+pageant) and the coarse hashes. */
@@ -195,12 +226,18 @@ async function confirmationSignals(
   supporterPrincipals: Set<string>,
   confirmedBy: string | null,
 ): Promise<{
+  schoolName: string;
   schoolVerified: boolean;
   selfDealt: boolean;
   confirmerIsSupporter: boolean;
 }> {
   const school = await db.collection(SCHOOLS).doc(schoolId).get();
   return {
+    // Re-derived from the school doc, NOT the client-supplied denormalized label on the support
+    // record (GEO-2): the supporter sets schoolName freely at create, so trusting it would let a
+    // forged label pollute the admin fraud trail. The school doc is already read here for the gate,
+    // so this costs no extra read.
+    schoolName: (school.get("name") as string | undefined) ?? "",
     schoolVerified: school.get("verificationStatus") === "verified",
     selfDealt: intersects(supporterPrincipals, principalsOf(school.data())),
     confirmerIsSupporter: confirmedBy ? supporterPrincipals.has(confirmedBy) : false,
@@ -285,7 +322,8 @@ async function recordSubscriptionAudit(
     ...(businessId ? { businessId } : {}),
     ...(donorId ? { donorId } : {}),
     schoolId,
-    schoolName: (data.schoolName as string | undefined) ?? "",
+    // schoolName is provided by confirmationSignals below — re-derived from the school doc, not the
+    // client-supplied label on this record (GEO-2).
     supporterName,
     units,
     confirmedBy,
@@ -318,7 +356,8 @@ async function recordContributionAudit(
     supporterType: "user",
     donorId,
     schoolId,
-    schoolName: (data.schoolName as string | undefined) ?? "",
+    // schoolName is provided by confirmationSignals below — re-derived from the school doc, not the
+    // client-supplied label on this record (GEO-2).
     supporterName: (await privateRecord(PROJECT_CONTRIBUTIONS, contributionId)).donorName ?? "",
     ...(data.projectId ? { projectId: data.projectId as string } : {}),
     ...(data.projectTitle ? { projectTitle: data.projectTitle as string } : {}),
@@ -396,7 +435,8 @@ function thankYouPayload(
     ...(businessId ? { businessId } : {}),
     supporterName,
     schoolId: data.schoolId as string,
-    schoolName: (data.schoolName as string | undefined) ?? "",
+    // schoolName is provided by confirmationSignals below — re-derived from the school doc, not the
+    // client-supplied label on this record (GEO-2).
     milestone,
     ...(years != null ? { years } : {}),
     special: plan.special,
@@ -912,7 +952,8 @@ async function recordPageantVoteAudit(
     supporterType: "user",
     donorId: buyerId,
     schoolId,
-    schoolName: (data.schoolName as string | undefined) ?? "",
+    // schoolName is provided by confirmationSignals below — re-derived from the school doc, not the
+    // client-supplied label on this record (GEO-2).
     supporterName: (await privateRecord(PAGEANT_VOTES, voteId)).buyerName ?? "",
     ...(data.toolId ? { toolId: data.toolId as string } : {}),
     ...(data.candidateId ? { candidateId: data.candidateId as string } : {}),
@@ -1302,6 +1343,58 @@ export const onBusinessWritten = onDocumentWritten(
 );
 
 /**
+ * A category rename leaves the denormalized `categoryNames` copied onto every business in that
+ * category stale (the membership match is by id, so listings never break — only the copied label).
+ * No client can maintain that cross-collection denorm (the write is admin-only, and rules can't
+ * iterate/aggregate), so re-denormalize here: on a NAME change, rebuild `categoryNames` from the
+ * CURRENT category names for every business carrying this category. Only `name` matters —
+ * icon/order/businessCount changes don't touch the label. A delete is left alone (a business keeps
+ * the stale label until re-saved or the category is removed from it). The categoryNames write
+ * doesn't change a business's `categories`, so onBusinessWritten's count recompute no-ops on it and
+ * this never cascades.
+ */
+export const onCategoryWritten = onDocumentWritten(
+  `${CATEGORIES}/{id}`,
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!after) return; // deleted — nothing to re-denormalize
+    const newName = (after.name as string | undefined) ?? "";
+    if ((before?.name as string | undefined) === newName) return; // only a rename matters
+
+    const categoryId = event.params.id;
+    const members = await db
+      .collection(BUSINESSES)
+      .where("categories", "array-contains", categoryId)
+      .get();
+    if (members.empty) return;
+
+    // Build the id→name map once: a business in several categories needs ALL of its labels rebuilt
+    // (in its own categories[] order), not just the renamed one.
+    const cats = await db.collection(CATEGORIES).get();
+    const nameById = new Map<string, string>();
+    for (const c of cats.docs) nameById.set(c.id, (c.get("name") as string) ?? "");
+
+    const tasks = members.docs.map((b) => () => {
+      const ids = (b.get("categories") as unknown[]) ?? [];
+      const categoryNames = ids.map((id) =>
+        typeof id === "string" ? (nameById.get(id) ?? "") : "",
+      );
+      const current = b.get("categoryNames");
+      if (
+        Array.isArray(current) &&
+        current.length === categoryNames.length &&
+        current.every((v, i) => v === categoryNames[i])
+      ) {
+        return Promise.resolve(); // already current — skip the write
+      }
+      return b.ref.update({ categoryNames });
+    });
+    await runInChunks(tasks);
+  },
+);
+
+/**
  * A school's verification status and its administrators feed the anti-fraud eligibility
  * gate in recomputeBusinessRanking (verified-only + no self-dealing). Both can change with
  * no subscription being written — admin approves the school, or an owner adds/removes an
@@ -1420,5 +1513,87 @@ export const expireSubscriptionsDaily = onSchedule(
       expiring: nearing.size,
       anniversaries,
     });
+  },
+);
+
+/**
+ * Daily hygiene for UNCONFIRMED orders across every buyable kind (raffle/product/bingo/pageantVote).
+ * Two sweeps, both deleting the public order doc AND its private subdoc:
+ *  - STALE (residual "stale-pending expiry"): a pending order unconfirmed for > STALE_PENDING_DAYS is
+ *    abandoned. Deleting it frees any reserved inventory — a raffle's numbers and a bingo lote's
+ *    availability are derived from the still-PENDING orders — and clears the school's queue (the buyer
+ *    or school could delete it manually; this is the automatic backstop).
+ *  - PER-BUYER CAP (residual "non-raffle per-buyer rate-limit", + the bingo cross-order grid-lock): a
+ *    buyer with more than ORDER_PENDING_CAP_PER_BUYER_TOOL pending orders for ONE tool is flooding —
+ *    the per-buyer limit the rules can't express (they can't count across docs). Delete their NEWEST
+ *    excess, keeping the oldest CAP (closest to a real confirmation). A SOFT, daily bound: the
+ *    per-order quantity is already capped in rules, the raffle has its own arbiter cap, and the school
+ *    self-moderates — this just stops a sustained pile-up from locking a grid indefinitely.
+ * Queries only by `status` (a single-field index, no composite needed) and filters age/grouping in
+ * memory — pending orders are few. The Storage proof file, if any, is left: a small orphan a Storage
+ * lifecycle rule can reap (deleting it here would need a per-file Storage call per order).
+ */
+export const expirePendingOrdersDaily = onSchedule(
+  "every day 03:30",
+  async () => {
+    const cutoffMs = Timestamp.now().toMillis() - STALE_PENDING_DAYS * DAY_MS;
+    let stale = 0;
+    let flood = 0;
+
+    for (const coll of ORDER_COLLECTIONS) {
+      const pending = (
+        await db.collection(coll).where("status", "==", "pending").get()
+      ).docs;
+
+      const doomed = new Set<string>();
+      const fresh: QueryDocumentSnapshot[] = [];
+      for (const d of pending) {
+        const created = d.get("createdAt") as Timestamp | undefined;
+        if (created != null && created.toMillis() <= cutoffMs) {
+          doomed.add(d.id);
+          stale++;
+        } else {
+          fresh.push(d);
+        }
+      }
+
+      // Per-(buyer, tool) cap among the still-fresh ones. buyerId is a Firebase uid and toolId a
+      // Firestore auto-id (both alphanumeric), so '|' is a collision-proof composite-key separator.
+      const groups = new Map<string, QueryDocumentSnapshot[]>();
+      for (const d of fresh) {
+        const key = `${d.get("buyerId") ?? ""}|${d.get("toolId") ?? ""}`;
+        const arr = groups.get(key);
+        if (arr) arr.push(d);
+        else groups.set(key, [d]);
+      }
+      for (const docs of groups.values()) {
+        if (docs.length <= ORDER_PENDING_CAP_PER_BUYER_TOOL) continue;
+        docs.sort(
+          (a, b) =>
+            ((a.get("createdAt") as Timestamp | undefined)?.toMillis() ?? 0) -
+            ((b.get("createdAt") as Timestamp | undefined)?.toMillis() ?? 0),
+        );
+        for (const d of docs.slice(ORDER_PENDING_CAP_PER_BUYER_TOOL)) {
+          doomed.add(d.id);
+          flood++;
+        }
+      }
+
+      // Delete the public doc + its private subdoc for each doomed order; chunk under the 500-write
+      // batch limit (2 writes per order).
+      const refs: DocumentReference[] = [];
+      for (const id of doomed) {
+        refs.push(db.collection(coll).doc(id));
+        refs.push(db.collection(coll).doc(id).collection("private").doc("data"));
+      }
+      const BATCH_LIMIT = 450;
+      for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
+        const batch = db.batch();
+        for (const ref of refs.slice(i, i + BATCH_LIMIT)) batch.delete(ref);
+        await batch.commit();
+      }
+    }
+
+    logger.info("expirePendingOrdersDaily", { stale, flood });
   },
 );
