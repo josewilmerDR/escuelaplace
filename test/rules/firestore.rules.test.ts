@@ -327,6 +327,25 @@ describe("schools/{id}/private/data — payment methods", () => {
     );
   });
 
+  it("DENIES an over-long payment-methods list (BSRC-3)", async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("alice")));
+    await assertFails(
+      setDoc(doc(asUser("alice"), "schools", "sch1", "private", "data"), {
+        paymentMethods: Array.from({ length: 6 }, (_, i) => ({ label: "M", value: String(i) })),
+      }),
+    );
+  });
+
+  it("DENIES a junk key on the payment-methods private doc (BSRC-3)", async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("alice")));
+    await assertFails(
+      setDoc(doc(asUser("alice"), "schools", "sch1", "private", "data"), {
+        paymentMethods: [{ label: "SINPE", value: "8888-8888" }],
+        injected: "x".repeat(5000),
+      }),
+    );
+  });
+
   it("ALLOWS the owner writing payment methods on a needs_reverification school", async () => {
     await seed((db) =>
       setDoc(
@@ -580,13 +599,23 @@ describe("projectContributions — create only when the school is verified", () 
     ...over,
   });
 
-  it("ALLOWS the contributor to create a pending contribution to a verified school", async () => {
-    await seed((db) =>
-      setDoc(
+  // PC-1: the create gate now also requires the referenced project to EXIST and be 'active'.
+  const seedVerifiedSchoolAndProject = (projectOver: Record<string, unknown> = {}) =>
+    seed(async (db) => {
+      await setDoc(
         doc(db, "schools", "sch1"),
         schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
-      ),
-    );
+      );
+      await setDoc(doc(db, "schools", "sch1", "projects", "proj1"), {
+        schoolId: "sch1",
+        title: "Cancha",
+        status: "active",
+        ...projectOver,
+      });
+    });
+
+  it("ALLOWS the contributor to create a pending contribution to a verified school + active project", async () => {
+    await seedVerifiedSchoolAndProject();
     await assertSucceeds(
       addDoc(collection(asUser("dana"), "projectContributions"), contribution()),
     );
@@ -598,6 +627,13 @@ describe("projectContributions — create only when the school is verified", () 
   });
 
   it("DENIES creating a contribution in someone else's name", async () => {
+    await seedVerifiedSchoolAndProject();
+    await assertFails(
+      addDoc(collection(asUser("mallory"), "projectContributions"), contribution()),
+    );
+  });
+
+  it("DENIES a contribution to a project that does NOT exist (PC-1)", async () => {
     await seed((db) =>
       setDoc(
         doc(db, "schools", "sch1"),
@@ -605,7 +641,21 @@ describe("projectContributions — create only when the school is verified", () 
       ),
     );
     await assertFails(
-      addDoc(collection(asUser("mallory"), "projectContributions"), contribution()),
+      addDoc(collection(asUser("dana"), "projectContributions"), contribution({ projectId: "ghost" })),
+    );
+  });
+
+  it("DENIES a contribution to a COMPLETED project (PC-1)", async () => {
+    await seedVerifiedSchoolAndProject({ status: "completed" });
+    await assertFails(
+      addDoc(collection(asUser("dana"), "projectContributions"), contribution()),
+    );
+  });
+
+  it("DENIES a contribution to a CANCELLED project (PC-1)", async () => {
+    await seedVerifiedSchoolAndProject({ status: "cancelled" });
+    await assertFails(
+      addDoc(collection(asUser("dana"), "projectContributions"), contribution()),
     );
   });
 });
@@ -1263,9 +1313,19 @@ describe("subscriptions — write-shape (P1-b)", () => {
 
 describe("projectContributions — write-shape (P1-b)", () => {
   beforeEach(async () => {
-    await seed((db) =>
-      setDoc(doc(db, "schools", "sch1"), schoolDoc("bob", { verified: true, verificationStatus: "verified" })),
-    );
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      // PC-1: the create gate requires an existing active project, so the write-shape denials below
+      // fail for the SHAPE reason, not a missing project.
+      await setDoc(doc(db, "schools", "sch1", "projects", "proj1"), {
+        schoolId: "sch1",
+        title: "Cancha",
+        status: "active",
+      });
+    });
   });
 
   const contrib = (over: Record<string, unknown> = {}) => ({
@@ -1720,6 +1780,22 @@ describe("bingoOrders — create when verified, school-only confirm + assign", (
       getDoc(doc(asUser("mallory"), "bingoOrders", "o1", "private", "data")),
     );
   });
+
+  it("DENIES an over-long buyerName on the order private doc (SUB-2)", async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "bingoOrders", "o1"), bingoOrder());
+    });
+    await assertFails(
+      setDoc(doc(asUser("dana"), "bingoOrders", "o1", "private", "data"), {
+        buyerName: "x".repeat(61),
+        amount: 4500,
+      }),
+    );
+  });
 });
 
 describe("order shared invariants (raffle/product/bingo, P1-b)", () => {
@@ -2000,6 +2076,17 @@ describe("bingo claims — owner-only create, school-only resolve", () => {
     );
   });
 
+  it("DENIES a claim whose cardLabel does NOT match the owned cartón (BINGO-1)", async () => {
+    // dana owns card1 (label "001"); claiming with a forged label would publish a serial she
+    // doesn't own into the winner announcement.
+    await assertFails(
+      addDoc(
+        collection(asUser("dana"), "schools", "sch1", "tools", "tool1", "claims"),
+        claim({ cardLabel: "999" }),
+      ),
+    );
+  });
+
   it("ALLOWS the school to resolve a claim, DENIES the claimant resolving their own", async () => {
     await seed((db) =>
       setDoc(
@@ -2175,6 +2262,200 @@ describe("collection-group projects read — requires schoolId (#N11)", () => {
     );
     await assertFails(
       getDoc(doc(asAnon(), "widgets", "w1", "projects", "noSchool")),
+    );
+  });
+});
+
+// ── subscription private donorName cap (SUB-2) ────────────────────────────────────────────────
+describe("subscription private donorName — capped at create (SUB-2)", () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, "schools", "sch1"), schoolDoc("bob"));
+      await setDoc(doc(db, "subscriptions", "sub1"), {
+        supporterType: "user",
+        donorId: "dana",
+        schoolId: "sch1",
+        status: "pending",
+        confirmedAt: null,
+      });
+    });
+  });
+
+  it("ALLOWS a normal donorName + units + amount", async () => {
+    await assertSucceeds(
+      setDoc(doc(asUser("dana"), "subscriptions", "sub1", "private", "data"), {
+        donorName: "Dana",
+        units: 2,
+        amount: 10000,
+      }),
+    );
+  });
+
+  it("DENIES an over-long donorName", async () => {
+    await assertFails(
+      setDoc(doc(asUser("dana"), "subscriptions", "sub1", "private", "data"), {
+        donorName: "x".repeat(61),
+        units: 2,
+        amount: 10000,
+      }),
+    );
+  });
+
+  it("DENIES a junk key on the subscription private doc", async () => {
+    await assertFails(
+      setDoc(doc(asUser("dana"), "subscriptions", "sub1", "private", "data"), {
+        donorName: "Dana",
+        units: 2,
+        amount: 10000,
+        injected: "x".repeat(5000),
+      }),
+    );
+  });
+});
+
+// ── tools: per-kind config list-size caps (TOOLS-1) ───────────────────────────────────────────
+describe("tools — per-kind config list-size caps (TOOLS-1)", () => {
+  const baseTool = (over: Record<string, unknown> = {}) => ({
+    schoolId: "sch1",
+    schoolName: "Escuela",
+    type: "sale",
+    title: "Productos",
+    description: "Catálogo",
+    status: "active",
+    ownerId: "alice",
+    ...over,
+  });
+  const product = (i: number) => ({ name: `P${i}`, price: 100, currency: "CRC" });
+
+  beforeEach(async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("alice")));
+  });
+
+  it("ALLOWS a sale tool with a within-cap products list", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
+        baseTool({ config: { products: Array.from({ length: 24 }, (_, i) => product(i)) } }),
+      ),
+    );
+  });
+
+  it("DENIES a sale tool create whose products list exceeds the cap (24)", async () => {
+    await assertFails(
+      setDoc(
+        doc(asUser("alice"), "schools", "sch1", "tools", "t1"),
+        baseTool({ config: { products: Array.from({ length: 25 }, (_, i) => product(i)) } }),
+      ),
+    );
+  });
+
+  it("DENIES an UPDATE that bloats the products list past the cap", async () => {
+    await seed((db) =>
+      setDoc(
+        doc(db, "schools", "sch1", "tools", "t1"),
+        baseTool({ config: { products: [product(0)] } }),
+      ),
+    );
+    await assertFails(
+      updateDoc(doc(asUser("alice"), "schools", "sch1", "tools", "t1"), {
+        config: { products: Array.from({ length: 25 }, (_, i) => product(i)) },
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES a bingo tool whose prizes.others list exceeds the cap (8)", async () => {
+    await assertFails(
+      setDoc(
+        doc(asUser("alice"), "schools", "sch1", "tools", "t2"),
+        baseTool({
+          type: "bingo",
+          config: {
+            prizes: { first: "Mayor", others: Array.from({ length: 9 }, (_, i) => `Premio ${i}`) },
+          },
+        }),
+      ),
+    );
+  });
+});
+
+// ── businesses/{id}/reviews write-shape (BSRC-1) ──────────────────────────────────────────────
+describe("businesses/{id}/reviews — write-shape (BSRC-1)", () => {
+  const review = (over: Record<string, unknown> = {}) => ({
+    authorId: "dana",
+    authorName: "Dana",
+    rating: 5,
+    text: "Excelente",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await seed((db) => setDoc(doc(db, "businesses", "biz1"), businessDoc("alice")));
+  });
+
+  it("ALLOWS a valid review by the author", async () => {
+    await assertSucceeds(
+      setDoc(doc(asUser("dana"), "businesses", "biz1", "reviews", "dana"), review()),
+    );
+  });
+
+  it("DENIES an over-long authorName", async () => {
+    await assertFails(
+      setDoc(doc(asUser("dana"), "businesses", "biz1", "reviews", "dana"), review({ authorName: "x".repeat(81) })),
+    );
+  });
+
+  it("DENIES a junk extra key", async () => {
+    await assertFails(
+      setDoc(doc(asUser("dana"), "businesses", "biz1", "reviews", "dana"), review({ injected: "x".repeat(5000) })),
+    );
+  });
+
+  it("DENIES a review whose doc id is not the author's uid", async () => {
+    await assertFails(
+      setDoc(doc(asUser("dana"), "businesses", "biz1", "reviews", "someoneelse"), review()),
+    );
+  });
+
+  it("DENIES the business owner reviewing their own business", async () => {
+    await assertFails(
+      setDoc(doc(asUser("alice"), "businesses", "biz1", "reviews", "alice"), review({ authorId: "alice" })),
+    );
+  });
+});
+
+// ── schools thankYouMessage cap (BSRC-2) ──────────────────────────────────────────────────────
+describe("schools — thankYouMessage cap (BSRC-2)", () => {
+  beforeEach(async () => {
+    await seed((db) => setDoc(doc(db, "schools", "sch1"), schoolDoc("alice")));
+  });
+
+  it("ALLOWS a normal thankYouMessage update", async () => {
+    await assertSucceeds(
+      updateDoc(doc(asUser("alice"), "schools", "sch1"), {
+        thankYouMessage: "¡Gracias por su apoyo!",
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES an over-long thankYouMessage update", async () => {
+    await assertFails(
+      updateDoc(doc(asUser("alice"), "schools", "sch1"), {
+        thankYouMessage: "x".repeat(601),
+        updatedAt: new Date(),
+      }),
+    );
+  });
+
+  it("DENIES a non-string thankYouMessage", async () => {
+    await assertFails(
+      updateDoc(doc(asUser("alice"), "schools", "sch1"), {
+        thankYouMessage: { evil: true },
+        updatedAt: new Date(),
+      }),
     );
   });
 });

@@ -761,7 +761,14 @@ async function recomputeProject(
     .doc(schoolId)
     .collection(PROJECTS)
     .doc(projectId);
-  if (!(await ref.get()).exists) return; // project deleted — nothing to update
+  const projSnap = await ref.get();
+  if (!projSnap.exists) return; // project deleted — nothing to update
+  // Don't advance a CLOSED project's public bar (PC-1, defense-in-depth): a contribution created
+  // while the project was active but confirmed AFTER it was completed/cancelled must not move
+  // `raised`/`contributorsCount`. The create-gate (firestore.rules) already blocks NEW contributions
+  // to non-active projects; this covers the active→closed race on the confirm path.
+  const projStatus = projSnap.get("status");
+  if (projStatus === "completed" || projStatus === "cancelled") return;
 
   const snap = await db
     .collection(PROJECT_CONTRIBUTIONS)

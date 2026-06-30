@@ -21,7 +21,7 @@ import {
 } from "firebase/firestore";
 import { cache } from "react";
 import { db } from "@/lib/firebase";
-import { SUBSCRIPTION_UNIT_CRC } from "@/types";
+import { DISPLAY_NAME_MAX, SUBSCRIPTION_UNIT_CRC } from "@/types";
 import type { DonorProfile, DonorProfileDoc, DonorTier } from "@/types";
 import { docToTyped } from "./converters";
 import { getSubscriptionsBySchool } from "./subscriptions";
@@ -191,7 +191,9 @@ export async function createDonation(
   // target school, or admin; the donor tier is computed by a Cloud Function from THIS `units`
   // (firestore.rules freezes it once the school confirms).
   await setDoc(doc(db, SUBSCRIPTIONS, created.id, "private", "data"), {
-    donorName: input.donorName,
+    // Clamp to the cap the private-create rule enforces (DISPLAY_NAME_MAX) so a long Google display
+    // name can't trip the rule and silently break the donation write.
+    donorName: input.donorName.slice(0, DISPLAY_NAME_MAX),
     units: input.units,
     amount: input.units * SUBSCRIPTION_UNIT_CRC,
   });
@@ -210,7 +212,9 @@ export async function ensureDonorProfile(
   const ref = doc(db, DONOR_PROFILES, uid);
   if ((await getDoc(ref)).exists()) return;
   await setDoc(ref, {
-    displayName,
+    // Clamp to DISPLAY_NAME_MAX (the donorProfiles create rule caps it): an account with a long
+    // Google display name must not be locked out of donating because this profile-seed is rejected.
+    displayName: displayName.slice(0, DISPLAY_NAME_MAX),
     isPublic: false,
     totalUnits: 0,
     tier: null,
@@ -233,6 +237,11 @@ export async function updateDonorRecognition(
 ): Promise<void> {
   await updateDoc(doc(db, DONOR_PROFILES, uid), {
     ...prefs,
+    // Clamp displayName to the rule's cap (DISPLAY_NAME_MAX) — the editable input is bounded, but
+    // the empty-fallback to the uncapped account name isn't.
+    ...(prefs.displayName != null
+      ? { displayName: prefs.displayName.slice(0, DISPLAY_NAME_MAX) }
+      : {}),
     updatedAt: serverTimestamp(),
   });
 }

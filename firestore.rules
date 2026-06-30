@@ -168,13 +168,23 @@ service cloud.firestore {
       // business (no self-reviews). Admin may delete (moderation).
       match /reviews/{userId} {
         allow read: if true;
+        // The field set is pinned (no junk keys) and authorName is capped, mirroring the N6
+        // bingo-claim hardening reviews were left out of: rating cap + text cap were enforced but
+        // authorName (the other screen-visible string) and the doc shape were not, so a raw write
+        // could fatten the doc with an oversize name or arbitrary extra keys. authorId must equal
+        // the doc id (= the author's uid).
         allow create, update: if isSignedIn() &&
           request.auth.uid == userId &&
+          request.resource.data.keys().hasOnly([
+            'authorId', 'authorName', 'rating', 'text', 'createdAt', 'updatedAt']) &&
+          request.resource.data.authorId == userId &&
           request.resource.data.rating is int &&
           request.resource.data.rating >= 1 &&
           request.resource.data.rating <= 5 &&
           request.resource.data.text is string &&
           request.resource.data.text.size() <= 600 &&
+          request.resource.data.authorName is string &&
+          request.resource.data.authorName.size() <= 80 &&
           !isOwnerOrEditor(businessData(id));
         allow delete: if isAdmin() ||
           (isSignedIn() && request.auth.uid == userId);
@@ -281,10 +291,10 @@ service cloud.firestore {
       // - read: owner/editors or admin always; plus ANY signed-in user (e.g. a business
       //   wanting to subscribe) but ONLY when the school is 'verified'. Never anonymous.
       match /private/{docId} {
-        allow write: if isAdmin() || (
+        allow write: if (isAdmin() || (
           isOwnerOrEditor(schoolData(id)) &&
           schoolData(id).verificationStatus != 'verified'
-        );
+        )) && (request.resource == null || validSchoolPrivate());
         allow read: if isAdmin() || isOwnerOrEditor(schoolData(id)) ||
           (isSignedIn() && schoolData(id).verificationStatus == 'verified');
       }
@@ -404,7 +414,12 @@ service cloud.firestore {
             request.resource.data.patternId.size() <= 60 &&
             request.resource.data.patternName is string &&
             request.resource.data.patternName.size() <= 80 &&
-            get(/databases/$(database)/documents/schools/$(id)/tools/$(toolId)/cards/$(request.resource.data.cardId)).data.ownerId == request.auth.uid
+            get(/databases/$(database)/documents/schools/$(id)/tools/$(toolId)/cards/$(request.resource.data.cardId)).data.ownerId == request.auth.uid &&
+            // The claimed cardLabel must be the OWNED cartón's REAL label (BINGO-1) — it's size-bound
+            // above but was never tied to the card, and confirmBingoWinner copies it verbatim into the
+            // public winner announcement, so a buyer could publish a serial they don't own. Reuses the
+            // same card get() as the ownership check.
+            get(/databases/$(database)/documents/schools/$(id)/tools/$(toolId)/cards/$(request.resource.data.cardId)).data.label == request.resource.data.cardLabel
           );
           allow update: if isAdmin() || (
             isOwnerOrEditor(schoolData(id)) &&
@@ -656,6 +671,28 @@ service cloud.firestore {
         (!changedKeys().hasAny(['event']) ||
           !request.resource.data.keys().hasAny(['event']));
     }
+    // Per-kind config LIST-SIZE caps (TOOLS-1). The nested per-ITEM text/photo caps still can't be
+    // iterated by rules (left to the panel UI), but the top-level list LENGTH — the real bloat/DoS
+    // vector for the world-readable, SSR-rendered tool doc — IS expressible. Keyed off the resulting
+    // doc's `type`; each cap reuses an existing UI constant. `.get(...,[])`/`.get(...,{})` defaults
+    // make an absent config or list pass (size 0). `prizes` means different things per kind (a raffle
+    // list vs a bingo map) so the type guards keep them apart. Mirrors validThanksConfig's list cap.
+    function validToolConfigLists(c, t) {
+      return (t != 'sale' ||
+          (c.get('products', []) is list && c.get('products', []).size() <= 24)) &&
+        (t != 'service' ||
+          (c.get('services', []) is list && c.get('services', []).size() <= 24)) &&
+        (t != 'guided_tour' ||
+          (c.get('stages', []) is list && c.get('stages', []).size() <= 12)) &&
+        (t != 'raffle' ||
+          (c.get('prizes', []) is list && c.get('prizes', []).size() <= 3)) &&
+        (t != 'event' ||
+          (c.get('photos', []) is list && c.get('photos', []).size() <= 5)) &&
+        (t != 'bingo' ||
+          (c.get('prizes', {}) is map &&
+            c.get('prizes', {}).get('others', []) is list &&
+            c.get('prizes', {}).get('others', []).size() <= 8));
+    }
     function validToolCreate() {
       return request.resource.data.keys().hasOnly([
           'schoolId', 'schoolName', 'type', 'title', 'description', 'status',
@@ -670,7 +707,8 @@ service cloud.firestore {
         request.resource.data.description.size() <= 600 &&
         request.resource.data.ownerId is string &&
         (!request.resource.data.keys().hasAny(['config']) ||
-          request.resource.data.config is map) &&
+          (request.resource.data.config is map &&
+            validToolConfigLists(request.resource.data.config, request.resource.data.type))) &&
         validToolContact();
     }
     // Optional tool-level WhatsApp contact: an alternate number (free-text, dialed via wa.me) and a
@@ -701,7 +739,8 @@ service cloud.firestore {
           (request.resource.data.description is string &&
             request.resource.data.description.size() <= 600)) &&
         (!request.resource.data.keys().hasAny(['config']) ||
-          request.resource.data.config is map) &&
+          (request.resource.data.config is map &&
+            validToolConfigLists(request.resource.data.config, request.resource.data.type))) &&
         toolLegacyConfigDeleteOnly() &&
         validToolContact();
     }
@@ -743,6 +782,11 @@ service cloud.firestore {
         request.resource.data.name is string &&
         request.resource.data.description is string &&
         request.resource.data.description.size() <= 300 &&
+        // thankYouMessage renders verbatim on the PUBLIC donor wall; cap it so a direct-SDK write
+        // can't bloat it (BSRC-2; THANK_YOU_MESSAGE_MAX = 600, ≥ the edit form's maxLength). Optional
+        // at create — the .get default passes when absent.
+        request.resource.data.get('thankYouMessage', '') is string &&
+        request.resource.data.get('thankYouMessage', '').size() <= 600 &&
         request.resource.data.location is map &&
         request.resource.data.boardContact is map;
     }
@@ -754,6 +798,9 @@ service cloud.firestore {
           'boardContact', 'location', 'verified', 'verificationStatus', 'updatedAt']) &&
         (!changedKeys().hasAny(['name']) || request.resource.data.name is string) &&
         (!changedKeys().hasAny(['description']) || request.resource.data.description is string) &&
+        (!changedKeys().hasAny(['thankYouMessage']) ||
+          (request.resource.data.thankYouMessage is string &&
+            request.resource.data.thankYouMessage.size() <= 600)) &&
         (!changedKeys().hasAny(['photos']) ||
           (request.resource.data.photos is list && request.resource.data.photos.size() <= 10)) &&
         (!changedKeys().hasAny(['boardContact']) || request.resource.data.boardContact is map) &&
@@ -784,6 +831,20 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['specialYears']) ||
           (request.resource.data.specialYears is list &&
             request.resource.data.specialYears.size() <= 12));
+    }
+
+    // Shape validation for a school's payment-methods private subdoc (schools/{id}/private/data,
+    // BSRC-3). Pins the field set (the `paymentMethods` list and/or a legacy `sinpe` map, + the
+    // optional updatedAt) and caps the list LENGTH (PAYMENT_METHODS_MAX = 5). The per-ENTRY
+    // label/value caps can't be iterated by rules — left to the PaymentMethodsEditor UI; a per-entry
+    // abuse only bloats the school's OWN private doc, gated behind the admin re-verification
+    // chokepoint (the doc is unreadable to supporters until an admin re-verifies). Skipped on delete
+    // (request.resource is null) by the caller.
+    function validSchoolPrivate() {
+      return request.resource.data.keys().hasOnly(['paymentMethods', 'sinpe', 'updatedAt']) &&
+        (!request.resource.data.keys().hasAny(['paymentMethods']) ||
+          (request.resource.data.paymentMethods is list &&
+            request.resource.data.paymentMethods.size() <= 5));
     }
 
     // ── categories/{id} ─────────────────────────────────────────────────────
@@ -856,10 +917,18 @@ service cloud.firestore {
         allow create: if isAdmin() || (
           donorOwnsSub() &&
           subscriptionData(id).status == 'pending' &&
-          request.resource.data.units is int && request.resource.data.units >= 1
+          // Pin the field set + cap the donor name for parity with the public-doc validators (SUB-2);
+          // `units` was already validated but donorName (which the CF copies into auditEvents +
+          // thankYous) was not.
+          request.resource.data.keys().hasOnly(['donorName', 'units', 'amount']) &&
+          request.resource.data.units is int && request.resource.data.units >= 1 &&
+          request.resource.data.donorName is string &&
+          request.resource.data.donorName.size() <= 60
         );
         allow update: if isAdmin() || (
-          donorOwnsSub() && (
+          donorOwnsSub() &&
+          request.resource.data.get('donorName', '') is string &&
+          request.resource.data.get('donorName', '').size() <= 60 && (
             subscriptionData(id).status == 'pending' ||
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['units', 'amount'])
           )
@@ -983,6 +1052,12 @@ service cloud.firestore {
         request.resource.data.status == 'pending' &&
         request.resource.data.confirmedAt == null &&
         schoolData(request.resource.data.schoolId).verificationStatus == 'verified' &&
+        // The referenced project MUST exist under that school AND be 'active' (PC-1). The N8 order
+        // gate got the analogous tool-exists check; contributions never did — so a buyer could spawn
+        // pending contributions against a foreign/fabricated or already completed/cancelled project,
+        // junking the school's queue and (on confirm) advancing a CLOSED project's public bar.
+        exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)/projects/$(request.resource.data.projectId)) &&
+        get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)/projects/$(request.resource.data.projectId)).data.status == 'active' &&
         validContributionCreate()
       );
 
@@ -1161,16 +1236,29 @@ service cloud.firestore {
         (isSignedIn() && o.buyerId == request.auth.uid) ||
         isOwnerOrEditor(schoolData(o.schoolId));
     }
+    // Buyer-supplied private order VALUES (buyerName + amount). The field set is pinned by the
+    // hasOnly in each caller; this bounds the values so a raw write can't store an oversize name or a
+    // junk/negative amount (SUB-2 + order-amount hygiene — no public signal reads the order amount,
+    // so this is write-shape parity with the subscription/contribution private subdocs). `.get`
+    // defaults let a write that omits a field pass that field's check.
+    function validOrderPrivateShape() {
+      return request.resource.data.get('buyerName', '') is string &&
+        request.resource.data.get('buyerName', '').size() <= 60 &&
+        request.resource.data.get('amount', 0) is number &&
+        request.resource.data.get('amount', 0) >= 0;
+    }
     function orderPrivateCanCreate(o) {
       return isAdmin() || (
         isSignedIn() && o.buyerId == request.auth.uid && o.status == 'pending' &&
-        request.resource.data.keys().hasOnly(['buyerName', 'amount'])
+        request.resource.data.keys().hasOnly(['buyerName', 'amount']) &&
+        validOrderPrivateShape()
       );
     }
     function orderPrivateCanUpdate(o) {
       return isAdmin() || (
         isSignedIn() && o.buyerId == request.auth.uid &&
-        request.resource.data.keys().hasOnly(['buyerName', 'amount']) && (
+        request.resource.data.keys().hasOnly(['buyerName', 'amount']) &&
+        validOrderPrivateShape() && (
           o.status == 'pending' ||
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['amount'])
         )

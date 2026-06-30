@@ -34,6 +34,7 @@ import {
   uploadBytes,
 } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
+import { DISPLAY_NAME_MAX } from "@/types";
 import { byCreatedAtDesc, snapToList } from "./converters";
 
 /** Identifies one buyable kind's order storage: its Firestore collection + Storage proof prefix. */
@@ -145,7 +146,9 @@ export async function writeOrderPrivate(
   priv: OrderPrivateFields,
 ): Promise<void> {
   await setDoc(doc(db, col.name, orderId, "private", "data"), {
-    buyerName: priv.buyerName,
+    // Clamp to the cap the order-private rule enforces (DISPLAY_NAME_MAX) so a long buyer name can't
+    // trip the rule and silently break the order write.
+    buyerName: priv.buyerName.slice(0, DISPLAY_NAME_MAX),
     amount: priv.amount,
   });
 }
