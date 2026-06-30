@@ -7,6 +7,7 @@
  */
 import {
   GoogleAuthProvider,
+  reauthenticateWithPopup,
   signInWithPopup,
   signOut as fbSignOut,
   type User as FirebaseUser,
@@ -54,4 +55,15 @@ export async function signInWithGoogle(): Promise<UserDoc> {
 /** Sign the current user out. */
 export async function signOutUser(): Promise<void> {
   await fbSignOut(getFirebaseAuth());
+}
+
+/**
+ * Re-prove the current user's identity with a fresh Google popup. Required before an irreversible,
+ * security-sensitive action (account deletion): Firebase only honors such actions with recent
+ * credentials, and it confirms the person at the keyboard is really the account holder.
+ */
+export async function reauthenticateWithGoogle(): Promise<void> {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error("No hay una sesión activa.");
+  await reauthenticateWithPopup(user, new GoogleAuthProvider());
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClearLocalDataButton } from "@/components/account/ClearLocalDataButton";
 import { LegalDocument, LegalSection } from "@/components/legal/LegalDocument";
 import { absoluteUrl } from "@/lib/site";
 
@@ -194,11 +195,43 @@ export default function PrivacyPage() {
         <p>
           Tienes derecho a <strong>acceder</strong> a tus datos, a{" "}
           <strong>rectificarlos</strong>, a <strong>solicitar su eliminación</strong>{" "}
-          y a <strong>oponerte</strong> a ciertos tratamientos. Muchos de estos los
-          puedes ejercer tú mismo desde tu panel: editas o eliminas tus páginas, tus
-          reseñas y tus datos de perfil cuando quieras. Para cualquier otra solicitud
-          escríbenos a <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> y te
-          responderemos en un plazo razonable.
+          y a <strong>oponerte</strong> a ciertos tratamientos. Los principales los
+          ejerces tú mismo, sin pedírnoslo, desde tu panel:
+        </p>
+        <ul>
+          <li>
+            <strong>Acceso.</strong> En{" "}
+            <Link href="/panel/settings">Configuración</Link> puedes{" "}
+            <strong>descargar todos tus datos</strong> en un archivo (tu perfil, tus
+            donaciones y aportes, tus reseñas y las páginas que administras).
+          </li>
+          <li>
+            <strong>Rectificación.</strong> Edita en cualquier momento tu perfil, tus
+            páginas y tus reseñas desde el panel.
+          </li>
+          <li>
+            <strong>Eliminación de una página.</strong> Cada comercio o escuela tiene,
+            al final de su edición, una <strong>zona de peligro</strong> para
+            eliminarla por completo de forma permanente.
+          </li>
+          <li>
+            <strong>Eliminación de tu cuenta.</strong> En{" "}
+            <Link href="/panel/settings">Configuración</Link> puedes{" "}
+            <strong>eliminar tu cuenta</strong>. Borramos tu perfil y tus reseñas, y{" "}
+            <strong>anonimizamos</strong> tus donaciones y aportes: conservamos el
+            monto (para que el total recaudado de cada escuela y proyecto siga siendo
+            correcto) pero eliminamos tu identidad de ellos. Las páginas de las que
+            seas único dueño se eliminan; las que compartas con un coeditor se le
+            transfieren.
+          </li>
+        </ul>
+        <p>
+          Por una <strong>obligación legal o nuestro interés legítimo</strong> en
+          prevenir el fraude, podemos conservar un rastro interno mínimo de las
+          confirmaciones (sin tu nombre ni montos visibles, accesible solo por el
+          equipo). Para cualquier otra solicitud escríbenos a{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> y te responderemos en
+          un plazo razonable.
         </p>
       </LegalSection>
 
@@ -208,7 +241,10 @@ export default function PrivacyPage() {
           recordar tu comunidad elegida (sin enviarla a nuestros servidores) y la
           tecnología de Firebase para mantener tu sesión iniciada. No usamos cookies
           de publicidad de terceros. Si tu navegador lo permite, puedes borrar este
-          almacenamiento en cualquier momento desde su configuración.
+          almacenamiento en cualquier momento desde su configuración, o aquí mismo:
+        </p>
+        <p>
+          <ClearLocalDataButton />
         </p>
       </LegalSection>
 

@@ -30,6 +30,7 @@ export * from "./ranking";
 export * from "./feed";
 export * from "./schools-feed";
 export * from "./users";
+export * from "./account";
 export * from "./geo";
 export * from "./converters";
 export * from "./serialize";

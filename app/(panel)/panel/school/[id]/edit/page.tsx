@@ -54,6 +54,7 @@ import {
   type SchoolDoc,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
+import { DeletePageSection } from "@/components/account/DeletePageSection";
 import type { LoadState } from "@/lib/page-state";
 
 export default function SchoolEditPage() {
@@ -701,6 +702,11 @@ export default function SchoolEditPage() {
         La portada se quitará de tu página cuando guardes los cambios. Podrás subir
         otra cuando quieras.
       </ConfirmDialog>
+
+      {/* Owner-only (not editors): the irreversible delete of the whole school page. */}
+      {(school.ownerId === user?.id || user?.role === "admin") && (
+        <DeletePageSection type="school" id={school.id} name={school.name} />
+      )}
     </main>
   );
 }

@@ -127,7 +127,11 @@ service cloud.firestore {
         isSignedIn() && request.auth.uid == uid &&
         request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
       );
-      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      // Deleting the user doc alone would orphan the account's pages, donations and recognition.
+      // Account deletion goes through the `deleteAccount` callable (Admin SDK), which hands off /
+      // cascades the pages, anonymizes the support history, and deletes the Auth account too. So the
+      // bare client self-delete is closed; only admin (= the Admin SDK) deletes here.
+      allow delete: if isAdmin();
     }
 
     // ── businesses/{id} ─────────────────────────────────────────────────────
@@ -142,6 +146,11 @@ service cloud.firestore {
       allow update: if isAdmin() ||
         (isOwnerOrEditor(resource.data) && preservesComputedFields() &&
           validBusinessUpdate());
+      // The SUPPORTED way to delete a whole page is the `deletePage` callable (Admin SDK), which
+      // cascades its subcollections / referencing support+orders / Storage and recomputes the
+      // denormalized counters — a bare client delete would orphan all of that. We still allow the
+      // owner/editor a direct delete because the create-page flow rolls back a just-created (empty)
+      // page this way on an image-upload failure; deleting a populated page bare is unsupported.
       allow delete: if isAdmin() || isOwnerOrEditor(resource.data);
 
       // Daily metric counters (doc id = YYYY-MM-DD): written ONLY by the
@@ -256,6 +265,10 @@ service cloud.firestore {
         validSchoolUpdate()
       );
 
+      // Like businesses: the SUPPORTED full delete is the `deletePage` callable (Admin SDK), which
+      // cascades projects/tools/support/orders/Storage and recomputes counters. The owner/editor
+      // direct delete stays because the create-page flow rolls back a just-created (empty) school
+      // this way on an image-upload failure; bare-deleting a populated school is unsupported.
       allow delete: if isAdmin() || isOwnerOrEditor(resource.data);
 
       // Private subcollection (payment methods):
@@ -1391,6 +1404,16 @@ service cloud.firestore {
     // verify/delete later) so the highest-authority actor is itself reviewable. Written ONLY
     // by the Admin SDK (the grant/revoke callables). Admin-only read; no client write.
     match /adminEvents/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ── deletionEvents/{id} ───────────────────────────────────────────────────
+    // Append-only trail of every privileged erasure (page/account deletion — the Ley 8968
+    // cancelation right) so an erasure is provable (compliance) and reviewable (fraud). Written
+    // ONLY by the deletion callables (Admin SDK bypasses these rules). Admin-only read; no client
+    // write. Holds who/what/when + cascade COUNTS — never a name, amount, or proof.
+    match /deletionEvents/{id} {
       allow read: if isAdmin();
       allow write: if false;
     }

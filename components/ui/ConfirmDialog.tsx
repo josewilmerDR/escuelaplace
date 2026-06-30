@@ -17,6 +17,7 @@ export function ConfirmDialog({
   tone = "default",
   busy = false,
   busyLabel,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: {
@@ -29,6 +30,9 @@ export function ConfirmDialog({
   tone?: "default" | "destructive";
   busy?: boolean;
   busyLabel?: string;
+  /** Keep the confirm button disabled until a guard is met (e.g. a typed-to-confirm gate on an
+   * irreversible action). Distinct from `busy`: it shows no busy label, just blocks the action. */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -113,7 +117,7 @@ export function ConfirmDialog({
             className={
               tone === "destructive" ? "btn btn-destructive" : "btn btn-primary"
             }
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             onClick={onConfirm}
           >
             {busy ? (busyLabel ?? confirmLabel) : confirmLabel}

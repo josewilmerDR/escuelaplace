@@ -74,6 +74,7 @@ const db = getFirestore();
 export { recordWalkIn, trackInteraction } from "./track";
 export { grantAdminRole, revokeAdminRole } from "./admin";
 export { reserveRaffleNumbers } from "./raffle";
+export { deleteAccount, deletePage, exportMyData, onToolDeleted } from "./deletion";
 
 const DAY_MS = 86_400_000;
 
@@ -622,6 +623,19 @@ async function recomputeSchool(schoolId: string): Promise<void> {
  * never write the computed fields (see firestore.rules).
  */
 async function recomputeDonorProfile(donorId: string): Promise<void> {
+  const profileRef = db.collection(DONOR_PROFILES).doc(donorId);
+
+  // A deleted donor account leaves no recognition profile. This also closes a race in the
+  // account-deletion flow (deletion.ts): anonymizing a donor's donations clears their donorId and
+  // re-fires this trigger; without the guard an in-flight recompute could resurrect the profile we
+  // just removed. One extra read per call — negligible, and semantically correct (no user → no
+  // donor profile).
+  const user = await db.collection(USERS).doc(donorId).get();
+  if (!user.exists) {
+    if ((await profileRef.get()).exists) await profileRef.delete();
+    return;
+  }
+
   const snap = await db
     .collection(SUBSCRIPTIONS)
     .where("donorId", "==", donorId)
@@ -657,15 +671,13 @@ async function recomputeDonorProfile(donorId: string): Promise<void> {
     updatedAt: FieldValue.serverTimestamp(),
   };
 
-  const ref = db.collection(DONOR_PROFILES).doc(donorId);
-  if ((await ref.get()).exists) {
-    await ref.update(computed);
+  if ((await profileRef.get()).exists) {
+    await profileRef.update(computed);
     return;
   }
   // The donate flow creates the profile before the first donation; this fallback keeps
   // totals consistent if it didn't. Defaults to private — recognition is opt-in.
-  const user = await db.collection(USERS).doc(donorId).get();
-  await ref.set({
+  await profileRef.set({
     displayName: (user.get("name") as string | undefined) ?? "Donante",
     isPublic: false,
     ...computed,
@@ -789,6 +801,16 @@ async function recomputeProject(
  * (private by default) if the donor doesn't have one yet, mirroring recomputeDonorProfile.
  */
 async function recomputeDonorProjects(donorId: string): Promise<void> {
+  const ref = db.collection(DONOR_PROFILES).doc(donorId);
+
+  // A deleted donor account leaves no recognition profile — same guard + race-close as
+  // recomputeDonorProfile (account deletion clears donorId and re-fires this trigger).
+  const user = await db.collection(USERS).doc(donorId).get();
+  if (!user.exists) {
+    if ((await ref.get()).exists) await ref.delete();
+    return;
+  }
+
   const snap = await db
     .collection(PROJECT_CONTRIBUTIONS)
     .where("donorId", "==", donorId)
@@ -801,7 +823,6 @@ async function recomputeDonorProjects(donorId: string): Promise<void> {
     if (c.projectId) projects.add(c.projectId as string);
   }
 
-  const ref = db.collection(DONOR_PROFILES).doc(donorId);
   if ((await ref.get()).exists) {
     await ref.update({
       projectsSupported: projects.size,
@@ -811,7 +832,6 @@ async function recomputeDonorProjects(donorId: string): Promise<void> {
   }
   // The fund flow creates the profile before the first contribution; this fallback keeps
   // the count consistent if it didn't. Defaults to private — recognition is opt-in.
-  const user = await db.collection(USERS).doc(donorId).get();
   await ref.set({
     displayName: (user.get("name") as string | undefined) ?? "Donante",
     isPublic: false,
