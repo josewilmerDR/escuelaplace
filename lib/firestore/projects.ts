@@ -36,6 +36,7 @@ import {
 } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { safeExternalUrls } from "@/lib/url";
+import { DISPLAY_NAME_MAX } from "@/types";
 import type {
   Project,
   ProjectContribution,
@@ -522,7 +523,9 @@ export async function createContribution(
   // target school, or admin; the project's public `raised` is a Cloud Function aggregate over
   // THIS amount (firestore.rules freezes it once the school confirms).
   await setDoc(doc(db, PROJECT_CONTRIBUTIONS, created.id, "private", "data"), {
-    donorName: input.donorName,
+    // Clamp donorName to the cap the private-create rule enforces (DISPLAY_NAME_MAX), so a long
+    // Google display name never trips the rule and silently breaks the donation write.
+    donorName: input.donorName.slice(0, DISPLAY_NAME_MAX),
     amount: input.amount,
   });
   return created.id;

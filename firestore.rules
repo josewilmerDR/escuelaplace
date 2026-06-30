@@ -1014,8 +1014,22 @@ service cloud.firestore {
       match /private/{doc} {
         allow read: if isAdmin() || donorOwnsContribution() ||
           isOwnerOrEditor(schoolData(contributionData(id).schoolId));
+        // CREATE pins the field set and VALIDATES the magnitude (PC-2). The public doc carries no
+        // `amount`, so it lives ONLY here — and the Cloud Function sums it verbatim into the public
+        // `raised` bar. Without this guard a contributor could raw-SDK-write a negative/absurd amount
+        // to their own pending private doc, then have the school confirm a genuine small proof, and
+        // `recomputeProject` would inflate/sabotage the public progress bar with no new proof. So:
+        // both fields present (no junk keys), amount a positive number capped at PROJECT_STAGE_COST_MAX
+        // (100_000_000), donorName a string ≤ DISPLAY_NAME_MAX (60). Mirrors the subscription private
+        // `units` guard. Once the school confirms, the update rule below freezes `amount`.
         allow create: if isAdmin() || (
-          donorOwnsContribution() && contributionData(id).status == 'pending'
+          donorOwnsContribution() && contributionData(id).status == 'pending' &&
+          request.resource.data.keys().hasOnly(['donorName', 'amount']) &&
+          request.resource.data.amount is number &&
+          request.resource.data.amount >= 1 &&
+          request.resource.data.amount <= 100000000 &&
+          request.resource.data.donorName is string &&
+          request.resource.data.donorName.size() <= 60
         );
         allow update: if isAdmin() || (
           donorOwnsContribution() && (

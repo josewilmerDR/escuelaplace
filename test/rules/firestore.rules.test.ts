@@ -711,9 +711,12 @@ describe("private donor name (P0-d)", () => {
     await assertFails(getDoc(doc(asUser("mallory"), "subscriptions", "sub1", "private", "data")));
   });
 
-  it("ALLOWS the contributor to write their own contribution private name", async () => {
+  it("ALLOWS the contributor to write their own contribution private name + amount", async () => {
     await assertSucceeds(
-      setDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), { donorName: "Dana" }),
+      setDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), {
+        donorName: "Dana",
+        amount: 10000,
+      }),
     );
   });
 
@@ -855,6 +858,73 @@ describe("private magnitude + anti-fraud freeze (P0-d stage 2)", () => {
     });
     await assertFails(
       updateDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), { amount: 999999 }),
+    );
+  });
+});
+
+// ── contribution private amount is validated at create — can't plant a value that inflates the
+// public `raised` bar on confirm (PC-2) ──────────────────────────────────────────────────────
+describe("contribution private amount — validated at create (PC-2)", () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, "schools", "sch1"),
+        schoolDoc("bob", { verified: true, verificationStatus: "verified" }),
+      );
+      await setDoc(doc(db, "projectContributions", "c1"), {
+        donorId: "dana",
+        schoolId: "sch1",
+        projectId: "p1",
+        type: "money",
+        currency: "CRC",
+        status: "pending",
+        confirmedAt: null,
+      });
+    });
+  });
+
+  it("ALLOWS a valid positive amount", async () => {
+    await assertSucceeds(
+      setDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), {
+        donorName: "Dana",
+        amount: 10000,
+      }),
+    );
+  });
+
+  it("DENIES a NEGATIVE amount (would sabotage the public raised bar)", async () => {
+    await assertFails(
+      setDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), {
+        donorName: "Dana",
+        amount: -50000,
+      }),
+    );
+  });
+
+  it("DENIES an ABSURD amount above the cap (would inflate the public raised bar)", async () => {
+    await assertFails(
+      setDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), {
+        donorName: "Dana",
+        amount: 999999999999,
+      }),
+    );
+  });
+
+  it("DENIES a junk extra key on the private doc", async () => {
+    await assertFails(
+      setDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), {
+        donorName: "Dana",
+        amount: 10000,
+        injected: "x".repeat(5000),
+      }),
+    );
+  });
+
+  it("DENIES a create that omits amount entirely", async () => {
+    await assertFails(
+      setDoc(doc(asUser("dana"), "projectContributions", "c1", "private", "data"), {
+        donorName: "Dana",
+      }),
     );
   });
 });
