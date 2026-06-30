@@ -27,6 +27,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -132,6 +133,26 @@ const newBusiness = (ownerId: string, over: Record<string, unknown> = {}) => ({
   ownerId,
   ...over,
 });
+
+/**
+ * Create a business + its slug reservation in ONE batch — what createBusinessPage does, and what the
+ * BSRC-5 create rule now requires (the business create is gated via getAfter on the same-batch
+ * reservation, and the reservation's create-only rule denies a 2nd claim of a held slug).
+ */
+function createBusinessWithSlug(
+  db: Firestore,
+  uid: string,
+  businessId: string,
+  data: Record<string, unknown>,
+): Promise<unknown> {
+  const batch = writeBatch(db);
+  batch.set(doc(db, "businesses", businessId), data);
+  batch.set(doc(db, "businessSlugs", data.slug as string), {
+    businessId,
+    ownerId: data.ownerId ?? uid,
+  });
+  return batch.commit();
+}
 
 const newSchool = (ownerId: string, over: Record<string, unknown> = {}) => ({
   name: "Escuela",
@@ -394,8 +415,14 @@ describe("schools/{id}/private/data — payment methods", () => {
 
 // ── businesses: ownership + computed-field immutability ──────────────────────
 describe("businesses — ownership & computed-field immutability", () => {
-  it("ALLOWS the owner to create their business", async () => {
+  it("ALLOWS the owner to create their business (with its slug reservation)", async () => {
     await assertSucceeds(
+      createBusinessWithSlug(asUser("alice"), "alice", "biz1", newBusiness("alice")),
+    );
+  });
+
+  it("DENIES creating a business WITHOUT its slug reservation (BSRC-5 binding)", async () => {
+    await assertFails(
       setDoc(doc(asUser("alice"), "businesses", "biz1"), newBusiness("alice")),
     );
   });
@@ -934,21 +961,23 @@ describe("contribution private amount — validated at create (PC-2)", () => {
 // The golden rule under test: keys().hasOnly() guards CREATE; diff().affectedKeys() guards UPDATE,
 // so every legitimate partial write (gallery arrayUnion, status-only, proof, confirm) still passes.
 describe("businesses — write-shape (P1-b)", () => {
+  // These batch a VALID slug reservation, so the create can only fail for the write-shape reason
+  // under test (not the BSRC-5 reservation requirement).
   it("DENIES creating a business that is not draft/unverified", async () => {
     await assertFails(
-      setDoc(doc(asUser("alice"), "businesses", "b"), newBusiness("alice", { status: "active" })),
+      createBusinessWithSlug(asUser("alice"), "alice", "b", newBusiness("alice", { status: "active" })),
     );
     await assertFails(
-      setDoc(doc(asUser("alice"), "businesses", "b"), newBusiness("alice", { verified: true })),
+      createBusinessWithSlug(asUser("alice"), "alice", "b", newBusiness("alice", { verified: true })),
     );
   });
 
   it("DENIES creating a business with an over-long description or a junk key", async () => {
     await assertFails(
-      setDoc(doc(asUser("alice"), "businesses", "b"), newBusiness("alice", { description: "x".repeat(301) })),
+      createBusinessWithSlug(asUser("alice"), "alice", "b", newBusiness("alice", { description: "x".repeat(301) })),
     );
     await assertFails(
-      setDoc(doc(asUser("alice"), "businesses", "b"), newBusiness("alice", { foo: "bar" })),
+      createBusinessWithSlug(asUser("alice"), "alice", "b", newBusiness("alice", { foo: "bar" })),
     );
   });
 
@@ -2176,5 +2205,56 @@ describe("collection-group projects read — requires schoolId (#N11)", () => {
     await assertFails(
       getDoc(doc(asAnon(), "widgets", "w1", "projects", "noSchool")),
     );
+  });
+});
+
+// ── businessSlugs/{slug}: slug-uniqueness reservations (BSRC-5) ───────────────────────────────
+describe("businessSlugs — slug uniqueness reservations (BSRC-5)", () => {
+  it("DENIES a SECOND business claiming an already-reserved slug", async () => {
+    // bob already holds the "comercio" slug.
+    await seed((db) =>
+      setDoc(doc(db, "businessSlugs", "comercio"), { businessId: "bizB", ownerId: "bob" }),
+    );
+    // alice tries to create a new business with the same slug + reservation → the reservation set is
+    // an update of an existing doc (allow update: if false) → the whole batch fails.
+    await assertFails(
+      createBusinessWithSlug(asUser("alice"), "alice", "biz2", newBusiness("alice")),
+    );
+  });
+
+  it("DENIES reserving a slug under someone else's ownerId", async () => {
+    await assertFails(
+      setDoc(doc(asUser("alice"), "businessSlugs", "tienda"), {
+        businessId: "bizX",
+        ownerId: "bob",
+      }),
+    );
+  });
+
+  it("DENIES updating an existing reservation (immutable — this is what enforces uniqueness)", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "businessSlugs", "comercio"), { businessId: "bizB", ownerId: "alice" }),
+    );
+    await assertFails(
+      setDoc(doc(asUser("alice"), "businessSlugs", "comercio"), {
+        businessId: "bizOther",
+        ownerId: "alice",
+      }),
+    );
+  });
+
+  it("reservations are publicly readable (the create flow checks a candidate is free)", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "businessSlugs", "comercio"), { businessId: "bizB", ownerId: "alice" }),
+    );
+    await assertSucceeds(getDoc(doc(asAnon(), "businessSlugs", "comercio")));
+  });
+
+  it("ALLOWS the owner to delete their reservation (rollback / page deletion), DENIES a stranger", async () => {
+    await seed((db) =>
+      setDoc(doc(db, "businessSlugs", "comercio"), { businessId: "bizB", ownerId: "alice" }),
+    );
+    await assertFails(deleteDoc(doc(asUser("mallory"), "businessSlugs", "comercio")));
+    await assertSucceeds(deleteDoc(doc(asUser("alice"), "businessSlugs", "comercio")));
   });
 });

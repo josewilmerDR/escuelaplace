@@ -142,7 +142,14 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin() ||
         (isSignedIn() && request.resource.data.ownerId == request.auth.uid &&
-          validBusinessCreate());
+          validBusinessCreate() &&
+          // A unique slug reservation (businessSlugs/{slug}) must be claimed in the SAME write,
+          // pointing back at THIS business (BSRC-5). The reservation is create-only (a 2nd claim of a
+          // held slug is an update → denied), so two businesses can never publish the same
+          // /business/{slug} — the colliding create fails atomically. Requiring it here (getAfter sees
+          // the same-batch reservation) is what makes the uniqueness UNBYPASSABLE: a raw create that
+          // skips the reservation is rejected. Admin (Admin SDK / seed) is exempt — it bypasses rules.
+          getAfter(/databases/$(database)/documents/businessSlugs/$(request.resource.data.slug)).data.businessId == id);
       allow update: if isAdmin() ||
         (isOwnerOrEditor(resource.data) && preservesComputedFields() &&
           validBusinessUpdate());
@@ -784,6 +791,27 @@ service cloud.firestore {
         (!request.resource.data.keys().hasAny(['specialYears']) ||
           (request.resource.data.specialYears is list &&
             request.resource.data.specialYears.size() <= 12));
+    }
+
+    // ── businessSlugs/{slug} ──────────────────────────────────────────────────
+    // A slug-uniqueness reservation: the doc id IS the slug, written in the SAME batch as the
+    // business create (BSRC-5). The public URL /business/{slug} must be globally unique
+    // (getBusinessBySlug resolves a single doc — a duplicate would shadow one profile forever), but
+    // rules can't run a cross-doc uniqueness query. Using the slug as the doc id makes uniqueness a
+    // primitive: the FIRST claim is a create; a SECOND claim of the same slug is an update of an
+    // existing doc → DENIED, so the colliding business create (batched with it, and gated on it via
+    // getAfter above) fails atomically. Read is public (the create flow checks a candidate is free;
+    // ownerId is already public on the world-readable business doc). Immutable once claimed; the
+    // owner/admin may delete it to free the slug (create-rollback, or page deletion).
+    match /businessSlugs/{slug} {
+      allow read: if true;
+      allow create: if isSignedIn() &&
+        request.resource.data.keys().hasOnly(['businessId', 'ownerId']) &&
+        request.resource.data.ownerId == request.auth.uid &&
+        request.resource.data.businessId is string;
+      allow update: if false;
+      allow delete: if isAdmin() ||
+        (isSignedIn() && resource.data.ownerId == request.auth.uid);
     }
 
     // ── categories/{id} ─────────────────────────────────────────────────────
