@@ -34,6 +34,9 @@ const ESCUELAPLACE: CommunityConfig = {
     supporterRelation: "comercios que apoyan a las escuelas",
     heroHeading: "La escuela de tu comunidad y los comercios que la apoyan",
     howItWorksTitle: "¿Cómo funciona escuelaplace?",
+    metaTitle: "escuelaplace — comercios que apoyan a las escuelas de Costa Rica",
+    metaDescription:
+      "Directorio comunitario que conecta comercios locales con escuelas de Costa Rica. Descubre negocios que apoyan a la escuela de tu comunidad.",
   },
   // Every tool kind is offered today; the per-community gating seam (PR 0.5) is a no-op while
   // this lists all of TOOL_TYPES.

@@ -20,3 +20,13 @@ export function getCurrentCommunity(): CommunityConfig {
   const id = process.env.NEXT_PUBLIC_COMMUNITY_ID ?? DEFAULT_COMMUNITY_ID;
   return COMMUNITIES[id] ?? COMMUNITIES[DEFAULT_COMMUNITY_ID];
 }
+
+/**
+ * The capitalized plural of the community's central entity, for nav chrome — "Escuelas" here,
+ * "Iglesias" for a church community. Derived from `copy.entity.plural` so the directory tabs and
+ * bottom-nav label track the community without a separate string.
+ */
+export function communityEntityLabel(): string {
+  const { plural } = getCurrentCommunity().copy.entity;
+  return plural.charAt(0).toUpperCase() + plural.slice(1);
+}

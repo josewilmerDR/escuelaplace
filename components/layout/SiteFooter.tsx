@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getCurrentCommunity } from "@/lib/community";
 
 /**
  * Site footer (app shell, rendered once in the root layout). Intentionally
@@ -8,6 +9,7 @@ import Link from "next/link";
  * component, no interactive parts.
  */
 export function SiteFooter() {
+  const community = getCurrentCommunity();
   return (
     <footer className="mt-auto border-t border-border bg-surface">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-6 py-8 text-sm text-muted sm:flex-row sm:justify-between">
@@ -15,9 +17,9 @@ export function SiteFooter() {
           href="/"
           className="flex items-baseline gap-1 text-lg font-bold tracking-tight text-foreground"
         >
-          escuela
+          {community.wordmark.lead}
           <span className="rounded-md bg-brand-dark px-1.5 text-white">
-            place
+            {community.wordmark.tail}
           </span>
         </Link>
 

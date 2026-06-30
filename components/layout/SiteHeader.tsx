@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { HeaderBrowse } from "@/components/layout/HeaderBrowse";
 import { HeaderCreateCta } from "@/components/layout/HeaderCreateCta";
+import { getCurrentCommunity } from "@/lib/community";
 
 /**
  * Top brand bar (encuentra24 style): solid brand-colored band with the wordmark
@@ -9,6 +10,7 @@ import { HeaderCreateCta } from "@/components/layout/HeaderCreateCta";
  * interactive piece (LoginButton) is a client island.
  */
 export function SiteHeader() {
+  const community = getCurrentCommunity();
   return (
     // Sticky brand band so content scrolls cleanly under it; a soft bottom hairline +
     // small shadow sets it apart from the page without a hard 1px line (depth, not borders).
@@ -21,7 +23,10 @@ export function SiteHeader() {
           href="/"
           className="flex shrink-0 items-baseline gap-1 text-xl font-bold tracking-tight sm:text-2xl"
         >
-          escuela<span className="rounded-md bg-white px-1.5 text-brand-dark">place</span>
+          {community.wordmark.lead}
+          <span className="rounded-md bg-white px-1.5 text-brand-dark">
+            {community.wordmark.tail}
+          </span>
         </Link>
 
         {/* Browse cluster (search + Categorías + Escuelas). A route-aware client island:

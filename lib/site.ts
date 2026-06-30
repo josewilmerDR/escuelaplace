@@ -10,8 +10,10 @@
  * can't fetch and no share preview renders. Set it in apphosting.yaml (currently the custom
  * domain, escuelaplace.com). The fallback is the canonical domain.
  */
+import { getCurrentCommunity } from "@/lib/community";
+
 export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://escuelaplace.com";
+  process.env.NEXT_PUBLIC_SITE_URL ?? getCurrentCommunity().siteUrl;
 
 /** Resolve a root-relative path ("/categories", "/business/x") into an absolute URL. */
 export function absoluteUrl(path: string): string {

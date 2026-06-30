@@ -38,6 +38,10 @@ export interface CommunityCopy {
   heroHeading: string;
   /** "¿Cómo funciona X?" section title (app/page.tsx). */
   howItWorksTitle: string;
+  /** Default document `<title>` (app/layout.tsx metadata.title.default). */
+  metaTitle: string;
+  /** Default meta description (app/layout.tsx metadata.description). */
+  metaDescription: string;
 }
 
 /**

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { communityEntityLabel } from "@/lib/community";
 
 /**
  * The home's top-level section switch: "Escuelas" (the school directory at /) and "Comercios"
@@ -7,7 +8,7 @@ import Link from "next/link";
  * Mirrors <ProfileTabs>' visual language (underline on the active tab), centered.
  */
 const TABS = [
-  { key: "schools", href: "/", label: "Escuelas" },
+  { key: "schools", href: "/", label: communityEntityLabel() },
   { key: "businesses", href: "/businesses", label: "Comercios" },
 ] as const;
 
