@@ -63,6 +63,7 @@ import {
   type SchoolDoc,
 } from "@/types";
 import { isPageManager } from "@/lib/permissions";
+import { DeletePageSection } from "@/components/account/DeletePageSection";
 import type { LoadState } from "@/lib/page-state";
 
 export default function BusinessEditPage() {
@@ -934,6 +935,11 @@ export default function BusinessEditPage() {
           <SavedIndicator show={saved && !dirty} onHide={() => setSaved(false)} />
         </div>
       </div>
+
+      {/* Owner-only (not editors): the irreversible delete of the whole page. */}
+      {(business.ownerId === user?.id || user?.role === "admin") && (
+        <DeletePageSection type="business" id={business.id} name={business.name} />
+      )}
 
       <p className="mt-8 text-sm">
         <BackLink href="/panel">Volver al panel</BackLink>

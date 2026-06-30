@@ -7,6 +7,7 @@
  * buried below the donate form where it read as a per-donation toggle.
  */
 import type { Metadata } from "next";
+import { DataPrivacySection } from "@/components/account/DataPrivacySection";
 import { RecognitionToggle } from "@/components/donors/RecognitionToggle";
 import { PageTitle } from "@/components/ui/PageTitle";
 
@@ -20,6 +21,9 @@ export default function SettingsPage() {
       <div className="mt-8">
         <RecognitionToggle />
       </div>
+
+      {/* Account-wide ARCO surface (Ley 8968): export your data + delete your account. */}
+      <DataPrivacySection />
     </main>
   );
 }

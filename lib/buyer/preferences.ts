@@ -38,6 +38,22 @@ export function readBuyerPreferences(): BuyerPreferences {
   return value;
 }
 
+/**
+ * Forget everything stored about this device/buyer: chosen community, device key and applause
+ * memory. The buyer has no account and no server-side data, so this is their complete "erasure" —
+ * the localStorage counterpart of a registered user deleting their account.
+ */
+export function clearBuyerPreferences(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    cache = { raw: null, value: EMPTY };
+    window.dispatchEvent(new Event(CHANGE_EVENT));
+  } catch {
+    // storage disabled — nothing to clear, ignore.
+  }
+}
+
 /** Persist preferences to localStorage and notify same-tab subscribers. */
 export function writeBuyerPreferences(prefs: BuyerPreferences): void {
   if (typeof window === "undefined") return;

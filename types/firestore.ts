@@ -620,6 +620,36 @@ export interface AuditEvent {
 
 export type AuditEventDoc = AuditEvent & { id: string };
 
+/**
+ * `deletionEvents/{id}` **(fn, append-only, admin-only read)** — the compliance + fraud trail of
+ * every privileged erasure (Ley 8968 cancelation right). Written ONLY by the deletion callables
+ * (Admin SDK); the client can never read or write it. Records WHO erased WHAT and WHEN plus COUNTS
+ * of what cascaded — never a name, amount, or payment proof.
+ */
+export interface DeletionEvent {
+  type: "page_deleted" | "account_deleted";
+  /** uid that triggered the erasure (the owner, the account itself, or an admin). */
+  actorUid: string;
+  /** page_deleted: the page removed. */
+  pageType?: PageType;
+  pageId?: string;
+  pageName?: string;
+  /** page_deleted: an admin deleted someone else's page (moderation), not the owner. */
+  byAdmin?: boolean;
+  /** account_deleted: how the caller's pages were resolved + how many personal records cascaded. */
+  pagesDeleted?: number;
+  pagesTransferred?: number;
+  editorResigned?: number;
+  subscriptions?: number;
+  projectContributions?: number;
+  pageantVotes?: number;
+  orders?: number;
+  reviews?: number;
+  createdAt: Timestamp;
+}
+
+export type DeletionEventDoc = DeletionEvent & { id: string };
+
 // ── donorProfiles/{uid} ──────────────────────────────────────────────────────
 
 /**
