@@ -4,7 +4,8 @@ import Link from "next/link";
  * Site footer (app shell, rendered once in the root layout). Intentionally
  * minimal: its main job is to make the trust/clarity pages reachable — chiefly
  * /about ("cómo funciona"), which otherwise has no entry point — plus the
- * primary browse routes. Server component, no interactive parts.
+ * primary browse routes and the legal pages (/privacy, /terms). Server
+ * component, no interactive parts.
  */
 export function SiteFooter() {
   return (
@@ -40,6 +41,16 @@ export function SiteFooter() {
             <li>
               <Link href="/create" className="hover:text-brand-darker">
                 Crear una página
+              </Link>
+            </li>
+            <li>
+              <Link href="/privacy" className="hover:text-brand-darker">
+                Privacidad
+              </Link>
+            </li>
+            <li>
+              <Link href="/terms" className="hover:text-brand-darker">
+                Términos
               </Link>
             </li>
           </ul>

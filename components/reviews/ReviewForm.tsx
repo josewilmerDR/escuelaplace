@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { LoginButton } from "@/components/auth/LoginButton";
+import { SignInConsent } from "@/components/auth/SignInConsent";
 import { deleteReview, getMyReview, upsertReview } from "@/lib/firestore";
 import { useViewAsVisitor } from "@/lib/view-as";
 import type { UserDoc } from "@/types";
@@ -49,6 +50,7 @@ export function ReviewForm({
         <p className="mb-3 text-muted">Inicia sesión con Google para dejar tu reseña.</p>
         {/* "primary": the default on-brand chip is white-on-white here. */}
         <LoginButton variant="primary" />
+        <SignInConsent className="mt-3" />
       </div>
     );
   }
