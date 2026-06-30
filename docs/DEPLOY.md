@@ -23,7 +23,16 @@ The app is **Next.js (SSR/ISR)** on **Firebase App Hosting**, with the backend
 5. Auth: in Firebase console → Authentication, enable **Google** sign-in and add the
    production domain(s) to **Authorized domains**.
 
-## 1. Backend: rules, indexes, functions
+## 1. Backend: functions & indexes → bootstrap the first admin → rules
+
+Admin authority is anchored on an **unforgeable Auth custom claim** (`request.auth.token.admin`,
+see [ADMIN-BOOTSTRAP.md](./security/ADMIN-BOOTSTRAP.md)). The security rules make admin depend on
+that claim, so the order is **functions first, mint the first admin, rules last**. Skip the
+bootstrap and you ship a working-looking app with **no admin** — and with no admin **no school can
+be verified (its payment methods stay hidden) and no support/order can be confirmed**, so the
+directory is inert. Do 1a → 1b → 1c in order.
+
+### 1a. Build + deploy functions and indexes
 
 From the repo root:
 
@@ -31,27 +40,49 @@ From the repo root:
 # Build functions first (predeploy also does this, but verify locally)
 npm --prefix functions ci && npm --prefix functions run build
 
-firebase deploy --only firestore:rules,firestore:indexes,storage,functions
+firebase deploy --only functions,firestore:indexes
 ```
 
-- `firestore:indexes` — creates the composite indexes (subscriptions, businesses).
-  They may take minutes to build; queries 400 until ready.
-- `functions` — deploys `onSubscriptionWritten`, `onReviewWritten`,
-  `expireSubscriptionsDaily` (Gen 2). The schedule needs Cloud Scheduler (enabled above).
-- `storage` + `firestore:rules` — the proof/reviews rules use `firestore.get()`, so deploy
-  them together.
+- `functions` — `onSubscriptionWritten`, `onReviewWritten`, `expireSubscriptionsDaily`, the admin
+  callables (`grantAdminRole`/`revokeAdminRole`), `reserveRaffleNumbers`, etc. (Gen 2). The daily
+  schedule needs Cloud Scheduler (enabled in step 0).
+- `firestore:indexes` — composite indexes (subscriptions, businesses). They may take minutes to
+  build; matching queries 400 until each shows **"Enabled"** in the console.
 
-> **Order matters for the raffle arbiter.** `raffleOrders` creates are DENIED to clients — the
+### 1b. Bootstrap the FIRST admin — REQUIRED, before the rules deploy
+
+No admin exists yet to call `grantAdminRole`, so mint the first one out-of-band with the Admin SDK.
+Sign in to the production site once with the operator account first (so its `users/{uid}` doc
+exists), then:
+
+```bash
+cd functions
+gcloud auth application-default login            # an account with access to the project
+node scripts/set-admin.mjs josewdr@gmail.com     # grants the `admin` custom claim + mirrors role
+cd ..
+```
+
+Then **sign out and back in** on the site — the script revokes the user's refresh tokens so the new
+claim only takes effect on the next login. Confirm an admin-only action works (the school-verification
+controls appear at `/panel/admin`). Full detail + the post-launch "drop the role fallback" cleanup:
+[ADMIN-BOOTSTRAP.md](./security/ADMIN-BOOTSTRAP.md).
+
+### 1c. Deploy the security rules
+
+`storage` + `firestore:rules` use `firestore.get()` and anchor admin on the claim minted in 1b, so
+deploy them together, **last**:
+
+```bash
+firebase deploy --only firestore:rules,storage
+```
+
+> **Raffle arbiter ordering.** `raffleOrders` creates are DENIED to clients — the
 > `reserveRaffleNumbers` function is the sole creator (it enforces number uniqueness + a per-buyer
-> cap the rules can't). A combined `firebase deploy` doesn't guarantee the function lands before the
-> rules, so on the rollout that first introduces it (or any later change to it), deploy the function
-> FIRST, then the rules — otherwise raffle buying breaks in the gap (no create path):
-> ```bash
-> firebase deploy --only functions:reserveRaffleNumbers
-> firebase deploy --only firestore:rules
-> ```
+> cap the rules can't). The 1a → 1c order already lands the function before the rules; keep that
+> order on any **later change** to the function too (deploy `functions:reserveRaffleNumbers` before
+> `firestore:rules`), or raffle buying breaks in the gap (no create path).
 
-Verify in the console: Functions show all deployed; Firestore → Indexes all "Enabled".
+Verify in the console: Functions all deployed; Firestore → Indexes all **"Enabled"**.
 
 ## 2. App: Firebase App Hosting (Next.js)
 
@@ -105,6 +136,9 @@ provisioned automatically. Then add the final domain to Auth **Authorized domain
 - Home `/` renders the explore feed (SSR) and re-ranks after picking a school.
 - `/search?q=...` returns relevant results.
 - Sign in with Google; create a business and a school page.
+- **Admin (confirms the step-1b bootstrap took):** open `/panel/admin`, verify the school you
+  created; its payment methods become visible. If `/panel/admin` is empty or denies you, the admin
+  claim is not active — re-run step 1b and sign out/in.
 - Subscribe a business to a school (pending) + upload a proof; confirm it as the school;
   verify the proof opens only for the business/school (not anonymous).
 - Leave a review signed in; confirm the average updates (the function recomputed it).
