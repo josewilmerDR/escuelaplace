@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SUBSCRIPTION_UNIT_CRC, TOOL_TYPES } from "@/types";
 import { COMMUNITIES, DEFAULT_COMMUNITY_ID } from "./configs";
-import { getCurrentCommunity } from "./index";
+import { communityEntityLabel, getCurrentCommunity } from "./index";
 
 describe("getCurrentCommunity", () => {
   it("returns the founding community (escuelaplace) by default", () => {
@@ -36,5 +36,22 @@ describe("getCurrentCommunity", () => {
     expect([...getCurrentCommunity().enabledTools].sort()).toEqual(
       [...TOOL_TYPES].sort(),
     );
+  });
+
+  // PR 0.2 wires app/layout.tsx metadata to these; values must equal the prior literals.
+  it("mirrors today's metadata copy exactly", () => {
+    const c = getCurrentCommunity();
+    expect(c.copy.metaTitle).toBe(
+      "escuelaplace — comercios que apoyan a las escuelas de Costa Rica",
+    );
+    expect(c.copy.metaDescription).toBe(
+      "Directorio comunitario que conecta comercios locales con escuelas de Costa Rica. Descubre negocios que apoyan a la escuela de tu comunidad.",
+    );
+  });
+});
+
+describe("communityEntityLabel", () => {
+  it("returns the capitalized entity plural for nav chrome (today: Escuelas)", () => {
+    expect(communityEntityLabel()).toBe("Escuelas");
   });
 });

@@ -18,6 +18,7 @@ import {
   SearchIcon,
   StorefrontIcon,
 } from "@/components/ui/icons";
+import { communityEntityLabel } from "@/lib/community";
 
 // One entry per tab. `match` decides the active (highlighted) state: it covers both the
 // listing route and its public detail pages (e.g. Escuelas stays active on /school/[id])
@@ -38,7 +39,7 @@ const ITEMS = [
   },
   {
     href: "/schools",
-    label: "Escuelas",
+    label: communityEntityLabel(),
     Icon: AcademicCapIcon,
     match: (p: string) => p.startsWith("/school"),
   },

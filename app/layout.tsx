@@ -5,6 +5,7 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { getCurrentCommunity } from "@/lib/community";
 import { SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({
@@ -17,17 +18,19 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// The active community (escuelaplace today) supplies brand/identity; see lib/community.
+const community = getCurrentCommunity();
+
 export const metadata: Metadata = {
   // Absolute base for OG/canonical URLs. Must be the origin the site is actually served from
   // (see SITE_URL) so link-preview scrapers can fetch og:image — a hardcoded not-yet-live
   // domain breaks every share preview.
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "escuelaplace — comercios que apoyan a las escuelas de Costa Rica",
-    template: "%s | escuelaplace",
+    default: community.copy.metaTitle,
+    template: `%s | ${community.brandName}`,
   },
-  description:
-    "Directorio comunitario que conecta comercios locales con escuelas de Costa Rica. Descubre negocios que apoyan a la escuela de tu comunidad.",
+  description: community.copy.metaDescription,
 };
 
 // Mobile viewport config. `viewportFit: "cover"` is the prerequisite that makes
@@ -40,7 +43,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0284c7",
+  themeColor: community.colors.brandDark,
 };
 
 export default function RootLayout({
@@ -50,7 +53,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="es-CR"
+      lang={community.locale}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       {/* suppressHydrationWarning: browser extensions (e.g. ColorZilla's

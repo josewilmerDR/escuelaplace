@@ -20,6 +20,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SearchBar } from "@/components/search/SearchBar";
 import { AcademicCapIcon, StorefrontIcon } from "@/components/ui/icons";
+import { communityEntityLabel } from "@/lib/community";
 
 // Browse destinations, mirrored in the mobile BottomNav. `match` decides the active state from
 // the current path — covering both the listing route and its public detail pages (e.g. Comercios
@@ -35,7 +36,7 @@ const CHIPS = [
   },
   {
     href: "/schools",
-    label: "Escuelas",
+    label: communityEntityLabel(),
     Icon: AcademicCapIcon,
     match: (p: string) => p.startsWith("/school"),
   },
