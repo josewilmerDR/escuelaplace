@@ -45,6 +45,8 @@ import { recentBusinessSupporterIds } from "./ranking";
 import { revalidateBusinessCatalog } from "@/lib/revalidate";
 
 const BUSINESSES = "businesses";
+/** Slug-uniqueness reservations (doc id = slug). Written in the create batch; see uniqueBusinessSlug. */
+const BUSINESS_SLUGS = "businessSlugs";
 
 /**
  * Businesses of a school, ordered by ranking.score (desc). Active only.
@@ -254,6 +256,13 @@ async function uniqueBusinessSlug(name: string): Promise<string> {
   const base = slugify(name) || "comercio";
   for (let n = 1; n < 100; n++) {
     const candidate = n === 1 ? base : `${base}-${n}`;
+    // The reservation collection (businessSlugs/{slug}) is the authoritative held-slug set — a
+    // cheap doc-id GET. Legacy businesses created before BSRC-5 have no reservation, so also fall
+    // back to the businesses-by-slug query for them (best-effort, until backfilled). The reservation
+    // CREATE in createBusinessPage's batch is the hard guarantee against a race; this just picks a
+    // candidate that's free now.
+    const reserved = await getDoc(doc(db, BUSINESS_SLUGS, candidate));
+    if (reserved.exists()) continue;
     const taken = await getDocs(
       query(
         collection(db, BUSINESSES),
@@ -397,6 +406,10 @@ export async function createBusinessPage(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  // Reserve the slug in the SAME atomic batch (BSRC-5). The reservation's create-only rule denies a
+  // 2nd claim of a held slug, and the business-create rule requires this reservation (getAfter), so
+  // two businesses can never publish the same slug — a colliding or reservation-skipping create fails.
+  batch.set(doc(db, BUSINESS_SLUGS, slug), { businessId: ref.id, ownerId: uid });
   linkPageToUser(batch, uid, "business", ref.id);
   await batch.commit();
 
@@ -422,6 +435,7 @@ export async function createBusinessPage(
     } catch (err) {
       const rollback = writeBatch(db);
       rollback.delete(ref);
+      rollback.delete(doc(db, BUSINESS_SLUGS, slug)); // free the reserved slug
       rollback.update(doc(db, "users", uid), {
         managedPages: arrayRemove({ type: "business", id: ref.id, role: "owner" }),
       });
