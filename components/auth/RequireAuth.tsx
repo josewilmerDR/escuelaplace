@@ -11,6 +11,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAuth } from "./AuthProvider";
 import { LoginButton } from "./LoginButton";
+import { SignInConsent } from "./SignInConsent";
 
 // The sign-in wall is shared by the whole panel, but a buyer who lands here from a public
 // "Donar"/"Financiar" CTA is NOT trying to manage pages — telling them to "administrar tus
@@ -59,6 +60,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
         <div className="mt-6 flex justify-center">
           <LoginButton variant="primary" />
         </div>
+        <SignInConsent className="mt-4 text-center" />
       </div>
     );
   }
