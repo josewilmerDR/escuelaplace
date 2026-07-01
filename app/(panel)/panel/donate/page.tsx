@@ -39,8 +39,9 @@ import {
   getVerifiedSchoolPaymentMethods,
   uploadSubscriptionProof,
 } from "@/lib/firestore";
+import { getCurrentCommunity } from "@/lib/community";
 import { formatColones } from "@/lib/format";
-import { SUBSCRIPTION_UNIT_CRC, SUBSCRIPTION_UNITS_MAX } from "@/types";
+import { SUBSCRIPTION_UNITS_MAX } from "@/types";
 import type {
   DonorProfileDoc,
   PaymentMethod,
@@ -84,6 +85,8 @@ function DonateSkeleton() {
 
 function DonateContent() {
   const { user } = useAuth();
+  // Support unit comes from the active community (escuelaplace: SUBSCRIPTION_UNIT_CRC).
+  const { subscriptionUnit } = getCurrentCommunity();
   // The school page's "Donar" button lands here with the school preselected.
   const searchParams = useSearchParams();
   const preselectedSchoolId = searchParams.get("schoolId") ?? "";
@@ -308,7 +311,7 @@ function DonateContent() {
         )}
 
         <Field
-          label={`Cantidad de aportes (cada uno ${formatColones(SUBSCRIPTION_UNIT_CRC)})`}
+          label={`Cantidad de aportes (cada uno ${formatColones(subscriptionUnit)})`}
         >
           <input
             type="number"
@@ -356,7 +359,7 @@ function DonateContent() {
         )}
 
         <TotalRow
-          amount={formatColones(Math.max(1, units) * SUBSCRIPTION_UNIT_CRC)}
+          amount={formatColones(Math.max(1, units) * subscriptionUnit)}
         />
 
         <button
