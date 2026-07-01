@@ -54,6 +54,7 @@ import {
   ref as storageRef,
   uploadBytes,
 } from "firebase/storage";
+import { isToolEnabledForCommunity } from "@/lib/community";
 import { db, storage } from "@/lib/firebase";
 import { formatDate } from "@/lib/format";
 import { safeExternalUrl } from "@/lib/url";
@@ -619,6 +620,13 @@ export async function createTool(
   input: CreateToolInput,
   toolId?: string,
 ): Promise<string> {
+  // Community gate: refuse a kind this community doesn't offer (a no-op today — escuelaplace
+  // enables all of TOOL_TYPES). The picker already hides disabled kinds; this is the write-path
+  // backstop. The real defense-in-depth mirror belongs in firestore.rules / Cloud Functions,
+  // which can't import TS.
+  if (!isToolEnabledForCommunity(input.type)) {
+    throw new Error("Esta herramienta no está disponible.");
+  }
   const config = buildToolConfig(input);
   const contactPhone = input.contactPhone?.trim();
   const contactLabel = input.contactLabel?.trim();

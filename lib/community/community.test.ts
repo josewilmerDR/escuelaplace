@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { SUBSCRIPTION_UNIT_CRC, TOOL_TYPES } from "@/types";
 import { COMMUNITIES, DEFAULT_COMMUNITY_ID } from "./configs";
-import { communityEntityLabel, getCurrentCommunity } from "./index";
+import {
+  communityEntityLabel,
+  getCurrentCommunity,
+  isToolEnabledForCommunity,
+} from "./index";
 
 describe("getCurrentCommunity", () => {
   it("returns the founding community (escuelaplace) by default", () => {
@@ -53,5 +57,13 @@ describe("getCurrentCommunity", () => {
 describe("communityEntityLabel", () => {
   it("returns the capitalized entity plural for nav chrome (today: Escuelas)", () => {
     expect(communityEntityLabel()).toBe("Escuelas");
+  });
+});
+
+describe("isToolEnabledForCommunity", () => {
+  it("enables every tool kind for escuelaplace today (the gating seam is a no-op)", () => {
+    for (const type of TOOL_TYPES) {
+      expect(isToolEnabledForCommunity(type)).toBe(true);
+    }
   });
 });
