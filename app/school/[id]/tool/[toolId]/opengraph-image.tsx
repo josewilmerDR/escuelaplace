@@ -34,6 +34,7 @@ const KIND_EMOJI: Record<string, string> = {
   service: "🧰",
   guided_tour: "📍",
   event: "📅",
+  pageant: "👑",
   other: "✨",
 };
 

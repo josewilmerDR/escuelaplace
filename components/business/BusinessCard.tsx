@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { formatRating } from "@/lib/format";
 import type { BusinessCardData } from "@/types";
 import type { SupportedSchool, SupportTier } from "@/lib/firestore";
 
@@ -149,7 +150,7 @@ export function BusinessCard({
                     ★
                   </span>
                   <span className="sr-only">Calificación:</span>
-                  {business.reviewStats.average.toFixed(1)}
+                  {formatRating(business.reviewStats.average)}
                   <span className="font-normal text-muted">
                     ({business.reviewStats.count})
                   </span>
