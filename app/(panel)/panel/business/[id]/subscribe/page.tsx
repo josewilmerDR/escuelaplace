@@ -37,8 +37,9 @@ import {
   getVerifiedSchoolPaymentMethods,
   uploadSubscriptionProof,
 } from "@/lib/firestore";
+import { getCurrentCommunity } from "@/lib/community";
 import { formatColones } from "@/lib/format";
-import { SUBSCRIPTION_UNIT_CRC, SUBSCRIPTION_UNITS_MAX } from "@/types";
+import { SUBSCRIPTION_UNITS_MAX } from "@/types";
 import type {
   BusinessDoc,
   PaymentMethod,
@@ -76,6 +77,8 @@ function SubscribeSkeleton({ business }: { business: BusinessDoc | null }) {
 export default function BusinessSubscribePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  // Support unit comes from the active community (escuelaplace: SUBSCRIPTION_UNIT_CRC).
+  const { subscriptionUnit } = getCurrentCommunity();
   // Ties the visible "Escuela" group label to the picker (which is not a single <label>).
   const schoolLabelId = useId();
 
@@ -313,7 +316,7 @@ export default function BusinessSubscribePage() {
         )}
 
         <Field
-          label={`Cantidad de aportes (cada uno ${formatColones(SUBSCRIPTION_UNIT_CRC)})`}
+          label={`Cantidad de aportes (cada uno ${formatColones(subscriptionUnit)})`}
         >
           <input
             type="number"
@@ -360,7 +363,7 @@ export default function BusinessSubscribePage() {
         )}
 
         <TotalRow
-          amount={formatColones(Math.max(1, units) * SUBSCRIPTION_UNIT_CRC)}
+          amount={formatColones(Math.max(1, units) * subscriptionUnit)}
         />
 
         <button
