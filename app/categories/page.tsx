@@ -7,6 +7,7 @@ import { PageTitle } from "@/components/ui/PageTitle";
 import { TagIcon, WarningIcon } from "@/components/ui/icons";
 import { pluralizeBusinesses } from "@/lib/format";
 import { getCategories } from "@/lib/firestore";
+import { absoluteUrl } from "@/lib/site";
 import type { CategoryDoc } from "@/types";
 
 /**
@@ -39,18 +40,20 @@ export default async function CategoriesPage() {
   }
 
   // Breadcrumb + item list so search engines understand where this page sits and what it
-  // lists. "<" escaped so category names can't close the script tag. Mirrors the JSON-LD on
-  // /category/[id] so the directory and its listings describe the same shape to crawlers.
+  // lists. URLs are ABSOLUTE (absoluteUrl): Google ignores relative item/url in these
+  // schemas, so a relative breadcrumb yields no rich result. "<" escaped so category names
+  // can't close the script tag. Mirrors the JSON-LD on /category/[id] so the directory and
+  // its listings describe the same shape to crawlers.
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Inicio", item: "/" },
+      { "@type": "ListItem", position: 1, name: "Inicio", item: absoluteUrl("/") },
       {
         "@type": "ListItem",
         position: 2,
         name: "Categorías",
-        item: "/categories",
+        item: absoluteUrl("/categories"),
       },
     ],
   };
@@ -61,7 +64,7 @@ export default async function CategoriesPage() {
       "@type": "ListItem",
       position: i + 1,
       name: c.name,
-      url: `/category/${c.id}`,
+      url: absoluteUrl(`/category/${c.id}`),
     })),
   };
 
