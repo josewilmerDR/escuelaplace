@@ -53,3 +53,6 @@ ui-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# windows/git-bash crash dumps
+*.stackdump
