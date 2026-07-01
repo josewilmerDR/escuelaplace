@@ -12,7 +12,7 @@
  * synchronous (no headers()/async), so it is safe in both. The per-host async variant is a
  * later phase.
  */
-import type { CommunityConfig } from "@/types";
+import type { CommunityConfig, ToolType } from "@/types";
 import { COMMUNITIES, DEFAULT_COMMUNITY_ID } from "./configs";
 
 /** The active community for this deployment. */
@@ -29,4 +29,14 @@ export function getCurrentCommunity(): CommunityConfig {
 export function communityEntityLabel(): string {
   const { plural } = getCurrentCommunity().copy.entity;
   return plural.charAt(0).toUpperCase() + plural.slice(1);
+}
+
+/**
+ * Whether a tool kind may be offered by the active community. Today every community enables all of
+ * TOOL_TYPES, so this is always true; it exists so the create picker (ToolTypeMenu), the write path
+ * (createTool) and — eventually — the rules / Cloud-Functions mirror share ONE gate the day a
+ * community (e.g. a church) drops a kind like `pageant`. See CommunityConfig.enabledTools.
+ */
+export function isToolEnabledForCommunity(type: ToolType): boolean {
+  return getCurrentCommunity().enabledTools.includes(type);
 }

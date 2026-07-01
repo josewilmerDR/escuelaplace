@@ -13,6 +13,7 @@ import Link from "next/link";
 import { ToolTypeCardBody } from "@/components/tools/ToolTypePicker";
 import { Badge } from "@/components/ui/Badge";
 import { cardClass } from "@/components/ui/Card";
+import { isToolEnabledForCommunity } from "@/lib/community";
 import { TOOL_TYPE_LIST } from "@/lib/tools/registry";
 import type { ToolType } from "@/types";
 
@@ -26,7 +27,7 @@ export function ToolTypeMenu({
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {TOOL_TYPE_LIST.map((t) => {
+      {TOOL_TYPE_LIST.filter((t) => isToolEnabledForCommunity(t.key)).map((t) => {
         const count = counts[t.key] ?? 0;
         return (
           <Link

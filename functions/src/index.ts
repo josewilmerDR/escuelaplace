@@ -982,6 +982,8 @@ async function recomputePageantCandidate(
   toolId: string,
   candidateId: string,
 ): Promise<void> {
+  // TODO(community-gating): when a community disables `pageant`, skip this recompute — mirror
+  // CommunityConfig.enabledTools here (functions can't import lib/community). No-op today.
   const ref = db
     .collection(SCHOOLS)
     .doc(schoolId)
@@ -1029,6 +1031,8 @@ async function recomputeCandidatePadrinos(
   toolId: string,
   candidateId: string,
 ): Promise<void> {
+  // TODO(community-gating): skip when the school's community disables `pageant`
+  // (see recomputePageantCandidate). No-op today.
   const ref = db
     .collection(SCHOOLS)
     .doc(schoolId)
@@ -1245,6 +1249,8 @@ async function recomputeCandidateApplause(
   toolId: string,
   candidateId: string,
 ): Promise<void> {
+  // TODO(community-gating): skip when the school's community disables `pageant`
+  // (see recomputePageantCandidate). No-op today.
   const toolRef = db
     .collection(SCHOOLS)
     .doc(schoolId)
