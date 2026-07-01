@@ -10,10 +10,15 @@
  * fires in OTHER tabs, so writes also dispatch a custom event).
  */
 import { useCallback, useSyncExternalStore } from "react";
+import { getCurrentCommunity } from "@/lib/community";
 import type { BuyerPreferences } from "@/types";
 
-const STORAGE_KEY = "escuelaplace.buyer";
-const CHANGE_EVENT = "escuelaplace.buyer.change";
+// Namespaced by community id so two communities sharing a browser (e.g. escuelaplace.com and
+// iglesiaplace.com behind the same CDN) never clobber each other's buyer state. For escuelaplace
+// (id "escuelaplace") this resolves to the historical "escuelaplace.buyer", so existing devices
+// keep their stored community — no orphaned localStorage.
+const STORAGE_KEY = `${getCurrentCommunity().id}.buyer`;
+const CHANGE_EVENT = `${STORAGE_KEY}.change`;
 const EMPTY: BuyerPreferences = {};
 
 // Cache so getSnapshot returns a stable reference while the raw string is unchanged
